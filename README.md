@@ -103,3 +103,15 @@ You can set the following parameters via environment variables.
 - relevant in `run.sh`
     - `P4DPDK_OPTS`: DPDK options for the compiled switch
         - If set, this overrides the parameters given after the first `--` on the command line of `launch.sh`.
+
+## Limitations
+
+The latest release (1607) implements the P4 language version 1.0. We'll support the latest versions when they become stable. Please note that the following language elements are not (fully) supported yet:
+ - calculated/variable length fields
+ - saturating fields
+ - masked field modification
+ - action profiles
+ - parser exceptions
+ - checksums
+ - meters and registers
+ - resubmission and cloning
