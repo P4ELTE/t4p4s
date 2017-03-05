@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import p4_hlir.hlir.p4 as p4
-from utils.hlir import getTypeAndLength, hdr_prefix, fld_prefix, fld_id, format_p4_node 
+from utils.hlir import *
 from utils.misc import addError, addWarning 
 
 def format_state(state):
@@ -21,23 +21,12 @@ def format_state(state):
         #[ return parse_state_${state.name}(pd, buf, tables);
     elif isinstance(state, p4.p4_parser_exception):
         print "Parser exceptions are not supported yet."
-    else:
-        return format_p4_node(state)
+    else: #Control function (parsing is finished)
+        #[ {
+        #[   if(verify_packet(pd)) p4_pe_checksum(pd);
+        #[   ${format_p4_node(state)}
+        #[ }
     return generated_code
-
-def int_to_byte_array(val): # CAUTION: big endian!
-    """
-    :param val: int
-    :rtype:     (int, [int])
-    """
-    nbytes = 0
-    res = []
-    while val > 0:
-        nbytes += 1
-        res.append(int(val % 256))
-        val /= 256
-    res.reverse()
-    return nbytes, res
 
 def get_key_byte_width(branch_on):
     """
@@ -72,6 +61,8 @@ for pe_name, pe in hlir.p4_parser_exceptions.items():
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h" // apply_table_* and action_code_*
 #[
+#[ extern int verify_packet(packet_descriptor_t* pd);
+#[
 #[ void print_mac(uint8_t* v) { printf("%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX\n", v[0], v[1], v[2], v[3], v[4], v[5]); }
 #[ void print_ip(uint8_t* v) { printf("%d.%d.%d.%d\n",v[0],v[1],v[2],v[3]); }
 #[ 
@@ -81,7 +72,9 @@ for pe_name, pe in hlir.p4_parser_exceptions.items():
 #[       (header_descriptor_t) {
 #[         .type = h,
 #[         .pointer = buf,
-#[         .length = header_instance_byte_width[h]
+#[         .length = header_instance_byte_width[h],
+#[         .var_width_field_bitwidth = 0,
+#[         .var_width_field_excess_byte_count = 0
 #[       };
 #[ }
 #[ 
@@ -89,7 +82,7 @@ for pe_name, pe in hlir.p4_parser_exceptions.items():
 for pe_name, pe in pe_dict.items():
     #[ static inline void ${pe_name}(packet_descriptor_t *pd) {
     if pe.return_or_drop == p4.P4_PARSER_DROP:
-        #[ drop(pd);
+        #[ pd->dropped = 1;
     else:
         format_p4_node(pe.return_or_drop)
     #[ }
@@ -122,12 +115,26 @@ for state_name, parse_state in hlir.p4_parse_states.items():
 for state_name, parse_state in hlir.p4_parse_states.items():
     #[ static void parse_state_${state_name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables)
     #[ {
+    #[     uint32_t value32;
+    #[     (void)value32;
     
     for call in parse_state.call_sequence:
         if call[0] == p4.parse_call.extract:
-            header_instance_name = hdr_prefix(call[1].name)
-            #[     extract_header(buf, pd, ${header_instance_name});
-            #[     buf += header_instance_byte_width[${header_instance_name}];
+            hi = call[1] 
+            #[     extract_header(buf, pd, ${hdr_prefix(hi.name)});
+            if isinstance(hi.header_type.length, p4.p4_expression):
+                #[     pd->headers[${hdr_prefix(hi.name)}].length = ${format_expr(resolve_field_ref(hlir, hi, hi.header_type.length))};
+                #[     pd->headers[${hdr_prefix(hi.name)}].var_width_field_bitwidth = pd->headers[${hdr_prefix(hi.name)}].length * 8 - ${sum([f[1] if f[1] != p4.P4_AUTO_WIDTH else 0 for f in hi.header_type.layout.items()])};
+                #[     pd->headers[${hdr_prefix(hi.name)}].var_width_field_excess_byte_count = (pd->headers[${hdr_prefix(hi.name)}].var_width_field_bitwidth) / 8;
+                #[     buf += pd->headers[${hdr_prefix(hi.name)}].length;
+            else:
+                #[     buf += header_instance_byte_width[${hdr_prefix(hi.name)}];
+            for f in hi.fields:
+                if parsed_field(hlir, f):
+                    if f.width <= 32:
+                        #[ EXTRACT_INT32_AUTO(pd, ${fld_id(f)}, value32)
+                        #[ pd->fields.${fld_id(f)} = value32;
+                        #[ pd->fields.attr_${fld_id(f)} = 0;
         elif call[0] == p4.parse_call.set:
             dest_field, src = call[1], call[2]
             if type(src) is int or type(src) is long:
@@ -185,4 +192,3 @@ for state_name, parse_state in hlir.p4_parse_states.items():
 #[ void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables) {
 #[     parse_state_start(pd, pd->data, tables);
 #[ }
-

@@ -18,6 +18,19 @@ import re
 import p4_hlir.hlir.p4 as p4
 from misc import addError
 
+# TODO note that this current implementation is true for all fields modified by at least one primitive action;
+#   this should be refined in the future to reflect the intent of selecting frequently accessed field instances only
+def parsed_field(hlir, field):
+    for fun in userActions(hlir):
+        for call in fun.call_sequence:
+            act = call[0]
+            args = call[1]
+            if act.name in ["modify_field", "add_to_field"]:
+                dst = args[0]
+                src = args[1]
+                if not field.instance.metadata and field.width <= 32 and (dst == field or src == field):
+                    return True
+    return False
 
 def format_p4_node(node):
     if node is None:
@@ -58,6 +71,21 @@ def format_expr(e):
         addError("pretty-printing an expression", "expression type %s is not supported yet"%type(e))
         return ""
 
+def valid_expression(hi):
+    if isinstance(hi, p4.p4_field): hi = hi.instance
+    return p4.p4_expression(None, "valid", hi)
+
+def resolve_field_ref(hlir, hi, exp):
+    if exp.op=="valid": return exp
+    if isinstance(exp.left, p4.p4_expression):
+        resolve_field_ref(hlir, hi, exp.left)
+    elif isinstance(exp.left, str):
+        exp.left = hlir.p4_fields[hi.name + "." + exp.left]
+    if isinstance(exp.right, p4.p4_expression):
+        resolve_field_ref(hlir, hi, exp.right)
+    elif isinstance(exp.right, str):
+        exp.right = hlir.p4_fields[hi.name + "." + exp.right]
+    return exp
 
 
 def hdr_name(name): return re.sub(r'\[([0-9]+)\]', r'_\1', name)
@@ -93,36 +121,46 @@ def field_instance_ids(hlir):
     names = [hdr_name(hi.name)+"_"+fn for hi in header_instances(hlir) for fn,fw in hi.header_type.layout.items()]
     return map(fld_prefix, names)
 
+def variable_width_field_ids(hlir):
+    var_ids = []
+    for hi in header_instances(hlir):
+        field_id = "-1 /* fixed-width header */"
+        for name,length in hi.header_type.layout.items():
+            if length == p4.P4_AUTO_WIDTH:
+                field_id = fld_prefix(hdr_name(hi.name)+"_"+name)
+                break
+        var_ids.append(field_id)
+    return var_ids
+
 def field_offsets(header_type):
     offsets = []
     o = 0
     for name,length in header_type.layout.items():
         offsets.append(o)
-        o += length
+        if length != p4.P4_AUTO_WIDTH:
+            o += length
+        else:
+            fixed_length = sum([f[1] if f[1] != p4.P4_AUTO_WIDTH else 0 for f in header_type.layout.items()])
+            o += (-fixed_length) % 8
     return offsets
 
 def field_mask(bitoffset, bitwidth):
+    if bitwidth == p4.P4_AUTO_WIDTH: return "0x0 /* variable-width field */"
     if bitoffset+bitwidth > 32: return hex(0) # FIXME do something about this
     pos = bitoffset;
     mask = 0;
     while pos < bitoffset + bitwidth:
-        mask |= (1 << pos)
+        d,m = divmod(pos, 8)
+        mask |= (1 << (8*d+7-m))
         pos += 1
     return hex(mask)
 
-
-simplePrimitives = set(["drop", "no_op"])
 # TODO: better condition...
-def notPrimitive(action):
-    return ((action.signature_flags == {}) and (not (action.name in simplePrimitives)))
+def primitive(action):
+    return action.signature_flags != {} and action.name not in ["drop", "no_op"]
 
-def userActions(actions):
-    useractions = []
-    for key in actions.keys():
-        val = actions[key]
-        if notPrimitive(val):
-            useractions += [key]
-    return useractions
+def userActions(hlir):
+    return filter(lambda act: not primitive(act), hlir.p4_actions.values())
 
 def getTypeAndLength(table) : 
    key_length = 0
@@ -141,3 +179,17 @@ def getTypeAndLength(table) :
    else:
       table_type = "LOOKUP_EXACT"
    return (table_type, (key_length+7)/8)
+
+def int_to_byte_array(val): # CAUTION: big endian!
+    """
+    :param val: int
+    :rtype:     (int, [int])
+    """
+    nbytes = 0
+    res = []
+    while val > 0:
+        nbytes += 1
+        res.append(int(val % 256))
+        val /= 256
+    res.reverse()
+    return nbytes, res 

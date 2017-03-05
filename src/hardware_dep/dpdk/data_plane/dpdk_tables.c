@@ -53,6 +53,12 @@ void create_error_text(int socketid, char* table_type, char* error_text)
 
 void create_error(int socketid, char* table_type)
 {
+    if (rte_errno == E_RTE_NO_CONFIG) {
+        create_error_text(socketid, table_type, "function could not get pointer to rte_config structure");
+    }
+    if (rte_errno == E_RTE_SECONDARY) {
+        create_error_text(socketid, table_type, "function was called from a secondary process instance");
+    }
     if (rte_errno == ENOENT) {
         create_error_text(socketid, table_type, "missing entry");
     }
@@ -171,7 +177,7 @@ void
 exact_create(lookup_table_t* t, int socketid)
 {
     char name[64];
-    snprintf(name, sizeof(name), "%s_exact_%d_%d", t->name, socketid, t->instance);
+    snprintf(name, sizeof(name), "%d_exact_%d_%d", t->id, socketid, t->instance);
     struct rte_hash* h = hash_create(socketid, name, t->key_size, rte_hash_crc);
     create_ext_table(t, h, socketid);
 }
@@ -180,7 +186,7 @@ void
 lpm_create(lookup_table_t* t, int socketid)
 {
     char name[64];
-    snprintf(name, sizeof(name), "%s_lpm_%d_%d", t->name, socketid, t->instance);
+    snprintf(name, sizeof(name), "%d_lpm_%d_%d", t->id, socketid, t->instance);
     if(t->key_size <= 4)
         create_ext_table(t, lpm4_create(socketid, name, t->max_size), socketid);
     else if(t->key_size <= 16)
@@ -197,16 +203,6 @@ ternary_create(lookup_table_t* t, int socketid)
 }
 
 // ----------------------------------------------------------------------------
-// SET DEFAULT VALUE
-
-void
-table_setdefault(lookup_table_t* t, uint8_t* value)
-{
-    debug("Default value set for table %s (on socket %d).\n", t->name, t->socketid);
-    t->default_val = copy_to_socket(value, t->val_size, t->socketid);
-}
-
-// ----------------------------------------------------------------------------
 // ADD
 
 static uint8_t* add_index(uint8_t* value, int val_size, int index)
@@ -214,7 +210,7 @@ static uint8_t* add_index(uint8_t* value, int val_size, int index)
     // realloc doesn't work in this case ("invalid old size")
     uint8_t* value2 = malloc(val_size+sizeof(int));
     memcpy(value2, value, val_size);
-    *(value+val_size) = index;
+    *(int*)(value2+val_size) = index;
     return value2;
 }
 
@@ -227,7 +223,7 @@ exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
     if(index < 0)
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
     value = add_index(value, t->val_size, t->counter++);
-    ext->content[index%256] = copy_to_socket(value, t->val_size, t->socketid);
+    ext->content[index%256] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 }
 
 void
@@ -238,7 +234,7 @@ lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value)
     value = add_index(value, t->val_size, t->counter++);
     if(t->key_size <= 4)
     {
-        ext->content[ext->size] = copy_to_socket(value, t->val_size, t->socketid);
+        ext->content[ext->size] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 
         // the rest is zeroed in case of keys smaller then 4 bytes
         uint32_t key32 = 0;
@@ -248,7 +244,7 @@ lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value)
     }
     else if(t->key_size <= 16)
     {
-        ext->content[ext->size] = copy_to_socket(value, t->val_size, t->socketid);
+        ext->content[ext->size] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 
         static uint8_t key128[16];
         memset(key128, 0, 16);
@@ -263,7 +259,18 @@ ternary_add(lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_t* value)
 {
     if(t->key_size == 0) return; // don't add lines to keyless tables
     value = add_index(value, t->val_size, t->counter++);
-    naive_ternary_add(t->table, key, mask, copy_to_socket(value, t->val_size, t->socketid));
+    naive_ternary_add(t->table, key, mask, copy_to_socket(value, t->val_size+sizeof(int), t->socketid));
+}
+
+// ----------------------------------------------------------------------------
+// SET DEFAULT VALUE
+
+void
+table_setdefault(lookup_table_t* t, uint8_t* value)
+{
+    debug("Default value set for table %s (on socket %d).\n", t->name, t->socketid);
+    value = add_index(value, t->val_size, DEFAULT_ACTION_INDEX);
+    t->default_val = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 }
 
 // ----------------------------------------------------------------------------
@@ -290,7 +297,13 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         memcpy(&key32, key, t->key_size);
 
         uint8_t result;
+#if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
+        uint32_t result32;
+        int ret = rte_lpm_lookup(ext->rte_table, key32, &result32);
+        result = (uint8_t)result32;
+#else
         int ret = rte_lpm_lookup(ext->rte_table, key32, &result);
+#endif
         return ret == 0 ? ext->content[result] : t->default_val;
     }
     else if(t->key_size <= 16)

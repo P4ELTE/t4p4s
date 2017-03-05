@@ -31,6 +31,7 @@ struct type_field_list {
 
 typedef struct lookup_table_s {
     char* name;
+    unsigned id;
     uint8_t type;
     uint8_t key_size;
     uint8_t val_size;
@@ -53,6 +54,16 @@ typedef struct counter_s {
     int socketid;
 } counter_t;
 
+typedef struct p4_register_s {
+    char* name;
+    uint8_t width;
+    int size;
+    lock *locks;
+    uint8_t **values;
+} p4_register_t;
+/* /usr/include/x86_64-linux-gnu/sys/types.h:205:13: note: previous declaration of ‘register_t’ was here
+   typedef int register_t __attribute__ ((__mode__ (__word__))); */
+
 typedef struct field_reference_s {
     header_instance_t header;
     int meta;
@@ -62,11 +73,14 @@ typedef struct field_reference_s {
     int bitoffset;
     int byteoffset;
     uint32_t mask;
+    int fixed_width; // Determines whether the field has a fixed width
+    int fixed_pos;   // Determines if the byte offset of the field is fixed or not. (The position is not fixed for fields after a variable width field.)
 } field_reference_t;
 
 typedef struct header_reference_s {
     header_instance_t header_instance;
     int bytewidth;
+    int var_width_field;
 } header_reference_t;
 
 #define field_desc(f) (field_reference_t) \
@@ -78,25 +92,32 @@ typedef struct header_reference_s {
                  .bytecount  = (field_instance_bit_offset[f]+field_instance_bit_width[f]+7)/8, \
                  .bitoffset  = field_instance_bit_offset[f], \
                  .byteoffset = field_instance_byte_offset_hdr[f], \
-                 .mask       = field_instance_mask[f] \
+                 .mask       = field_instance_mask[f], \
+                 .fixed_width= (f != header_instance_var_width_field[field_instance_header[f]]), \
+                 .fixed_pos  = (f <= header_instance_var_width_field[field_instance_header[f]] || header_instance_var_width_field[field_instance_header[f]] == -1), \
                }
 
 #define header_desc(h) (header_reference_t) \
                { \
                  .header_instance = h, \
                  .bytewidth       = header_instance_byte_width[h], \
+                 .var_width_field  = header_instance_var_width_field[h], \
                }
 
 typedef struct header_descriptor_s {
     header_instance_t   type;
     void *              pointer;
     uint32_t            length;
+    int                 var_width_field_bitwidth;
+    int                 var_width_field_excess_byte_count;
 } header_descriptor_t;
 
 typedef struct packet_descriptor_s {
     void *              data;
     header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
+    parsed_fields_t     fields;
     packet *            wrapper;
+    uint8_t             dropped;
 } packet_descriptor_t;
 
 //=============================================================================
@@ -104,6 +125,7 @@ typedef struct packet_descriptor_s {
 
 extern lookup_table_t table_config[];
 extern counter_t counter_config[];
+extern p4_register_t register_config[];
 
 void init_dataplane(packet_descriptor_t* packet, lookup_table_t** tables);
 void handle_packet(packet_descriptor_t* packet, lookup_table_t** tables);

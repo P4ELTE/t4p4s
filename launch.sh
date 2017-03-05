@@ -40,7 +40,7 @@ fi
 
 P4_BASENAME=$(basename ${P4_SOURCE%.*})
 cd ./build/$P4_BASENAME
-make
+make -j
 cd - >/dev/null
 
 echo "-------------------- Starting execution"

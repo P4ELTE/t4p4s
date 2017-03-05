@@ -19,6 +19,7 @@
 
 #include <rte_ether.h>
 #include <rte_ethdev.h>
+#include <rte_ip.h>
 
 struct socket_state state[NB_SOCKETS];
 
@@ -524,6 +525,23 @@ create_counters_on_socket(int socketid)
     }
 }
 
+static void
+create_registers()
+{
+    int i, j;
+    if(register_config == NULL) return;
+    debug("Initializing registers...\n");
+    for(i = 0; i < NB_REGISTERS; i++) {
+        p4_register_t *r = &register_config[i];
+        debug("Initializing register %s...\n", r->name);
+        //r->values = rte_malloc_socket("register", sizeof(uint8_t)*(r->width)*(r->size), 0 /* align */, 0 /* socketid */);
+        r->values = malloc(sizeof(uint8_t)*(r->width)*(r->size));
+        r->locks = rte_malloc_socket("lock", sizeof(rte_spinlock_t)*(r->size), 0 /* align */, 0 /* socketid */);
+        for(j = 0; j < r->size; j++)
+            rte_spinlock_init(&r->locks[j]);
+    }
+}
+
 static int
 init_mem(unsigned nb_mbuf)
 {
@@ -576,6 +594,7 @@ int init_memories()
             create_counters_on_socket(socketid);
         }
 	}
+    create_registers();
 	return 0;
 }
 
@@ -599,6 +618,8 @@ int init_lcore_confs()
     		qconf->state.tables[i] = state[socketid].tables[i][0];
         for(i = 0; i < NB_COUNTERS; i++)
     		qconf->state.counters[i] = state[socketid].counters[i][lcore_id];
+        //for(i = 0; i < NB_REGISTERS; i++)
+        //    qconf->state.registers[i] = &register_config[i];
 	}
 	return 0;
 }
@@ -612,7 +633,7 @@ static void change_replica(int socketid, int tid, int replica) {
         core_socketid = rte_lcore_to_socket_id(lcore_id);
         if(core_socketid != socketid) continue;
         qconf = &lcore_conf[lcore_id];
-   	    qconf->state.tables[tid] = state[socketid].tables[tid][replica]; // TODO should this be atomic?
+        qconf->state.tables[tid] = state[socketid].tables[tid][replica]; // TODO should this be atomic?
         state[socketid].active_replica[tid] = replica;
         //printf("\n\n\nCHANGING REPLICA of TABLE %d: core %d on socket %d now uses replica %d\n\n\n", tid, lcore_id, socketid, replica);
     }
@@ -652,6 +673,22 @@ table_setdefault_promote(int tableid, uint8_t* value) {
 }
 
 void
+read_register(int id, int index, uint8_t* dst) {
+    p4_register_t *r = &register_config[id];
+    rte_spinlock_lock(&r->locks[index]);
+    memcpy(dst, &r->values[index*(r->width)], r->width);
+    rte_spinlock_unlock(&r->locks[index]);
+}
+
+void
+write_register(int id, int index, uint8_t* src) {
+    p4_register_t *r = &register_config[id];
+    rte_spinlock_lock(&r->locks[index]);
+    memcpy(&r->values[index*(r->width)], src, r->width);
+    rte_spinlock_unlock(&r->locks[index]);
+}
+
+void
 increase_counter(int counterid, int index) {
     rte_atomic32_t* aint32;
     struct lcore_conf *conf;
@@ -674,6 +711,15 @@ read_counter(int counterid, int index) {
         cnt += rte_atomic32_read(aint32);
     }
     return cnt;
+}
+
+uint16_t calculate_csum16(const void* buf, uint16_t length) {
+    uint16_t value16 = rte_raw_cksum(buf, length);
+    return value16;
+}
+
+uint32_t packet_length(packet_descriptor_t* pd) {
+    return rte_pktmbuf_pkt_len(pd->wrapper);
 }
 
 uint8_t

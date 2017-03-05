@@ -55,15 +55,18 @@ def header_stack_size():
     return hsarray("unsigned", xs)
 
 def header_instance_byte_width():
-    ws = [str(sum([f[1] for f in hi.header_type.layout.items()])/8) for hi in header_instances(hlir)]
+    ws = [str(hi.header_type.length) if isinstance(hi.header_type.length, int) else "-1 /* variable-width header */" for hi in header_instances(hlir)]
     return harray("int", ws)
 
 def header_instance_is_metadata():
     ms = ["1" if hi.metadata else "0" for hi in header_instances(hlir)]
     return harray("int", ms)
 
+def header_instance_var_width_field():
+    return harray("int", variable_width_field_ids(hlir))
+
 def field_instance_bit_width():
-    ws = [str(f[1]) for hi in header_instances(hlir) for f in hi.header_type.layout.items()]
+    ws = ["-1 /* variable-width field */" if f[1] == p4.P4_AUTO_WIDTH else str(f[1]) for hi in header_instances(hlir) for f in hi.header_type.layout.items()]
     return farray("int", ws)
 
 def field_instance_bit_offset():
@@ -91,6 +94,16 @@ fc = len(field_instance_ids(hlir))
 
 #[ #ifndef __HEADER_INFO_H__
 #[ #define __HEADER_INFO_H__
+#[
+#[ #define MODIFIED 1
+#[
+#[ typedef struct parsed_fields_s {
+for f in hlir.p4_fields.values():
+    if parsed_field(hlir, f):
+        if f.width <= 32:
+            #[ uint32_t ${fld_id(f)};
+            #[ uint8_t attr_${fld_id(f)};
+#[ } parsed_fields_t;
 #[ 
 #[ #define HEADER_INSTANCE_COUNT ${hc}
 #[ #define HEADER_STACK_COUNT ${sc}
@@ -103,6 +116,7 @@ fc = len(field_instance_ids(hlir))
 #[ typedef enum field_instance_e field_instance_t;
 #[ ${ header_instance_byte_width() }
 #[ ${ header_instance_is_metadata() }
+#[ ${ header_instance_var_width_field() }
 #[ ${ field_instance_bit_width() }
 #[ ${ field_instance_bit_offset() }
 #[ ${ field_instance_byte_offset_hdr() }

@@ -8,7 +8,8 @@ header_type ethernet_t {
 
 header_type ipv4_t {
     fields {
-        versionIhl : 8;
+        version : 4;
+        ihl : 4;
         diffserv : 8;
         totalLen : 16;
         identification : 16;
@@ -22,7 +23,8 @@ header_type ipv4_t {
 }
 
 field_list ipv4_checksum_list {
-        ipv4.versionIhl;
+        ipv4.version;
+        ipv4.ihl;
         ipv4.diffserv;
         ipv4.totalLen;
         ipv4.identification;
@@ -46,6 +48,54 @@ calculated_field ipv4.hdrChecksum {
     update ipv4_checksum if(valid(ipv4));
 }
 
+header_type tcp_t {
+    fields {
+        srcPort : 16;
+        dstPort : 16;
+        seqNo : 32;
+        ackNo : 32;
+        dataOffset : 4;
+        res : 4;
+        flags : 8;
+        window : 16;
+        checksum : 16;
+        urgentPtr : 16;
+    }
+}
+
+field_list tcp_checksum_list {
+        ipv4.srcAddr;
+        ipv4.dstAddr;
+        8'0;
+        ipv4.protocol;
+        ipv4.totalLen;
+        /* -20 to complement the missing ipv4 length subtraction */
+        16'0xffeb;
+        tcp.srcPort;
+        tcp.dstPort;
+        tcp.seqNo;
+        tcp.ackNo;
+        tcp.dataOffset;
+        tcp.res;
+        tcp.flags;
+        tcp.window;
+        tcp.urgentPtr;
+        payload;
+}
+
+field_list_calculation tcp_checksum {
+    input {
+        tcp_checksum_list;
+    }
+    algorithm : csum16;
+    output_width : 16;
+}
+
+calculated_field tcp.checksum {
+    verify tcp_checksum if(valid(tcp));
+    update tcp_checksum if(valid(tcp));
+}
+
 parser start {
     return parse_ethernet;
 }
@@ -64,8 +114,20 @@ parser parse_ethernet {
 
 header ipv4_t ipv4;
 
+#define IP_PROT_TCP 0x06
+
 parser parse_ipv4 {
     extract(ipv4);
+    return select(ipv4.protocol) {
+        IP_PROT_TCP : parse_tcp;
+        default : ingress;
+    }
+}
+
+header tcp_t tcp;
+
+parser parse_tcp {
+    extract(tcp);
     return ingress;
 }
 

@@ -1,0 +1,421 @@
+{
+    "add_header" :
+    {
+	"num_args" : 1,
+	"args" : ["header"],
+	"properties" : {
+	    "header": {
+		"type" : ["header_instance"],
+		"access" : "write"
+	    }
+	}
+    },
+    "remove_header" :
+    {
+	"num_args" : 1,
+	"args" : ["header"],
+	"properties" : {
+	    "header": {
+		"type" : ["header_instance"],
+		"access" : "write"
+	    }
+	}
+    },
+    "copy_header" :
+    {
+	"num_args" : 2,
+	"args" : ["dst_header", "src_header"],
+	"properties" : {
+	    "dst_header" : {
+		"type" : ["header_instance"],
+		"access" : "write"
+	    },
+	    "src_header" : {
+		"type" : ["header_instance"],
+		"access" : "read"
+	    }
+	}
+    },
+    "modify_field" :
+    {
+	"num_args" : 3,
+	"args" : ["dst", "src", "mask"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "src" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    },
+	    "mask" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst",
+		"optional" : true
+	    }
+	}
+    },
+    "register_read" :
+    {
+	"num_args" : 3,
+	"args" : ["dst", "reg", "idx"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "reg" : {
+		"type" : ["register"],
+		"access" : "read"
+	    },
+	    "idx" : {
+		"type" : ["int", "table_entry_data", "field"],
+		"access" : "read",
+		"data_width" : 32
+	    }
+	}
+    },
+    "register_write" :
+    {
+	"num_args" : 3,
+	"args" : ["reg", "idx", "src"],
+	"properties" : {
+	    "reg" : {
+		"type" : ["register"],
+		"access" : "write"
+	    },
+	    "idx" : {
+		"type" : ["int", "table_entry_data", "field"],
+		"access" : "read",
+		"data_width" : 32
+	    },
+	    "src" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "reg"
+	    }
+	}
+    },
+    "add_to_field" :
+    {
+	"num_args" : 2,
+	"args" : ["field", "value"],
+	"properties" : {
+	    "field" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "value" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    }
+	}
+    },
+    "add" :
+    {
+	"num_args" : 3,
+	"args" : ["field", "value1", "value2"],
+	"properties" : {
+	    "field" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "value1" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    },
+	    "value2" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    }
+	}
+    },
+    "subtract_from_field" :
+    {
+	"num_args" : 2,
+	"args" : ["field", "value"],
+	"properties" : {
+	    "field" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "value" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    }
+	}
+    },
+    "subtract" :
+    {
+	"num_args" : 3,
+	"args" : ["field", "value1", "value2"],
+	"properties" : {
+	    "field" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "value1" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    },
+	    "value2" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "field"
+	    }
+	}
+    },
+    "generate_digest" :
+    {
+        "num_args" : 2,
+        "args" : ["receiver", "field_list"],
+        "properties" : {
+            "receiver" : {
+                "type" : ["int", "table_entry_data"],
+                "access" : "write",
+                "data_width" : "standard_metadata.clone_spec"
+            },
+            "field_list" : {
+                "type" : ["field_list"],
+                "access" : "read",
+                "optional" : true
+            }
+        }
+    },
+    "clone_ingress_pkt_to_egress" :
+    {
+	"num_args" : 2,
+	"args" : ["clone_spec", "field_list"],
+	"properties" : {
+	    "clone_spec" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "write",
+		"data_width" : "standard_metadata.clone_spec"
+	    },
+	    "field_list" : {
+		"type" : ["field_list"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    },
+    "clone_egress_pkt_to_egress" :
+    {
+	"num_args" : 2,
+	"args" : ["clone_spec", "field_list"],
+	"properties" : {
+	    "clone_spec" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "write",
+		"data_width" : "standard_metadata.clone_spec"
+	    },
+	    "field_list" : {
+		"type" : ["field_list"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    },
+    "resubmit" :
+    {
+	"num_args" : 1,
+	"args" : ["field_list"],
+	"properties" : {
+	    "field_list" : {
+		"type" : ["field_list"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    },
+    "modify_field_with_hash_based_offset":
+    {
+	"num_args" : 4,
+	"args" : ["dst", "base", "hash", "size"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "base" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    },
+	    "hash" : {
+		"type" : ["field_list_calculation"],
+		"access" : "read"
+	    },
+	    "size" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    }
+	}
+    },
+    "no_op":
+    {
+	"num_args" : 0,
+	"args" : [],
+	"properties" : {
+	}
+    },
+    "drop":
+    {
+	"num_args" : 0,
+	"args" : [],
+	"properties" : {
+	}
+    },
+    "count":
+    {
+	"num_args" : 2,
+	"args" : ["counter_ref", "index"],
+	"properties" : {
+	    "counter_ref" : {
+		"type" : ["counter"],
+		"access" : "write"
+	    },
+	    "index" : {
+		"type" : ["int", "table_entry_data", "field"],
+		"access" : "read",
+		"data_width" : 32
+	    }
+	}
+    },
+    "truncate":
+    {
+	"num_args" : 1,
+	"args" : ["length"],
+	"properties" : {
+	    "length" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : 32
+	    }
+	}
+    },
+    "execute_meter":
+    {
+	"num_args" : 3,
+	"args" : ["meter_ref", "index", "field"],
+	"properties" : {
+	    "meter_ref" : {
+		"type" : ["meter"],
+		"access" : "write"
+	    },
+	    "index" : {
+		"type" : ["int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : 32
+	    },
+	    "field" : {
+		"type" : ["field"],
+		"access" : "write"
+	    }
+	}
+    },
+    "bit_xor" :
+    {
+	"num_args" : 3,
+	"args" : ["dst", "src", "src"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "src" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    },
+	    "src1" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    }
+	}
+    },
+    "bit_or" :
+    {
+	"num_args" : 3,
+	"args" : ["dst", "src", "src"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "src" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    },
+	    "src1" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    }
+	}
+    },
+    "bit_and" :
+    {
+	"num_args" : 3,
+	"args" : ["dst", "src", "src"],
+	"properties" : {
+	    "dst" : {
+		"type" : ["field"],
+		"access" : "write"
+	    },
+	    "src" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    },
+	    "src1" : {
+		"type" : ["field", "int", "table_entry_data"],
+		"access" : "read",
+		"data_width" : "dst"
+	    }
+	}
+    },
+    "push":
+    {
+	"num_args" : 2,
+	"args" : ["header_stack", "count"],
+	"properties" : {
+	    "header_stack" : {
+		"type" : ["header_instance"],
+		"access" : "write"
+	    },
+	    "count" : {
+		"type" : ["int"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    },
+    "pop":
+    {
+	"num_args" : 2,
+	"args" : ["header_stack", "count"],
+	"properties" : {
+	    "header_stack" : {
+		"type" : ["header_instance"],
+		"access" : "write"
+	    },
+	    "count" : {
+		"type" : ["int"],
+		"access" : "read",
+		"optional" : true
+	    }
+	}
+    }
+}

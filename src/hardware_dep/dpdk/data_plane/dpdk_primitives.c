@@ -83,7 +83,7 @@ void no_op()
 {
 }
 
-void drop(packet_descriptor_t* p)
+void resubmit(packet_descriptor_t* p)
 {
     // TODO
 }

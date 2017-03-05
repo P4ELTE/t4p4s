@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from utils.misc import addError, addWarning
 from utils.hlir import getTypeAndLength
 import p4_hlir.hlir.p4_stateful as p4_stateful
 
@@ -23,6 +24,7 @@ for table in hlir.p4_tables.values():
     table_type, key_length = getTypeAndLength(table)
     #[ {
     #[  .name= "${table.name}",
+    #[  .id = TABLE_${table.name},
     #[  .type = ${table_type},
     #[  .key_size = ${key_length},
     #[  .val_size = sizeof(struct ${table.name}_action),
@@ -45,5 +47,20 @@ for counter in hlir.p4_counters.values():
         #[ .size = 1,
     #[  .min_width = ${32 if counter.min_width is None else counter.min_width},
     #[  .saturating = ${1 if counter.saturating else 0}
+    #[ },
+#[ };
+
+#[ p4_register_t register_config[NB_REGISTERS] = {
+for register in hlir.p4_registers.values():
+    if register.binding is not None:
+        addWarning("", "direct and static registers currently treated as plain registers, no optimization occurs")
+        continue
+    if register.layout is not None:
+        addError("", "registers with custom layouts are not supported yet")
+        continue
+    #[ {
+    #[  .name= "${register.name}",
+    #[  .size = ${register.instance_count},
+    #[  .width = ${(register.width+7)/8},
     #[ },
 #[ };

@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-Wall -pthread -std=c99
 LIB=
 
-all: test_messages test_backend dpdk_controller dpdk_l3_controller dpdk_l3-full_controller
+all: test_messages test_backend dpdk_controller dpdk_l3_controller dpdk_l3-full_controller dpdk_l2_l3_controller dpdk_nat_controller netpaxos_controller
 
 test_messages:
 	$(CC) $(CFLAGS) $(LIB) sock_helpers.c fifo.c threadpool.c ctrl_plane_backend.c handlers.c messages.c test_messages.c -o test_messages
@@ -19,8 +19,15 @@ dpdk_l3_controller:
 dpdk_l3-full_controller:
 	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l3-full_controller.c -o dpdk_l3-full_controller
 
+dpdk_l2_l3_controller:
+	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l2_l3_controller.c -o dpdk_l2_l3_controller
 
+dpdk_nat_controller:
+	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_nat_controller.c -o dpdk_nat_controller
+
+netpaxos_controller:
+	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c netpaxos_controller.c -o netpaxos_controller
 
 clean:
-	rm -f test_messages test_backend dpdk_controller dpdk_l3_controller dpdk_l3-full_controller
+	rm -f test_messages test_backend dpdk_controller dpdk_l3_controller dpdk_l3-full_controller dpdk_l2_l3_controller dpdk_nat_controller netpaxos_controller
 

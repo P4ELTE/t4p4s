@@ -330,28 +330,33 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
      rte_pktmbuf_free(m);
 }
 
-#define EXTRACT_EGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/6) & /*mask*/0x7fc) >> /*bitoffset*/2
-#define EXTRACT_INGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/0) & /*mask*/0x1ff) >> /*bitoffset*/0
+#define EXTRACT_EGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_egress_port) 
+
+
+#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_ingress_port)
+
 
 /* Enqueue a single packet, and send burst if queue is filled */
 static inline int
 send_packet(packet_descriptor_t* pd)
 {
-    int port = EXTRACT_EGRESSPORT(pd);
-    int inport = EXTRACT_INGRESSPORT(pd);
+    if (pd->dropped) {
+        debug("  :::: DROPPING\n");
+    } else {
+        int port = EXTRACT_EGRESSPORT(pd);
+        int inport = EXTRACT_INGRESSPORT(pd);
 
+        uint32_t lcore_id = rte_lcore_id();
 
-    uint32_t lcore_id = rte_lcore_id();
+        debug("  :::: EGRESSING\n");
+        debug("    :: deparsing headers\n");
+        debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
 
-    debug("  :::: EGRESSING\n");
-    debug("    :: deparsing headers\n");
-    debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
-
-    if (port==100)
-        dpdk_bcast_packet((struct rte_mbuf *)pd->wrapper, inport, lcore_id);
-    else
-        dpdk_send_packet((struct rte_mbuf *)pd->wrapper, port, lcore_id);
-
+        if (port==100)
+            dpdk_bcast_packet((struct rte_mbuf *)pd->wrapper, inport, lcore_id);
+        else
+            dpdk_send_packet((struct rte_mbuf *)pd->wrapper, port, lcore_id);
+    }
     return 0;
 }
 

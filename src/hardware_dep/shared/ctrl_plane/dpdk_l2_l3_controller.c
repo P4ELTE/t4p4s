@@ -28,8 +28,6 @@ void fill_smac_table(uint8_t port, uint8_t mac[6])
 	struct p4_header* h;
 	struct p4_add_table_entry* te;
 	struct p4_action* a;
-/*	struct p4_action_parameter* ap;
-	struct p4_field_match_header* fmh;*/
 	struct p4_field_match_exact* exact;
 
 	h = create_p4_header(buffer, 0, 2048);
@@ -54,7 +52,7 @@ void fill_smac_table(uint8_t port, uint8_t mac[6])
 
 void fill_dmac_table(uint8_t port, uint8_t mac[6])
 {
-    char buffer[2048]; /* TODO: ugly */
+    char buffer[2048];
     struct p4_header* h;
     struct p4_add_table_entry* te;
     struct p4_action* a;
@@ -63,7 +61,7 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
 
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
-	strcpy(te->table_name, "dmac");
+    strcpy(te->table_name, "dmac");
 
     exact = add_p4_field_match_exact(te, 2048);
     strcpy(exact->header.name, "ethernet.dstAddr");
@@ -71,18 +69,18 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
     exact->length = 6*8+0;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "_nop");
+    strcpy(a->description.name, "forward");
 	
-	ap = add_p4_action_parameter(h, a, 2048);	
-	strcpy(ap->name, "port");
-	memcpy(ap->bitmap, &port, 1);
-	ap->length = 1*8+0;
+    ap = add_p4_action_parameter(h, a, 2048);	
+    strcpy(ap->name, "port");
+    memcpy(ap->bitmap, &port, 1);
+    ap->length = 1*8+0;
 
     netconv_p4_header(h);
     netconv_p4_add_table_entry(te);
     netconv_p4_field_match_exact(exact);
     netconv_p4_action(a);
-	netconv_p4_action_parameter(ap);
+    netconv_p4_action_parameter(ap);
 
     send_p4_msg(c, buffer, 2048);
 }
@@ -121,7 +119,7 @@ void dhf(void* b) {
 
 void set_default_action_smac()
 {
-	char buffer[2048]; /* TODO: ugly */
+	char buffer[2048];
 	struct p4_header* h;
 	struct p4_set_default_action* sda;
 	struct p4_action* a;
@@ -145,7 +143,7 @@ void set_default_action_smac()
 
 void set_default_action_dmac()
 {
-	char buffer[2048]; /* TODO: ugly */
+	char buffer[2048];
 	struct p4_header* h;
 	struct p4_set_default_action* sda;
 	struct p4_action* a;
@@ -167,6 +165,61 @@ void set_default_action_dmac()
 	send_p4_msg(c, buffer, sizeof(buffer));
 }
 
+void set_default_action_dmac_classifier()
+{
+	char buffer[2048];
+	struct p4_header* h;
+	struct p4_set_default_action* sda;
+	struct p4_action* a;
+	struct p4_action_parameter* ap;
+	uint8_t mode = 0; //L2FWD
+
+	printf("Generate set_default_action message for table dmac_classifier\n");
+	
+	h = create_p4_header(buffer, 0, sizeof(buffer));
+
+	sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
+	strcpy(sda->table_name, "dmac_classifier");
+
+	a = &(sda->action);
+	strcpy(a->description.name, "set_fwd_mode");
+	ap = add_p4_action_parameter(h, a, 2048);
+	strcpy(ap->name, "mode");
+	memcpy(ap->bitmap, &mode, 1);
+	ap->length = 1*8+0;
+
+
+	netconv_p4_header(h);
+	netconv_p4_set_default_action(sda);
+	netconv_p4_action(a);
+	netconv_p4_action_parameter(ap);
+
+	send_p4_msg(c, buffer, sizeof(buffer));
+}
+
+void set_default_action_send_frame()
+{
+	char buffer[2048];
+	struct p4_header* h;
+	struct p4_set_default_action* sda;
+	struct p4_action* a;
+
+	printf("Generate set_default_action message for table send_frame\n");
+	
+	h = create_p4_header(buffer, 0, sizeof(buffer));
+
+	sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
+	strcpy(sda->table_name, "send_frame");
+
+	a = &(sda->action);
+	strcpy(a->description.name, "_nop");
+
+	netconv_p4_header(h);
+	netconv_p4_set_default_action(sda);
+	netconv_p4_action(a);
+
+	send_p4_msg(c, buffer, sizeof(buffer));
+}
 
 void fill_ipv4_lpm_table(uint8_t ip[4], uint32_t nhgrp)
 {
@@ -206,20 +259,20 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint32_t nhgrp)
     send_p4_msg(c, buffer, 2048);
 }
 
-void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_t dmac[6])
+void fill_ipv4_forward_table(uint32_t nhgroup, uint8_t dmac[6])
 {
     char buffer[2048]; /* TODO: ugly */
     struct p4_header* h;
     struct p4_add_table_entry* te;
     struct p4_action* a;
-    struct p4_action_parameter* ap, *ap2, *ap3;
+    struct p4_action_parameter* ap;
     struct p4_field_match_exact* exact;
 
-    printf("nexthops\n");
+    printf("Fill table ipv4_forward...\n");
 
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
-    strcpy(te->table_name, "nexthops");
+    strcpy(te->table_name, "ipv4_forward");
 
     exact = add_p4_field_match_exact(te, 2048);
     strcpy(exact->header.name, "routing_metadata.nhgroup");
@@ -227,13 +280,13 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
     exact->length = 4*8+0;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "forward");
+    strcpy(a->description.name, "l3forward");
 
     ap = add_p4_action_parameter(h, a, 2048);	
     strcpy(ap->name, "dmac");
     memcpy(ap->bitmap, dmac, 6);
     ap->length = 6*8+0;
-    ap2 = add_p4_action_parameter(h, a, 2048);	
+/*    ap2 = add_p4_action_parameter(h, a, 2048);	
     strcpy(ap2->name, "smac");
     memcpy(ap2->bitmap, smac, 6);
     ap2->length = 6*8+0;
@@ -243,35 +296,114 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
     ap3->bitmap[0] = port;
     ap3->bitmap[1] = 0;
     ap3->length = 2*8+0;
+*/
+    netconv_p4_header(h);
+    netconv_p4_add_table_entry(te);
+    netconv_p4_field_match_exact(exact);
+    netconv_p4_action(a);
+    netconv_p4_action_parameter(ap);
+    //netconv_p4_action_parameter(ap2);
+    //netconv_p4_action_parameter(ap3);
+
+    send_p4_msg(c, buffer, 2048);
+}
+
+void fill_send_frame_table(uint8_t port, uint8_t smac[6])
+{
+    char buffer[2048]; /* TODO: ugly */
+    struct p4_header* h;
+    struct p4_add_table_entry* te;
+    struct p4_action* a;
+    struct p4_action_parameter* ap;
+    struct p4_field_match_exact* exact;
+
+    printf("Fill table send_frame...\n");
+
+    h = create_p4_header(buffer, 0, 2048);
+    te = create_p4_add_table_entry(buffer,0,2048);
+    strcpy(te->table_name, "send_frame");
+
+    exact = add_p4_field_match_exact(te, 2048);
+    strcpy(exact->header.name, "standard_metadata.egress_port");
+    memcpy(exact->bitmap, &port, 8);
+    exact->length = 1*8+0;
+
+    a = add_p4_action(h, 2048);
+    strcpy(a->description.name, "rewrite_mac");
+
+    ap = add_p4_action_parameter(h, a, 2048);	
+    strcpy(ap->name, "smac");
+    memcpy(ap->bitmap, smac, 6);
+    ap->length = 6*8+0;
 
     netconv_p4_header(h);
     netconv_p4_add_table_entry(te);
     netconv_p4_field_match_exact(exact);
     netconv_p4_action(a);
     netconv_p4_action_parameter(ap);
-    netconv_p4_action_parameter(ap2);
-    netconv_p4_action_parameter(ap3);
+
+    send_p4_msg(c, buffer, 2048);
+}
+
+
+
+void fill_dmac_classifier_table(uint8_t dmac[6], int8_t mode)
+{
+    char buffer[2048]; /* TODO: ugly */
+    struct p4_header* h;
+    struct p4_add_table_entry* te;
+    struct p4_action* a;
+    struct p4_action_parameter* ap;
+    struct p4_field_match_exact* exact;
+
+    printf("Fill table dmac_classifier...\n");
+
+    h = create_p4_header(buffer, 0, 2048);
+    te = create_p4_add_table_entry(buffer,0,2048);
+    strcpy(te->table_name, "dmac_classifier");
+
+    exact = add_p4_field_match_exact(te, 2048);
+    strcpy(exact->header.name, "ethernet.dstAddr");
+    memcpy(exact->bitmap, dmac, 6);
+    exact->length = 6*8+0;
+    a = add_p4_action(h, 2048);
+    strcpy(a->description.name, "set_fwd_mode");
+    ap = add_p4_action_parameter(h, a, 2048);
+    strcpy(ap->name, "mode");
+    memcpy(ap->bitmap, &mode, 1);
+    ap->length = 1*8+0;
+
+    netconv_p4_header(h);
+    netconv_p4_add_table_entry(te);
+    netconv_p4_field_match_exact(exact);
+    netconv_p4_action(a);
+    netconv_p4_action_parameter(ap);
 
     send_p4_msg(c, buffer, 2048);
 }
 
 uint32_t ip_array[MAX_IPS];
+uint8_t nhgrp_array[MAX_IPS];
 int ip_count = -1;
 
 int read_ip_prefixes_from_file(char *filename) {
 	FILE *f;
 	char line[100];
+	int nhgrp = 0;
 
 	f = fopen(filename, "r");
 	if (f == NULL) return -1;
 
 	while (fgets(line, sizeof(line), f)) {
 		line[strlen(line)-1] = '\0';
+		strtok(line,",");
+		nhgrp = atoi(strtok(NULL,","));
 		if (inet_pton(AF_INET, line, &(ip_array[++ip_count])) != 1) { /*TODO: check if it is in big-endian or not!!!*/
 			printf("%s is not an ip address.\n",line);
 			fclose(f);
 			return -1;
 		}
+		nhgrp_array[ip_count] = nhgrp;
 	}
 
 	fclose(f);
@@ -280,34 +412,54 @@ int read_ip_prefixes_from_file(char *filename) {
 
 void init_simple() {
     set_default_action_smac();
-	set_default_action_dmac();
+    set_default_action_dmac();
+    set_default_action_dmac_classifier();
+    set_default_action_send_frame();
     
-	uint8_t ip[4] = {10,0,99,99};
-	uint8_t mac[6] = {0xd2, 0x69, 0x0f, 0xa8, 0x39, 0x9c};
-    uint8_t smac[6] = {0xd2, 0x69, 0x0f, 0x00, 0x00, 0x9c};
-	uint8_t port = 15;
+    uint8_t ip[4] = {10,0,99,99};
+    uint8_t mac[6] = {0xd2, 0x69, 0x0f, 0xa8, 0x39, 0x9c};
+  //  uint8_t smac[6] = {0xd2, 0x69, 0x0f, 0x00, 0x00, 0x9c};
+    uint8_t local_mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+    //uint8_t port = 1;
     uint32_t nhgrp = 0;
 
-	fill_ipv4_lpm_table(ip, nhgrp);
-    fill_nexthops_table(nhgrp, port, smac, mac);
+    fill_ipv4_lpm_table(ip, nhgrp);
+    fill_ipv4_forward_table(nhgrp, mac);
+    fill_dmac_classifier_table(local_mac, 1);
+    fill_send_frame_table(1, local_mac);
+ //   local_mac[5] = 0x02;
+ //   fill_dmac_classifier_table(local_mac, 1);
+    //fill_send_frame_table(2, local_mac);
+
+
 }
 
 void init_complex() {
     set_default_action_smac();
-	set_default_action_dmac();
+    set_default_action_dmac();
+    set_default_action_dmac_classifier();
+    set_default_action_send_frame();
     
-	uint8_t mac[6] = {0xd2, 0x69, 0x0f, 0xa8, 0x39, 0x9c};
-    uint8_t smac[6] = {0xd2, 0x69, 0x0f, 0x00, 0x00, 0x9c};
-	uint8_t port = 1;
-    uint32_t nhgrp = 0;
-	int i=0;
+    uint8_t mac[6] = {0xd2, 0x69, 0x0f, 0xa8, 0x39, 0x01};
+//    uint8_t smac[6] = {0xd2, 0x69, 0x0f, 0x00, 0x00, 0x9c};
+    uint8_t local_mac[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+    //uint8_t port = 1;
+    //uint32_t nhgrp = 0;
+    int i=0;
 
-	for (;i<=ip_count;++i) {
-		/* Delegate routing table entries */
-		fill_ipv4_lpm_table((uint8_t*)&(ip_array[i]), nhgrp);
-	}
+    for (;i<=ip_count;++i) {
+   	/* Delegate routing table entries */
+	fill_ipv4_lpm_table((uint8_t*)&(ip_array[i]), nhgrp_array[i]);
+    }
 
-    fill_nexthops_table(nhgrp, port, smac, mac);
+    fill_ipv4_forward_table(0, mac);
+    mac[5] = 0x02;
+    fill_ipv4_forward_table(1, mac);
+    fill_dmac_classifier_table(local_mac, 1);
+    fill_send_frame_table(1, local_mac);
+    local_mac[5] = 0x02;
+    fill_dmac_classifier_table(local_mac, 1);
+    fill_send_frame_table(2, local_mac);
 
 }
 

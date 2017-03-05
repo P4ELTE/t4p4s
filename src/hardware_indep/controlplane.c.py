@@ -31,7 +31,8 @@ for table in hlir.p4_tables.values():
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
 #[
 
-#[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
+if len(hlir.p4_tables.values())>0:
+    #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
 
 for table in hlir.p4_tables.values():
     table_type, key_length = getTypeAndLength(table)
@@ -97,7 +98,7 @@ for table in hlir.p4_tables.values():
             #[ uint8_t* ${name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[${j}])->bitmap;
             #[ memcpy(action.${action.name}_params.${name}, ${name}, ${(length+7)/8});
         #[     debug("Reply from the control plane arrived.\n");
-        #[     debug("Addig new entry to ${table.name} with action ${action.name}\n");
+        #[     debug("Adding new entry to ${table.name} with action ${action.name}\n");
         #[     ${table.name}_add(
         for m in table.match_fields:
             match_field, match_type, match_mask = m

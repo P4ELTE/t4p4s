@@ -113,8 +113,9 @@ struct lcore_rx_queue {
 
 struct lcore_state {
     // pointers to the containing socket's instance
-    lookup_table_t * tables   [NB_TABLES];
-    counter_t      * counters [NB_COUNTERS];
+    lookup_table_t * tables    [NB_TABLES];
+    counter_t      * counters  [NB_COUNTERS];
+    // p4_register_t  * registers [NB_REGISTERS];
 };
 
 struct socket_state {
@@ -122,6 +123,7 @@ struct socket_state {
     lookup_table_t * tables         [NB_TABLES][NB_REPLICA];
     int              active_replica [NB_TABLES];
     counter_t      * counters       [NB_COUNTERS][RTE_MAX_LCORE];
+    // p4_register_t  * registers      [NB_REGISTERS];
 };
 
 struct lcore_conf {
