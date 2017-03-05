@@ -36,7 +36,8 @@ def get_key_byte_width(branch_on):
     key_width = 0
     for switch_ref in branch_on:
         if type(switch_ref) is p4.p4_field:
-            key_width += (switch_ref.width+7)/8
+            if not is_vwf(switch_ref): #Variable width field in parser return select statement is not supported
+                key_width += (switch_ref.width+7)/8
         elif type(switch_ref) is tuple:
             key_width += max(4, (switch_ref[1] + 7) / 8)
     return key_width
@@ -66,18 +67,6 @@ for pe_name, pe in hlir.p4_parser_exceptions.items():
 #[ void print_mac(uint8_t* v) { printf("%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX\n", v[0], v[1], v[2], v[3], v[4], v[5]); }
 #[ void print_ip(uint8_t* v) { printf("%d.%d.%d.%d\n",v[0],v[1],v[2],v[3]); }
 #[ 
-#[ static void
-#[ extract_header(uint8_t* buf, packet_descriptor_t* pd, header_instance_t h) {
-#[     pd->headers[h] =
-#[       (header_descriptor_t) {
-#[         .type = h,
-#[         .pointer = buf,
-#[         .length = header_instance_byte_width[h],
-#[         .var_width_field_bitwidth = 0,
-#[         .var_width_field_excess_byte_count = 0
-#[       };
-#[ }
-#[ 
 
 for pe_name, pe in pe_dict.items():
     #[ static inline void ${pe_name}(packet_descriptor_t *pd) {
@@ -86,6 +75,20 @@ for pe_name, pe in pe_dict.items():
     else:
         format_p4_node(pe.return_or_drop)
     #[ }
+
+for hi_name, hi in hlir.p4_header_instances.items():
+    hi_prefix = hdr_prefix(hi.name)
+    #[ static void
+    #[ extract_header_${hi}(uint8_t* buf, packet_descriptor_t* pd) {
+    #[     pd->headers[${hi_prefix}].pointer = buf;
+    if isinstance(hi.header_type.length, p4.p4_expression):
+        #[     uint32_t hdr_length = ${format_expr(resolve_field_ref(hlir, hi, hi.header_type.length))};
+        #[     pd->headers[${hi_prefix}].length = hdr_length;
+        #[     pd->headers[${hi_prefix}].var_width_field_bitwidth = hdr_length * 8 - ${sum([f[1] if f[1] != p4.P4_AUTO_WIDTH else 0 for f in hi.header_type.layout.items()])};
+        #[     if(hdr_length > ${hi.header_type.max_length}) //TODO: is this the correct place for the check
+        #[         p4_pe_header_too_long(pd);
+    #[ }
+    #[ 
 
 for state_name, parse_state in hlir.p4_parse_states.items():
     #[ static void parse_state_${state_name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables);
@@ -98,13 +101,16 @@ for state_name, parse_state in hlir.p4_parse_states.items():
         for switch_ref in branch_on:
             if type(switch_ref) is p4.p4_field:
                 field_instance = switch_ref
-                byte_width = (field_instance.width + 7) / 8
-                if byte_width <= 4:
-                    #[ EXTRACT_INT32_BITS(pd, ${fld_id(field_instance)}, *(uint32_t*)key)
-                    #[ key += sizeof(uint32_t);
+                if is_vwf(field_instance):
+                    addError("generating build_key_" + state_name, "Variable width field '" + str(field_instance) + "' in parser '" + state_name + "' return select statement is not supported")
                 else:
-                    #[ EXTRACT_BYTEBUF(pd, ${fld_id(field_instance)}, key)
-                    #[ key += ${byte_width};
+                    byte_width = (field_instance.width + 7) / 8
+                    if byte_width <= 4:
+                        #[ EXTRACT_INT32_BITS(pd, ${fld_id(field_instance)}, *(uint32_t*)key)
+                        #[ key += sizeof(uint32_t);
+                    else:
+                        #[ EXTRACT_BYTEBUF(pd, ${fld_id(field_instance)}, key)
+                        #[ key += ${byte_width};
             elif type(switch_ref) is tuple:
                 #[     uint8_t* ptr;
                 offset, width = switch_ref
@@ -121,14 +127,8 @@ for state_name, parse_state in hlir.p4_parse_states.items():
     for call in parse_state.call_sequence:
         if call[0] == p4.parse_call.extract:
             hi = call[1] 
-            #[     extract_header(buf, pd, ${hdr_prefix(hi.name)});
-            if isinstance(hi.header_type.length, p4.p4_expression):
-                #[     pd->headers[${hdr_prefix(hi.name)}].length = ${format_expr(resolve_field_ref(hlir, hi, hi.header_type.length))};
-                #[     pd->headers[${hdr_prefix(hi.name)}].var_width_field_bitwidth = pd->headers[${hdr_prefix(hi.name)}].length * 8 - ${sum([f[1] if f[1] != p4.P4_AUTO_WIDTH else 0 for f in hi.header_type.layout.items()])};
-                #[     pd->headers[${hdr_prefix(hi.name)}].var_width_field_excess_byte_count = (pd->headers[${hdr_prefix(hi.name)}].var_width_field_bitwidth) / 8;
-                #[     buf += pd->headers[${hdr_prefix(hi.name)}].length;
-            else:
-                #[     buf += header_instance_byte_width[${hdr_prefix(hi.name)}];
+            #[     extract_header_${hi}(buf, pd);
+            #[     buf += pd->headers[${hdr_prefix(hi.name)}].length;
             for f in hi.fields:
                 if parsed_field(hlir, f):
                     if f.width <= 32:
@@ -167,7 +167,7 @@ for state_name, parse_state in hlir.p4_parse_states.items():
                 continue
             if type(branch_case) is int:
                 value = branch_case
-                value_len, l = int_to_byte_array(value)
+                value_len, l = int_to_big_endian_byte_array(value)
                 #[     uint8_t ${value_name}[${value_len}] = {
                 for c in l:
                     #[         ${c},

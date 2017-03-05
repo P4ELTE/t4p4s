@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import *
+from utils.json2hlir import json2hlir
 
 from subprocess import call
 
@@ -173,18 +174,34 @@ def main():
         print("Usage: %s p4_file [compiler_files_dir] [generated_dir]" % (os.path.basename(__file__)))
         sys.exit(1)
 
-    p4_path, compiler_files_path, desugared_path, generated_path = setup_paths()
+    filepath, compiler_files_path, desugared_path, generated_path = setup_paths()
 
-    if os.path.isfile(p4_path) is False:
-        print("FILE NOT FOUND: %s" % p4_path)
+    if os.path.isfile(filepath) is False:
+        print("FILE NOT FOUND: %s" % filepath)
         sys.exit(1)
 
-    hlir = HLIR(p4_path)
-    build_hlir(hlir)
+    _, ext = os.path.splitext(filepath)
+    if ext == '.p4':
+        hlir = HLIR(filepath)
+        success = build_hlir(hlir)
+    elif ext == '.json':
+        hlir = json2hlir(filepath)
+        success = True
+    else:
+        print("EXTENSION NOT SUPPORTED: %s" % ext)
+        sys.exit(1)
+
+    if not success:
+        print("P4 compilation failed for file %s" % (os.path.basename(__file__)))
+        sys.exit(1)
 
     generate_all_in_dir(compiler_files_path, desugared_path, generated_path, hlir)
    
     showErrors()
     showWarnings()
+
+    global errors
+    if len(errors) > 0:
+	sys.exit(1)
 
 main()

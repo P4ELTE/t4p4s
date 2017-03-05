@@ -73,8 +73,8 @@ typedef struct field_reference_s {
     int bitoffset;
     int byteoffset;
     uint32_t mask;
-    int fixed_width; // Determines whether the field has a fixed width
-    int fixed_pos;   // Determines if the byte offset of the field is fixed or not. (The position is not fixed for fields after a variable width field.)
+    int fixed_width;     // Determines whether the field has a fixed width
+    uint8_t* byte_addr;  // Pointer to the byte containing the first bit of the field in the packet
 } field_reference_t;
 
 typedef struct header_reference_s {
@@ -83,21 +83,27 @@ typedef struct header_reference_s {
     int var_width_field;
 } header_reference_t;
 
-#define field_desc(f) (field_reference_t) \
+#define FIELD_FIXED_WIDTH(f) (f != header_instance_var_width_field[field_instance_header[f]])
+#define FIELD_FIXED_POS(f)   (f <= header_instance_var_width_field[field_instance_header[f]] || header_instance_var_width_field[field_instance_header[f]] == -1)
+
+#define FIELD_DYNAMIC_BITWIDTH(pd, f) (FIELD_FIXED_WIDTH(f) ? field_instance_bit_width[f] : (pd)->headers[field_instance_header[f]].var_width_field_bitwidth)
+#define FIELD_DYNAMIC_BYTEOFFSET(pd, f) (field_instance_byte_offset_hdr[f] + (FIELD_FIXED_POS(f) ? 0 : ((pd)->headers[field_instance_header[f]].var_width_field_bitwidth / 8)))
+
+#define field_desc(pd, f) (field_reference_t) \
                { \
                  .header     = field_instance_header[f], \
                  .meta       = header_instance_is_metadata[field_instance_header[f]], \
-                 .bitwidth   = field_instance_bit_width[f], \
-                 .bytewidth  = (field_instance_bit_width[f]+7)/8, \
-                 .bytecount  = (field_instance_bit_offset[f]+field_instance_bit_width[f]+7)/8, \
+                 .bitwidth   =   FIELD_DYNAMIC_BITWIDTH(pd, f), \
+                 .bytewidth  =  (FIELD_DYNAMIC_BITWIDTH(pd, f) + 7) / 8, \
+                 .bytecount  = ((FIELD_DYNAMIC_BITWIDTH(pd, f) + 7 + field_instance_bit_offset[f]) / 8), \
                  .bitoffset  = field_instance_bit_offset[f], \
-                 .byteoffset = field_instance_byte_offset_hdr[f], \
+                 .byteoffset = FIELD_DYNAMIC_BYTEOFFSET(pd, f), \
                  .mask       = field_instance_mask[f], \
-                 .fixed_width= (f != header_instance_var_width_field[field_instance_header[f]]), \
-                 .fixed_pos  = (f <= header_instance_var_width_field[field_instance_header[f]] || header_instance_var_width_field[field_instance_header[f]] == -1), \
+                 .fixed_width= FIELD_FIXED_WIDTH(f), \
+                 .byte_addr  = (((uint8_t*)(pd)->headers[field_instance_header[f]].pointer)+(FIELD_DYNAMIC_BYTEOFFSET(pd, f))), \
                }
 
-#define header_desc(h) (header_reference_t) \
+#define header_info(h) (header_reference_t) \
                { \
                  .header_instance = h, \
                  .bytewidth       = header_instance_byte_width[h], \
@@ -109,7 +115,6 @@ typedef struct header_descriptor_s {
     void *              pointer;
     uint32_t            length;
     int                 var_width_field_bitwidth;
-    int                 var_width_field_excess_byte_count;
 } header_descriptor_t;
 
 typedef struct packet_descriptor_s {

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import p4_hlir.hlir.p4 as p4
-from utils.hlir import fld_prefix, fld_id, getTypeAndLength 
+from utils.hlir import fld_prefix, fld_id, getTypeAndLength, is_vwf
 
 def match_type_order(t):
     if t is p4.p4_match_type.P4_MATCH_EXACT:   return 0
@@ -39,7 +39,7 @@ for table in hlir.p4_tables.values():
     #[ void
     #[ ${table.name}_add(
     for match_field, match_type, match_mask in table.match_fields:
-        byte_width = (match_field.width+7)/8
+        byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
         #[ uint8_t ${fld_id(match_field)}[${byte_width}],
         ###if match_type is p4_match_type.P4_MATCH_EXACT:
         if match_type is p4.p4_match_type.P4_MATCH_TERNARY:
@@ -52,15 +52,16 @@ for table in hlir.p4_tables.values():
     sortedfields = sorted(table.match_fields, key=lambda field: match_type_order(field[1]))
     k = 0
     for match_field, match_type, match_mask in sortedfields:
-        byte_width = (match_field.width+7)/8
+        byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
         #[ memcpy(key+${k}, ${fld_id(match_field)}, ${byte_width});
         k += byte_width;
     if table_type == "LOOKUP_LPM":
         #[ uint8_t prefix_length = 0;
         for match_field, match_type, match_mask in table.match_fields:
-            byte_width = (match_field.width+7)/8
+            byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
             if match_type is p4.p4_match_type.P4_MATCH_EXACT:
-                #[ prefix_length += ${match_field.width};
+                #Variable width fields are not supported
+                #[ prefix_length += ${match_field.width if not is_vwf(match_field) else 0};
             if match_type is p4.p4_match_type.P4_MATCH_LPM:
                 #[ prefix_length += ${fld_id(match_field)}_prefix_length;
         #[ int c, d;
@@ -69,7 +70,7 @@ for table in hlir.p4_tables.values():
         #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action);
     if table_type == "LOOKUP_EXACT":
         for match_field, match_type, match_mask in table.match_fields:
-            byte_width = (match_field.width+7)/8
+            byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
         #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action);
     #[ }
     #[

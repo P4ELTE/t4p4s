@@ -16,23 +16,15 @@
 
 #include <rte_byteorder.h>
 
-// Returns a pointer (uint8_t*) to the byte containing the first bit of the given field in the packet
-#define FIELD_BYTE_ADDR(pd, fd) (fd.fixed_pos ? (((uint8_t*)(pd)->headers[fd.header].pointer)+fd.byteoffset) :\
-        (((uint8_t*)(pd)->headers[fd.header].pointer)+(fd.byteoffset + (pd)->headers[fd.header].var_width_field_excess_byte_count)))
+#define FIELD_BITCOUNT(pd, field) (field_desc(pd, field).bitwidth + field_desc(pd, field).bitoffset)
 
-#define FIELD_BITWIDTH(pd, field) (field_desc(field).fixed_width ? field_desc(field).bitwidth : (pd)->headers[field_desc(field).header].var_width_field_bitwidth)
-#define FIELD_BITCOUNT(pd, field) (FIELD_BITWIDTH(pd, field) + field_desc(field).bitoffset)
-
-#define FIELD_BYTEWIDTH(pd, field) ((FIELD_BITWIDTH(pd, field) + 7) / 8)
-#define FIELD_BYTECOUNT(pd, field) ((FIELD_BITCOUNT(pd, field) + 7) / 8)
-
-#define FIELD_MASK(pd, field) (field_desc(field).fixed_width ? field_desc(field).mask : \
-    rte_cpu_to_be_32((0xffffffff << (32 - FIELD_BITCOUNT(pd, field))) & (0xffffffff >> field_desc(field).bitoffset)))
+#define FIELD_MASK(pd, field) (field_desc(pd, field).fixed_width ? field_desc(pd, field).mask : \
+    rte_cpu_to_be_32((0xffffffff << (32 - FIELD_BITCOUNT(pd, field))) & (0xffffffff >> field_desc(pd, field).bitoffset)))
 
 #define FIELD_BYTES(pd, field) ( \
-     FIELD_BYTECOUNT(pd, field) == 1 ? (*(uint8_t*) FIELD_BYTE_ADDR(pd, field_desc(field))) : \
-    (FIELD_BYTECOUNT(pd, field) == 2 ? (*(uint16_t*)FIELD_BYTE_ADDR(pd, field_desc(field))) : \
-                                       (*(uint32_t*)FIELD_BYTE_ADDR(pd, field_desc(field))) ) )
+     field_desc(pd, field).bytecount == 1 ? (*(uint8_t*)  field_desc(pd, field).byte_addr) : \
+    (field_desc(pd, field).bytecount == 2 ? (*(uint16_t*) field_desc(pd, field).byte_addr) : \
+                                            (*(uint32_t*) field_desc(pd, field).byte_addr) ) )
 
 #define FIELD_MASKED_BYTES(pd, field) (FIELD_BYTES(pd, field) & FIELD_MASK(pd, field))
 
@@ -42,7 +34,9 @@
 
 // Modifies a field in the packet by the given source and length [ONLY BYTE ALIGNED]
 #define MODIFY_BYTEBUF_BYTEBUF(pd, dstfield, src, srclen) { \
-    memcpy(FIELD_BYTE_ADDR(pd, field_desc(dstfield)), src, srclen); \
+    /*TODO: If the src contains a signed negative value, than the following memset is incorrect*/ \
+    memset(field_desc(pd, dstfield).byte_addr, 0, field_desc(pd, dstfield).bytewidth - srclen); \
+    memcpy(field_desc(pd, dstfield).byte_addr + (field_desc(pd, dstfield).bytewidth - srclen), src, srclen); \
 }
 
 // Modifies a field in the packet by the given source and length (byte conversion when necessary) [MAX 4 BYTES]
@@ -56,65 +50,65 @@
 // Modifies a field in the packet by a uint32_t value (no byteorder conversion) [MAX 4 BYTES]
 // assuming `uint32_t res32' is in the scope
 #define MODIFY_INT32_INT32_BITS(pd, dstfield, value32) { \
-    if(FIELD_BYTECOUNT(pd, dstfield) == 1) \
+    if(field_desc(pd, dstfield).bytecount == 1) \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | (value32 << (8 - FIELD_BITCOUNT(pd, dstfield)) & FIELD_MASK(pd, dstfield)); \
-    else if(FIELD_BYTECOUNT(pd, dstfield) == 2) \
+    else if(field_desc(pd, dstfield).bytecount == 2) \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | \
                 (value32 &  BITS_MASK1(pd, dstfield)) | \
-               ((value32 & (BITS_MASK3(pd, dstfield) >> (16 - FIELD_BITWIDTH(pd, dstfield)))) << (16 - FIELD_BITWIDTH(pd, dstfield))); \
+               ((value32 & (BITS_MASK3(pd, dstfield) >> (16 - field_desc(pd, dstfield).bitwidth))) << (16 - field_desc(pd, dstfield).bitwidth)); \
     else \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | \
                 (value32 &  BITS_MASK1(pd, dstfield)) | \
-               ((value32 & (BITS_MASK2(pd, dstfield) >> field_desc(dstfield).bitoffset)) << field_desc(dstfield).bitoffset) | \
-               ((value32 & (BITS_MASK3(pd, dstfield) >> (FIELD_BYTECOUNT(pd, dstfield) * 8 - FIELD_BITWIDTH(pd, dstfield)))) << (FIELD_BYTECOUNT(pd, dstfield) * 8 - FIELD_BITWIDTH(pd, dstfield))); \
-    memcpy(FIELD_BYTE_ADDR(pd, field_desc(dstfield)), &res32, FIELD_BYTECOUNT(pd, dstfield)); \
+               ((value32 & (BITS_MASK2(pd, dstfield) >> field_desc(pd, dstfield).bitoffset)) << field_desc(pd, dstfield).bitoffset) | \
+               ((value32 & (BITS_MASK3(pd, dstfield) >> (field_desc(pd, dstfield).bytecount * 8 - field_desc(pd, dstfield).bitwidth))) << (field_desc(pd, dstfield).bytecount * 8 - field_desc(pd, dstfield).bitwidth)); \
+    memcpy(field_desc(pd, dstfield).byte_addr, &res32, field_desc(pd, dstfield).bytecount); \
 }
 
 // Modifies a field in the packet by a uint32_t value with byte conversion (always) [MAX 4 BYTES]
 // assuming `uint32_t res32' is in the scope
 #define MODIFY_INT32_INT32_HTON(pd, dstfield, value32) { \
-    if(FIELD_BYTECOUNT(pd, dstfield) == 1) \
+    if(field_desc(pd, dstfield).bytecount == 1) \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | ((value32 << (8 - FIELD_BITCOUNT(pd, dstfield))) & FIELD_MASK(pd, dstfield)); \
-    else if(FIELD_BYTECOUNT(pd, dstfield) == 2) \
+    else if(field_desc(pd, dstfield).bytecount == 2) \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | (rte_cpu_to_be_16(value32 << (16 - FIELD_BITCOUNT(pd, dstfield))) & FIELD_MASK(pd, dstfield)); \
     else \
         res32 = (FIELD_BYTES(pd, dstfield) & ~FIELD_MASK(pd, dstfield)) | (rte_cpu_to_be_32(value32 << (32 - FIELD_BITCOUNT(pd, dstfield))) & FIELD_MASK(pd, dstfield)); \
-    memcpy(FIELD_BYTE_ADDR(pd, field_desc(dstfield)), &res32, FIELD_BYTECOUNT(pd, dstfield)); \
+    memcpy(field_desc(pd, dstfield).byte_addr, &res32, field_desc(pd, dstfield).bytecount); \
 }
 
 // Modifies a field in the packet by a uint32_t value with byte conversion when necessary [MAX 4 BYTES]
 // assuming `uint32_t res32' is in the scope
 #define MODIFY_INT32_INT32_AUTO(pd, dstfield, value) { \
-    if(field_desc(dstfield).meta) MODIFY_INT32_INT32_BITS(pd, dstfield, value) else MODIFY_INT32_INT32_HTON(pd, dstfield, value) \
+    if(field_desc(pd, dstfield).meta) MODIFY_INT32_INT32_BITS(pd, dstfield, value) else MODIFY_INT32_INT32_HTON(pd, dstfield, value) \
 }
 
 //TODO: This should be simplified or separated into multiple macros
 // Gets the value of a field
-#define GET_INT32_AUTO(pd, field) (field_desc(field).meta ? \
-    (FIELD_BYTECOUNT(pd, field) == 1 ? (FIELD_MASKED_BYTES(pd, field) >> (8 - FIELD_BITCOUNT(pd, field))) : \
+#define GET_INT32_AUTO(pd, field) (field_desc(pd, field).meta ? \
+    (field_desc(pd, field).bytecount == 1 ? (FIELD_MASKED_BYTES(pd, field) >> (8 - FIELD_BITCOUNT(pd, field))) : \
                                         ((FIELD_BYTES(pd, field) & BITS_MASK1(pd, field)) | \
-                                        ((FIELD_BYTES(pd, field) & BITS_MASK2(pd, field)) >> field_desc(field).bitoffset) | \
-                                        ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (FIELD_BYTECOUNT(pd, field) * 8 - FIELD_BITWIDTH(pd, field))))) :\
+                                        ((FIELD_BYTES(pd, field) & BITS_MASK2(pd, field)) >> field_desc(pd, field).bitoffset) | \
+                                        ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (field_desc(pd, field).bytecount * 8 - field_desc(pd, field).bitwidth)))) :\
     (rte_be_to_cpu_32(FIELD_MASKED_BYTES(pd, field)) >> (32 - FIELD_BITCOUNT(pd, field))))
 
 // Extracts a field to the given uint32_t variable (no byteorder conversion) [MAX 4 BYTES]
 #define EXTRACT_INT32_BITS(pd, field, dst) { \
-    if(FIELD_BYTECOUNT(pd, field) == 1) \
+    if(field_desc(pd, field).bytecount == 1) \
         dst = FIELD_MASKED_BYTES(pd, field) >> (8 - FIELD_BITCOUNT(pd, field)); \
-    else if(FIELD_BYTECOUNT(pd, field) == 2) \
+    else if(field_desc(pd, field).bytecount == 2) \
         dst = (FIELD_BYTES(pd, field) & BITS_MASK1(pd, field)) | \
-             ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (16 - FIELD_BITWIDTH(pd, field))); \
+             ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (16 - field_desc(pd, field).bitwidth)); \
     else \
         dst = (FIELD_BYTES(pd, field) & BITS_MASK1(pd, field)) | \
-             ((FIELD_BYTES(pd, field) & BITS_MASK2(pd, field)) >> field_desc(field).bitoffset) | \
-             ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (FIELD_BYTECOUNT(pd, field) * 8 - FIELD_BITWIDTH(pd, field))); \
+             ((FIELD_BYTES(pd, field) & BITS_MASK2(pd, field)) >> field_desc(pd, field).bitoffset) | \
+             ((FIELD_BYTES(pd, field) & BITS_MASK3(pd, field)) >> (field_desc(pd, field).bytecount * 8 - field_desc(pd, field).bitwidth)); \
 }
 
 // Extracts a field to the given uint32_t variable with byte conversion (always) [MAX 4 BYTES]
 #define EXTRACT_INT32_NTOH(pd, field, dst) { \
-    if(FIELD_BYTECOUNT(pd, field) == 1) \
+    if(field_desc(pd, field).bytecount == 1) \
         dst =                  FIELD_MASKED_BYTES(pd, field)  >> (8  - FIELD_BITCOUNT(pd, field)); \
-    else if(FIELD_BYTECOUNT(pd, field) == 2) \
+    else if(field_desc(pd, field).bytecount == 2) \
         dst = rte_be_to_cpu_16(FIELD_MASKED_BYTES(pd, field)) >> (16 - FIELD_BITCOUNT(pd, field)); \
     else \
         dst = rte_be_to_cpu_32(FIELD_MASKED_BYTES(pd, field)) >> (32 - FIELD_BITCOUNT(pd, field)); \
@@ -122,12 +116,12 @@
 
 // Extracts a field to the given uint32_t variable with byte conversion when necessary [MAX 4 BYTES]
 #define EXTRACT_INT32_AUTO(pd, field, dst) { \
-    if(field_desc(field).meta) EXTRACT_INT32_BITS(pd, field, dst) else EXTRACT_INT32_NTOH(pd, field, dst) \
+    if(field_desc(pd, field).meta) EXTRACT_INT32_BITS(pd, field, dst) else EXTRACT_INT32_NTOH(pd, field, dst) \
 }
 
 // Extracts a field to the given destination [ONLY BYTE ALIGNED]
 #define EXTRACT_BYTEBUF(pd, field, dst) { \
-    memcpy(dst, FIELD_BYTE_ADDR(pd, field_desc(field)), FIELD_BYTEWIDTH(pd, field)); \
+    memcpy(dst, field_desc(pd, field).byte_addr, field_desc(pd, field).bytewidth); \
 }
 
 #endif // DPDK_PRIMITIVES_H

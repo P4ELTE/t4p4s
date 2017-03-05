@@ -85,6 +85,12 @@ fi
 # Compile the controller
 cd $CTRL_PLANE_DIR
 make -j $CONTROLLER
+ERROR_CODE=$?
+if [ "$ERROR_CODE" -ne 0 ]; then
+    echo Controller compilation failed with error code $ERROR_CODE
+    exit 1
+fi
+
 cd - >/dev/null
 
 # Stop all running controllers

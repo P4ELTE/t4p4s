@@ -18,10 +18,10 @@
 #include "data_plane_data.h"
 #include "dataplane.h"
 
-#ifdef NDEBUG
-#define debug(M, ...)
-#else
+#ifdef P4DPDK_DEBUG
 #define debug(M, ...) fprintf(stderr, "[DEBUG] " M "", ##__VA_ARGS__)
+#else
+#define debug(M, ...)
 #endif
 
 typedef struct packet_descriptor_s packet_descriptor_t;

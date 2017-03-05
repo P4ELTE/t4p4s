@@ -19,7 +19,10 @@ header_type ipv4_t {
         hdrChecksum : 16;
         srcAddr : 32;
         dstAddr: 32;
+        options: *;
     }
+    length : ihl * 4;
+    max_length : 60;
 }
 
 field_list ipv4_checksum_list {
@@ -33,6 +36,7 @@ field_list ipv4_checksum_list {
         ipv4.protocol;
         ipv4.srcAddr;
         ipv4.dstAddr;
+        ipv4.options;
 }
 
 field_list_calculation ipv4_checksum {
@@ -60,7 +64,10 @@ header_type tcp_t {
         window : 16;
         checksum : 16;
         urgentPtr : 16;
+        options : *;
     }
+    length : dataOffset * 4;
+    max_length : 60;
 }
 
 field_list tcp_checksum_list {
@@ -80,6 +87,7 @@ field_list tcp_checksum_list {
         tcp.flags;
         tcp.window;
         tcp.urgentPtr;
+        tcp.options;
         payload;
 }
 

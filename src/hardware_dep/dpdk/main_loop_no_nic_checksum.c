@@ -44,25 +44,28 @@ fake_incoming_ipv4_packet()
 {
     struct rte_mbuf *p = rte_pktmbuf_alloc(fakemempool);
 
-    /*
-    char* payload = rte_pktmbuf_prepend(p, 54);
-    str2bytes("1703030031ec1d1a9a53b460e99ca9f397165069c993db9c7ac6961a7d821c0c2486c13cd501afde1beda6fc4969dacadd1e318e6b8b", 54, payload);
+    #define TEST_PACKET_NUMBER 1
+    
+    #if TEST_PACKET_NUMBER == 1
+        char* payload = rte_pktmbuf_prepend(p, 54);
+        str2bytes("1703030031ec1d1a9a53b460e99ca9f397165069c993db9c7ac6961a7d821c0c2486c13cd501afde1beda6fc4969dacadd1e318e6b8b", 54, payload);
 
-    char* tcp = rte_pktmbuf_prepend(p, 32);
-    str2bytes("01bbcf0ea07c2320528c2d6b8018002eaf0d00000101080a989199cb00280afd", 32, tcp);
+        char* tcp = rte_pktmbuf_prepend(p, 32);
+        str2bytes("01bbcf0ea07c2320528c2d6b8018002eaf0d00000101080a989199cb00280afd", 32, tcp);
 
-    char* ipv4 = rte_pktmbuf_prepend(p, 20);
-    str2bytes("4500006a777540003106ab1dc284a263c0a8016b", 20, ipv4);
-    */
-
-    /*
-    char* full = rte_pktmbuf_prepend(p, 40);
-    str2bytes("45000028e90b40004006f90cc0a8016bc629d07aec6401bb58526ec04df6142d501000e53ee20000", 40, full);
-    */
-
-    char* full = rte_pktmbuf_prepend(p, 83);
-    str2bytes("45000053617240003906852e9765018cc0a8016b01bb9140c7429b41eca070fd8018003d1e1e00000101080aa33aebd300468825150303001a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4", 83, full);
-
+        char* ipv4 = rte_pktmbuf_prepend(p, 24);
+        str2bytes("4600006a777540003106aa1dc284a263c0a8016b00000000", 24, ipv4);
+    #elif TEST_PACKET_NUMBER == 2
+        //Test case where ipv4.options is not zero
+        char* full = rte_pktmbuf_prepend(p, 32);
+        str2bytes("46c000200000400001024109c0a8016be00000fb9404000016000904e00000fb", 32, full);
+    #elif TEST_PACKET_NUMBER == 3
+        char* full = rte_pktmbuf_prepend(p, 40);
+        str2bytes("45000028e90b40004006f90cc0a8016bc629d07aec6401bb58526ec04df6142d501000e53ee20000", 40, full);
+    #else
+        char* full = rte_pktmbuf_prepend(p, 83);
+        str2bytes("45000053617240003906852e9765018cc0a8016b01bb9140c7429b41eca070fd8018003d1e1e00000101080aa33aebd300468825150303001a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4", 83, full);
+    #endif
     char* ethernet = rte_pktmbuf_prepend(p, 14);
     str2bytes("000002000000", 6, ethernet+0);
     str2bytes("000001000000", 6, ethernet+6);
@@ -103,6 +106,15 @@ extern uint32_t read_counter (int counterid, int index);
 
 static void print_mac(uint8_t* v) { printf("%02hhX:%02hhX:%02hhX:%02hhX:%02hhX:%02hhX\n", v[0], v[1], v[2], v[3], v[4], v[5]); }
 static void print_ip(uint8_t* v) { printf("%d.%d.%d.%d\n",v[0],v[1],v[2],v[3]); }
+
+static void print_bytes_hex(uint8_t* v, size_t c) {
+    int i;
+    printf("0x");
+    for(i = 0; i < c; ++i)
+        printf("%02x ", v[i]);
+    printf("\n");
+}
+
 void print_info(packet_descriptor_t *pd) {
     printf("------------------------------------------------------------\n");
     printf("PACKET INFO:\n");
@@ -117,6 +129,12 @@ void print_info(packet_descriptor_t *pd) {
     printf("dst ip: ");
     print_ip(ip+16);
     printf("ttl: %" PRIu8 "\n", *((uint8_t*)ip+8));
+
+    //Print the options field of the ipv4 packet
+    uint8_t ihl = ip[0] & 0x0f;
+    printf("options: ");
+    print_bytes_hex(ip+20, (4*ihl)-20);
+
     printf("------------------------------------------------------------\n");
     int i;
     for(i = 0; i < NB_COUNTERS; i++) {
@@ -124,6 +142,8 @@ void print_info(packet_descriptor_t *pd) {
         printf("------------------------------------------------------------\n");
     }
 }
+
+extern void ipv4_fib_lpm_set_default_table_action(struct p4_ctrl_msg* ctrl_m);
 
 void
 dpdk_main_loop(void)
@@ -139,6 +159,13 @@ dpdk_main_loop(void)
     init_dataplane(&packet_desc, conf->state.tables);
     init_metadata(&packet_desc, (lcore_id*2)); // fake input port
 	RTE_LOG(INFO, L2FWD, "fake packet to be handled by lcore %u\n", lcore_id);
+
+    //Set the default action for table ipv4_fib_lpm to on_miss
+    struct p4_ctrl_msg msg;
+    char* action_name = "on_miss";
+    msg.action_name = action_name;
+    ipv4_fib_lpm_set_default_table_action(&msg);
+
     print_info(&packet_desc);
     handle_packet(&packet_desc, conf->state.tables);
     print_info(&packet_desc);

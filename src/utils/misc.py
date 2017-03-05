@@ -39,15 +39,18 @@ def showWarnings():
 disable_hlir_messages = False
 
 def build_hlir(hlir):
-    """Builds the P4 internal representation, optionally disabling its output messages."""
+    """Builds the P4 internal representation, optionally disabling its output messages.
+    Returns True if the compilation was successful."""
     if disable_hlir_messages:
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = open(os.devnull, 'w')
         sys.stderr = open(os.devnull, 'w')
 
-    hlir.build()
+    success = hlir.build()
 
     if disable_hlir_messages:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
+
+    return success

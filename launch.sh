@@ -20,6 +20,9 @@ fi
 echo "-------------------- Compilation P4 -> C"
 
 ./compile.sh $P4_SOURCE
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
 
 echo "-------------------- Compilation C -> executable"
 
@@ -41,6 +44,12 @@ fi
 P4_BASENAME=$(basename ${P4_SOURCE%.*})
 cd ./build/$P4_BASENAME
 make -j
+ERROR_CODE=$?
+if [ "$ERROR_CODE" -ne 0 ]; then
+    echo C compilation failed with error code $ERROR_CODE
+    exit 1
+fi
+
 cd - >/dev/null
 
 echo "-------------------- Starting execution"

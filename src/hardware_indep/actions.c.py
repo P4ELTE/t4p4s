@@ -83,19 +83,13 @@ def add_with_saturating(dst, src, bitwidth, signed):
 # =============================================================================
 # Helpers for big numbers
 
-# align to a given length
-def int_to_byte_array_with_length(value, width):
-    value_len, l = int_to_byte_array(value)
-    result = [0 for i in range(width-value_len)] + l[value_len-min(value_len, width) : value_len]
-    return result
-
 buff = 0
 
 # *valuebuff = value-in-width
 def write_int_to_bytebuff(value, width):
     global buff
     generated_code = ""
-    l = int_to_byte_array_with_length(value, width)
+    l = int_to_big_endian_byte_array_with_length(value, width)
     #[ uint8_t buffer_${buff}[${len(l)}] = {
     for c in l:
         #[     ${c},
@@ -146,42 +140,64 @@ def modify_field(fun, call):
     if not isinstance(dst, p4_field):
         addError("generating modify_field", "We do not allow changing an R-REF yet")
     if isinstance(src, int):
-        if dst.width <= 32:
+        if not is_vwf(dst) and dst.width <= 32:
             #[ value32 = ${src}${mask};
             #[ ${ modify_int32_int32(dst) }
         else:
-            if dst.width % 8 == 0 and dst.offset % 8 == 0:
-                #[ ${ write_int_to_bytebuff(src, dst.width/8) }
-                #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, buffer_${buff-1}, ${dst.width/8})
+            if is_field_byte_aligned(dst):
+                #[ ${ write_int_to_bytebuff(src, field_max_width(dst)/8) }
+                if is_vwf(dst):
+                    #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, buffer_${buff-1}+(${field_max_width(dst)/8}-field_desc(pd, ${fld_id(dst)}).bytewidth), field_desc(pd, ${fld_id(dst)}).bytewidth)
+                else:
+                    #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, buffer_${buff-1}, ${dst.width/8})
             else:
-                addError("generating modify_field", "Improper bytebufs cannot be modified yet.")
+                if is_vwf(dst):
+                    addError("generating modify_field", "Modifying non byte-wide variable width field '" + str(dst) + "' with int is not supported")
+                else:
+                    addError("generating modify_field", "Improper bytebufs cannot be modified yet.")
     elif isinstance(src, p4_field):
-        if dst.width <= 32 and src.width <= 32:
+        if not is_vwf(dst) and not is_vwf(src) and dst.width <= 32 and src.width <= 32:
             if src.instance.metadata == dst.instance.metadata:
                 #[ EXTRACT_INT32_BITS(pd, ${fld_id(src)}, value32)
                 #[ MODIFY_INT32_INT32_BITS(pd, ${fld_id(dst)}, value32${mask})
             else:
                 #[ ${ extract_int32(src, 'value32', mask) }
                 #[ ${ modify_int32_int32(dst) }
-        elif src.width != dst.width:
-            addError("generating modify_field", "bytebuf field-to-field of different widths is not supported yet")
         else:
-            if dst.width % 8 == 0 and dst.offset % 8 == 0 and src.width % 8 == 0 and src.offset % 8 == 0 and src.instance.metadata == dst.instance.metadata:
-                # TODO: Mask handling is missing
-                #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, FIELD_BYTE_ADDR(pd, field_desc(${fld_id(src)})), (field_desc(${fld_id(dst)})).bytewidth)
+            if is_field_byte_aligned(dst) and is_field_byte_aligned(src) and src.instance.metadata == dst.instance.metadata:
+                if mask: # TODO: Mask handling is missing
+                    addError("generating modify_field", "Using masks in modify_field on fields longer than 4 bytes is not supported")
+                src_fd = "field_desc(pd, " + fld_id(src) + ")"
+                dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
+                #[ if(${src_fd}.bytewidth < ${dst_fd}.bytewidth) {
+                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${src_fd}.byte_addr, ${src_fd}.bytewidth);
+                #[ } else {
+                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${src_fd}.byte_addr + (${src_fd}.bytewidth - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
+                #[ }
             else:
-                addError("generating modify_field", "Improper bytebufs cannot be modified yet.")
+                if is_vwf(dst):
+                    addError("generating modify_field", "Modifying field '" + str(dst) + "' with field '" + str(src) + "' (one of which is a non byte-wide variable width field) is not supported")
+                else:
+                    addError("generating modify_field", "Improper bytebufs cannot be modified yet.")
     elif isinstance(src, p4_signature_ref):
         p = "parameters.%s" % str(fun.signature[src.idx])
         l = fun.signature_widths[src.idx]
         # TODO: Mask handling
-        if dst.width <= 32 and l <= 32:
+        if not is_vwf(dst) and dst.width <= 32 and l <= 32:
             #[ MODIFY_INT32_BYTEBUF(pd, ${fld_id(dst)}, ${p}, ${(l+7)/8})
         else:
-            if dst.width % 8 == 0 and dst.offset % 8 == 0 and l % 8 == 0: #and dst.instance.metadata:
-                #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${p}, (field_desc(${fld_id(dst)})).bytewidth)
+            if is_field_byte_aligned(dst) and l % 8 == 0: #and dst.instance.metadata:
+                dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
+                #[ if(${l/8} < ${dst_fd}.bytewidth) {
+                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${p}, ${l/8});                
+                #[ } else {
+                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${p} + (${l/8} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth)
+                #[ }
             else:
-                addError("generating modify_field", "Improper bytebufs cannot be modified yet.")        
+                if is_vwf(dst):
+                    addError("generating modify_field", "Modifying non byte-wide variable width field '" + str(src) + "' with p4_signature_ref is not supported")
+                else:
+                    addError("generating modify_field", "Improper bytebufs cannot be modified yet.")        
     return generated_code
 
 # =============================================================================
@@ -196,7 +212,7 @@ def add_to_field(fun, call):
         addError("generating add_to_field", "We do not allow changing an R-REF yet")
     if isinstance(val, int):
         #[ value32 = ${val};
-        if dst.width <= 32:
+        if not is_vwf(dst) and dst.width <= 32:
             #[ ${ extract_int32(dst, 'res32') }
             if (p4_header_keywords.saturating in dst.attributes):
                #[ ${ add_with_saturating('value32', 'res32', dst.width, (p4_header_keywords.signed in dst.attributes)) }
@@ -204,9 +220,12 @@ def add_to_field(fun, call):
                 #[ value32 += res32;
             #[ ${ modify_int32_int32(dst) }
         else:
-            addError("generating modify_field", "Bytebufs cannot be modified yet.")
+            if is_vwf(dst):
+                addError("generating add_to_field", "add_to_field on variable width field '" + str(dst) + "' is not supported yet")
+            else:
+                addError("generating add_to_field", "add_to_field on bytebufs (with int) is not supported yet (field: " + str(dst) + ")")
     elif isinstance(val, p4_field):
-        if dst.width <= 32 and val.length <= 32:
+        if not is_vwf(val) and not is_vwf(dst) and dst.width <= 32 and val.width <= 32:
             #[ ${ extract_int32(val, 'value32') }
             #[ ${ extract_int32(dst, 'res32') }
             if (p4_header_keywords.saturating in dst.attributes):
@@ -215,15 +234,21 @@ def add_to_field(fun, call):
                 #[ value32 += res32;
             #[ ${ modify_int32_int32(dst) }
         else:
-            addError("generating add_to_field", "bytebufs cannot be modified yet.")
+            if is_vwf(val) or is_vwf(dst):
+                addError("generating add_to_field", "add_to_field on field '" + str(dst) + "' with field '" + str(val) + "' is not supported yet. One of the fields is a variable width field!")
+            else:
+                addError("generating add_to_field", "add_to_field on/with bytebufs is not supported yet (fields: " + str(val) + ", " + str(dst) + ")")
     elif isinstance(val, p4_signature_ref):
         p = "parameters.%s" % str(fun.signature[val.idx])
         l = fun.signature_widths[val.idx]
-        if dst.width <= 32 and l <= 32:
+        if not is_vwf(dst) and dst.width <= 32 and l <= 32:
             #[ ${ extract_int32(dst, 'res32') }
             #[ TODO
         else:
-            addError("generating add_to_field", "bytebufs cannot be modified yet.")
+            if is_vwf(dst):
+                addError("generating add_to_field", "add_to_field on variable width field '" + str(dst) + "' with p4_signature_ref is not supported yet")
+            else:
+                addError("generating add_to_field", "add_to_field on bytebufs (with p4_signature_ref) is not supported yet (field: " + str(dst) + ")")
     return generated_code
 
 # =============================================================================
@@ -266,17 +291,20 @@ def register_read(fun, call):
     else:
         #[ uint8_t register_value_${rc}[${(register.width+7)/8}];
     #[ read_register(REGISTER_${register.name}, value32, register_value_${rc});
-    if dst.width <= 32:
+    if not is_vwf(dst) and dst.width <= 32:
         #[ memcpy(&value32, register_value_${rc}, 4);
         #[ ${ modify_int32_int32(dst) }
     else:
-        if dst.width == register.width:
-            if dst.width % 8 == 0 and dst.offset % 8 == 0: # and src.instance.metadata == dst.instance.metadata:
-                #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, register_value_${rc}, (field_desc(${fld_id(dst)})).bytewidth)
-            else:
-                addError("generating register_read", "Improper bytebufs cannot be modified yet.")
+        if is_field_byte_aligned(dst) and register.width % 8 == 0:
+            dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
+            reg_bw = register.width / 8
+            #[ if(${reg_bw} < ${dst_fd}.bytewidth) {
+            #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, register_value_${rc}, ${reg_bw});
+            #[ } else {
+            #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, register_value_${rc} + (${reg_bw} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
+            #[ }
         else:
-            addError("generating register_read", "Read register-to-field of different widths is not supported yet.")
+            addError("generating register_read", "Improper bytebufs cannot be modified yet.")
     rc = rc + 1
     return generated_code
 
@@ -304,7 +332,9 @@ def register_write(fun, call):
         #[ value32 = ${src};
         #[ memcpy(register_value_${rc}, &value32, 4);
     elif isinstance(src, p4_field):
-        if register.width <= 32 and src.width <= 32:
+        if is_vwf(src):
+            addError("generating register_write", "Variable width field '" + str(src) + "' in register_write is not supported yet")
+        elif register.width <= 32 and src.width <= 32:
             #[ ${ extract_int32(src, 'value32') }
             #[ memcpy(register_value_${rc}, &value32, 4);
         else:
@@ -344,8 +374,8 @@ def generate_digest(fun, call):
     for i,field in enumerate(field_list.fields):
         j = str(i)
         if isinstance(field, p4_field):
-            #[    fields.field_offsets[${j}] = (uint8_t*) (pd->headers[header_instance_${field.instance}].pointer + field_instance_byte_offset_hdr[field_instance_${field.instance}_${field.name}]);
-            #[    fields.field_widths[${j}] = field_instance_bit_width[field_instance_${field.instance}_${field.name}];
+            #[    fields.field_offsets[${j}] = (uint8_t*) field_desc(pd, ${fld_id(field)}).byte_addr;
+            #[    fields.field_widths[${j}]  =            field_desc(pd, ${fld_id(field)}).bitwidth;
         else:
             addError("generating actions.c", "Unhandled parameter type in field_list: " + name + ", " + str(field))
 

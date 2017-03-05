@@ -22,7 +22,7 @@
 #include <rte_hash_crc.h>
 #include <nmmintrin.h> 
 #include <rte_lpm.h>        // LPM (32 bit key)
-#include <rte_lpm6.h>       // LPM (128 bit key)
+#include <modified_rte_lpm6.h>       // LPM (128 bit key)
 #include "ternary_naive.h"  // TERNARY
 
 #include <rte_malloc.h>     // extended tables
@@ -270,6 +270,7 @@ table_setdefault(lookup_table_t* t, uint8_t* value)
 {
     debug("Default value set for table %s (on socket %d).\n", t->name, t->socketid);
     value = add_index(value, t->val_size, DEFAULT_ACTION_INDEX);
+    if(t->default_val) rte_free(t->default_val);
     t->default_val = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 }
 

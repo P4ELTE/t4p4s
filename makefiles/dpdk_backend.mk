@@ -41,6 +41,7 @@ SRCS-y += dpdk_tables.c
 SRCS-y += dpdk_primitives.c
 SRCS-y += ternary_naive.c
 SRCS-y += vector.c
+SRCS-y += modified_rte_lpm6.c
 
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/includes"
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane"

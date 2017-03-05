@@ -19,9 +19,14 @@ P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"build/$P4_BASENAME"}
 
 
 python src/compiler.py "${P4_SOURCE}" "${P4DPDK_TARGET_DIR}/src_hardware_indep"
+ERROR_CODE=$?
+if [ "$ERROR_CODE" -ne 0 ]; then
+    echo P4 compilation failed with error code $ERROR_CODE
+    exit 1
+fi
 
 
-cp -n makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
+cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
 if [ ! -f "${P4DPDK_TARGET_DIR}/Makefile" ]; then
     cat makefiles/Makefile | sed -e "s/example_dpdk1/${P4_BASENAME}/g" > "${P4DPDK_TARGET_DIR}/Makefile"
 else
