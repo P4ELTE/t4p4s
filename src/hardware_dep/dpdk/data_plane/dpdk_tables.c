@@ -22,7 +22,7 @@
 #include <rte_hash_crc.h>
 #include <nmmintrin.h> 
 #include <rte_lpm.h>        // LPM (32 bit key)
-#include <modified_rte_lpm6.h>       // LPM (128 bit key)
+#include <rte_lpm6.h>       // LPM (128 bit key)
 #include "ternary_naive.h"  // TERNARY
 
 #include <rte_malloc.h>     // extended tables
@@ -314,7 +314,12 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         memcpy(key128, key, t->key_size);
 
         uint8_t result;
+#if RTE_VERSION < RTE_VERSION_NUM(17, 05, 0, 0)
+        // note: DPDK 17.05 changed next_hop to 32 bits
         int ret = rte_lpm6_lookup(ext->rte_table, key128, &result);
+#else
+        int ret = rte_lpm6_lookup_v20(ext->rte_table, key128, &result);
+#endif
         return ret == 0 ? ext->content[result] : t->default_val;
     }
     return NULL;
