@@ -6,9 +6,9 @@
 
 ## Required software
 
-- [DPDK 2.2.0](http://dpdk.org/download) - [Quick Start Quide](http://dpdk.org/doc/quick-start)
-    - Note that P4@ELTE is currently **stable with DPDK 2.2.0**, the support for newer DPDK versions (such as 16.04.) is **experimental**.
-    - The code may compile with earlier DPDK versions (such as 2.1.0).
+- [DPDK 16.11.1 (LTS)](http://dpdk.org/download) - [Quick Start Quide](http://dpdk.org/doc/quick-start)
+    - The code works with newer DPDK versions (e.g. 17.05).
+    - The code may compile with earlier DPDK versions (such as 2.2.0).
 - [P4 HLIR](https://github.com/p4lang/p4-hlir)
 
 ### Common pitfalls
@@ -117,7 +117,10 @@ You can set the following parameters via environment variables.
 
 ## Limitations
 
-The latest release (`1607`) implements the P4 language version 1.0. We'll support the latest versions when they become stable. Please note that the following language elements are not (fully) supported yet:
+This compiler supports P4<sub>14</sub>. An upcoming compiler will include further support for P4<sub>16</sub>.
+
+Please note that the following language elements are not (fully) supported yet:
+
  - calculated/variable length fields
  - saturating fields
  - masked field modification
@@ -126,7 +129,6 @@ The latest release (`1607`) implements the P4 language version 1.0. We'll suppor
  - checksums
  - meters and registers
  - resubmission and cloning
-
 
 ## Experimental branch
 
