@@ -22,6 +22,9 @@ dpdk_l3-full_controller:
 dpdk_l2_l3_controller:
 	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l2_l3_controller.c -o dpdk_l2_l3_controller
 
+dpdk_l2_l3_nat_controller:
+	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l2_l3_nat_controller.c -o dpdk_l2_l3_nat_controller
+
 dpdk_nat_controller:
 	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_nat_controller.c -o dpdk_nat_controller
 
