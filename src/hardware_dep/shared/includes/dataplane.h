@@ -19,6 +19,14 @@
 #include "parser.h"
 #include "vector.h"
 
+enum lookup_t {
+    LOOKUP_none,
+    // TODO make sure all of these names are OK
+    LOOKUP_exact,
+    LOOKUP_LPM,
+    LOOKUP_TERNARY,
+};
+
 #define LOOKUP_EXACT   0
 #define LOOKUP_LPM     1
 #define LOOKUP_TERNARY 2

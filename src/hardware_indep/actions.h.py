@@ -35,6 +35,21 @@ for table in hlir.p4_tables.values():
                 #[ FIELD(${name}, ${length});
             #[ };
 
+# TODO the following part will probably look similar to this
+# TODO but changing the actions' names have to be done everywhere at the same time
+# TODO because the names don't stay the same
+# for table in hlir16.tables:
+#     #[ struct ${table.name}_action {
+#     #[     int action_id;
+#     #[     union {
+#     for action in table.actions.actionList:
+#         # TODO what if the action is not a method call?
+#         # TODO what if there are more actions?
+#         action_name = action.expression.method.path.name
+#         #[         struct action_${action_name}_params ${action_name}_params;
+#     #[     };
+#     #[ };
+
 for table in hlir.p4_tables.values():
     #[ struct ${table.name}_action {
     #[     int action_id;

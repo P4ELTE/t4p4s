@@ -20,7 +20,7 @@ def format_state(state):
     if isinstance(state, p4.p4_parse_state):
         #[ return parse_state_${state.name}(pd, buf, tables);
     elif isinstance(state, p4.p4_parser_exception):
-        print "Parser exceptions are not supported yet."
+        print("Parser exceptions are not supported yet.")
     else: #Control function (parsing is finished)
         #[ {
         #[   if(verify_packet(pd)) p4_pe_checksum(pd);

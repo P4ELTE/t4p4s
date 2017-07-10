@@ -1,140 +1,123 @@
 
-# P4@ELTE/p4c User Guide
+# Getting started with T4P4S-16
 
-[P4@ELTE](http://p4.elte.hu) is a small, university based research team at [Eötvös Loránd University, Budapest, Hungary](http://www.elte.hu/en). `p4c` is our retargetable compiler for [P4](http://p4.org/).
+This is an experimental compiler that uses more and more P4-16 features.
+It still makes use of P4-14 until all parts have been transformed.
+See the [README of the previous version](README.md).
 
+To start working with the compiler, do the following.
 
-## Required software
+1. Checkout [`hlir16`](https://github.com/P4ELTE/hlir16).
+1. Make a (symbolic) link under `src` to `hlir16`.
+1. Don't forget to setup your environment variables `P4C` and `RTE_SDK`.
+1. Now you can use the compiler almost exactly as before.
+   The only difference is that you have to supply the option `-v 14` (or its longer form `--p4c 14`),
+   which currently is expected right after the filename.
 
-- [DPDK 16.11.1 (LTS)](http://dpdk.org/download) - [Quick Start Quide](http://dpdk.org/doc/quick-start)
-    - The code works with newer DPDK versions (e.g. 17.05).
-    - The code may compile with earlier DPDK versions (such as 2.2.0).
-- [P4 HLIR](https://github.com/p4lang/p4-hlir)
+~~~
+P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_l3_nat.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+~~~
 
-### Common pitfalls
+At the moment, P4-16 programs are not expected to compile properly.
+However, they will produce code in the `build` directory.
 
-- Do not forget to set the `RTE_SDK` environment variable to the directory of your DPDK.
-- DPDK will need `pcap` header files (you can get them by installing `pcap`, e.g. the `libpcap-dev` package)
-- You may also need the [setuptools Python package](https://pypi.python.org/pypi/setuptools) for a successful HLIR install.
-
-## Running the examples
-
-To execute the commands below, a root or sudoer account is necessary.
-In the latter case, the system will ask for your password when you run it for the first time.
-
-The most comfortable, all-inclusive choice is to run `launch.sh` (with proper parameters, see below). This will compile and run the switch in one go.
-
-~~~~~~~~{.bash}
-./launch.sh <P4 file> <controller> <controller params file> -- <DPDK parameters>
-~~~~~~~~
-
-- The `controller` is predefined for the examples, and can be omitted.
-- You may have to use different DPDK settings to make the following examples work on your system.
-- You can find more information about DPDK command line options [here](http://dpdk.org/doc/guides-16.04/testpmd_app_ug/run_app.html#eal-command-line-options).
-
-~~~~~~~~{.bash}
-## Test examples (will work without any real network configuration)
-
-# using the L2 example without a real network configuration
-P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
-
-# using the L3 example without a real network configuration
-P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
-
-# the same as above, with verbose output
-P4_GCC_OPTS="-DP4DPDK_DEBUG" P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+~~~
+P4DPDK_VARIANT=no_nic_l2 ./launch.sh $P4C/testdata/p4_16_samples/vss-example.p4 -v 16 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+~~~
 
 
-## The following examples will only work if you have a real network configuration with DPDK
+# Working with the compiler
 
-# supplying DPDK options directly
-./launch.sh examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+For your convenience, the debugger can be activated by setting `IPDB=1` on the command line.
+It currently uses `ipdb` (install it via `pip` if you don't have it).
 
-# supplying DPDK options via environment variable
-export P4DPDK_OPTS="-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"(0,0,0),(1,0,1)\""
-./launch.sh examples/l3_routing_test.p4
+~~~
+IPDB=1 P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_l3_nat.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+~~~
 
-# using the L3 example with a configuration file for the control plane
-# and manual specification of the controller ("dpdk_controller")
-./launch.sh ./examples/l3_routing_test.p4 dpdk_controller examples/l3_switch_test_ctrl.txt -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+The compilation process will be interrupted right after
+the initialisation of the (currently incomplete) standard set of attributes.
+Now you can access the features of the nodes of the representation.
 
-# verbose output
-# "default" means that we use the default controller (applicable to example programs only)
-P4_GCC_OPTS="-DP4DPDK_DEBUG" ./launch.sh ./examples/l3_routing_test.p4 default -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
-~~~~~~~~
+You can search for all occurrences of a string/integer/etc.
+Typically you would start at the topmost node (called `hlir16`),
+but any node can be used as a starting point.
 
+~~~
+hl[TAB]
+hlir16.p[TAB]
+hlir16.paths_to('ethernet')
+hlir16.paths_to(1234567)
+~~~
 
-## Running the examples, details
+The result will look something like this.
 
-You can `compile`, `make` and `run` the code in separate steps.
+~~~
+  * .declarations['Type_Header'][0]
+  * .declarations['Type_Struct'][4].fields
+  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
+  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
+  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
+  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
+  * .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
+  * .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
+...........
+~~~
 
-1.  Compile the P4 file into C code using `compile.sh` and setup files for `make`.
-    - The compiled files are placed within the directory `build/<P4-source-name>`.
+You can copy-paste one of these to verify the path.
 
-    ~~~~~~~~{.bash}
-    ./compile.sh examples/l3_routing_test.p4
-    ~~~~~~~~
+~~~
+ipdb> hlir16.declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
+ethernet_t<Type_Header>[annotations, declid, fields, name]
+~~~
 
-1.  Run `make` in the directory `build/<P4-source-name>`.
-    - The executable file is generated as `build/<P4-source-name>/build/<P4-source-name>`.
-1.  Run the executable.
-    - If you prefer to do so, you can invoke the generated executable directly.
-    - As the executable will require a controller to function,
-      there is a convenience script `run.sh` that you can invoke.
-      For each example, the appropriate controller is started before running the switch.
-    - The parameters for `run.sh` are the same as for `launch.sh`
-      except for the first one: here, you have to supply the name of the generated executable.
+You can give some options to `paths_to`.
 
-    ~~~~~~~~{.bash}
-    ./run.sh ./build/l3_routing_test/build/l3_routing_test -- -c 0xf -n 1 --log-level 3 -- -P -p 0x3
+- `print_details` shows each node that each path traverses
+- `match` controls how the matching works (it is always textual)
 
-    # supplying DPDK options via environment variable
-    export P4DPDK_OPTS="-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"(0,0,0),(1,0,1)\""
-    ./run.sh ./build/l3_routing_test/build/l3_routing_test
-    ~~~~~~~~
+~~~
+hlir16.paths_to('intrinsic_metadata')
+hlir16.paths_to('intrinsic_metadata', print_details=False, match='prefix')
+hlir16.paths_to('intrinsic_metadata', match='prefix')
+hlir16.paths_to('intrinsic_metadata', match='infix')
+hlir16.paths_to('intrinsic_metadata', match='full')
+~~~
 
+The nodes get their attributes in the following ways.
 
-## Environment variables
+1. At creation, see `p4node.py`.
+	- In the debugger, enter `hlir16.common_attrs` to see them.
+1. Most attributes are directly loaded from the JSON file.
+	- See `load_p4` in `hlir16.py`.
+	- The `.json` file is produced using the `--toJSON` option of the P4 frontend `p4test`.
+	  By default, this is a temporary file that is deleted upon exit.
+1. Many attributes are set in `set_additional_attrs` in `hlir16.py`.
+   While the compiler is in the experimental stage,
+   they may be subject to change, but once it crystallizes,
+   they will be considered standard.
+1. You can manually add attributes using `add_attrs`, but those will be considered non-standard,
+   and will not be portable in general.
 
-You can set the following parameters via environment variables.
+The representation contains internal nodes (of type `P4Node`)
+and leaves (primitives like ints and strings).
+Internal nodes will sometimes be (ordered) vectors.
 
-- In general, for DPDK
-    - `RTE_SDK`: the directory of DPDK
-    - `RTE_TARGET`: the target architecture, will default to `x86_64-native-linuxapp-gcc` if unspecified
-- Relevant in the `make` step
-    - `MAKE_CMD`
-        - You can specify a program other than `make` to be invoked.
-    - `P4DPDK_GCC_OPTS`
-        - You can specify additional parameters for your compiler.
-        - To see debug messages, include `-NP4DPDK_DEBUG` in its contents.
-    - `P4DPDK_VARIANT`
-        - Possible values are `no_nic_l2` and `no_nic_l3` (or leave it unset).
-        - Causes `src/hardware_dep/dpdk/main_loop_<variant>.c` to replace `src/hardware_dep/dpdk/main_loop.c` during compilation.
-        - Mainly used for testing purposes, for DPDK installations without a real network environment.
-- Relevant in `run.sh`
-    - `P4DPDK_OPTS`: DPDK options for the compiled switch
-        - If set, this overrides the parameters given after the first `--` on the command line of `launch.sh`.
+Some of the more important attributes are the following.
 
-## Limitations
+~~~
+hl[TAB].d[TAB]        # expands to...
+hlir16.declarations   # these are the top-level declarations in the program
 
-This compiler supports P4<sub>14</sub>. An upcoming compiler will include further support for P4<sub>16</sub>.
+ds = hlir16.declarations
+ds.is_vec()           # True
+ds[0]                 # indexes the vector; the first declaration in the program
+ds.b[TAB]             # expands to...
+ds.by_type('Type_Struct')   # gives you all 'Type_Struct' declarations
+ds.by_type('Struct')        # shortcut; many things are called 'Type_...'
+ds.get('name')        # all elems in the vector with the name 'name'
+ds.get('ipv4_t', 'Type_Header')   # the same, limited to the given type
 
-Please note that the following language elements are not (fully) supported yet:
-
- - calculated/variable length fields
- - saturating fields
- - masked field modification
- - action profiles
- - parser exceptions
- - checksums
- - meters and registers
- - resubmission and cloning
-
-## Experimental branch
-
-The `experimental` branch contains preliminary implementations of features.
-Currently, the branch contains the following:
-
-- registers
-    - registers bigger than 32 bits are not supported
-    - registers with layout or binding are not supported
+any_node.name         # most nodes (but not all) have names
+any_node.xdir()       # names of the node's non-common attributes
+~~~

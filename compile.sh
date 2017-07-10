@@ -1,34 +1,45 @@
 #!/bin/bash
 
-if [ "$#" -lt 1 ]; then
-    (>&2 echo "Usage: $0 <P4 file>")
+print_usage_and_exit() {
+    (>&2 echo "Usage: $0 <P4 file> [-v P4VSN]")
     exit 1
+}
+
+if [ $# -lt 1 ]; then
+    print_usage_and_exit
 fi
 
 P4_SOURCE=$1
+P4_BASENAME=$(basename ${P4_SOURCE%.*})
+shift
 
 if [ ! -f "$P4_SOURCE" ]; then
     (>&2 echo "Error: file not found: ${P4_SOURCE}")
-    (>&2 echo "Usage: $0 <P4 file>")
-    exit 1
+    print_usage_and_exit
 fi
 
-
-P4_BASENAME=$(basename ${1%.*})
-P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"build/$P4_BASENAME"}
-
-
-python src/compiler.py "${P4_SOURCE}" "${P4DPDK_TARGET_DIR}/src_hardware_indep"
-ERROR_CODE=$?
-if [ "$ERROR_CODE" -ne 0 ]; then
-    echo P4 compilation failed with error code $ERROR_CODE
-    exit 1
+if [[ "$1" == "--p4v" || "$1" == "-v" ]]; then
+    shift
+    P4_VSN_NUMBER="$1"
+    P4_VSN="--p4v $1"
+    shift
 fi
 
-
-cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
-if [ ! -f "${P4DPDK_TARGET_DIR}/Makefile" ]; then
-    cat makefiles/Makefile | sed -e "s/example_dpdk1/${P4_BASENAME}/g" > "${P4DPDK_TARGET_DIR}/Makefile"
+if [ "$P4_VSN_NUMBER" == "" ]; then
+    echo "-------------------- Compilation P4 -> C"
 else
-    echo Makefile already exists, skipping
+    echo "-------------------- Compilation P4-${P4_VSN_NUMBER} -> C"
+fi
+
+./compile_p4.sh $P4_SOURCE $P4_VSN
+if [ "$?" -ne 0 ]; then
+    exit 1
+fi
+
+echo "-------------------- Compilation C -> executable"
+
+./compile_c.sh $P4_SOURCE $P4_VSN
+if [ "$?" -ne 0 ]; then
+    echo C compilation failed with error code $ERROR_CODE
+    exit 1
 fi

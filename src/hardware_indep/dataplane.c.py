@@ -53,7 +53,7 @@ for table in hlir.p4_tables.values():
             #[ EXTRACT_BYTEBUF(pd, ${fld_id(match_field)}, key)
             #[ key += ${byte_width};
         else:
-            print "Unsupported field %s ignored in key calculation." % fld_id(match_field)
+            print("Unsupported field %s ignored in key calculation." % fld_id(match_field))
     if table_type == "LOOKUP_LPM":
         #[ key -= ${key_length};
         #[ int c, d;

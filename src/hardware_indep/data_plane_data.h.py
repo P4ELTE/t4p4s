@@ -16,27 +16,25 @@
 #[
 #[ #include "parser.h"
 #[
-#[ #define NB_TABLES ${len(hlir.p4_tables)}
+#[ #define NB_TABLES ${len(hlir16.tables)}
 #[
 #[ enum table_names {
-for table in hlir.p4_tables.values():
+for table in hlir16.tables:
     #[ TABLE_${table.name},
 #[ TABLE_
 #[ };
 #[
-#[ #define NB_COUNTERS ${len(hlir.p4_counters)}
+#[ // TODO feature temporarily not supported (hlir16)
+#[ #define NB_COUNTERS 0
 #[
 #[ enum counter_names {
-for counter in hlir.p4_counters.values():
-    #[ COUNTER_${counter.name},
 #[ COUNTER_
 #[ };
 #[
-#[ #define NB_REGISTERS ${len(hlir.p4_registers)}
+#[ // TODO feature temporarily not supported (hlir16)
+#[ #define NB_REGISTERS 0
 #[
 #[ enum register_names {
-for register in hlir.p4_registers.values():
-    #[ REGISTER_${register.name},
 #[ REGISTER_
 #[ };
 #[

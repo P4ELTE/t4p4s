@@ -15,7 +15,7 @@ CDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 P4_SRCDIR := $(dir $(lastword $(MAKEFILE_LIST)))/../../src
 
 # the directories of the source files
-VPATH += $(CDIR)/src_hardware_indep
+VPATH += $(CDIR)/../src_hardware_indep
 
 VPATH += $(P4_SRCDIR)/hardware_dep/shared/
 VPATH += $(P4_SRCDIR)/hardware_dep/shared/includes
@@ -33,4 +33,4 @@ CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/shared/includes"
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/shared/ctrl_plane"
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/shared/data_plane"
 
-CFLAGS += -I "$(CDIR)/src_hardware_indep"
+CFLAGS += -I "$(CDIR)/../src_hardware_indep"
