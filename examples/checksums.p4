@@ -149,7 +149,7 @@ action on_miss() {
 action fib_hit_nexthop(dmac, port) {
     modify_field(ethernet.dstAddr, dmac);
     modify_field(standard_metadata.egress_port, port);
-    add_to_field(ipv4.ttl, -1);
+    add_to_field(ipv4.ttl, 0xff);
 }
 
 
