@@ -13,6 +13,8 @@
 # limitations under the License.
 # Miscellaneous utility functions (not using HLIR)
 
+from __future__ import print_function
+
 import sys
 import os
 
@@ -20,23 +22,31 @@ errors = []
 
 warnings = []
 
+
 def addError(where, msg):
     global errors
     errors += ["ERROR: " + msg + " (While " + where + ").\n"]
+
 
 def addWarning(where, msg):
     global warnings
     warnings += ["WARNING: " + msg + " (While " + where + ").\n"]
 
+
 def showErrors():
-   global errors
-   for e in errors: print e
+    global errors
+    for e in errors:
+        print(e, file=sys.stderr)
+
 
 def showWarnings():
-   global warnings
-   for w in warnings: print w
+    global warnings
+    for w in warnings:
+        print(w, file=sys.stderr)
+
 
 disable_hlir_messages = False
+
 
 def build_hlir(hlir):
     """Builds the P4 internal representation, optionally disabling its output messages.

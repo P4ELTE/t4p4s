@@ -122,6 +122,7 @@ def field_instance_ids(hlir):
     names = [hdr_name(hi.name)+"_"+fn for hi in header_instances(hlir) for fn,fw in hi.header_type.layout.items()]
     return map(fld_prefix, names)
 
+
 def variable_width_field_ids(hlir):
     var_ids = []
     for hi in header_instances(hlir):
@@ -132,6 +133,7 @@ def variable_width_field_ids(hlir):
                 break
         var_ids.append(field_id)
     return var_ids
+
 
 def field_offsets(header_type):
     offsets = []
@@ -156,33 +158,40 @@ def field_mask(bitoffset, bitwidth):
         pos += 1
     return hex(mask)
 
+
 # TODO: better condition...
 def primitive(action):
     return action.signature_flags != {} and action.name not in ["drop", "no_op"]
 
+
 def userActions(hlir):
     return filter(lambda act: not primitive(act), hlir.p4_actions.values())
 
-def getTypeAndLength(table) : 
-   key_length = 0
-   lpm = 0
-   ternary = 0
-   for field, typ, mx in table.match_fields:
-       if typ == p4_match_type.P4_MATCH_TERNARY:
-           ternary = 1
-       elif typ == p4_match_type.P4_MATCH_LPM:
-           lpm += 1
-       if not is_vwf(field): #Variable width field in table match key is not supported
-           key_length += field.width
-   if (ternary) or (lpm > 1):
-      table_type = "LOOKUP_TERNARY"
-   elif lpm:
-      table_type = "LOOKUP_LPM"
-   else:
-      table_type = "LOOKUP_EXACT"
-   return (table_type, (key_length+7)/8)
 
-def int_to_big_endian_byte_array(val): # CAUTION: the result array contains the bytes in big endian order!
+def getTypeAndLength(table):
+    key_length = 0
+    lpm = 0
+    ternary = 0
+    for field, typ, mx in table.match_fields:
+        if typ == p4_match_type.P4_MATCH_TERNARY:
+            ternary = 1
+        elif typ == p4_match_type.P4_MATCH_LPM:
+            lpm += 1
+
+        # Variable width field in table match key is not supported
+        if not is_vwf(field):
+            key_length += field.width
+    if ternary or lpm > 1:
+        table_type = "LOOKUP_TERNARY"
+    elif lpm:
+        table_type = "LOOKUP_LPM"
+    else:
+        table_type = "LOOKUP_EXACT"
+    return (table_type, (key_length + 7) / 8)
+
+
+# CAUTION: the result array contains the bytes in big endian order!
+def int_to_big_endian_byte_array(val):
     """
     :param val: int
     :rtype:     (int, [int])
@@ -196,17 +205,25 @@ def int_to_big_endian_byte_array(val): # CAUTION: the result array contains the 
     res.reverse()
     return nbytes, res
 
-def int_to_big_endian_byte_array_with_length(value, width): # CAUTION: the result array contains the bytes in big endian order!
+
+def int_to_big_endian_byte_array_with_length(value, width):
+    """CAUTION: the result array contains the bytes in big endian order!"""
     value_len, l = int_to_big_endian_byte_array(value)
-    result = [0 for i in range(width-value_len)] + l[value_len-min(value_len, width) : value_len]
+    result = [0 for i in range(width - value_len)] + l[value_len - min(value_len, width): value_len]
     return result
 
-def is_vwf(f): #Returns if the given field instance is a variable width field
+
+def is_vwf(f):
+    """Returns if the given field instance is a variable width field"""
     return f.width == p4.P4_AUTO_WIDTH
 
-def field_max_width(f): #For normal fields returns their width, for variable width fields returns the maximum possible width in bits
+
+def field_max_width(f):
+    """For normal fields returns their width, for variable width fields returns the maximum possible width in bits"""
     if not is_vwf(f): return f.width
     return (f.instance.header_type.max_length * 8) - sum([field[1] if field[1] != p4.P4_AUTO_WIDTH else 0 for field in f.instance.header_type.layout.items()])
 
-def is_field_byte_aligned(f): #Returns if the given field is byte-aligned
+
+def is_field_byte_aligned(f):
+    """Returns if the given field is byte-aligned"""
     return field_max_width(f) % 8 == 0 and f.offset % 8 == 0;
