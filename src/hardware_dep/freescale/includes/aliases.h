@@ -5,5 +5,5 @@
 typedef odp_packet_t packet;
 typedef odp_spinlock_t lock;
 
-#endif
+#endif // __ALIASES_H_
 

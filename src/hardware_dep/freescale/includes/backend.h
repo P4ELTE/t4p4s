@@ -1,9 +1,9 @@
 #ifndef __BACKEND_H_
 #define __BACKEND_H_
 
-#include "ctrl_plane_backend.h"
-#include "data_plane_data.h"
-#include "dataplane.h"
+//#include "ctrl_plane_backend.h"
+#include "includes/compiled/data_plane_data.h"
+#include "includes/shared/dataplane.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "freescale_primitives.h"
@@ -59,7 +59,7 @@ void pop  (packet_descriptor_t* p, header_stack_t h);
 void add_header             (packet_descriptor_t* p, header_reference_t h);
 void remove_header          (packet_descriptor_t* p, header_reference_t h);
 void drop                   (packet_descriptor_t* p);
-void generate_digest        (backend bg, char* name, int receiver, struct type_field_list* digest_field_list);
+//void generate_digest        (backend bg, char* name, int receiver, struct type_field_list* digest_field_list);
 void no_op                  (void);
 
 //copy_header

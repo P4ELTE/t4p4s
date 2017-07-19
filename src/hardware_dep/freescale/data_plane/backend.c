@@ -1,7 +1,8 @@
-#include "dataplane.h"
-#include "backend.h"
-#include "freescale_primitives.h"
+#include "includes/shared/dataplane.h"
+#include "includes/freescale/backend.h"
+#include "includes/freescale/freescale_primitives.h"
 #include <odp.h>
+// TODO push N elements
 
 void
 push(packet_descriptor_t* p, header_stack_t h) {
@@ -15,6 +16,8 @@ push(packet_descriptor_t* p, header_stack_t h) {
             odp_packet_push_head(*p->wrapper, p->headers[header_stack_elements[h][0]].length);
 }
 
+// TODO pop N elements
+
 void
 pop(packet_descriptor_t* p, header_stack_t h) {
     uint8_t last = 0;
@@ -25,6 +28,7 @@ pop(packet_descriptor_t* p, header_stack_t h) {
         int i;
         for (i = 0; i < last; i++)
             p->headers[header_stack_elements[h][i]].pointer = p->headers[header_stack_elements[h][i + 1]].pointer;
+        // TODO: free up the corresponding part of the mbuf (rte_pktmbuf_adj is not appropriate here)
         p->headers[header_stack_elements[h][last]].pointer = NULL;
     } else debug("popping from empty header stack...\n");
 }
@@ -40,26 +44,27 @@ add_header(packet_descriptor_t* p, header_reference_t h) {
 void
 remove_header(packet_descriptor_t* p, header_reference_t h) {
     if (p->headers[h.header_instance].pointer != NULL) {
+        // TODO: free up the corresponding part of the mbuf
         p->headers[h.header_instance].pointer = NULL;
     } else {
         debug("Cannot remove a header instance not present in the packet\n");
     }
 }
 
-void
-generate_digest(backend bg, char* name, int receiver, struct type_field_list* digest_field_list) {
+//void
+//generate_digest(backend bg, char* name, int receiver, struct type_field_list* digest_field_list) {
     /*digest d = create_digest(bg, name);
     int i;
     for (i = 0; i < digest_field_list->fields_quantity; i++)
         d = add_digest_field(d, digest_field_list->field_offsets[i], digest_field_list->field_widths[i]);
     send_digest(bg, d, receiver);*/
-}
+//}
 
 void no_op(void) {
    debug("No Op");
 }
 
 void drop(packet_descriptor_t* p) {
-   debug("Drop");
+    // TODO
 }
 

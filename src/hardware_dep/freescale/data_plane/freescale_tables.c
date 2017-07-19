@@ -1,32 +1,9 @@
 #include "backend.h"
-#include "dataplane.h"
-#include "actions.h"
+#include "includes/shared/dataplane.h"
+#include "includes/compiled/actions.h"
 #include "freescale_tables.h"
 #include <odp/api/spinlock.h>
 
-#ifndef FREESCALE_TABLES_H
-#define FREESCALE_TABLES_H
-
-typedef struct extended_table_s {
-    void*     rte_table;
-    uint8_t   size;
-    uint8_t** content;
-} extended_table_t;
-
-//=============================================================================
-// Table size limits
-
-#ifdef RTE_ARCH_X86_64
-#define HASH_ENTRIES		1024
-#else
-#define HASH_ENTRIES		1024
-#endif
-#define LPM_MAX_RULES         1024
-#define LPM6_NUMBER_TBL8S (1 << 16)
-
-#define TABLE_MAX 256
-
-#endif
 
 void        exact_create (lookup_table_t* t, int socketid){
 	t->table = malloc(sizeof(my_flow_bucket_t));

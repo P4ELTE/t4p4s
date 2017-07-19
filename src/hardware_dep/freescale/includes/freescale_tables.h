@@ -20,7 +20,6 @@ typedef struct extended_table_s {
 
 #define TABLE_MAX 256
 
-#endif
 
 typedef struct {
 	void			*next;		/**< Pointer to next flow in list*/
@@ -37,3 +36,4 @@ typedef struct {
 #define LOCK(a)      odp_spinlock_lock(a)
 #define UNLOCK(a)    odp_spinlock_unlock(a)
 #define LOCK_INIT(a) odp_spinlock_init(a)
+#endif
