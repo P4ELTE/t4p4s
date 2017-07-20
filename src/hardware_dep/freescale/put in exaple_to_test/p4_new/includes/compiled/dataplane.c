@@ -27,6 +27,10 @@
      uint8_t* key[6];// sugar@53
      table_smac_key(pd, (uint8_t*)key);// sugar@54
      uint8_t* value = exact_lookup(tables[TABLE_smac], (uint8_t*)key);// sugar@55
+     if(value == NULL) {// sugar@60
+              debug("    :: NO RESULT, NO DEFAULT ACTION, IGNORING PACKET.\n");// sugar@61
+              return;// sugar@62
+     }// sugar@63
      int index = *(int*)(value+sizeof(struct smac_action)); (void)index;// sugar@56
      struct smac_action* res = (struct smac_action*)value;// sugar@57
      if(res == NULL) {// sugar@60

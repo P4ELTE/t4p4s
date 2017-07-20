@@ -186,6 +186,18 @@ create_table(lookup_table_t* t)
 }
 
 static void
+fill_table(lookup_table_t* t)
+{
+	uint8_t i;
+	for(i=0; i<100;i++){
+		struct action_forward_params param = {.port=1,}; 
+		struct dmac_action action = {.action_id=2, action.forward_params=param,};
+		uint8_t key[6] = {2,17,0,0,0,i};
+		exact_add(t, key, (uint8_t*)&action);
+	}
+}
+
+static void
 create_tables(lookup_table_t** tables)
 {
     if(table_config == NULL) return;
@@ -193,7 +205,8 @@ create_tables(lookup_table_t** tables)
     int i;
     for(i = 0; i < NB_TABLES; i++) {
         tables[i] = &table_config[i];
-	create_table(tables[i]);
+	    create_table(tables[i]);
+	    fill_table(tables[i]);
         debug("Creating instances for table %s\n", t.name);
     }
 }
@@ -511,7 +524,7 @@ static int run_worker(void *arg)
 	lookup_table_t** tables = malloc(2*sizeof(lookup_table_t));
 	init_dataplane(pd, tables);
 	create_tables(tables);
-    
+	
 	thread_args_t *thr_args = arg;
 	odp_packet_t pkt_tbl[MAX_PKT_BURST];
 	odp_pktin_queue_t pktin;

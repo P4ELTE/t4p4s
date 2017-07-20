@@ -50,15 +50,15 @@ void         ternary_add (lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_
 
 uint8_t*    exact_lookup (lookup_table_t* t, uint8_t* key){
         my_odp_flow_entry_t      *flow, *head;
-
 	head = ((my_flow_bucket_t *)t->table)->next;
 	for (flow = head; flow != NULL; flow = flow->next) {
+		//printf("FLOW ENTRIES: %02x:%02x:%02x:%02x:%02x:%02x \n", flow->key[0],flow->key[1],flow->key[2],flow->key[3],flow->key[4],flow->key[5]);
 		if (key[0] == flow->key[0] && key[1] == flow->key[1] && key[2] == flow->key[2] && key[3] == flow->key[3] && key[4] == flow->key[4] && key[5] == flow->key[5])
 		{
 			return flow->value;
 		}
 	}
-        debug("Key not found: %02x:%02x:%02x:%02x:%02x:%02x \n", key[0],key[1],key[2],key[3],key[4],key[5]);
+        printf("Key not found: %02x:%02x:%02x:%02x:%02x:%02x \n", key[0],key[1],key[2],key[3],key[4],key[5]);
 	return NULL;
 
 }
