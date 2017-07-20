@@ -38,6 +38,74 @@ def match_type_order(t):
     if t is p4.p4_match_type.P4_MATCH_LPM:     return 1
     if t is p4.p4_match_type.P4_MATCH_TERNARY: return 2
 
+
+################################################################################
+# hlir16 helpers
+
+def format_statement_16(s):
+    generated_code = ""
+    if s.node_type == 'AssignmentStatement':
+        #[ // ${format_expr_16(s.left)}
+        #[ // ${format_expr_16(s.right)}
+    if s.node_type == 'BlockStatement':
+        for c in s.components:
+            #[ ${format_statement_16(c)}
+    if s.node_type == 'IfStatement':
+        #[ if(${format_expr_16(s.condition)}) ;
+    if s.node_type == 'MethodCallStatement': 
+        #[ method_${s.methodCall.method.expr.path.name}(pd, tables);
+    return generated_code
+
+def format_expr_16(e):
+    if e.node_type == 'LNot':
+        return '!('+format_expr_16(e.expr)+')'
+    if e.node_type == 'PathExpression':
+        return e.path.name
+    if e.node_type == 'Member':
+        return format_expr_16(e.expr)
+    if e.node_type == 'MethodCallExpression':
+        # <MethodCallExpression>[arguments, method, type, typeArguments]
+        return 'method_'+format_expr_16(e.method)+'(pd, tables)'
+
+################################################################################
+# Pipeline implementation
+
+STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
+
+main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
+package_name = main.type.baseType.path.name
+pipeline_elements = main.arguments
+
+package_type = hlir16.declarations.get(package_name, 'Type_Package')
+
+#[ void pipeline(${STDPARAMS})
+#[ {
+for pe in pipeline_elements: 
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ control_${pe.type.name}(pd, tables);
+#[ }
+
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ void control_${pe.type.name}(${STDPARAMS})
+        #[ {
+        if pe.type.name == 'ingress':
+            #[ ${format_statement_16(c.body)}
+        else:
+            #[ // intentionally left empty
+        #[ }
+
+        for t in c.controlLocals['P4Table']:
+            #[ void method_${t.name}(${STDPARAMS})
+            #[ {
+            #[     apply_table_${t.name}(pd, tables);
+            #[ }
+
+################################################################################
+# Key calculation
+
 for table in hlir.p4_tables.values():
     table_type, key_length = getTypeAndLength(table)
     #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
@@ -62,8 +130,12 @@ for table in hlir.p4_tables.values():
     #[ }
     #[
 
-for table in hlir.p4_tables.values():
-    table_type, key_length = getTypeAndLength(table)
+################################################################################
+# Table application
+
+for table in hlir16.tables:
+    table_type = "LOOKUP_" + table.match_type
+    key_length = table.key_length
     lookupfun = {'LOOKUP_LPM':'lpm_lookup', 'LOOKUP_EXACT':'exact_lookup', 'LOOKUP_TERNARY':'ternary_lookup'}
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables)
     #[ {
@@ -75,51 +147,35 @@ for table in hlir.p4_tables.values():
     #[     int index; (void)index;
 
     # COUNTERS
-    #[     if(res != NULL) {
-    #[       index = *(int*)(value+sizeof(struct ${table.name}_action));
-    for counter in table.attached_counters:
-        #[       increase_counter(COUNTER_${counter.name}, index);
-    #[     }
+    # TODO
 
     # ACTIONS
     #[     if(res == NULL) {
     #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
     #[     } else {
     #[       switch (res->action_id) {
-    for action in table.actions:
-        #[         case action_${action.name}:
-        #[           debug("    :: EXECUTING ACTION ${action.name}...\n");
-        if action.signature:
-            #[           action_code_${action.name}(pd, tables, res->${action.name}_params);
+    for action in table.actions.actionList:
+        action_name_0 = action.expression.method.path.name
+        action_name = action.expression.method.path.name[:-2]
+        if action_name == 'NoAction':
+            continue
+        #[         case action_${action_name}:
+        #[           debug("    :: EXECUTING ACTION ${action_name}...\n");
+        action_obj = hlir16.declarations.get('ingress', 'P4Control').controlLocals.get(action_name_0, 'P4Action')
+        if action_obj.parameters.parameters: # action.expression.arguments != []:
+            print(action_name)
+            print(action_obj.parameters.parameters)
+            print(action_obj.parameters.parameters != [])
+            #[           action_code_${action_name}(pd, tables, res->${action_name}_params);
         else:
-            #[           action_code_${action.name}(pd, tables);
+            #[           action_code_${action_name}(pd, tables);
         #[           break;
     #[       }
     #[     }
-
-    # NEXT TABLE
-    if 'hit' in table.next_:
-        #[     if(res != NULL && index != DEFAULT_ACTION_INDEX) { //Lookup was successful (not with default action)
-        if table.next_['hit'] is not None:
-            #[       ${format_p4_node(table.next_['hit'])}
-        #[     } else {                                           //Lookup failed or returned default action
-        if table.next_['miss'] is not None:
-            #[       ${format_p4_node(table.next_['miss'])}
-        #[     }
-    else:
-        #[     if (res != NULL) {
-        #[       switch (res->action_id) {
-        for action, nextnode in table.next_.items():
-            #[         case action_${action.name}:
-            #[           ${format_p4_node(nextnode)}
-            #[           break;
-        #[       }
-        #[     } else {
-        #[       debug("    :: IGNORING PACKET.\n");
-        #[       return;
-        #[     }
     #[ }
     #[
+
+################################################################################
 
 #[
 #[ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
@@ -225,6 +281,8 @@ for calc in hlir.p4_field_list_calculations.values():
     #[   return res & ${hex((2 ** calc.output_width) - 1)};
     #[ }
     #[
+
+################################################################################
 
 #[ void reset_headers(packet_descriptor_t* packet_desc) {
 for hi in header_instances(hlir):

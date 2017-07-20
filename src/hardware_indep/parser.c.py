@@ -24,7 +24,7 @@ def format_state(state):
     else: #Control function (parsing is finished)
         #[ {
         #[   if(verify_packet(pd)) p4_pe_checksum(pd);
-        #[   ${format_p4_node(state)}
+        #[   pipeline(pd, tables);
         #[ }
     return generated_code
 
