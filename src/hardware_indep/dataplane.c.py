@@ -60,12 +60,24 @@ def format_expr_16(e):
     if e.node_type == 'LNot':
         return '!('+format_expr_16(e.expr)+')'
     if e.node_type == 'PathExpression':
-        return e.path.name
+        return format_expr_16(e.path)
+    if e.node_type == 'Path':
+        if e.absolute:
+            return "???"
+        else:
+            return e.name
     if e.node_type == 'Member':
-        return format_expr_16(e.expr)
+        return format_expr_16(e.expr) # TODO + '.' + e.member
     if e.node_type == 'MethodCallExpression':
         # <MethodCallExpression>[arguments, method, type, typeArguments]
         return 'method_'+format_expr_16(e.method)+'(pd, tables)'
+
+# TODO move this to HAL
+def match_type_order_16(t):
+    if t == 'EXACT':   return 0
+    if t == 'LPM':     return 1
+    if t == 'TERNARY': return 2
+    else:              return 3
 
 ################################################################################
 # Pipeline implementation
@@ -78,9 +90,16 @@ pipeline_elements = main.arguments
 
 package_type = hlir16.declarations.get(package_name, 'Type_Package')
 
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ void control_${pe.type.name}(${STDPARAMS});
+        for t in c.controlLocals['P4Table']:
+            #[ void method_${t.name}(${STDPARAMS});
+
 #[ void pipeline(${STDPARAMS})
 #[ {
-for pe in pipeline_elements: 
+for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
     if c is not None:
         #[ control_${pe.type.name}(pd, tables);
@@ -106,27 +125,26 @@ for pe in pipeline_elements:
 ################################################################################
 # Key calculation
 
-for table in hlir.p4_tables.values():
-    table_type, key_length = getTypeAndLength(table)
+for table in hlir16.tables:
     #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
-    sortedfields = sorted(table.match_fields, key=lambda field: match_type_order(field[1]))
-    for match_field, match_type, match_mask in sortedfields:
-        if is_vwf(match_field):
-            addError("generating table_" + table.name + "_key", "Variable width field '" + str(match_field) + "' in match key for table '" + table.name + "' is not supported")
-        elif match_field.width <= 32:
-            #[ EXTRACT_INT32_BITS(pd, ${fld_id(match_field)}, *(uint32_t*)key)
+    sortedfields = sorted(table.key.keyElements, key=lambda k: match_type_order_16(k.match_type))
+    #TODO variable length fields
+    #TODO field masks
+    for f in sortedfields:
+        if f.width <= 32:
+            #[ EXTRACT_INT32_BITS(pd, ${f.id}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
-        elif match_field.width > 32 and match_field.width % 8 == 0:
-            byte_width = (match_field.width+7)/8
-            #[ EXTRACT_BYTEBUF(pd, ${fld_id(match_field)}, key)
+        elif f.width > 32 and f.width % 8 == 0:
+            byte_width = (f.width+7)/8
+            #[ EXTRACT_BYTEBUF(pd, ${f.id}, key)
             #[ key += ${byte_width};
         else:
-            print("Unsupported field %s ignored in key calculation." % fld_id(match_field))
-    if table_type == "LOOKUP_LPM":
-        #[ key -= ${key_length};
+            print("Unsupported field %s ignored in key calculation." % f.id)
+    if table.match_type == "LPM":
+        #[ key -= ${table.key_length};
         #[ int c, d;
-        #[ for(c = ${key_length-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(c = 0; c < ${key_length}; c++) *(key+c) = *(reverse_buffer+c);
+        #[ for(c = ${table.key_length-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
+        #[ for(c = 0; c < ${table.key_length}; c++) *(key+c) = *(reverse_buffer+c);
     #[ }
     #[
 
@@ -134,15 +152,13 @@ for table in hlir.p4_tables.values():
 # Table application
 
 for table in hlir16.tables:
-    table_type = "LOOKUP_" + table.match_type
-    key_length = table.key_length
-    lookupfun = {'LOOKUP_LPM':'lpm_lookup', 'LOOKUP_EXACT':'exact_lookup', 'LOOKUP_TERNARY':'ternary_lookup'}
+    lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables)
     #[ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
-    #[     uint8_t* key[${key_length}];
+    #[     uint8_t* key[${table.key_length}];
     #[     table_${table.name}_key(pd, (uint8_t*)key);
-    #[     uint8_t* value = ${lookupfun[table_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
+    #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
     #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
     #[     int index; (void)index;
 
@@ -154,18 +170,13 @@ for table in hlir16.tables:
     #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
     #[     } else {
     #[       switch (res->action_id) {
-    for action in table.actions.actionList:
-        action_name_0 = action.expression.method.path.name
+    for action in table.actions:
         action_name = action.expression.method.path.name[:-2]
         if action_name == 'NoAction':
             continue
         #[         case action_${action_name}:
         #[           debug("    :: EXECUTING ACTION ${action_name}...\n");
-        action_obj = hlir16.declarations.get('ingress', 'P4Control').controlLocals.get(action_name_0, 'P4Action')
-        if action_obj.parameters.parameters: # action.expression.arguments != []:
-            print(action_name)
-            print(action_obj.parameters.parameters)
-            print(action_obj.parameters.parameters != [])
+        if action.action_object.parameters.parameters: # action.expression.arguments != []:
             #[           action_code_${action_name}(pd, tables, res->${action_name}_params);
         else:
             #[           action_code_${action_name}(pd, tables);
