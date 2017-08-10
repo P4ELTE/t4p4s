@@ -148,7 +148,7 @@ def generate_code(file, genfile, localvars={}):
                 print("Error: cannot compile file {}".format(genfile), file=sys.stderr)
                 raise
 
-        return localvars['generated_code']
+        return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
 
 
 def generate_desugared(hlir, hlir16, filename, file_with_path):
