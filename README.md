@@ -1,14 +1,27 @@
 
 # Getting started with T4P4S-16
 
-This is an experimental compiler that uses more and more P4-16 features.
+This is an experimental compiler that is
+in the process of transitioning into using P4-16,
+replacing more and more P4-14 code.
 It still makes use of P4-14 until all parts have been transformed.
-See the [README of the previous version](README.md).
+See the [README of the previous version](README14.md).
 
 To start working with the compiler, do the following.
 
-1. Checkout [`hlir16`](https://github.com/P4ELTE/hlir16).
-1. Make a (symbolic) link under `src` to `hlir16`.
+1. Checkout the code the following way:
+
+    ~~~
+    git clone -b t4p4s-16 --recursive https://github.com/P4ELTE/t4p4s
+    ~~~
+
+1. Note that later on, when you pull further commits,
+   you will need to update the submodules as well:
+
+    ~~~
+    git submodule update --init --recursive
+    ~~~
+
 1. Don't forget to setup your environment variables `P4C` and `RTE_SDK`.
 1. Now you can use the compiler almost exactly as before.
    The only difference is that you have to supply the option `-v 14` (or its longer form `--p4c 14`),
