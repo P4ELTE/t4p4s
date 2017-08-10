@@ -41,8 +41,15 @@ for table in hlir16.tables:
     for key in table.key.keyElements:
         # TODO make an attribute for it
         # key_width_bits = bits_to_bytes(key.width)
-        key_width_bits = key.width / 8
-        params += "uint8_t {}[{}]".format(key.field_name, key_width_bits),
+        if key.expression.node_type == 'PathExpression':
+            # TODO
+            continue
+        if key.expression.node_type == 'Member':
+            if key.get_attr('width') is None:
+                # TODO
+                continue
+            key_width_bits = key.width / 8
+            params += "uint8_t {}[{}]".format(key.field_name, key_width_bits),
 
     #[ void TODO16_${table.name}_add(${', '.join(params)}, struct ${table.name}_action action) {
     #[ }

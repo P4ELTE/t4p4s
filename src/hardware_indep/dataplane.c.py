@@ -126,11 +126,20 @@ for pe in pipeline_elements:
 # Key calculation
 
 for table in hlir16.tables:
+    # TODO find out why they are missing and fix it
+    #      this happens if k is a PathExpression
+    if any([k.get_attr('match_type') is None for k in table.key.keyElements]):
+        continue
+
     #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
     sortedfields = sorted(table.key.keyElements, key=lambda k: match_type_order_16(k.match_type))
     #TODO variable length fields
     #TODO field masks
     for f in sortedfields:
+        if f.get_attr('width') is None:
+            # TODO find out why this is missing and fix it
+            continue
+
         if f.width <= 32:
             #[ EXTRACT_INT32_BITS(pd, ${f.id}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
