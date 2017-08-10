@@ -1,0 +1,3 @@
+[submodule "src/hlir16"]
+	path = src/hlir16
+	url = https://github.com/P4ELTE/hlir16
