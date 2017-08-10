@@ -22,17 +22,20 @@ To start working with the compiler, do the following.
     git submodule update --init --recursive
     ~~~
 
-1. Don't forget to setup your environment variables `P4C` and `RTE_SDK`.
+1. Don't forget to setup your environment.
+    - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
+    - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
+    - The system has to have hugepages configured. You can use `$RTE_SDK/tools/dpdk-setup.sh`, option `Setup hugepage mappings for non-NUMA systems`.
 1. Now you can use the compiler almost exactly as before.
    The only difference is that you have to supply the option `-v 14` (or its longer form `--p4c 14`),
    which currently is expected right after the filename.
 
 ~~~
-P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_l3_nat.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 ~~~
 
 At the moment, P4-16 programs are not expected to compile properly.
-However, they will produce code in the `build` directory.
+However, they will produce C code in the `build` directory.
 
 ~~~
 P4DPDK_VARIANT=no_nic_l2 ./launch.sh $P4C/testdata/p4_16_samples/vss-example.p4 -v 16 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
@@ -41,14 +44,26 @@ P4DPDK_VARIANT=no_nic_l2 ./launch.sh $P4C/testdata/p4_16_samples/vss-example.p4 
 
 # Working with the compiler
 
-For your convenience, the debugger can be activated by setting `IPDB=1` on the command line.
-It currently uses `ipdb` (install it via `pip` if you don't have it).
+If you set the `PDB` environment variable before running `launch.sh`,
+the system will open the debugger upon encountering a runtime error.
+
+- As the debugger opens up at the beginning,
+  you have to type `c` and press `Enter` to proceed.
+- Note that for the following example, `ipdb` has to be installed (e.g. via `pip`).
 
 ~~~
-IPDB=1 P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_l3_nat.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+PDB=ipdb P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 ~~~
 
-The compilation process will be interrupted right after
+Of course, you can also manually add debug triggers to the code if you wish.
+
+~~~
+import ipdb
+ipdb.set_trace()
+~~~
+
+A potentially interesting location is at the end of the `set_additional_attrs` function in `hlir16.py`.
+There, the compilation process will be interrupted right after
 the initialisation of the (currently incomplete) standard set of attributes.
 Now you can access the features of the nodes of the representation.
 
