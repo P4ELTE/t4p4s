@@ -44,7 +44,7 @@ for table in hlir16.tables:
         key_width_bits = key.width / 8
         params += "uint8_t {}[{}]".format(key.field_name, key_width_bits),
 
-    #[ void TODO16_${table.name}_add(${','.join(params)}, struct ${table.name}_action action) {
+    #[ void TODO16_${table.name}_add(${', '.join(params)}, struct ${table.name}_action action) {
     #[ }
 
     pass
@@ -60,7 +60,7 @@ for table in hlir.p4_tables.values():
         if match_type is p4.p4_match_type.P4_MATCH_TERNARY:
             params += "uint8_t {}_mask[{}]".format(match_field, byte_width),
         if match_type is p4.p4_match_type.P4_MATCH_LPM:
-            params += "uint8_t {}_mask_prefix_length".format(match_field),
+            params += "uint8_t {}_prefix_length".format(fld_id(match_field)),
     #[ void ${table.name}_add(${','.join(params)}, struct ${table.name}_action action)
     #[ {
     #[     uint8_t key[${key_length}];

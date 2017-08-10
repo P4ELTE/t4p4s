@@ -134,7 +134,6 @@ def modify_field(fun, call):
     mask = ''
     if len(args)==3:
        (gc,m) = modify_field_mask( args[2] )
-       print("MASK: %s %s" % (fun.name, m))
        #[ ${gc}
        mask = ' & %s' % m
     if not isinstance(dst, p4_field):

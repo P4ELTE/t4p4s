@@ -81,37 +81,37 @@ for hsid in header_stack_ids(hlir):
 #[ // Header instance infos
 #[ // ---------------------
 
-#[ #define HEADER_INSTANCE_COUNT ${len(hlir16.all_headers)}
+#[ #define HEADER_INSTANCE_COUNT ${len(hlir16.header_instances)}
 
 
 #[ enum header_instance_e {
-for hdr in hlir16.all_headers:
-    #[   header_instance_${hdr.inst_name},
+for hdr in hlir16.header_instances:
+    #[   header_instance_${hdr.name},
 #[ };
 
 
 #[ static const int header_instance_byte_width[HEADER_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    #[   ${hdr.byte_width}, // header_instance_${hdr.inst_name}, ${hdr.bit_width} bits, ${hdr.bit_width/8.0} bytes
+for hdr in hlir16.header_instances:
+    #[   ${hdr.type.byte_width}, // header_instance_${hdr.type.inst_name}, ${hdr.type.bit_width} bits, ${hdr.type.bit_width/8.0} bytes
 #[ };
 
 
 #[ static const int header_instance_is_metadata[HEADER_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    #[   ${1 if hdr.is_metadata else 0}, // header_instance_${hdr.inst_name}
+for hdr in hlir16.header_instances:
+    #[   ${1 if hdr.type.is_metadata else 0}, // header_instance_${hdr.type.inst_name}
 #[ };
 
 
 #[ // Note: -1: is fixed-width field
 #[ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    #[   ${-1 if hdr.is_metadata else hdr.bit_width}, // header_instance_${hdr.inst_name}
+for hdr in hlir16.header_instances:
+    #[   ${1 if hdr.type.is_vw else -1}, // header_instance_${hdr.type.inst_name}
 #[ };
 
 
 # TODO move to hlir16.py/set_additional_attrs?
 def all_field_instances():
-    return [fld for hdr in hlir16.all_headers for fld in hdr.fields]
+    return [fld for hdr in hlir16.header_instances for fld in hdr.type.fields]
 
 
 #[ // Field instance infos
@@ -126,33 +126,33 @@ def all_field_instances():
 
 
 #[ enum field_instance_e {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[   field_instance_${hdr.inst_name}_${fld.name},
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[   field_instance_${hdr.type.inst_name}_${fld.name},
 #[ };
 
 
 
 #[ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[   ${fld.type.size}, // field_instance_${hdr.name}_${fld.name}
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[   ${fld.type.size}, // field_instance_${hdr.type.name}_${fld.name}
 #[ };
 
 
 #[ static const int field_instance_bit_offset[FIELD_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[   (${fld.offset} % 8), // field_instance_${hdr.name}_${fld.name}
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[   (${fld.offset} % 8), // field_instance_${hdr.type.name}_${fld.name}
 #[ };
 
 
 # TODO why does this name have "_hdr" at the end, but field_instance_bit_offset doesn't?
 
 #[ static const int field_instance_byte_offset_hdr[FIELD_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[   (${fld.offset} / 8), // field_instance_${hdr.name}_${fld.name}
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[   (${fld.offset} / 8), // field_instance_${hdr.type.name}_${fld.name}
 #[ };
 
 
@@ -164,16 +164,16 @@ for hdr in hlir16.all_headers:
 #[ #define uint32_top_bits(n) (0xffffffff << mod_top(n, 32))
 
 #[ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[  __bswap_constant_32(uint32_top_bits(${fld.type.size}) >> (${fld.offset}%8)), // field_instance_${hdr.name}_${fld.name},
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[  __bswap_constant_32(uint32_top_bits(${fld.type.size}) >> (${fld.offset}%8)), // field_instance_${hdr.type.name}_${fld.name},
 #[ };
 
 
 #[ static const header_instance_t field_instance_header[FIELD_INSTANCE_COUNT] = {
-for hdr in hlir16.all_headers:
-    for fld in hdr.fields:
-        #[   header_instance_${hdr.inst_name}, // field_instance_${hdr.name}_${fld.name}
+for hdr in hlir16.header_instances:
+    for fld in hdr.type.fields:
+        #[   header_instance_${hdr.type.inst_name}, // field_instance_${hdr.type.name}_${fld.name}
 #[ };
 
 
