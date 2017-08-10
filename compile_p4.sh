@@ -20,7 +20,14 @@ P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"build/$P4_BASENAME"}
 shift
 
 
-python src/compiler.py "${P4_SOURCE}" $*
+if [ "$PDB" != "" ]; then
+    # note: Python 3.2+ also accepts a  -c continue  option
+    # to remain compatible with Python 2.x, a "c" has to be typed at the start
+    python -m "$PDB" src/compiler.py "${P4_SOURCE}" $*
+else
+    python src/compiler.py "${P4_SOURCE}" $*
+fi
+
 ERROR_CODE=$?
 if [ "$ERROR_CODE" -ne 0 ]; then
     echo P4 compilation failed with error code $ERROR_CODE
