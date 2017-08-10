@@ -16,10 +16,17 @@ To start working with the compiler, do the following.
     ~~~
 
 1. Note that later on, when you pull further commits,
-   you will need to update the submodules as well:
+   you will need to update the submodules as well.
+   Issue the following command from the root of the repo:
 
     ~~~
     git submodule update --init --recursive
+    ~~~
+
+    - Another option that might work:
+
+    ~~~
+    git submodule update --rebase --remote
     ~~~
 
 1. Don't forget to setup your environment.
