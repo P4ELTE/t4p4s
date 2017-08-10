@@ -21,9 +21,9 @@ import math
 #[ #include "actions.h"
 #[ #include <unistd.h>
 #[ #include <arpa/inet.h>
-#[
+
 #[ extern backend bg;
-#[
+
 
 # =============================================================================
 # Helpers for field access and update
@@ -380,7 +380,7 @@ def generate_digest(fun, call):
             addError("generating actions.c", "Unhandled parameter type in field_list: " + name + ", " + str(field))
 
     params = ",".join(fun_params)
-    #[
+
     #[    generate_digest(${params}); sleep(1);
     return generated_code
 
@@ -449,4 +449,4 @@ for fun in userActions(hlir):
             addWarning("generating actions.c", "Unhandled primitive function: " +  name)
 
     #[ }
-    #[
+

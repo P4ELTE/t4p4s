@@ -28,14 +28,14 @@ def hsarrayarray(t, es):
 
 # TODO remove after implemented in hlir16
 def header_stack_elements():
-    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_header_instances.values())
+    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_headers.values())
     hs_names = list(set(map(lambda i: i.base_name, stack_instances)))
     xs = map(lambda s : "{" + ",\n  ".join(instances4stack(hlir, s)) + "}", hs_names)
     return hsarrayarray("header_instance_t", xs)
 
 # TODO remove after implemented in hlir16
 def header_stack_size():
-    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_header_instances.values())
+    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_headers.values())
     hs_names = list(set(map(lambda i: i.base_name, stack_instances)))
     xs = map(lambda s : str(len(instances4stack(hlir, s))), hs_names)
     return hsarray("unsigned", xs)
@@ -73,7 +73,7 @@ sc = len(header_stack_ids(hlir))
 # TODO convert to hlir16
 for hsid in header_stack_ids(hlir):
     #[ ${hsid},
-#[   header_stack_
+#[   header_stack_,
 #[ };
 
 
@@ -81,58 +81,44 @@ for hsid in header_stack_ids(hlir):
 #[ // Header instance infos
 #[ // ---------------------
 
-
-#[ #define HEADER_INSTANCE_COUNT ${len(hlir16.metadatas) + len(hlir16.header_instances)}
+#[ #define HEADER_INSTANCE_COUNT ${len(hlir16.all_headers)}
 
 
 #[ enum header_instance_e {
-for meta in hlir16.metadatas:
-    #[   header_instance_${meta.inst_name},
-for header_inst in hlir16.header_instances:
-    #[   header_instance_${header_inst.name},
+for hdr in hlir16.all_headers:
+    #[   header_instance_${hdr.inst_name},
 #[ };
 
 
 #[ static const int header_instance_byte_width[HEADER_INSTANCE_COUNT] = {
-for meta in hlir16.metadatas:
-    meta_len = type_bit_width(hlir16, meta)
-    #[   ${bits_to_bytes(meta_len)}, // header_instance_${meta.inst_name}, ${meta_len} bits, ${meta_len/8.0} bytes
-for header_inst in hlir16.headers:
-    bits = get_bit_width(hlir16, header_inst)
-    #[   ${bits_to_bytes(bits)}, // header_instance_${header_inst.name}, ${bits} bits, ${bits/8.0} bytes
+for hdr in hlir16.all_headers:
+    #[   ${hdr.byte_width}, // header_instance_${hdr.inst_name}, ${hdr.bit_width} bits, ${hdr.bit_width/8.0} bytes
 #[ };
 
 
 #[ static const int header_instance_is_metadata[HEADER_INSTANCE_COUNT] = {
-for meta in hlir16.metadatas:
-    #[   1, // header_instance_standard_metadata
-for header_inst in hlir16.headers:
-    bits = get_bit_width(hlir16, header_inst)
-    #[   0, // header_instance_${header_inst.name}
+for hdr in hlir16.all_headers:
+    #[   ${1 if hdr.is_metadata else 0}, // header_instance_${hdr.inst_name}
 #[ };
 
 
 #[ // Note: -1: is fixed-width field
 #[ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
-for meta in hlir16.metadatas:
-    #[   -1, // header_instance_${meta.inst_name}
-for header_inst in hlir16.header_instances:
-    #[   ${get_bit_width(hlir16, header_inst)}, // header_instance_${header_inst.name}
+for hdr in hlir16.all_headers:
+    #[   ${-1 if hdr.is_metadata else hdr.bit_width}, // header_instance_${hdr.inst_name}
 #[ };
 
 
+# TODO move to hlir16.py/set_additional_attrs?
 def all_field_instances():
-    return [(meta.inst_name, meta) for meta in hlir16.metadatas] + [(hdr.name, hdr.header_type) for hdr in hlir16.header_instances]
-
-def all_field_instance_fields():
-    return [(fld, hdr_name, hdr_type) for hdr_name, hdr_type in all_field_instances() for fld in hdr_type.fields]
+    return [fld for hdr in hlir16.all_headers for fld in hdr.fields]
 
 
 #[ // Field instance infos
 #[ // --------------------
 
 
-#[ #define FIELD_INSTANCE_COUNT ${len(all_field_instance_fields())}
+#[ #define FIELD_INSTANCE_COUNT ${len(all_field_instances())}
 
 
 #[ typedef enum header_instance_e header_instance_t;
@@ -140,30 +126,33 @@ def all_field_instance_fields():
 
 
 #[ enum field_instance_e {
-for fld, hdr_name, hdr_type in all_field_instance_fields():
-    #[   field_instance_${hdr_name}_${fld.name},
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[   field_instance_${hdr.inst_name}_${fld.name},
 #[ };
 
 
 
 #[ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
-for fld, hdr_name, hdr_type in all_field_instance_fields():
-    fld_type = get_type(hlir16, fld)
-    #[   ${fld_type.size}, // field_instance_${hdr_name}_${fld.name}
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[   ${fld.type.size}, // field_instance_${hdr.name}_${fld.name}
 #[ };
 
 
 #[ static const int field_instance_bit_offset[FIELD_INSTANCE_COUNT] = {
-for fld, hdr_name, hdr_type in all_field_instance_fields():
-    #[   (${fld.offset} % 8), // field_instance_${hdr_name}_${fld.name}
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[   (${fld.offset} % 8), // field_instance_${hdr.name}_${fld.name}
 #[ };
 
 
 # TODO why does this name have "_hdr" at the end, but field_instance_bit_offset doesn't?
 
 #[ static const int field_instance_byte_offset_hdr[FIELD_INSTANCE_COUNT] = {
-for fld, hdr_name, hdr_type in all_field_instance_fields():
-    #[   (${fld.offset} / 8), // field_instance_${hdr_name}_${fld.name}
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[   (${fld.offset} / 8), // field_instance_${hdr.name}_${fld.name}
 #[ };
 
 
@@ -175,24 +164,31 @@ for fld, hdr_name, hdr_type in all_field_instance_fields():
 #[ #define uint32_top_bits(n) (0xffffffff << mod_top(n, 32))
 
 #[ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
-for fld, hdr_name, hdr_type in all_field_instance_fields():
-    fld_type = get_type(hlir16, fld)
-    #[  __bswap_constant_32(uint32_top_bits(${fld_type.size}) >> (${fld.offset}%8)), // field_instance_${hdr_name}_${fld.name},
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[  __bswap_constant_32(uint32_top_bits(${fld.type.size}) >> (${fld.offset}%8)), // field_instance_${hdr.name}_${fld.name},
 #[ };
 
 
 #[ static const header_instance_t field_instance_header[FIELD_INSTANCE_COUNT] = {
-for hdr_name, hdr_type in all_field_instances():
-    for fld in hdr_type.fields:
-        #[   header_instance_${hdr_name}, // field_instance_${hdr_name}_${fld.name}
+for hdr in hlir16.all_headers:
+    for fld in hdr.fields:
+        #[   header_instance_${hdr.inst_name}, // field_instance_${hdr.name}_${fld.name}
 #[ };
 
 
+# TODO convert to hlir16 properly
+# #[ ${ header_stack_elements() }
+#[ static const header_instance_t header_stack_elements[HEADER_STACK_COUNT][10] = {
+#[     // TODO
+#[ };
 
-# TODO convert to hlir16
+# TODO convert to hlir16 properly
+# #[ ${ header_stack_size() }
+#[ static const unsigned header_stack_size[HEADER_STACK_COUNT] = {
+#[     // TODO
+#[ };
 
-#[ ${ header_stack_elements() }
-#[ ${ header_stack_size() }
 #[ typedef enum header_stack_e header_stack_t;
 
 

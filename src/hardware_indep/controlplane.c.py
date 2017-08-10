@@ -21,32 +21,47 @@ def match_type_order(t):
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
-#[ 
+
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
 #[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
-#[
+
 for table in hlir.p4_tables.values():
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
-#[
+
 
 if len(hlir.p4_tables.values())>0:
     #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
 
+for table in hlir16.tables:
+    #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
+
+    params = []
+    for key in table.key.keyElements:
+        # TODO make an attribute for it
+        # key_width_bits = bits_to_bytes(key.width)
+        key_width_bits = key.width / 8
+        params += "uint8_t {}[{}]".format(key.field_name, key_width_bits),
+
+    #[ void TODO16_${table.name}_add(${','.join(params)}, struct ${table.name}_action action) {
+    #[ }
+
+    pass
+
 for table in hlir.p4_tables.values():
     table_type, key_length = getTypeAndLength(table)
-    #[ void
-    #[ ${table.name}_add(
+    #[ // note: ${table_type}, ${key_length}
+
+    params = []
     for match_field, match_type, match_mask in table.match_fields:
         byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
-        #[ uint8_t ${fld_id(match_field)}[${byte_width}],
-        ###if match_type is p4_match_type.P4_MATCH_EXACT:
+        params += "uint8_t {}[{}]".format(fld_id(match_field), byte_width),
         if match_type is p4.p4_match_type.P4_MATCH_TERNARY:
-            #[ uint8_t ${fld_id(match_field)}_mask[${byte_width}],
+            params += "uint8_t {}_mask[{}]".format(match_field, byte_width),
         if match_type is p4.p4_match_type.P4_MATCH_LPM:
-            #[ uint8_t ${fld_id(match_field)}_prefix_length,
-    #[ struct ${table.name}_action action)
+            params += "uint8_t {}_mask_prefix_length".format(match_field),
+    #[ void ${table.name}_add(${','.join(params)}, struct ${table.name}_action action)
     #[ {
     #[     uint8_t key[${key_length}];
     sortedfields = sorted(table.match_fields, key=lambda field: match_type_order(field[1]))
@@ -73,9 +88,9 @@ for table in hlir.p4_tables.values():
             byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
         #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action);
     #[ }
-    #[
-    #[ void
-    #[ ${table.name}_setdefault(struct ${table.name}_action action)
+
+for table in hlir.p4_tables.values():
+    #[ void ${table.name}_setdefault(struct ${table.name}_action action)
     #[ {
     #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
     #[ }
@@ -112,8 +127,7 @@ for table in hlir.p4_tables.values():
     #[ }
 
 for table in hlir.p4_tables.values():
-    #[ void
-    #[ ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
+    #[ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     #[ debug("Action name: %s\n", ctrl_m->action_name);
     for action in table.actions:
         #[ if(strcmp("${action.name}", ctrl_m->action_name)==0) {
@@ -129,6 +143,24 @@ for table in hlir.p4_tables.values():
     #[ debug("Table setdefault: action name mismatch (%s).\n", ctrl_m->action_name);
     #[ }
 
+
+#[ void TODO16_recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
+#[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
+#[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
+for table in hlir16.tables:
+    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
+    #[     ${table.name}_add_table_entry(ctrl_m);
+    #[ else
+#[ debug("Table add entry: table name mismatch (%s).\n", ctrl_m->table_name);
+#[     }
+#[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
+for table in hlir16.tables:
+    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
+    #[     ${table.name}_set_default_table_action(ctrl_m);
+    #[ else
+#[ debug("Table setdefault: table name mismatch (%s).\n", ctrl_m->table_name);
+#[     }
+#[ }
 
 #[ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
 #[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
@@ -156,16 +188,4 @@ for table in hlir.p4_tables.values():
 #[     debug("Creating control plane connection...\n");
 #[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
 #[     launch_backend(bg);
-#[ /*
-if "smac" in hlir.p4_tables:
-    #[ struct smac_action action;
-    #[ action.action_id = action_mac_learn;
-    #[ smac_setdefault(action);
-    #[ debug("smac setdefault\n");
-if "dmac" in hlir.p4_tables:
-    #[ struct dmac_action action2;
-    #[ action2.action_id = action_bcast;
-    #[ dmac_setdefault(action2);
-    #[ debug("dmac setdefault\n");
-#[ */
 #[ }

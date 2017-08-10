@@ -21,14 +21,14 @@ from utils.misc import addError, addWarning
 #[ #include <string.h>
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
-#[ 
+
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
-#[
+
 #[ extern void increase_counter (int counterid, int index);
-#[
+
 for table in hlir.p4_tables.values():
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables);
-#[
+
 
 if len(hlir.p4_tables.values())>0:
     #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
@@ -141,12 +141,12 @@ for table in hlir16.tables:
         else:
             print("Unsupported field %s ignored in key calculation." % f.id)
     if table.match_type == "LPM":
-        #[ key -= ${table.key_length};
+        #[ key -= ${table.key_length_bytes};
         #[ int c, d;
-        #[ for(c = ${table.key_length-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(c = 0; c < ${table.key_length}; c++) *(key+c) = *(reverse_buffer+c);
+        #[ for(c = ${table.key_length_bytes-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
+        #[ for(c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
     #[ }
-    #[
+
 
 ################################################################################
 # Table application
@@ -156,7 +156,7 @@ for table in hlir16.tables:
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables)
     #[ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
-    #[     uint8_t* key[${table.key_length}];
+    #[     uint8_t* key[${table.key_length_bytes}];
     #[     table_${table.name}_key(pd, (uint8_t*)key);
     #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
     #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
@@ -184,11 +184,11 @@ for table in hlir16.tables:
     #[       }
     #[     }
     #[ }
-    #[
+
 
 ################################################################################
 
-#[
+
 #[ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
 #[     if(num1 == 0) return num2;
 #[     uint32_t tmp_num = num1 + num2;
@@ -196,7 +196,7 @@ for table in hlir16.tables:
 #[         tmp_num = ((tmp_num & 0xffff0000) >> 16) + (tmp_num & 0xffff);
 #[     return (uint16_t)tmp_num;
 #[ }
-#[
+
 for calc in hlir.p4_field_list_calculations.values():
     #[ uint32_t calculate_${calc.name}(packet_descriptor_t* pd) {
     #[   uint32_t res = 0;
@@ -291,7 +291,7 @@ for calc in hlir.p4_field_list_calculations.values():
     #[   free(buf);
     #[   return res & ${hex((2 ** calc.output_width) - 1)};
     #[ }
-    #[
+
 
 ################################################################################
 
@@ -314,23 +314,23 @@ for hi in header_instances(hlir):
         #[ packet_desc->headers[${n}] = (header_descriptor_t) { .type = ${n}, .length = header_info(${n}).bytewidth, .pointer = NULL,
         #[                               .var_width_field_bitwidth = 0 };
 #[ }
-#[
+
 for table in hlir.p4_tables.values():
-    table_type, key_length = getTypeAndLength(table)
-    if key_length == 0 and len(table.actions) == 1:
+    table_type, key_length_bytes = getTypeAndLength(table)
+    if key_length_bytes == 0 and len(table.actions) == 1:
         action = table.actions[0]
         #[ extern void ${table.name}_setdefault(struct ${table.name}_action);
-#[
+
 #[ void init_keyless_tables() {
 for table in hlir.p4_tables.values():
-    table_type, key_length = getTypeAndLength(table)
-    if key_length == 0 and len(table.actions) == 1:
+    table_type, key_length_bytes = getTypeAndLength(table)
+    if key_length_bytes == 0 and len(table.actions) == 1:
         action = table.actions[0]
         #[ struct ${table.name}_action ${table.name}_a;
         #[ ${table.name}_a.action_id = action_${action.name};
         #[ ${table.name}_setdefault(${table.name}_a);
 #[ }
-#[
+
 #[ void init_dataplane(packet_descriptor_t* pd, lookup_table_t** tables) {
 #[     init_headers(pd);
 #[     reset_headers(pd);
@@ -338,7 +338,7 @@ for table in hlir.p4_tables.values():
 #[     pd->dropped=0;
 #[ }
 
-#[
+
 #[ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
@@ -350,7 +350,7 @@ for f in hlir.p4_fields.values():
             #[     value32 = pd->fields.${fld_id(f)};
             #[     MODIFY_INT32_INT32_AUTO(pd, ${fld_id(f)}, value32)
             #[ }
-#[
+
 for f in hlir.p4_fields.values():
     for calc in f.calculation:
         if calc[0] == "update":
@@ -363,9 +363,9 @@ for f in hlir.p4_fields.values():
             #[     MODIFY_INT32_INT32_BITS(pd, ${fld_id(f)}, value32);
             #[ }
 #[ }
-#[
 
-#[
+
+
 #[ int verify_packet(packet_descriptor_t* pd) {
 #[   uint32_t value32;
 for f in hlir.p4_fields.values():
@@ -385,9 +385,9 @@ for f in hlir.p4_fields.values():
             #[   }
 #[   return 0;
 #[ }
-#[
 
-#[ 
+
+
 #[ void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables)
 #[ {
 #[     int value32;
