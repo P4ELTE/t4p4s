@@ -21,11 +21,6 @@ def format_state(state):
         #[ return parse_state_${state.name}(pd, buf, tables);
     elif isinstance(state, p4.p4_parser_exception):
         print("Parser exceptions are not supported yet.")
-    else: #Control function (parsing is finished)
-        #[ {
-        #[   if(verify_packet(pd)) p4_pe_checksum(pd);
-        #[   pipeline(pd, tables);
-        #[ }
     return generated_code
 
 def get_key_byte_width(branch_on):

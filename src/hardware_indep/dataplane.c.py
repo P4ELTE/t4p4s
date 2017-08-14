@@ -19,58 +19,218 @@ from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>
 #[ #include <string.h>
+#[ #include <stdbool.h>
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
 
-#[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
+#[ void mark_to_drop() {} // TODO
 
+#[ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
+#[     if(num1 == 0) return num2;
+#[     uint32_t tmp_num = num1 + num2;
+#[     while(tmp_num > 0xffff)
+#[         tmp_num = ((tmp_num & 0xffff0000) >> 16) + (tmp_num & 0xffff);
+#[     return (uint16_t)tmp_num;
+#[ }
+
+#[ struct Checksum16 {
+#[   uint16_t (*get) (uint8_t* data, int size, packet_descriptor_t* pd, lookup_table_t** tables);
+#[ };
+#[
+
+#[ uint16_t Checksum16_get(uint8_t* data, int size, packet_descriptor_t* pd, lookup_table_t** tables) {
+#[     uint32_t res = 0;
+#[     res = csum16_add(res, calculate_csum16(data, size));
+#[     res = (res == 0xffff) ? res : ((~res) & 0xffff);
+#[     free(data);
+#[     return res & ${hex((2 ** 16) - 1)};
+#[ }
+
+#[ void Checksum16_init(struct Checksum16* x) {
+#[     x->get = &Checksum16_get;
+#[ }
+
+#[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[ extern void increase_counter (int counterid, int index);
 
-for table in hlir.p4_tables.values():
-    #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables);
-
-
-if len(hlir.p4_tables.values())>0:
-    #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
+max_key_length = max([t.key_length_bytes for t in hlir16.tables])
+#[ uint8_t reverse_buffer[${max_key_length}];
 
 def match_type_order(t):
     if t is p4.p4_match_type.P4_MATCH_EXACT:   return 0
     if t is p4.p4_match_type.P4_MATCH_LPM:     return 1
     if t is p4.p4_match_type.P4_MATCH_TERNARY: return 2
 
+################################################################################
+
+STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
+
+main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
+package_name = main.type.baseType.path.name
+pipeline_elements = main.arguments
+
+#package_type = hlir16.declarations.get(package_name, 'Type_Package')
+
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ void control_${pe.type.name}(${STDPARAMS});
+        for t in c.controlLocals['P4Table']:
+            #[ void ${t.name}_apply(${STDPARAMS});
 
 ################################################################################
 # hlir16 helpers
 
+def format_type_16(t):
+    if t.node_type == 'Type_Boolean':
+        return 'bool'
+    if t.node_type == 'Type_Bits':
+        res = 'int'
+        if t.size % 8 == 0 and t.size <= 32:
+            res = res + str(t.size) + '_t'
+        if not t.isSigned:
+            res = 'u' + res
+        return res
+    if t.node_type == 'Type_Name':
+        return format_expr_16(t.path)
+
+def format_declaration_16(d):
+    generated_code = ""
+    if d.node_type == 'Declaration_Variable':
+        #[ ${format_type_16(d.type)} ${d.name};
+    if d.node_type == 'Declaration_Instance':
+        #[ struct ${format_type_16(d.type)} ${d.name};
+        #[ ${format_type_16(d.type)}_init(&${d.name});
+#        for m in d.type.ref.methods:
+#            if m.name != d.type.path.name:
+#                #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
+    return generated_code
+
+def has_field_ref(node):
+    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and not hasattr(node.ref, 'header_type')
+
+def has_header_ref(node):
+    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and hasattr(node.ref, 'header_type')
+
+statement_buffer = ""
+
+def prepend_statement(s):
+    global statement_buffer
+    statement_buffer += s
+
 def format_statement_16(s):
     generated_code = ""
+    global statement_buffer
+    statement_buffer = ""
     if s.node_type == 'AssignmentStatement':
-        #[ // ${format_expr_16(s.left)}
-        #[ // ${format_expr_16(s.right)}
+        if has_field_ref(s.left):
+            fld_id = 'field_instance_' + s.left.expr.ref.name + '_' + s.left.ref.name
+            #[ MODIFY_INT32_INT32_AUTO(pd, ${format_expr_16(s.left)}, ${format_expr_16(s.right)})
+        else:
+            #[ ${format_expr_16(s.left)} = ${format_expr_16(s.right)};
     if s.node_type == 'BlockStatement':
         for c in s.components:
             #[ ${format_statement_16(c)}
     if s.node_type == 'IfStatement':
-        #[ if(${format_expr_16(s.condition)}) ;
-    if s.node_type == 'MethodCallStatement': 
-        #[ method_${s.methodCall.method.expr.path.name}(pd, tables);
-    return generated_code
+        #[ if(${format_expr_16(s.condition)})
+        #[ {
+        if hasattr(s, 'ifTrue'):
+            #[ ${format_statement_16(s.ifTrue)}
+        else:
+            #[ ; // true branch is not defined
+        #[ } else
+        #[ {
+        if hasattr(s, 'ifFalse'):
+            #[ ${format_statement_16(s.ifFalse)}
+        else:
+            #[ ; // false branch is not defined
+        #[ }
+    if s.node_type == 'MethodCallStatement':
+        #[ ${format_expr_16(s.methodCall)};
+    return statement_buffer + generated_code
+
+def resolve_reference(e):
+    if has_field_ref(e):
+        h = e.expr.ref
+        f = e.ref
+        return (h, f)
+    else:
+        return e
+
+def subsequent_fields((h1, f1), (h2, f2)):
+    fs = h1.type.fields.vec
+    return h1 == h2 and fs.index(f1) + 1 == fs.index(f2)
+
+def group_references(refs):
+    ret = []
+    i = 0
+    while i < len(refs):
+        if not isinstance(refs[i], tuple):
+            ret.append(refs[i])
+        else:
+            h, f = refs[i]
+            fs = [f]
+            j = 1
+            while i+j < len(refs) and subsequent_fields((h, fs[-1]), refs[i+j]):
+                fs.append(refs[i+j][1])
+                j += 1
+            i += j
+            ret.append((h, fs))
+    return ret
+
+def fld_id_16(h, f):
+    return 'field_instance_' + h.name + '_' + f.name
+
+def listexpression_to_buf(expr):
+    generated_code = ""
+    o = '0'
+    for x in group_references(map(resolve_reference, expr.components)):
+        if isinstance(x, tuple):
+            h, fs = x
+            def width(f):
+                if f.is_vw: return 'field_desc(pd, %s).bitwidth'%fld_id_16(h, f)
+                else: return str(f.size)
+            w = '+'.join(map(width, fs))
+            #[ memcpy(buffer${expr.id} + (${o}+7)/8, field_desc(pd, ${fld_id_16(h, fs[0])}).byte_addr, (${w}+7)/8);
+            o += '+'+w
+    return ('int buffer%s_size = (%s+7)/8;\nuint8_t* buffer%s = calloc(buffer%s_size, sizeof(uint8_t));\n'%(expr.id, o, expr.id, expr.id)) + generated_code
 
 def format_expr_16(e):
+    if e.node_type == 'Equ':
+        return format_expr_16(e.left) + '==' + format_expr_16(e.right)
+    if e.node_type == 'BoolLiteral':
+        return 'true' if e.value else 'false'
     if e.node_type == 'LNot':
         return '!('+format_expr_16(e.expr)+')'
+    if e.node_type == 'ListExpression':
+#        return ",".join(map(format_expr_16, e.components))
+        prepend_statement(listexpression_to_buf(e))
+        return 'buffer' + str(e.id) + ', ' + 'buffer' + str(e.id) + '_size'
     if e.node_type == 'PathExpression':
         return format_expr_16(e.path)
     if e.node_type == 'Path':
         if e.absolute:
-            return "???"
+            return "???" #TODO
         else:
             return e.name
     if e.node_type == 'Member':
-        return format_expr_16(e.expr) # TODO + '.' + e.member
+        if has_field_ref(e):
+            return 'field_instance_' + e.expr.ref.name + '_' + e.ref.name
+        if has_header_ref(e):
+            return e.ref.id
+        else:
+            return format_expr_16(e.expr) + '.' + e.member
     if e.node_type == 'MethodCallExpression':
-        # <MethodCallExpression>[arguments, method, type, typeArguments]
-        return 'method_'+format_expr_16(e.method)+'(pd, tables)'
+        if e.method.node_type == 'Member' and e.method.member == 'emit':
+            return "// packet.emit call ignored" #TODO
+        elif e.method.node_type == 'Member' and e.method.member == 'isValid':
+            return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
+        elif e.arguments.is_vec() and e.arguments.vec != [] and e.arguments[0].node_type == 'ListExpression':
+            return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
+        elif e.arguments.is_vec() and e.arguments.vec != []:
+            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
+        else:
+            return format_expr_16(e.method) + '(pd, tables)'
 
 # TODO move this to HAL
 def match_type_order_16(t):
@@ -80,50 +240,7 @@ def match_type_order_16(t):
     else:              return 3
 
 ################################################################################
-# Pipeline implementation
-
-STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
-
-main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
-package_name = main.type.baseType.path.name
-pipeline_elements = main.arguments
-
-package_type = hlir16.declarations.get(package_name, 'Type_Package')
-
-for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-        #[ void control_${pe.type.name}(${STDPARAMS});
-        for t in c.controlLocals['P4Table']:
-            #[ void method_${t.name}(${STDPARAMS});
-
-#[ void pipeline(${STDPARAMS})
-#[ {
-for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-        #[ control_${pe.type.name}(pd, tables);
-#[ }
-
-for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-        #[ void control_${pe.type.name}(${STDPARAMS})
-        #[ {
-        if pe.type.name == 'ingress':
-            #[ ${format_statement_16(c.body)}
-        else:
-            #[ // intentionally left empty
-        #[ }
-
-        for t in c.controlLocals['P4Table']:
-            #[ void method_${t.name}(${STDPARAMS})
-            #[ {
-            #[     apply_table_${t.name}(pd, tables);
-            #[ }
-
-################################################################################
-# Key calculation
+# Table key calculation
 
 for table in hlir16.tables:
     # TODO find out why they are missing and fix it
@@ -139,7 +256,6 @@ for table in hlir16.tables:
         if f.get_attr('width') is None:
             # TODO find out why this is missing and fix it
             continue
-
         if f.width <= 32:
             #[ EXTRACT_INT32_BITS(pd, ${f.id}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
@@ -148,7 +264,7 @@ for table in hlir16.tables:
             #[ EXTRACT_BYTEBUF(pd, ${f.id}, key)
             #[ key += ${byte_width};
         else:
-            print("Unsupported field %s ignored in key calculation." % f.id)
+            add_error("table key calculation", "Unsupported field %s ignored." % f.id)
     if table.match_type == "LPM":
         #[ key -= ${table.key_length_bytes};
         #[ int c, d;
@@ -156,13 +272,12 @@ for table in hlir16.tables:
         #[ for(c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
     #[ }
 
-
 ################################################################################
 # Table application
 
 for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
-    #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables)
+    #[ void ${table.name}_apply(${STDPARAMS})
     #[ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
     #[     uint8_t* key[${table.key_length_bytes}];
@@ -193,160 +308,70 @@ for table in hlir16.tables:
     #[       }
     #[     }
     #[ }
-
-
-################################################################################
-
-
-#[ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
-#[     if(num1 == 0) return num2;
-#[     uint32_t tmp_num = num1 + num2;
-#[     while(tmp_num > 0xffff)
-#[         tmp_num = ((tmp_num & 0xffff0000) >> 16) + (tmp_num & 0xffff);
-#[     return (uint16_t)tmp_num;
-#[ }
-
-for calc in hlir.p4_field_list_calculations.values():
-    #[ uint32_t calculate_${calc.name}(packet_descriptor_t* pd) {
-    #[   uint32_t res = 0;
-    #[   void* payload_ptr;
-
-    buff_idx = 0
-    fixed_input_width = 0     #Calculates the fixed width of all p4_fields and sized_integers (PAYLOAD width is not included)
-    variable_input_width = "" #Calculates the variable width of all p4_fields
-    for field_list in calc.input:
-        for item in field_list.fields:
-            if isinstance(item, p4_field) or isinstance(item, p4_sized_integer):
-                if is_vwf(item):
-                    if field_max_width(item) % 8 == 0 and item.offset % 8 == 0:
-                        variable_input_width += " + field_desc(pd, " + fld_id(item) + ").bitwidth"
-                    else:
-                        addError("generating field list calculation " + calc.name, "Variable width field '" + str(item) + "' in calculation '" + calc.name + "' is not byte-aligned. Field list calculations are only supported on byte-aligned variable width fields!");
-                else:
-                    fixed_input_width += item.width
-    if fixed_input_width % 8 != 0:
-        addError("generating field list calculation", "The bitwidth of the field_lists for the calculation '" + calc.name + "' is incorrect.")
-    #[   uint8_t* buf = malloc((${fixed_input_width}${variable_input_width}) / 8);
-    #[   memset(buf, 0, (${fixed_input_width}${variable_input_width}) / 8);
-
-    tmp_list = []
-    fixed_bitoffset = 0
-    variable_bitoffset = ""
-    for field_list in calc.input:
-        item_index = 0
-        while item_index < len(field_list.fields):
-            start_item = field_list.fields[item_index]
-            if isinstance(start_item, p4_field): #Processing field block (multiple continuous fields in a row)
-                inst = start_item.instance
-                if is_vwf(start_item):
-                    fixed_bitwidth = 0
-                    variable_bitwidth = " + field_desc(pd, " + fld_id(start_item) + ").bitwidth"
-                else:
-                    fixed_bitwidth = start_item.width
-                    variable_bitwidth = ""
-
-                inst_index = 0 #The index of the field in the header instance
-                while start_item != inst.fields[inst_index]: inst_index += 1
-
-                while inst_index + 1 < len(inst.fields) and item_index + 1 < len(field_list.fields) and inst.fields[inst_index + 1] == field_list.fields[item_index + 1]:
-                    item_index += 1
-                    inst_index += 1
-                    if is_vwf(field_list.fields[item_index]):
-                        variable_bitwidth += " + field_desc(pd, " + fld_id(field_list.fields[item_index]) + ").bitwidth"
-                    else:
-                        fixed_bitwidth += field_list.fields[item_index].width
-
-                if (not variable_bitwidth) and fixed_bitwidth % 8 != 0: addError("generating field list calculation", "The bitwidth of a field block is incorrenct!")
-                tmp_list.append(("((" + str(fixed_bitoffset) + variable_bitoffset + ") / 8)", start_item, "((" + str(fixed_bitwidth) + variable_bitwidth + ") / 8)"))
-
-                fixed_bitoffset += fixed_bitwidth
-                variable_bitoffset += variable_bitwidth
-            elif isinstance(start_item, p4_sized_integer):
-                if start_item.width % 8 != 0:
-                    addError("generating field list calculation", "Only byte-wide constants are supported in field lists.")
-                else:
-                    buff_idx += 1
-                    byte_array = int_to_big_endian_byte_array_with_length(start_item, start_item.width / 8)
-                    #[   uint8_t buffer_${buff_idx}[${start_item.width / 8}] = {${reduce((lambda a, b: a + ', ' + b), map(lambda x: str(x), byte_array))}};
-                    #[   memcpy(buf + ((${fixed_bitoffset}${variable_bitoffset}) / 8), &buffer_${buff_idx}, ${start_item.width / 8});
-                    fixed_bitoffset += start_item.width
-            else:
-                if item_index == 0 or not isinstance(field_list.fields[item_index - 1], p4_field):
-                    addError("generating field list calculation", "Payload element must follow a regular field instance in the field list.")
-                elif calc.algorithm == "csum16":
-                    hi_name = hdr_prefix(field_list.fields[item_index - 1].instance.name)
-                    #[   payload_ptr = (((void*)pd->headers[${hi_name}].pointer) + (pd->headers[${hi_name}].length));
-                    #[   res = csum16_add(res, calculate_csum16(payload_ptr, packet_length(pd) - (payload_ptr - ((void*) pd->data))));
-            item_index += 1
-
-    while len(tmp_list) > 0:
-        inst = tmp_list[0][1].instance
-        list_index = 0
-        #[   if(${format_expr(valid_expression(inst))}) {
-        while list_index < len(tmp_list):
-            item = tmp_list[list_index]
-            if item[1].instance == inst:
-                #[     memcpy(buf + ${item[0]}, field_desc(pd, ${fld_id(item[1])}).byte_addr, ${item[2]});
-                del tmp_list[list_index]
-            else: list_index += 1;
-        #[   }
-
-    if calc.algorithm == "csum16":
-        #[   res = csum16_add(res, calculate_csum16(buf, (${fixed_input_width}${variable_input_width}) / 8));
-        #[   res = (res == 0xffff) ? res : ((~res) & 0xffff);
-    else:
-        #If a new calculation implementation is added, new PAYLOAD handling should also be added.
-        addError("generating field list calculation", "Unsupported field list calculation algorithm: " + calc.algorithm)
-    #[   free(buf);
-    #[   return res & ${hex((2 ** calc.output_width) - 1)};
-    #[ }
-
+    #[
+    #[ struct ${table.name}_s {
+    #[     void (*apply)(packet_descriptor_t* pd, lookup_table_t** tables);
+    #[ };
+    #[ struct ${table.name}_s ${table.name} = {.apply = &${table.name}_apply};
 
 ################################################################################
 
 #[ void reset_headers(packet_descriptor_t* packet_desc) {
-for hi in header_instances(hlir):
-    n = hdr_prefix(hi.name)
-    if hi.metadata:
-        #[ memset(packet_desc->headers[${n}].pointer, 0, header_info(${n}).bytewidth * sizeof(uint8_t));
+for h in hlir16.header_instances:
+    if not h.type.is_metadata:
+        #[ packet_desc->headers[${h.id}].pointer = NULL;
     else:
-        #[ packet_desc->headers[${n}].pointer = NULL;
-#[ }
-#[ void init_headers(packet_descriptor_t* packet_desc) {
-for hi in header_instances(hlir):
-    n = hdr_prefix(hi.name)
-    if hi.metadata:
-        #[ packet_desc->headers[${n}] = (header_descriptor_t) { .type = ${n}, .length = header_info(${n}).bytewidth,
-        #[                               .pointer = malloc(header_info(${n}).bytewidth * sizeof(uint8_t)),
-        #[                               .var_width_field_bitwidth = 0 };
-    else:
-        #[ packet_desc->headers[${n}] = (header_descriptor_t) { .type = ${n}, .length = header_info(${n}).bytewidth, .pointer = NULL,
-        #[                               .var_width_field_bitwidth = 0 };
+        #[ memset(packet_desc->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
 #[ }
 
-for table in hlir.p4_tables.values():
-    table_type, key_length_bytes = getTypeAndLength(table)
-    if key_length_bytes == 0 and len(table.actions) == 1:
-        action = table.actions[0]
+#[ void init_headers(packet_descriptor_t* packet_desc) {
+for h in hlir16.header_instances:
+    if not h.type.is_metadata:
+        #[ packet_desc->headers[${h.id}] = (header_descriptor_t)
+        #[ {
+        #[     .type = ${h.id},
+        #[     .length = header_info(${h.id}).bytewidth,
+        #[     .pointer = NULL,
+        #[     .var_width_field_bitwidth = 0
+        #[ };
+    else:
+        #[ packet_desc->headers[${h.id}] = (header_descriptor_t)
+        #[ {
+        #[     .type = ${h.id},
+        #[     .length = header_info(${h.id}).bytewidth,
+        #[     .pointer = malloc(header_info(${h.id}).bytewidth * sizeof(uint8_t)),
+        #[     .var_width_field_bitwidth = 0
+        #[ };
+#[ }
+
+################################################################################
+
+#TODO are these keyless tabls supported in p4-16?
+
+def keyless_single_action_table(table):
+    return table.key_length_bytes == 0 and len(table.actions) == 2 and table.actions[1].action_object.name.startswith('NoAction')
+
+for table in hlir16.tables:
+    if keyless_single_action_table(table):
         #[ extern void ${table.name}_setdefault(struct ${table.name}_action);
 
 #[ void init_keyless_tables() {
-for table in hlir.p4_tables.values():
-    table_type, key_length_bytes = getTypeAndLength(table)
-    if key_length_bytes == 0 and len(table.actions) == 1:
-        action = table.actions[0]
+for table in hlir16.tables:
+    if keyless_single_action_table(table):
+        action = table.actions[0].action_object
         #[ struct ${table.name}_action ${table.name}_a;
         #[ ${table.name}_a.action_id = action_${action.name};
         #[ ${table.name}_setdefault(${table.name}_a);
 #[ }
 
-#[ void init_dataplane(packet_descriptor_t* pd, lookup_table_t** tables) {
+################################################################################
+
+#[ void init_dataplane(${STDPARAMS}) {
 #[     init_headers(pd);
 #[     reset_headers(pd);
 #[     init_keyless_tables();
 #[     pd->dropped=0;
 #[ }
-
 
 #[ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
@@ -359,50 +384,41 @@ for f in hlir.p4_fields.values():
             #[     value32 = pd->fields.${fld_id(f)};
             #[     MODIFY_INT32_INT32_AUTO(pd, ${fld_id(f)}, value32)
             #[ }
-
-for f in hlir.p4_fields.values():
-    for calc in f.calculation:
-        if calc[0] == "update":
-            if calc[2] is not None:
-                #[ if(${format_expr(calc[2])})
-            elif not f.instance.metadata:
-                #[ if(${format_expr(valid_expression(f))})
-            #[ {
-            #[     value32 = calculate_${calc[1].name}(pd);
-            #[     MODIFY_INT32_INT32_BITS(pd, ${fld_id(f)}, value32);
-            #[ }
 #[ }
 
+################################################################################
+# Pipeline
 
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ void control_${pe.type.name}(${STDPARAMS})
+        #[ {
+        #[     uint32_t value32, res32;
+        #[     (void)value32, (void)res32;
+        for d in c.controlLocals:
+            #[ ${format_declaration_16(d)}
+        #[ ${format_statement_16(c.body)}
+        #[ }
 
-#[ int verify_packet(packet_descriptor_t* pd) {
-#[   uint32_t value32;
-for f in hlir.p4_fields.values():
-    for calc in f.calculation:
-        if calc[0] == "verify":
-            if calc[2] is not None:
-                #[   if(${format_expr(calc[2])})
-            elif not f.instance.metadata:
-                #[   if(${format_expr(valid_expression(f))})
-            #[   {
-            #[     EXTRACT_INT32_BITS(pd, ${fld_id(f)}, value32);
-            #[     if(value32 != calculate_${calc[1].name}(pd)) {
-            #[       debug("       Checksum verification on field '${f}' by '${calc[1].name}': FAILED\n");
-            #[       return 1;
-            #[     }
-            #[     else debug("       Checksum verification on field '${f}' by '${calc[1].name}': SUCCESSFUL\n");
-            #[   }
-#[   return 0;
+#[ void process_packet(${STDPARAMS})
+#[ {
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is not None:
+        #[ control_${pe.type.name}(pd, tables);
+        if pe.type.name == 'egress':
+            #[ update_packet(pd); // we need to update the packet prior to calculating the new checksum
 #[ }
 
+################################################################################
 
-
-#[ void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables)
+#[ void handle_packet(${STDPARAMS})
 #[ {
 #[     int value32;
 #[     EXTRACT_INT32_BITS(pd, field_instance_standard_metadata_ingress_port, value32)
 #[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
 #[     reset_headers(pd);
 #[     parse_packet(pd, tables);
-#[     update_packet(pd);
+#[     process_packet(pd, tables);
 #[ }
