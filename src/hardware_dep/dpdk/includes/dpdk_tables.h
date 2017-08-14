@@ -14,10 +14,18 @@
 #ifndef DPDK_TABLES_H
 #define DPDK_TABLES_H
 
+#include <rte_version.h>    // for conditional compilation
+
+#if RTE_VERSION >= RTE_VERSION_NUM(17,05,0,0)
+typedef uint32_t table_index_t;
+#else
+typedef uint8_t table_index_t;
+#endif
+
 typedef struct extended_table_s {
-    void*     rte_table;
-    uint8_t   size;
-    uint8_t** content;
+    void*          rte_table;
+    table_index_t  size;
+    uint8_t**      content;
 } extended_table_t;
 
 //=============================================================================
@@ -30,7 +38,5 @@ typedef struct extended_table_s {
 #endif
 #define LPM_MAX_RULES         1024
 #define LPM6_NUMBER_TBL8S (1 << 16)
-
-#define TABLE_MAX 256
 
 #endif

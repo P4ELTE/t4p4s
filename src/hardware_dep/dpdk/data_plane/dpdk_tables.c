@@ -26,7 +26,6 @@
 #include "ternary_naive.h"  // TERNARY
 
 #include <rte_malloc.h>     // extended tables
-#include <rte_version.h>    // for conditional on rte_hash parameters
 #include <rte_errno.h>
 
 static uint32_t crc32(const void *data, uint32_t data_len, uint32_t init_val) {
@@ -98,7 +97,7 @@ hash_create(int socketid, const char* name, uint32_t keylen, rte_hash_function h
 }
 
 struct rte_lpm *
-lpm4_create(int socketid, const char* name, uint8_t max_size)
+lpm4_create(int socketid, const char* name, int max_size)
 {
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
     struct rte_lpm_config config = {
@@ -116,7 +115,7 @@ lpm4_create(int socketid, const char* name, uint8_t max_size)
 }
 
 struct rte_lpm6 *
-lpm6_create(int socketid, const char* name, uint8_t max_size)
+lpm6_create(int socketid, const char* name, int max_size)
 {
     struct rte_lpm6_config config = {
         .max_rules = max_size,
@@ -140,7 +139,7 @@ hash_add_key(struct rte_hash* h, void *key)
 }
 
 void
-lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint8_t value)
+lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
@@ -149,7 +148,7 @@ lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint8_t value)
 }
 
 void
-lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, uint8_t value)
+lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm6_add(l, key, depth, value);
     if (ret < 0)
@@ -169,7 +168,7 @@ create_ext_table(lookup_table_t* t, void* rte_table, int socketid)
     extended_table_t* ext = rte_malloc_socket("extended_table_t", sizeof(extended_table_t), 0, socketid);
     ext->rte_table = rte_table;
     ext->size = 0;
-    ext->content = rte_malloc_socket("uint8_t*", sizeof(uint8_t*)*TABLE_MAX, 0, socketid);
+    ext->content = rte_malloc_socket("uint8_t*", sizeof(uint8_t*)*t->max_size, 0, socketid);
     t->table = ext;
 }
 
@@ -223,7 +222,7 @@ exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
     if(index < 0)
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
     value = add_index(value, t->val_size, t->counter++);
-    ext->content[index%256] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
+    ext->content[index%t->max_size] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
 }
 
 void
@@ -283,7 +282,7 @@ exact_lookup(lookup_table_t* t, uint8_t* key)
     if(t->key_size == 0) return t->default_val;
     extended_table_t* ext = (extended_table_t*)t->table;
     int ret = rte_hash_lookup(ext->rte_table, key);
-    return (ret < 0)? t->default_val : ext->content[ret % 256];
+    return (ret < 0)? t->default_val : ext->content[ret%t->max_size];
 }
 
 uint8_t*
@@ -297,11 +296,11 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         uint32_t key32 = 0;
         memcpy(&key32, key, t->key_size);
 
-        uint8_t result;
+        table_index_t result;
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
         uint32_t result32;
         int ret = rte_lpm_lookup(ext->rte_table, key32, &result32);
-        result = (uint8_t)result32;
+        result = (table_index_t)result32;
 #else
         int ret = rte_lpm_lookup(ext->rte_table, key32, &result);
 #endif
@@ -313,7 +312,7 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         memset(key128, 0, 16);
         memcpy(key128, key, t->key_size);
 
-        uint8_t result;
+        table_index_t result;
         int ret = rte_lpm6_lookup(ext->rte_table, key128, &result);
         return ret == 0 ? ext->content[result] : t->default_val;
     }
