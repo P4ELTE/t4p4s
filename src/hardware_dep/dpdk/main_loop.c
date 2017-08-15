@@ -318,8 +318,10 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
     for (port = 0; port<port_num; port++) {
         /* Prepare output packet and send it out. */
         if (port != ingress_port) {
-                if ((mc = mcast_out_pkt(m, 1)) != NULL)
+                dpdk_send_packet(m, port, lcore_id); // LAKI TODO : temportal fix for switches with 2 ports
+/*                if ((mc = mcast_out_pkt(m, 1)) != NULL)
                         dpdk_send_packet(mc, port, lcore_id);
+*/
         }
     }
 
@@ -327,7 +329,7 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
      * If we making clone packets, then, for the last destination port,
      * we can overwrite input packet's metadata.
      */
-     rte_pktmbuf_free(m);
+//     rte_pktmbuf_free(m); // LAKI TODO : temporally removed since there is no cloned packet...
 }
 
 #define EXTRACT_EGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_egress_port) 
