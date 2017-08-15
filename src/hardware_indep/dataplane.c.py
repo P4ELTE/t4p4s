@@ -196,6 +196,8 @@ def listexpression_to_buf(expr):
     return ('int buffer%s_size = (%s+7)/8;\nuint8_t* buffer%s = calloc(buffer%s_size, sizeof(uint8_t));\n'%(expr.id, o, expr.id, expr.id)) + generated_code
 
 def format_expr_16(e):
+    if e.node_type == 'Constant':
+        return str(e.value)
     if e.node_type == 'Equ':
         return format_expr_16(e.left) + '==' + format_expr_16(e.right)
     if e.node_type == 'BoolLiteral':
@@ -224,7 +226,10 @@ def format_expr_16(e):
         if e.method.node_type == 'Member' and e.method.member == 'emit':
             return "// packet.emit call ignored" #TODO
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
-            return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
+            if e.method.expr.get_attr('ref') is not None:
+                return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
+            else:
+                return "pd->headers[%s].pointer != NULL" % format_expr_16(e.method.expr)
         elif e.arguments.is_vec() and e.arguments.vec != [] and e.arguments[0].node_type == 'ListExpression':
             return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
         elif e.arguments.is_vec() and e.arguments.vec != []:

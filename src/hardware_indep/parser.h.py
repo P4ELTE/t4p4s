@@ -132,11 +132,19 @@ for hdr in hlir16.header_instances:
 #[ };
 
 
+# TODO this should be available as a field
+def get_real_type(typenode):
+    ref = typenode.get_attr('ref')
+    if ref is not None:
+        return typenode.ref.type
+
+    return typenode
 
 #[ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
     for fld in hdr.type.fields:
-        #[   ${fld.type.size}, // field_instance_${hdr.type.name}_${fld.name}
+        fldtype = get_real_type(fld.type)
+        #[   ${fldtype.size}, // field_instance_${hdr.type.name}_${fld.name}
 #[ };
 
 
@@ -166,7 +174,8 @@ for hdr in hlir16.header_instances:
 #[ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
     for fld in hdr.type.fields:
-        #[  __bswap_constant_32(uint32_top_bits(${fld.type.size}) >> (${fld.offset}%8)), // field_instance_${hdr.type.name}_${fld.name},
+        fldtype = get_real_type(fld.type)
+        #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_instance_${hdr.type.name}_${fld.name},
 #[ };
 
 
