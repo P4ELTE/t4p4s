@@ -134,5 +134,6 @@ extern p4_register_t register_config[];
 
 void init_dataplane(packet_descriptor_t* packet, lookup_table_t** tables);
 void handle_packet(packet_descriptor_t* packet, lookup_table_t** tables);
+void reset_headers(packet_descriptor_t* packet);
 
 #endif

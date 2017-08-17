@@ -322,11 +322,8 @@ for f in hlir.p4_fields.values():
 #[ void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables)
 #[ {
 #[     int value32;
-#[     int res32;
 #[     EXTRACT_INT32_BITS(pd, field_instance_standard_metadata_ingress_port, value32)
 #[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
-#[     reset_headers(pd); // TODO: it overwrites metadata incl. ingress port!!!!!
-#[     MODIFY_INT32_INT32_BITS(pd, field_instance_standard_metadata_ingress_port, value32)
 #[     parse_packet(pd, tables);
 #[     update_packet(pd);
 #[ }
