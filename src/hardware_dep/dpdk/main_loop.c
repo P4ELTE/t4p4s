@@ -217,47 +217,31 @@ dpdk_send_packet(struct rte_mbuf *m, uint8_t port, uint32_t lcore_id)
     qconf->tx_mbufs[port].len = len;
 }
 
-/* creating replicas of a packet for  */
+/* creating replicas of a packet for L2 multicasting */
 static inline struct rte_mbuf *
 mcast_out_pkt(struct rte_mbuf *pkt, int use_clone)
 {
-    struct rte_mbuf *hdr;
-
-    debug("mcast_out_pkt new mbuf is needed...\n");
-        /* Create new mbuf for the header. */
-        if ((hdr = rte_pktmbuf_alloc(header_pool)) == NULL)
-                return (NULL);
-
-    debug("hdr is allocated\n");
+    struct rte_mbuf *pktnew;
 
     /* If requested, then make a new clone packet. */
     if (use_clone != 0 &&
-        (pkt = rte_pktmbuf_clone(pkt, clone_pool)) == NULL) {
-            rte_pktmbuf_free(hdr);
+        (pktnew = rte_pktmbuf_clone(pkt, clone_pool)) == NULL) {
+            debug("clone_pool empty\n");
             return (NULL);
     }
 
-    debug("setup ne header\n");
+    debug("setup cloned packet - metadata-header\n");
 
-    /* prepend new header */
-    hdr->next = pkt;
-
-
-    /* update header's fields */
-    hdr->pkt_len = (uint16_t)(hdr->data_len + pkt->pkt_len);
-    hdr->nb_segs = (uint8_t)(pkt->nb_segs + 1);
+    if (use_clone == 0) return pkt;
 
     /* copy metadata from source packet*/
-    hdr->port = pkt->port;
-    hdr->vlan_tci = pkt->vlan_tci;
-    hdr->vlan_tci_outer = pkt->vlan_tci_outer;
-    hdr->tx_offload = pkt->tx_offload;
-    hdr->hash = pkt->hash;
+    pktnew->port = pkt->port;
+    pktnew->tx_offload = pkt->tx_offload;
+    pktnew->ol_flags = pkt->ol_flags;
 
-    hdr->ol_flags = pkt->ol_flags;
+    __rte_mbuf_sanity_check(pktnew, 1);
 
-    __rte_mbuf_sanity_check(hdr, 1);
-    return (hdr);
+    return pktnew;
 }
 
 static void
@@ -305,31 +289,27 @@ dpdk_mcast_packet(struct rte_mbuf *m, uint32_t port_mask, uint32_t lcore_id)
 static void
 dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
 {
-    struct rte_mbuf *mc;
     uint32_t port_num;
-    uint8_t port; //,portid;
-    port_num = 2; // TODO: update
+    uint8_t port;
+    uint32_t port_mask;
+
+    port_num = bitcnt(enabled_port_mask);
 
     debug("Broadcast - ingress port:%d/%d\n", ingress_port, port_num);
 
-    /* Mark all packet's segments as referenced port_num times */
-//        rte_pktmbuf_refcnt_update(m, (uint16_t)port_num);
+    /* Mark all packet's segments as referenced port_num-1 times */
+    rte_pktmbuf_refcnt_update(m, (uint16_t)port_num-1); // it increases the reference num by port_num-1, originally it is 1
 
-    for (port = 0; port<port_num; port++) {
-        /* Prepare output packet and send it out. */
-        if (port != ingress_port) {
-                dpdk_send_packet(m, port, lcore_id); // LAKI TODO : temportal fix for switches with 2 ports
-/*                if ((mc = mcast_out_pkt(m, 1)) != NULL)
-                        dpdk_send_packet(mc, port, lcore_id);
-*/
+    port_mask = enabled_port_mask ^ (1 << ingress_port); // excluding ingress port from outgoing port set 
+
+    for (port = 0; port_mask!=0; port_mask >>= 1, port++) {
+        if ((port_mask & 1) != 0) {
+                dpdk_send_packet(m, port, lcore_id);
         }
-    }
+   }
 
-    /*
-     * If we making clone packets, then, for the last destination port,
-     * we can overwrite input packet's metadata.
-     */
-//     rte_pktmbuf_free(m); // LAKI TODO : temporally removed since there is no cloned packet...
+    rte_pktmbuf_free(m); // Since the packet is not sent to the ingress port we should reduce the pointer count by 1
+
 }
 
 #define EXTRACT_EGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_egress_port) 
