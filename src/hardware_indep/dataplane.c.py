@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import p4_hlir.hlir.p4 as p4
-from p4_hlir.hlir.p4_sized_integer import *
-from p4_hlir.hlir.p4_headers import p4_field
-from utils.hlir import *
+from utils.hlir import parsed_field, fld_id
+from utils.hlir16 import format_declaration_16, format_statement_16, format_expr_16
 from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>
@@ -56,11 +54,6 @@ from utils.misc import addError, addWarning
 max_key_length = max([t.key_length_bytes for t in hlir16.tables])
 #[ uint8_t reverse_buffer[${max_key_length}];
 
-def match_type_order(t):
-    if t is p4.p4_match_type.P4_MATCH_EXACT:   return 0
-    if t is p4.p4_match_type.P4_MATCH_LPM:     return 1
-    if t is p4.p4_match_type.P4_MATCH_TERNARY: return 2
-
 ################################################################################
 
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
@@ -79,163 +72,6 @@ for pe in pipeline_elements:
             #[ void ${t.name}_apply(${STDPARAMS});
 
 ################################################################################
-# hlir16 helpers
-
-def format_type_16(t):
-    if t.node_type == 'Type_Boolean':
-        return 'bool'
-    if t.node_type == 'Type_Bits':
-        res = 'int'
-        if t.size % 8 == 0 and t.size <= 32:
-            res = res + str(t.size) + '_t'
-        if not t.isSigned:
-            res = 'u' + res
-        return res
-    if t.node_type == 'Type_Name':
-        return format_expr_16(t.path)
-
-def format_declaration_16(d):
-    generated_code = ""
-    if d.node_type == 'Declaration_Variable':
-        #[ ${format_type_16(d.type)} ${d.name};
-    if d.node_type == 'Declaration_Instance':
-        #[ struct ${format_type_16(d.type)} ${d.name};
-        #[ ${format_type_16(d.type)}_init(&${d.name});
-#        for m in d.type.ref.methods:
-#            if m.name != d.type.path.name:
-#                #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
-    return generated_code
-
-def has_field_ref(node):
-    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and not hasattr(node.ref, 'header_type')
-
-def has_header_ref(node):
-    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and hasattr(node.ref, 'header_type')
-
-statement_buffer = ""
-
-def prepend_statement(s):
-    global statement_buffer
-    statement_buffer += s
-
-def format_statement_16(s):
-    generated_code = ""
-    global statement_buffer
-    statement_buffer = ""
-    if s.node_type == 'AssignmentStatement':
-        if has_field_ref(s.left):
-            fld_id = 'field_instance_' + s.left.expr.ref.name + '_' + s.left.ref.name
-            #[ MODIFY_INT32_INT32_AUTO(pd, ${format_expr_16(s.left)}, ${format_expr_16(s.right)})
-        else:
-            #[ ${format_expr_16(s.left)} = ${format_expr_16(s.right)};
-    if s.node_type == 'BlockStatement':
-        for c in s.components:
-            #[ ${format_statement_16(c)}
-    if s.node_type == 'IfStatement':
-        #[ if(${format_expr_16(s.condition)})
-        #[ {
-        if hasattr(s, 'ifTrue'):
-            #[ ${format_statement_16(s.ifTrue)}
-        else:
-            #[ ; // true branch is not defined
-        #[ } else
-        #[ {
-        if hasattr(s, 'ifFalse'):
-            #[ ${format_statement_16(s.ifFalse)}
-        else:
-            #[ ; // false branch is not defined
-        #[ }
-    if s.node_type == 'MethodCallStatement':
-        #[ ${format_expr_16(s.methodCall)};
-    return statement_buffer + generated_code
-
-def resolve_reference(e):
-    if has_field_ref(e):
-        h = e.expr.ref
-        f = e.ref
-        return (h, f)
-    else:
-        return e
-
-def subsequent_fields((h1, f1), (h2, f2)):
-    fs = h1.type.fields.vec
-    return h1 == h2 and fs.index(f1) + 1 == fs.index(f2)
-
-def group_references(refs):
-    ret = []
-    i = 0
-    while i < len(refs):
-        if not isinstance(refs[i], tuple):
-            ret.append(refs[i])
-        else:
-            h, f = refs[i]
-            fs = [f]
-            j = 1
-            while i+j < len(refs) and subsequent_fields((h, fs[-1]), refs[i+j]):
-                fs.append(refs[i+j][1])
-                j += 1
-            i += j
-            ret.append((h, fs))
-    return ret
-
-def fld_id_16(h, f):
-    return 'field_instance_' + h.name + '_' + f.name
-
-def listexpression_to_buf(expr):
-    generated_code = ""
-    o = '0'
-    for x in group_references(map(resolve_reference, expr.components)):
-        if isinstance(x, tuple):
-            h, fs = x
-            def width(f):
-                if f.is_vw: return 'field_desc(pd, %s).bitwidth'%fld_id_16(h, f)
-                else: return str(f.size)
-            w = '+'.join(map(width, fs))
-            #[ memcpy(buffer${expr.id} + (${o}+7)/8, field_desc(pd, ${fld_id_16(h, fs[0])}).byte_addr, (${w}+7)/8);
-            o += '+'+w
-    return ('int buffer%s_size = (%s+7)/8;\nuint8_t* buffer%s = calloc(buffer%s_size, sizeof(uint8_t));\n'%(expr.id, o, expr.id, expr.id)) + generated_code
-
-def format_expr_16(e):
-    if e.node_type == 'Constant':
-        return str(e.value)
-    if e.node_type == 'Equ':
-        return format_expr_16(e.left) + '==' + format_expr_16(e.right)
-    if e.node_type == 'BoolLiteral':
-        return 'true' if e.value else 'false'
-    if e.node_type == 'LNot':
-        return '!('+format_expr_16(e.expr)+')'
-    if e.node_type == 'ListExpression':
-#        return ",".join(map(format_expr_16, e.components))
-        prepend_statement(listexpression_to_buf(e))
-        return 'buffer' + str(e.id) + ', ' + 'buffer' + str(e.id) + '_size'
-    if e.node_type == 'PathExpression':
-        return format_expr_16(e.path)
-    if e.node_type == 'Path':
-        if e.absolute:
-            return "???" #TODO
-        else:
-            return e.name
-    if e.node_type == 'Member':
-        if has_field_ref(e):
-            return 'field_instance_' + e.expr.ref.name + '_' + e.ref.name
-        if has_header_ref(e):
-            return e.ref.id
-        else:
-            return format_expr_16(e.expr) + '.' + e.member
-    if e.node_type == 'MethodCallExpression':
-        if e.method.node_type == 'Member' and e.method.member == 'emit':
-            return "// packet.emit call ignored" #TODO
-        elif e.method.node_type == 'Member' and e.method.member == 'isValid':
-            if e.method.expr.get_attr('ref') is not None:
-                return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
-            else:
-                return "pd->headers[%s].pointer != NULL" % format_expr_16(e.method.expr)
-        elif e.arguments.is_vec() and e.arguments.vec != [] and e.arguments[0].node_type == 'ListExpression':
-            return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
-        elif e.arguments.is_vec() and e.arguments.vec != []:
-            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
-        else:
-            return format_expr_16(e.method) + '(pd, tables)'
 
 # TODO move this to HAL
 def match_type_order_16(t):
