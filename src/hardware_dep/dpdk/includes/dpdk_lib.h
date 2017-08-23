@@ -51,6 +51,7 @@
 #include "dataplane.h" // lookup_table_t
 #include "dpdk_tables.h"
 #include "ctrl_plane_backend.h"
+#include "dpdk_vss_extern.h"
 
 //=============================================================================
 // Backend-specific aliases

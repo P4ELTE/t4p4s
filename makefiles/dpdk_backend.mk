@@ -39,6 +39,7 @@ SRCS-y += threadpool.c
 SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
 SRCS-y += dpdk_primitives.c
+SRCS-y += dpdk_vss_extern.c
 SRCS-y += ternary_naive.c
 SRCS-y += vector.c
 

@@ -23,31 +23,6 @@ from utils.misc import addError, addWarning
 
 #[ void mark_to_drop() {} // TODO
 
-#[ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
-#[     if(num1 == 0) return num2;
-#[     uint32_t tmp_num = num1 + num2;
-#[     while(tmp_num > 0xffff)
-#[         tmp_num = ((tmp_num & 0xffff0000) >> 16) + (tmp_num & 0xffff);
-#[     return (uint16_t)tmp_num;
-#[ }
-
-#[ struct Checksum16 {
-#[   uint16_t (*get) (uint8_t* data, int size, packet_descriptor_t* pd, lookup_table_t** tables);
-#[ };
-#[
-
-#[ uint16_t Checksum16_get(uint8_t* data, int size, packet_descriptor_t* pd, lookup_table_t** tables) {
-#[     uint32_t res = 0;
-#[     res = csum16_add(res, calculate_csum16(data, size));
-#[     res = (res == 0xffff) ? res : ((~res) & 0xffff);
-#[     free(data);
-#[     return res & ${hex((2 ** 16) - 1)};
-#[ }
-
-#[ void Checksum16_init(struct Checksum16* x) {
-#[     x->get = &Checksum16_get;
-#[ }
-
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[ extern void increase_counter (int counterid, int index);
 
