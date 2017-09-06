@@ -1,0 +1,3 @@
+build/
+src/hardware_dep/shared/ctrl_plane/*_controller
+**/*.pyc
