@@ -95,7 +95,7 @@ fake_dpdk_packet(unsigned lcore_id, int index)
 // =============================================================================
 
 
-#define EXTRACT_EGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/6) & /*mask*/0x7fc) >> /*bitoffset*/2
+#define EXTRACT_EGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_egress_port)
 
 static void
 send_packet(packet_descriptor_t* packet_desc)
