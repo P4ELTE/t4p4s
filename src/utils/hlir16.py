@@ -15,6 +15,7 @@
 from misc import addWarning
 
 ################################################################################
+from misc import addWarning, addError
 
 def format_type_16(t):
     if t.node_type == 'Type_Boolean':
@@ -148,20 +149,31 @@ def format_expr_16(e, format_as_value=True):
             return '(' + format_type_16(e.type) + ')' + str(e.value)
         else:
             return str(e.value)
-    if e.node_type == 'Mul':
-        return '(' + format_expr_16(e.left) + '*' + format_expr_16(e.right) + ')'
-    if e.node_type == 'Add':
-        return '(' + format_expr_16(e.left) + '+' + format_expr_16(e.right) + ')'
-    if e.node_type == 'Cast':
-        return '(' + format_type_16(e.destType) + ')' + format_expr_16(e.expr)
-    if e.node_type == 'Shl':
-        return '(' + format_expr_16(e.left) + '<<' + format_expr_16(e.right) + ')'
-    if e.node_type == 'Equ':
-        return format_expr_16(e.left) + '==' + format_expr_16(e.right)
     if e.node_type == 'BoolLiteral':
         return 'true' if e.value else 'false'
-    if e.node_type == 'LNot':
-        return '!('+format_expr_16(e.expr)+')'
+    if e.node_type == 'StringLiteral':
+        return '"' + e.value + '"';
+
+    simple_unary_ops = {'Neg':'-', 'Cmpl':'~', 'LNot':'!'}
+    if e.node_type in simple_unary_ops:
+        return simple_unary_ops[e.node_type] + '(' + format_expr_16(e.expr) + ')'
+
+    simple_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Div':'/', 'Mod':'%',#Binary arithmetic operators
+                         'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
+                         'BAnd':'&', 'BOr':'|', 'BXor':'^',                    #Bitwise operators
+                         'LAnd':'&&', 'LOr':'||',                              #Boolean operators
+                         'Shl':'<<', 'Shr':'>>',                               #Shift operators
+                         'Equ':'==', 'Neq':'!='}                               #Equality operators
+    if e.node_type in simple_binary_ops:
+        return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
+
+    if e.node_type == 'Mux':
+        return '(' + format_expr_16(e.e0) + '?' + format_expr_16(e.e1) + ':' + format_expr_16(e.e2) + ')'
+
+    if e.node_type == 'Cast':
+        #TODO: add better cast for not byte-wide types
+        return '((' + format_type_16(e.destType) + ')' + format_expr_16(e.expr) + ')'
+
     if e.node_type == 'ListExpression':
 #        return ",".join(map(format_expr_16, e.components))
         prepend_statement(listexpression_to_buf(e))
@@ -234,5 +246,5 @@ def format_expr_16(e, format_as_value=True):
 #            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
             return format_expr_16(e.method) + '(pd, tables)'
-    else:
-        return "couldn't format expression: " + str(e)
+    addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
+    return ""

@@ -83,8 +83,7 @@ init_fake_packet()
 
 //=============================================================================
 
-#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
-#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
+#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port)
 
 static inline int
 send_packet(packet_descriptor_t* packet_desc)
