@@ -97,7 +97,7 @@ typedef struct header_reference_s {
 #define FIELD_DYNAMIC_BITWIDTH(pd, f) (FIELD_FIXED_WIDTH(f) ? field_instance_bit_width[f] : (pd)->headers[field_instance_header[f]].var_width_field_bitwidth)
 #define FIELD_DYNAMIC_BYTEOFFSET(pd, f) (field_instance_byte_offset_hdr[f] + (FIELD_FIXED_POS(f) ? 0 : ((pd)->headers[field_instance_header[f]].var_width_field_bitwidth / 8)))
 
-#define field_desc(pd, f) (field_reference_t) \
+#define field_desc(pd, f) ((field_reference_t) \
                { \
                  .header     = field_instance_header[f], \
                  .meta       = header_instance_is_metadata[field_instance_header[f]], \
@@ -109,7 +109,7 @@ typedef struct header_reference_s {
                  .mask       = field_instance_mask[f], \
                  .fixed_width= FIELD_FIXED_WIDTH(f), \
                  .byte_addr  = (((uint8_t*)(pd)->headers[field_instance_header[f]].pointer)+(FIELD_DYNAMIC_BYTEOFFSET(pd, f))), \
-               }
+               })
 
 #define header_info(h) (header_reference_t) \
                { \

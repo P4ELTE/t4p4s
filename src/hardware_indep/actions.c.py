@@ -38,7 +38,7 @@ def modify_int32_int32(f):
         #[ pd->fields.${fld_id(f)} = value32;
         #[ pd->fields.attr_${fld_id(f)} = MODIFIED;
     else:
-        #[ MODIFY_INT32_INT32_AUTO(pd, ${fld_id(f)}, value32)
+        #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, ${hdr_fld_id(f)}, value32)
     return generated_code
 
 def extract_int32(f, var, mask = None):
@@ -50,7 +50,7 @@ def extract_int32(f, var, mask = None):
             #[ ${var} = pd->fields.${fld_id(f)};
         #[ pd->fields.attr_${fld_id(f)} = MODIFIED;
     else:
-        #[ EXTRACT_INT32_AUTO(pd, ${fld_id(f)}, ${var});
+        #[ EXTRACT_INT32_AUTO_PACKET(pd, ${hdr_fld_id(f)}, ${var});
         if mask:
              #[ ${var} = ${var}${mask};
     return generated_code
@@ -107,7 +107,7 @@ def modify_field_mask( mask ):
         mask_code = '0x%s' % format(mask,'x')
     elif isinstance(mask, p4_field):
         if mask.width <= 32:
-            #[ EXTRACT_INT32_BITS(pd, ${fld_id(mask)}, mask32)
+            #[ EXTRACT_INT32_BITS_PACKET(pd, ${hdr_fld_id(mask)}, mask32)
             mask_code = 'mask32'
         else:
             addError("generating modify_field_mask", "Modify field mask is not supported.")
@@ -146,9 +146,9 @@ def modify_field(fun, call):
             if is_field_byte_aligned(dst):
                 #[ ${ write_int_to_bytebuff(src, field_max_width(dst)/8) }
                 if is_vwf(dst):
-                    #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, buffer_${buff-1}+(${field_max_width(dst)/8}-field_desc(pd, ${fld_id(dst)}).bytewidth), field_desc(pd, ${fld_id(dst)}).bytewidth)
+                    #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, buffer_${buff-1}+(${field_max_width(dst)/8}-field_desc(pd, ${fld_id(dst)}).bytewidth), field_desc(pd, ${fld_id(dst)}).bytewidth)
                 else:
-                    #[ MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, buffer_${buff-1}, ${dst.width/8})
+                    #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, buffer_${buff-1}, ${dst.width/8})
             else:
                 if is_vwf(dst):
                     addError("generating modify_field", "Modifying non byte-wide variable width field '" + str(dst) + "' with int is not supported")
@@ -157,8 +157,8 @@ def modify_field(fun, call):
     elif isinstance(src, p4_field):
         if not is_vwf(dst) and not is_vwf(src) and dst.width <= 32 and src.width <= 32:
             if src.instance.metadata == dst.instance.metadata:
-                #[ EXTRACT_INT32_BITS(pd, ${fld_id(src)}, value32)
-                #[ MODIFY_INT32_INT32_BITS(pd, ${fld_id(dst)}, value32${mask})
+                #[ EXTRACT_INT32_BITS_PACKET(pd, ${hdr_fld_id(src)}, value32)
+                #[ MODIFY_INT32_INT32_BITS_PACKET(pd, ${hdr_fld_id(dst)}, value32${mask})
             else:
                 #[ ${ extract_int32(src, 'value32', mask) }
                 #[ ${ modify_int32_int32(dst) }
@@ -169,9 +169,9 @@ def modify_field(fun, call):
                 src_fd = "field_desc(pd, " + fld_id(src) + ")"
                 dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
                 #[ if(${src_fd}.bytewidth < ${dst_fd}.bytewidth) {
-                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${src_fd}.byte_addr, ${src_fd}.bytewidth);
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, ${src_fd}.byte_addr, ${src_fd}.bytewidth);
                 #[ } else {
-                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${src_fd}.byte_addr + (${src_fd}.bytewidth - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, ${src_fd}.byte_addr + (${src_fd}.bytewidth - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
                 #[ }
             else:
                 if is_vwf(dst):
@@ -183,14 +183,14 @@ def modify_field(fun, call):
         l = fun.signature_widths[src.idx]
         # TODO: Mask handling
         if not is_vwf(dst) and dst.width <= 32 and l <= 32:
-            #[ MODIFY_INT32_BYTEBUF(pd, ${fld_id(dst)}, ${p}, ${(l+7)/8})
+            #[ MODIFY_INT32_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, ${p}, ${(l+7)/8})
         else:
             if is_field_byte_aligned(dst) and l % 8 == 0: #and dst.instance.metadata:
                 dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
                 #[ if(${l/8} < ${dst_fd}.bytewidth) {
-                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${p}, ${l/8});                
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, ${p}, ${l/8});                
                 #[ } else {
-                #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, ${p} + (${l/8} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth)
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, ${p} + (${l/8} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth)
                 #[ }
             else:
                 if is_vwf(dst):
@@ -298,9 +298,9 @@ def register_read(fun, call):
             dst_fd = "field_desc(pd, " + fld_id(dst) + ")"
             reg_bw = register.width / 8
             #[ if(${reg_bw} < ${dst_fd}.bytewidth) {
-            #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, register_value_${rc}, ${reg_bw});
+            #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, register_value_${rc}, ${reg_bw});
             #[ } else {
-            #[     MODIFY_BYTEBUF_BYTEBUF(pd, ${fld_id(dst)}, register_value_${rc} + (${reg_bw} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
+            #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, ${hdr_fld_id(dst)}, register_value_${rc} + (${reg_bw} - ${dst_fd}.bytewidth), ${dst_fd}.bytewidth);
             #[ }
         else:
             addError("generating register_read", "Improper bytebufs cannot be modified yet.")
@@ -339,7 +339,7 @@ def register_write(fun, call):
         else:
             if src.width == register.width:
                 if src.width % 8 == 0 and src.offset % 8 == 0: # and src.instance.metadata == dst.instance.metadata:
-                    #[ EXTRACT_BYTEBUF(pd, ${fld_id(src)}, register_value_${rc})
+                    #[ EXTRACT_BYTEBUF_PACKET(pd, ${hdr_fld_id(src)}, register_value_${rc})
                 else:
                     addError("generating register_write", "Improper bytebufs cannot be modified yet.")
             else:

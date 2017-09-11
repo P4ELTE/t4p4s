@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from misc import addWarning
+
 ################################################################################
 
 def format_type_16(t):
@@ -50,7 +52,13 @@ statement_buffer = ""
 
 def prepend_statement(s):
     global statement_buffer
-    statement_buffer += s
+    statement_buffer += "\n" + s
+
+def statement_buffer_value():
+    global statement_buffer
+    ret = statement_buffer
+    statement_buffer = ""
+    return ret
 
 ################################################################################
 
@@ -61,7 +69,7 @@ def format_statement_16(s):
     if s.node_type == 'AssignmentStatement':
         if has_field_ref(s.left):
             # fldid(s.left.expr.ref, s.left.ref)
-            ret += 'MODIFY_INT32_INT32_AUTO(pd, %s, %s);' % (format_expr_16(s.left), format_expr_16(s.right))
+            ret += 'MODIFY_INT32_INT32_AUTO_PACKET(pd, %s, %s);' % (format_expr_16(s.left, False), format_expr_16(s.right)) # TODO
         else:
             ret += '%s = %s;' % (format_expr_16(s.left), format_expr_16(s.right))
     if s.node_type == 'BlockStatement':
@@ -72,7 +80,11 @@ def format_statement_16(s):
         f = format_statement_16(s.ifFalse) if hasattr(s, 'ifFalse') else ';'
         ret += 'if( %s ) { %s } else { %s }' % (format_expr_16(s.condition), t, f)
     if s.node_type == 'MethodCallStatement':
-        ret += format_expr_16(s.methodCall) + ';'
+        if format_expr_16(s.methodCall) is None:
+            print (s.methodCall)
+            ret += ':('
+        else:
+            ret += format_expr_16(s.methodCall) + ';'
     return statement_buffer + ret
 
 ################################################################################
@@ -107,6 +119,7 @@ def group_references(refs):
     return ret
 
 def fldid(h, f): return 'field_instance_' + h.name + '_' + f.name
+def fldid2(h, f): return h.id + ',' +  f.id
 
 def listexpression_to_buf(expr):
     s = ""
@@ -124,9 +137,25 @@ def listexpression_to_buf(expr):
 
 ################################################################################
 
-def format_expr_16(e):
+def format_expr_16(e, format_as_value=True):
+    if e is None:
+        return "FORMAT_EXPR_16(None)"
+    if e.node_type == 'DefaultExpression':
+        return ""
     if e.node_type == 'Constant':
-        return str(e.value)
+        if e.type.node_type == 'Type_Bits':
+            # 4294967136 versus (uint32_t)4294967136
+            return '(' + format_type_16(e.type) + ')' + str(e.value)
+        else:
+            return str(e.value)
+    if e.node_type == 'Mul':
+        return '(' + format_expr_16(e.left) + '*' + format_expr_16(e.right) + ')'
+    if e.node_type == 'Add':
+        return '(' + format_expr_16(e.left) + '+' + format_expr_16(e.right) + ')'
+    if e.node_type == 'Cast':
+        return '(' + format_type_16(e.destType) + ')' + format_expr_16(e.expr)
+    if e.node_type == 'Shl':
+        return '(' + format_expr_16(e.left) + '<<' + format_expr_16(e.right) + ')'
     if e.node_type == 'Equ':
         return format_expr_16(e.left) + '==' + format_expr_16(e.right)
     if e.node_type == 'BoolLiteral':
@@ -137,6 +166,21 @@ def format_expr_16(e):
 #        return ",".join(map(format_expr_16, e.components))
         prepend_statement(listexpression_to_buf(e))
         return 'buffer' + str(e.id) + ', ' + 'buffer' + str(e.id) + '_size'
+    if e.node_type == 'SelectExpression':
+        head = format_expr_16(e.select)
+        headname = head.split(',')[0]
+        cases = []
+        for c in e.selectCases: # selectCase
+            casebody = "parser_state_" + format_expr_16(c.state) + "(pd, buf, tables);"
+            if c.keyset.node_type == 'DefaultExpression':
+                cases.append(casebody + " // default")
+            elif c.keyset.node_type == 'Constant':
+                from  utils.hlir import int_to_big_endian_byte_array
+                value_name = 'value' + str(c.keyset.id)
+                value_len, l = int_to_big_endian_byte_array(c.keyset.value)
+                prepend_statement('uint8_t ' + value_name + '[' + str(value_len) + '] = {' + ','.join([str(x) for x in l ]) + '};')
+                cases.append("if ( memcmp(%s, %s, %s) == 0) { %s }" % (headname, value_name, value_len, casebody))
+        return '\nelse\n'.join(cases)
     if e.node_type == 'PathExpression':
         return format_expr_16(e.path)
     if e.node_type == 'Path':
@@ -145,23 +189,50 @@ def format_expr_16(e):
         else:
             return e.name
     if e.node_type == 'Member':
-        if has_field_ref(e):
-            return fldid(e.expr.ref, e.ref)
-        if has_header_ref(e):
+        if has_field_ref(e) and hasattr(e.expr, 'ref') and format_as_value == False:
+            return fldid2(e.expr.ref, e.ref)
+        elif has_header_ref(e):
             return e.ref.id
+        elif e.expr.node_type == 'PathExpression':
+            var = e.expr.path.name
+            if e.expr.type.node_type == 'Type_Header':
+                h = e.expr.type
+                return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
+            else:
+                return format_expr_16(e.expr) + '.' + e.member
+        elif e.expr.node_type == 'Member':
+            return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.ref.id + ', ' + e.ref.id + '))'
         else:
             return format_expr_16(e.expr) + '.' + e.member
+    # TODO some of these are formatted as statements, we shall fix this
     if e.node_type == 'MethodCallExpression':
+        if e.method.node_type == 'Member' and e.method.member == 'setValid':
+            h = e.method.expr.ref
+            ret  = 'pd->headers['+h.id+'] = (header_descriptor_t) {'
+            ret += ' .type = '+h.id+','
+#            ret += ' .length = header_info('+h.id+').bytewidth,
+            ret += ' .length = %s,'%str((sum([f.size if not f.is_vw else 0 for f in h.type.fields])+7)/8)
+            ret += ' .pointer = calloc(%s, sizeof(uint8_t)),'%str(h.type.byte_width) # TODO is this the max size?
+            ret += ' .var_width_field_bitwidth = 0 };' # TODO determine and set this field
+            return ret + " // hdr.*.setValid()"
         if e.method.node_type == 'Member' and e.method.member == 'emit':
-            return "// packet.emit call ignored" #TODO
+            haddr = "pd->headers[header_instance_%s].pointer"%e.arguments[0].member
+            hlen  = "pd->headers[header_instance_%s].length" %e.arguments[0].member
+            ret = ""
+            ret += "if(emit_addr != %s)" % haddr
+            ret += "memcpy(emit_addr, %s, %s);" % (haddr, hlen)
+            ret += "emit_addr += %s;" % hlen
+            return ret
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
             if e.method.expr.get_attr('ref') is not None:
                 return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
             else:
                 return "pd->headers[%s].pointer != NULL" % format_expr_16(e.method.expr)
-        elif e.arguments.is_vec() and e.arguments.vec != [] and e.arguments[0].node_type == 'ListExpression':
+        elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
             return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
-        elif e.arguments.is_vec() and e.arguments.vec != []:
-            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
+#        elif e.arguments.is_vec() and e.arguments.vec != []:
+#            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
             return format_expr_16(e.method) + '(pd, tables)'
+    else:
+        return "couldn't format expression: " + str(e)

@@ -95,7 +95,8 @@ init_fake_packet()
 
 //=============================================================================
 
-#define EXTRACT_EGRESSPORT(p) (*(uint32_t *)(((uint8_t*)(p)->headers[/*header instance id - hopefully it's the very first one*/0].pointer)+/*byteoffset*/6) & /*mask*/0x7fc) >> /*bitoffset*/2
+#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
+#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
 
 static inline int
 send_packet(packet_descriptor_t* packet_desc)
@@ -111,7 +112,7 @@ static void
 init_metadata(packet_descriptor_t* packet_desc, uint32_t inport)
 {
     int res32;
-    MODIFY_INT32_INT32_BITS(packet_desc, field_instance_standard_metadata_ingress_port, inport);
+    MODIFY_INT32_INT32_BITS_PACKET(packet_desc, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
 }
 
 extern uint32_t read_counter (int counterid, int index);

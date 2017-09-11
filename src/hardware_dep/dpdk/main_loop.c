@@ -330,10 +330,8 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
      rte_pktmbuf_free(m);
 }
 
-#define EXTRACT_EGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_egress_port) 
-
-
-#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO(p, field_instance_standard_metadata_ingress_port)
+#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
+#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
 
 
 /* Enqueue a single packet, and send burst if queue is filled */
@@ -365,7 +363,8 @@ set_metadata_inport(packet_descriptor_t* packet_desc, uint32_t inport)
 {
     //modify_field_to_const(packet_desc, field_desc(field_instance_standard_metadata_ingress_port), (uint8_t*)&inport, 2);
     int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS(packet_desc, field_instance_standard_metadata_ingress_port, inport); // TODO fix? LAKI
+    MODIFY_INT32_INT32_BITS_PACKET(packet_desc, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
+    //MODIFY_INT32_INT32_BITS(packet_desc, field_instance_standard_metadata_ingress_port, inport); // TODO fix? LAKI
 }
 
 void

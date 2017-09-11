@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning
-from utils.hlir import getTypeAndLength
 
 #[ #include "dataplane.h"
 #[ #include "actions.h"
 #[ #include "data_plane_data.h"
 #[
-
 
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir16.tables:

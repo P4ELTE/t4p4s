@@ -23,6 +23,8 @@ from utils.misc import addError, addWarning
 
 #[ void mark_to_drop() {} // TODO
 
+#[ uint8_t* emit_addr;
+
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[ extern void increase_counter (int counterid, int index);
 
@@ -73,11 +75,11 @@ for table in hlir16.tables:
             # TODO find out why this is missing and fix it
             continue
         if f.width <= 32:
-            #[ EXTRACT_INT32_BITS(pd, ${f.id}, *(uint32_t*)key)
+            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header_name}, field_${f.header_name}_t_${f.field_name}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
         elif f.width > 32 and f.width % 8 == 0:
             byte_width = (f.width+7)/8
-            #[ EXTRACT_BYTEBUF(pd, ${f.id}, key)
+            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header_name}, field_${f.field_name}, key)
             #[ key += ${byte_width};
         else:
             add_error("table key calculation", "Unsupported field %s ignored." % f.id)
@@ -198,7 +200,7 @@ for f in hlir.p4_fields.values():
 #            #[ if(pd->headers[${hdr_prefix(f.instance.name)}].pointer != NULL) {
             #[ if(pd->fields.attr_${fld_id(f)} == MODIFIED) {
             #[     value32 = pd->fields.${fld_id(f)};
-            #[     MODIFY_INT32_INT32_AUTO(pd, ${fld_id(f)}, value32)
+            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, ${hdr_fld_id(f)}, value32)
             #[ }
 #[ }
 
@@ -210,6 +212,7 @@ for pe in pipeline_elements:
     if c is not None:
         #[ void control_${pe.type.name}(${STDPARAMS})
         #[ {
+        #[     debug("entering control ${c.name}...\n");
         #[     uint32_t value32, res32;
         #[     (void)value32, (void)res32;
         for d in c.controlLocals:
@@ -232,9 +235,10 @@ for pe in pipeline_elements:
 #[ void handle_packet(${STDPARAMS})
 #[ {
 #[     int value32;
-#[     EXTRACT_INT32_BITS(pd, field_instance_standard_metadata_ingress_port, value32)
+#[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
 #[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
 #[     reset_headers(pd);
 #[     parse_packet(pd, tables);
+#[     emit_addr = pd->data;
 #[     process_packet(pd, tables);
 #[ }

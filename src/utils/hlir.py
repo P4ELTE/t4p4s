@@ -21,6 +21,8 @@ from misc import addError
 # TODO note that this current implementation is true for all fields modified by at least one primitive action;
 #   this should be refined in the future to reflect the intent of selecting frequently accessed field instances only
 def parsed_field(hlir, field):
+    if True:
+        return False
     if field.instance.metadata or is_vwf(field) or field.width > 32: return False
     for fun in userActions(hlir):
         for call in fun.call_sequence:
@@ -98,6 +100,10 @@ def hstack(name): return re.find(r'\[([0-9]+)\]', name)
 
 def fld_id(f):
     return fld_prefix(hdr_name(f.instance.name) + "_" + f.name)
+
+# TEMPORARY TODO remove this after action.c.py has been upgraded to hlir16
+def hdr_fld_id(f):
+    return "header_instance_" + hdr_name(f.instance.name) + ", field_" + hdr_name(f.instance.name) + '_t_' + f.name
 
 def instances4stack(hlir, s):
     stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual and i.base_name is s, hlir.p4_header_instances.values())
