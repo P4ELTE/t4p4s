@@ -134,7 +134,7 @@ def listexpression_to_buf(expr):
             w = '+'.join(map(width, fs))
             s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);' % (expr.id, o, fldid(h, fs[0]), w)
             o += '+'+w
-    return 'int buffer{0}_size = ({1}+7)/8;\nuint8_t* buffer{0} = calloc(buffer{0}_size, sizeof(uint8_t));\n'.format(expr.id, o) + s
+    return 'int buffer{0}_size = ({1}+7)/8;\nuint8_t buffer{0}[buffer{0}_size];\n'.format(expr.id, o) + s
 
 ################################################################################
 

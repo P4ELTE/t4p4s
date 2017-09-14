@@ -33,7 +33,6 @@ uint16_t Checksum16_get(uint8_t* data, int data_size, packet_descriptor_t* pd, l
     uint32_t res = 0;
     res = csum16_add(res, calculate_csum16(data, data_size));
     res = (res == 0xffff) ? res : ((~res) & 0xffff);
-    free(data);
     return res & 0xffff; // hex((2 ** 16) - 1)
 }
 
