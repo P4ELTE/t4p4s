@@ -20,26 +20,39 @@ from misc import addWarning, addError
 def format_type_16(t):
     if t.node_type == 'Type_Boolean':
         return 'bool'
-    if t.node_type == 'Type_Bits':
-        res = 'int'
-        if t.size % 8 == 0 and t.size <= 32:
-            res = res + str(t.size) + '_t'
-        if not t.isSigned:
-            res = 'u' + res
+    elif t.node_type == 'Type_Bits':
+        res = 'int' if t.isSigned else 'uint'
+        if t.size <= 8:
+            res += '8_t'
+        elif t.size <= 16:
+            res += '16_t'
+        elif t.size <= 32:
+            res += '32_t'
+        else:
+            addError('formatting type', 'The maximum supported bitwidth for bit<w> and int<w> are 32 bits. (found %s)' % t.size)
         return res
-    if t.node_type == 'Type_Name':
+    elif t.node_type == 'Type_Name':
         return format_expr_16(t.path)
+    else:
+        addError('formatting type', 'The type %s is not supported yet!' % t.node_type)
+        return ''
 
 def format_declaration_16(d):
     if d.node_type == 'Declaration_Variable':
-        return '%s %s;' % (format_type_16(d.type), d.name)
-    if d.node_type == 'Declaration_Instance':
+        if d.type.node_type == 'Type_Header':
+            return 'uint8_t {0}[{1}];\n uint8_t {0}_var = 0; // Width of the variable width field'.format(d.name, d.type.byte_width)
+        else:
+            return '%s %s;' % (format_type_16(d.type), d.name)
+    elif d.node_type == 'Declaration_Instance':
         return 'struct {0} {1};\n{0}_init(&{1});'.format(format_type_16(d.type), d.name)
-    if d.node_type == 'P4Table' or d.node_type == 'P4Action':
+    elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
         return ''
-#        for m in d.type.ref.methods:
-#            if m.name != d.type.path.name:
-#                #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
+        #for m in d.type.ref.methods:
+        #    if m.name != d.type.path.name:
+        #        #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
+    else:
+        addError('formatting declaration', 'Declaration of type %s is not supported yet!' % d.node_type)
+        return ''
 
 ################################################################################
 
@@ -108,6 +121,7 @@ def group_references(refs):
     while i < len(refs):
         if not isinstance(refs[i], tuple):
             ret.append(refs[i])
+            i += 1
         else:
             h, f = refs[i]
             fs = [f]
@@ -134,9 +148,17 @@ def listexpression_to_buf(expr):
             w = '+'.join(map(width, fs))
             s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);' % (expr.id, o, fldid(h, fs[0]), w)
             o += '+'+w
+        else:
+            addError('generating list expression buffer', 'List element (%s) not supported!' % x)
     return 'int buffer{0}_size = ({1}+7)/8;\nuint8_t buffer{0}[buffer{0}_size];\n'.format(expr.id, o) + s
 
 ################################################################################
+def format_type_mask(t):
+    if t.node_type == 'Type_Bits' and not t.isSigned:
+        return hex((2 ** t.size) - 1) + ' & '
+    else:
+        addError('formatting a type mask', 'Currently only bit<w> is supported!')
+        return ''
 
 def format_expr_16(e, format_as_value=True):
     if e is None:
@@ -153,19 +175,48 @@ def format_expr_16(e, format_as_value=True):
         return 'true' if e.value else 'false'
     if e.node_type == 'StringLiteral':
         return '"' + e.value + '"';
+    if e.node_type == 'TypeNameExpression':
+        return format_expr_16(e.typeName.path);
 
-    simple_unary_ops = {'Neg':'-', 'Cmpl':'~', 'LNot':'!'}
-    if e.node_type in simple_unary_ops:
-        return simple_unary_ops[e.node_type] + '(' + format_expr_16(e.expr) + ')'
+    if e.node_type == 'Neg':
+        if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
+            return '(' + format_type_mask(e.type) + '(' + str(2**e.type.size) + '-' + format_expr_16(e.expr) + '))'
+        else:
+            return '(-' + format_expr_16(e.expr) + ')'
+    if e.node_type == 'Cmpl':
+        return '(' + format_type_mask(e.type) + '(~' + format_expr_16(e.expr) + '))'
+    if e.node_type == 'LNot':
+        return '(!' + format_expr_16(e.expr) + ')'
 
-    simple_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Div':'/', 'Mod':'%',#Binary arithmetic operators
+    simple_binary_ops = {'Div':'/', 'Mod':'%',                                 #Binary arithmetic operators
                          'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
                          'BAnd':'&', 'BOr':'|', 'BXor':'^',                    #Bitwise operators
                          'LAnd':'&&', 'LOr':'||',                              #Boolean operators
-                         'Shl':'<<', 'Shr':'>>',                               #Shift operators
                          'Equ':'==', 'Neq':'!='}                               #Equality operators
     if e.node_type in simple_binary_ops:
         return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
+
+    #Subtraction on unsigned values is performed by adding the negation of the second operand
+    if e.node_type == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
+        return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.left) + '+(' + str(2**e.type.size) + '-' + format_expr_16(e.right) + ')))'
+    #Right shift on signed values is performed with a shift width check
+    if e.node_type == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
+        return '(({1}>{2}) ? 0 : ({0} >> {1}))'.format(format_expr_16(e.left), format_expr_16(e.right), e.type.size)
+    #These formatting rules MUST follow the previous special cases
+    complex_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Shl':'<<', 'Shr':'>>'}
+    if e.node_type in complex_binary_ops:
+        temp_expr = '(' + format_expr_16(e.left) + complex_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
+        if e.type.node_type == 'Type_InfInt':
+            return temp_expr
+        elif e.type.node_type == 'Type_Bits':
+            if not e.type.isSigned:
+                return '(' + format_type_mask(e.type) + temp_expr + ')'
+            else:
+                if e.type.size in {8,16,32}:
+                    return '((' + format_type_16(e.type) + ') ' + temp_expr + ')'
+                else:
+                    addError('formatting an expression', 'Expression of type %s is not supported on int<%s>. (Only int<8>, int<16> and int<32> are supported.)' % (e.node_type, e.type.size))
+                    return ''
 
     if e.node_type == 'Mux':
         return '(' + format_expr_16(e.e0) + '?' + format_expr_16(e.e1) + ':' + format_expr_16(e.e2) + ')'
@@ -201,8 +252,11 @@ def format_expr_16(e, format_as_value=True):
         else:
             return e.name
     if e.node_type == 'Member':
-        if has_field_ref(e) and hasattr(e.expr, 'ref') and format_as_value == False:
-            return fldid2(e.expr.ref, e.ref)
+        if has_field_ref(e) and hasattr(e.expr, 'ref'):
+            if format_as_value == False:
+                return fldid2(e.expr.ref, e.ref)
+            else:
+                return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.ref.id + ', ' + e.ref.id + '))'
         elif has_header_ref(e):
             return e.ref.id
         elif e.expr.node_type == 'PathExpression':
@@ -212,8 +266,6 @@ def format_expr_16(e, format_as_value=True):
                 return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
             else:
                 return format_expr_16(e.expr) + '.' + e.member
-        elif e.expr.node_type == 'Member':
-            return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.ref.id + ', ' + e.ref.id + '))'
         else:
             return format_expr_16(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
@@ -237,9 +289,9 @@ def format_expr_16(e, format_as_value=True):
             return ret
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
             if e.method.expr.get_attr('ref') is not None:
-                return "pd->headers[%s].pointer != NULL" % e.method.expr.ref.id
+                return "(pd->headers[%s].pointer != NULL)" % e.method.expr.ref.id
             else:
-                return "pd->headers[%s].pointer != NULL" % format_expr_16(e.method.expr)
+                return "(pd->headers[%s].pointer != NULL)" % format_expr_16(e.method.expr)
         elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
             return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
 #        elif e.arguments.is_vec() and e.arguments.vec != []:

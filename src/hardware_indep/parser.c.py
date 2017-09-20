@@ -14,7 +14,7 @@
 import p4_hlir.hlir.p4 as p4
 from utils.hlir import *
 from utils.misc import addError, addWarning 
-from utils.hlir16 import format_expr_16, format_statement_16, statement_buffer_value
+from utils.hlir16 import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
 
 def format_state(state):
     generated_code = ""
@@ -133,9 +133,7 @@ def extract_header_2(h, w):
 parser = hlir16.declarations['P4Parser'][0]
 
 for l in parser.parserLocals:
-    if l.node_type == 'Declaration_Variable':
-        #[ uint8_t* ${l.name}[${l.type.byte_width}];
-        #[ int ${l.name}_var = 0;
+    #[ ${format_declaration_16(l)}
 
 for s in parser.states:
     #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables);
