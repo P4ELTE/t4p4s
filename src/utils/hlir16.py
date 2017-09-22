@@ -37,6 +37,23 @@ def format_type_16(t):
         addError('formatting type', 'The type %s is not supported yet!' % t.node_type)
         return ''
 
+def pp_type_16(t): # Pretty print P4_16 type
+    if t.node_type == 'Type_Boolean':
+        return 'bool'
+    elif t.node_type == 'Type_Bits':
+        return ('int' if t.isSigned else 'bit') + '<' + str(t.size) + '>'
+    elif t.node_type == 'Type_Name':
+        return format_expr_16(t.path)
+    else:
+        return str(t)
+
+def format_type_mask(t):
+    if t.node_type == 'Type_Bits' and not t.isSigned:
+        return hex((2 ** t.size) - 1) + ' & '
+    else:
+        addError('formatting a type mask', 'Currently only bit<w> is supported!')
+        return ''
+
 def format_declaration_16(d):
     if d.node_type == 'Declaration_Variable':
         if d.type.node_type == 'Type_Header':
@@ -153,12 +170,6 @@ def listexpression_to_buf(expr):
     return 'int buffer{0}_size = ({1}+7)/8;\nuint8_t buffer{0}[buffer{0}_size];\n'.format(expr.id, o) + s
 
 ################################################################################
-def format_type_mask(t):
-    if t.node_type == 'Type_Bits' and not t.isSigned:
-        return hex((2 ** t.size) - 1) + ' & '
-    else:
-        addError('formatting a type mask', 'Currently only bit<w> is supported!')
-        return ''
 
 def format_expr_16(e, format_as_value=True):
     if e is None:
@@ -221,9 +232,39 @@ def format_expr_16(e, format_as_value=True):
     if e.node_type == 'Mux':
         return '(' + format_expr_16(e.e0) + '?' + format_expr_16(e.e1) + ':' + format_expr_16(e.e2) + ')'
 
+    if e.node_type == 'Slice':
+        return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.e0) + '>>' + format_expr_16(e.e2) + '))'
+
+    if e.node_type == 'Concat':
+        return '((' + format_expr_16(e.left) + '<<' + str(e.right.type.size) + ') | ' + format_expr_16(e.right) + ')'
+
     if e.node_type == 'Cast':
-        #TODO: add better cast for not byte-wide types
-        return '((' + format_type_16(e.destType) + ')' + format_expr_16(e.expr) + ')'
+        if e.expr.type.node_type == 'Type_Bits' and not e.expr.type.isSigned and e.expr.type.size == 1 \
+                and e.destType.node_type == 'Type_Boolean':        #Cast from bit<1> to bool
+            return '(' + format_expr_16(e.expr) + ')'
+        elif e.expr.type.node_type == 'Type_Boolean' and e.destType.node_type == 'Type_Bits' and not e.destType.isSigned \
+                and e.destType.size == 1:                          #Cast from bool to bit<1>
+            return '(' + format_expr_16(e.expr) + '? 1 : 0)'
+        elif e.expr.type.node_type == 'Type_Bits' and e.destType.node_type == 'Type_Bits':
+            if e.expr.type.isSigned == e.destType.isSigned:
+                if not e.expr.type.isSigned:                       #Cast from bit<w> to bit<v>
+                    if e.expr.type.size > e.destType.size:
+                        return '(' + format_type_mask(e.destType) + format_expr_16(e.expr) + ')'
+                    else:
+                        return format_expr_16(e.expr)
+                else:                                              #Cast from int<w> to int<v>
+                    return '((' + format_type_16(e.destType) + ') ' + format_expr_16(e.expr) + ')'
+            elif e.expr.type.isSigned and not e.destType.isSigned: #Cast from int<w> to bit<w>
+                return '(' + format_type_mask(e.destType) + format_expr_16(e.expr) + ')'
+            elif not e.expr.type.isSigned and e.destType.isSigned: #Cast from bit<w> to int<w>
+                if e.destType.size in {8,16,32}:
+                    return '((' + format_type_16(e.destType) + ')' + format_expr_16(e.expr) + ')'
+                else:
+                    addError('formatting an expression', 'Cast from bit<%s> to int<%s> is not supported! (Only int<8>, int<16> and int<32> are supported.)' % e.destType.size)
+                    return ''
+        #Cast from int to bit<w> and int<w> are performed by P4C
+        addError('formatting an expression', 'Cast from %s to %s is not supported!' % (pp_type_16(e.expr.type), pp_type_16(e.destType)))
+        return ''
 
     if e.node_type == 'ListExpression':
 #        return ",".join(map(format_expr_16, e.components))
