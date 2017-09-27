@@ -267,24 +267,52 @@ def format_expr_16(e, format_as_value=True):
         return ''
 
     if e.node_type == 'ListExpression':
-#        return ",".join(map(format_expr_16, e.components))
         prepend_statement(listexpression_to_buf(e))
         return 'buffer' + str(e.id) + ', ' + 'buffer' + str(e.id) + '_size'
     if e.node_type == 'SelectExpression':
-        head = format_expr_16(e.select)
-        headname = head.split(',')[0]
+        #Generate local variables for select values
+        for k in e.select.components:
+            if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
+                prepend_statement('{} {} = {};'.format(format_type_16(k.type), gen_var_name(k), format_expr_16(k)))
+            elif k.type.node_type == 'Type_Bits' and k.type.size % 8 == 0:
+                prepend_statement('uint8_t {0}[{1}];\n EXTRACT_BYTEBUF_PACKET(pd, {2}, {0});'
+                                  .format(gen_var_name(k), k.type.size/8, format_expr_16(k, False)))
+            else:
+                addError('formatting select expression', 'Select on type %s is not supported!' % pp_type_16(k.type))
+
         cases = []
-        for c in e.selectCases: # selectCase
-            casebody = "parser_state_" + format_expr_16(c.state) + "(pd, buf, tables);"
-            if c.keyset.node_type == 'DefaultExpression':
-                cases.append(casebody + " // default")
-            elif c.keyset.node_type == 'Constant':
-                from  utils.hlir import int_to_big_endian_byte_array
-                value_name = 'value' + str(c.keyset.id)
-                value_len, l = int_to_big_endian_byte_array(c.keyset.value)
-                prepend_statement('uint8_t ' + value_name + '[' + str(value_len) + '] = {' + ','.join([str(x) for x in l ]) + '};')
-                cases.append("if ( memcmp(%s, %s, %s) == 0) { %s }" % (headname, value_name, value_len, casebody))
+        for case in e.selectCases:
+            cases_tmp = case.keyset.components if case.keyset.node_type == 'ListExpression' else [case.keyset]
+            conds = []
+            for k, c in zip(e.select.components, cases_tmp):
+                select_type = k.type.node_type
+                size = k.type.size #if k.type.node_type == 'Type_Bits' else 0
+                case_type = c.node_type
+
+                if case_type == 'DefaultExpression':
+                    conds.append('true /* default */')
+                elif case_type == 'Constant' and select_type == 'Type_Bits' and 32 < size and size % 8 == 0:
+                    from  utils.hlir import int_to_big_endian_byte_array
+                    value_len, l = int_to_big_endian_byte_array(c.value)
+                    #TODO: the byte array is not correct, not enough numbers
+                    prepend_statement('uint8_t {0}[{1}] = {{{2}}};'.format(gen_var_name(c), size/8, ','.join([str(x) for x in l ])))
+                    conds.append('memcmp({}, {}, {}) == 0'.format(gen_var_name(k), gen_var_name(c), size/8))
+                elif size <= 32:
+                    if case_type == 'Range':
+                        conds.append('{0} <= {1} && {1} <= {2}'.format(format_expr_16(c.left), gen_var_name(k), format_expr_16(c.right)))
+                    elif case_type == 'Mask':
+                        conds.append('{0} & {1} == {2} & {1}'.format(format_expr_16(c.left), format_expr_16(c.right), gen_var_name(k)))
+                    else:
+                        if case_type not in {'Constant'}: #Trusted expressions
+                            addWarning('formatting a select case', 'Select statement cases of type %s on %s might not work properly.'
+                                       % (case_type, pp_type_16(k.type)))
+                        conds.append('{} == {}'.format(gen_var_name(k), format_expr_16(c)))
+                else:
+                    addError('formatting a select case', 'Select statement cases of type %s on %s is not supported!'
+                             % (case_type, pp_type_16(k.type)))
+            cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr_16(case.state)))
         return '\nelse\n'.join(cases)
+
     if e.node_type == 'PathExpression':
         return format_expr_16(e.path)
     if e.node_type == 'Path':
@@ -341,3 +369,8 @@ def format_expr_16(e, format_as_value=True):
             return format_expr_16(e.method) + '(pd, tables)'
     addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
     return ""
+
+################################################################################
+
+def gen_var_name(item):
+    return 'value_%d' % item.id
