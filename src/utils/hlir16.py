@@ -292,9 +292,8 @@ def format_expr_16(e, format_as_value=True):
                 if case_type == 'DefaultExpression':
                     conds.append('true /* default */')
                 elif case_type == 'Constant' and select_type == 'Type_Bits' and 32 < size and size % 8 == 0:
-                    from  utils.hlir import int_to_big_endian_byte_array
-                    value_len, l = int_to_big_endian_byte_array(c.value)
-                    #TODO: the byte array is not correct, not enough numbers
+                    from  utils.hlir import int_to_big_endian_byte_array_with_length
+                    l = int_to_big_endian_byte_array_with_length(c.value, size/8)
                     prepend_statement('uint8_t {0}[{1}] = {{{2}}};'.format(gen_var_name(c), size/8, ','.join([str(x) for x in l ])))
                     conds.append('memcmp({}, {}, {}) == 0'.format(gen_var_name(k), gen_var_name(c), size/8))
                 elif size <= 32:
