@@ -75,11 +75,11 @@ for table in hlir16.tables:
             # TODO find out why this is missing and fix it
             continue
         if f.width <= 32:
-            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_instance_${f.header.name}_${f.field_name}, *(uint32_t*)key)
+            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.name}_${f.field_name}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
         elif f.width > 32 and f.width % 8 == 0:
             byte_width = (f.width+7)/8
-            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header.name}, field_instance_${f.header.name}_${f.field_name}, key)
+            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.name}_${f.field_name}, key)
             #[ key += ${byte_width};
         else:
             add_error("table key calculation", "Unsupported field %s ignored." % f.id)
