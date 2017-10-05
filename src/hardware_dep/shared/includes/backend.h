@@ -76,7 +76,7 @@ void pop  (packet_descriptor_t* p, header_stack_t h);
 void add_header             (packet_descriptor_t* p, header_reference_t h);
 void remove_header          (packet_descriptor_t* p, header_reference_t h);
 void drop                   (packet_descriptor_t* p);
-void generate_digest        (backend bg, char* name, int receiver, struct type_field_list* digest_field_list);
+void generate_digest        (ctrl_plane_backend bg, char* name, int receiver, struct type_field_list* digest_field_list);
 void no_op                  ();
 
 //copy_header

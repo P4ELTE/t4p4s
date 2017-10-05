@@ -189,7 +189,7 @@ for table in hlir.p4_tables.values():
 
 
 
-#[ backend bg;
+#[ ctrl_plane_backend bg;
 #[ void init_control_plane()
 #[ {
 #[     debug("Creating control plane connection...\n");

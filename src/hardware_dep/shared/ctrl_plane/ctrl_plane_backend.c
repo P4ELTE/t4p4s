@@ -59,7 +59,7 @@ typedef struct backend_st {
 
 typedef struct digest_st {
 	mem_cell_t* mem_cell;
-	struct p4_digest* digest;
+	struct p4_digest* ctrl_plane_digest;
 } digest_t;
 
 mem_cell_t* touch_mem_cell(backend_t* bgt);
@@ -139,7 +139,7 @@ void output_processor(void *bg)
         }
 }
 
-backend create_backend(int num_of_threads, int queue_size, char* controller_name, int controller_port, p4_msg_callback cb)
+ctrl_plane_backend create_backend(int num_of_threads, int queue_size, char* controller_name, int controller_port, p4_msg_callback cb)
 {
 	backend_t *bg;
 	mem_cell_t *tmp;
@@ -151,7 +151,7 @@ backend create_backend(int num_of_threads, int queue_size, char* controller_name
 
 	bg = (backend_t*) malloc(sizeof(backend_t));
 	if (bg == 0) {
-		fprintf(stderr, "Out of memory creating a new backend!\n");
+		fprintf(stderr, "Out of memory creating a new ctrl_plane_backend!\n");
 		return 0;
 	}
 
@@ -221,10 +221,10 @@ backend create_backend(int num_of_threads, int queue_size, char* controller_name
 
 	bg->cb = cb;
 
-	return (backend) bg;
+	return (ctrl_plane_backend) bg;
 }
 
-void launch_backend(backend bg)
+void launch_backend(ctrl_plane_backend bg)
 {
 	backend_t *bgt = (backend_t*) bg;
 
@@ -243,7 +243,7 @@ void launch_backend(backend bg)
         dispatch(bgt->tpool, output_processor, (void*)bgt);
 }
 
-void stop_backend(backend bg)
+void stop_backend(ctrl_plane_backend bg)
 {
 	backend_t *bgt = (backend_t*) bg;
 	bgt->shutdown = 1;
@@ -252,7 +252,7 @@ void stop_backend(backend bg)
 }
 
 
-void destroy_backend(backend bg)
+void destroy_backend(ctrl_plane_backend bg)
 {
 	backend_t *bgt = (backend_t*) bg;
 	mem_cell_t *tmp;
@@ -326,12 +326,12 @@ void detouch_mem_cell(backend_t* bgt, mem_cell_t* cell)
         pthread_mutex_unlock(&(bgt->memlock));
 }
 
-int send_digest(backend bg, digest d, uint32_t receiver_id)
+int send_digest(ctrl_plane_backend bg, ctrl_plane_digest d, uint32_t receiver_id)
 {
 	digest_t* dt = (digest_t*)d;
 	backend_t* bgt = (backend_t*)bg;
 
-	netconv_p4_header((struct p4_header*)(dt->digest));
+	netconv_p4_header((struct p4_header*)(dt->ctrl_plane_digest));
 	if (fifo_add_msg(&(bgt->output_queue), dt->mem_cell)==0)
 		return -1;
 
@@ -339,7 +339,7 @@ int send_digest(backend bg, digest d, uint32_t receiver_id)
 	return 0;
 }
 
-digest create_digest(backend bg, char* name)
+ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
 {
 	backend_t* bgt = (backend_t*) bg;
 	digest_t* dg;
@@ -347,19 +347,19 @@ digest create_digest(backend bg, char* name)
 	dg = (digest_t*) malloc( sizeof(digest_t) );
 	if (dg==0)
 	{
-                fprintf(stderr, "Out of memory to a new digest message!\n");
+                fprintf(stderr, "Out of memory to a new ctrl_plane_digest message!\n");
                 return 0;
 	}
 	
 	dg->mem_cell = touch_mem_cell(bgt);
 	if (dg->mem_cell == 0)
 	{
-		fprintf(stderr, "Out of memory pool - memcell cannot be assigned to a new digest message!\n");
+		fprintf(stderr, "Out of memory pool - memcell cannot be assigned to a new ctrl_plane_digest message!\n");
 		return 0;	
 	}
 
 	create_p4_header(dg->mem_cell->data, 0, dg->mem_cell->length);
-	dg->digest = create_p4_digest(dg->mem_cell->data, 0, dg->mem_cell->length);
+	dg->ctrl_plane_digest = create_p4_digest(dg->mem_cell->data, 0, dg->mem_cell->length);
 
 	if (strlen( name ) > P4_MAX_FIELD_LIST_NAME_LEN-1)
         {
@@ -367,20 +367,20 @@ digest create_digest(backend bg, char* name)
                 return 0;
         }
 
-	strncpy( dg->digest->field_list_name, name, P4_MAX_FIELD_LIST_NAME_LEN );
-	dg->digest->field_list_name[P4_MAX_FIELD_LIST_NAME_LEN-1] = '\0';
+	strncpy( dg->ctrl_plane_digest->field_list_name, name, P4_MAX_FIELD_LIST_NAME_LEN );
+	dg->ctrl_plane_digest->field_list_name[P4_MAX_FIELD_LIST_NAME_LEN-1] = '\0';
 
-	return (digest) dg;
+	return (ctrl_plane_digest) dg;
 }
 
 
-digest add_digest_field(digest d, void* value, uint32_t length)
+ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t length)
 {
 	digest_t* dg = (digest_t*) d;
 	struct p4_digest_field* dfield;
 	uint32_t bytelength = (length-1)/8+1;
 
-	dfield = add_p4_digest_field( dg->digest, dg->mem_cell->length );
+	dfield = add_p4_digest_field( dg->ctrl_plane_digest, dg->mem_cell->length );
 /*	if (strlen( name ) > P4_MAX_FIELD_NAME_LENGTH-1)
 	{
 	        fprintf(stderr, "Too long fieldname! The maximum length allowed is %d\n", (P4_MAX_FIELD_NAME_LENGTH-1));

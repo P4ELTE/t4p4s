@@ -22,7 +22,7 @@ import math
 #[ #include <unistd.h>
 #[ #include <arpa/inet.h>
 
-#[ extern backend bg;
+#[ extern ctrl_plane_backend bg;
 
 
 # =============================================================================

@@ -70,9 +70,9 @@ remove_header(packet_descriptor_t* p, header_reference_t h)
 }
 
 void 
-generate_digest(backend bg, char* name, int receiver, struct type_field_list* digest_field_list)
+generate_digest(ctrl_plane_backend bg, char* name, int receiver, struct type_field_list* digest_field_list)
 {
-    digest d = create_digest(bg, name);
+    ctrl_plane_digest d = create_digest(bg, name);
     int i;
     for(i = 0; i < digest_field_list->fields_quantity; i++)
         d = add_digest_field(d, digest_field_list->field_offsets[i], digest_field_list->field_widths[i]);
