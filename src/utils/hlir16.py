@@ -17,7 +17,11 @@ from misc import addWarning
 ################################################################################
 from misc import addWarning, addError
 
-def format_type_16(t):
+type_env = {}
+
+def format_type_16(t, resolve_names = True):
+    if t.node_type == 'Type_Void':
+        return 'void'
     if t.node_type == 'Type_Boolean':
         return 'bool'
     elif t.node_type == 'Type_Bits':
@@ -32,7 +36,15 @@ def format_type_16(t):
             addError('formatting type', 'The maximum supported bitwidth for bit<w> and int<w> are 32 bits. (found %s)' % t.size)
         return res
     elif t.node_type == 'Type_Name':
-        return format_expr_16(t.path)
+        if not resolve_names:
+            return t.path.name
+
+        global type_env
+
+        if t.path.name in type_env:
+            return type_env[t.path.name]
+        addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.path.name))
+        return "int /*type param {}*/".format(t.path.name)
     else:
         addError('formatting type', 'The type %s is not supported yet!' % t.node_type)
         return ''
@@ -59,9 +71,9 @@ def format_declaration_16(d):
         if d.type.node_type == 'Type_Header':
             return 'uint8_t {0}[{1}];\n uint8_t {0}_var = 0; // Width of the variable width field'.format(d.name, d.type.byte_width)
         else:
-            return '%s %s;' % (format_type_16(d.type), d.name)
+            return '%s %s;' % (format_type_16(d.type, False), d.name)
     elif d.node_type == 'Declaration_Instance':
-        return 'struct {0} {1};\n{0}_init(&{1});'.format(format_type_16(d.type), d.name)
+        return 'struct {0} {1};\n{0}_init(&{1});'.format(format_type_16(d.type, False), d.name)
     elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
         return ''
         #for m in d.type.ref.methods:
@@ -116,7 +128,9 @@ def format_statement_16(s):
             ret += ':('
         else:
             ret += format_expr_16(s.methodCall) + ';'
-    return statement_buffer + ret
+    statement_buffer_ret = statement_buffer
+    statement_buffer = ""
+    return statement_buffer_ret + ret
 
 ################################################################################
 
@@ -153,6 +167,10 @@ def group_references(refs):
 def fldid(h, f): return 'field_instance_' + h.name + '_' + f.name
 def fldid2(h, f): return h.id + ',' +  f.id
 
+
+# A set of expression IDs that have already been generated.
+generated_exprs = set()
+
 def listexpression_to_buf(expr):
     s = ""
     o = '0'
@@ -163,7 +181,7 @@ def listexpression_to_buf(expr):
                 if f.is_vw: return 'field_desc(pd, %s).bitwidth'%fldid(h, f)
                 else: return str(f.size)
             w = '+'.join(map(width, fs))
-            s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);' % (expr.id, o, fldid(h, fs[0]), w)
+            s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);\n' % (expr.id, o, fldid(h, fs[0]), w)
             o += '+'+w
         else:
             addError('generating list expression buffer', 'List element (%s) not supported!' % x)
@@ -176,6 +194,8 @@ def format_expr_16(e, format_as_value=True):
         return "FORMAT_EXPR_16(None)"
     if e.node_type == 'DefaultExpression':
         return ""
+    if e.node_type == 'Parameter':
+        return format_type_16(e.type) + " " + e.name
     if e.node_type == 'Constant':
         if e.type.node_type == 'Type_Bits':
             # 4294967136 versus (uint32_t)4294967136
@@ -267,8 +287,11 @@ def format_expr_16(e, format_as_value=True):
         return ''
 
     if e.node_type == 'ListExpression':
-        prepend_statement(listexpression_to_buf(e))
-        return 'buffer' + str(e.id) + ', ' + 'buffer' + str(e.id) + '_size'
+        if e.id not in generated_exprs:
+            prepend_statement(listexpression_to_buf(e))
+            generated_exprs.add(e.id)
+        return '(struct uint8_buffer_t) {{ .buffer =  buffer{}, .buffer_size = buffer{}_size }}'.format(e.id, e.id)
+        # return 'buffer{}, buffer{}_size'.format(e.id, e.id)
     if e.node_type == 'SelectExpression':
         #Generate local variables for select values
         for k in e.select.components:
@@ -335,6 +358,8 @@ def format_expr_16(e, format_as_value=True):
             else:
                 return format_expr_16(e.expr) + '.' + e.member
         else:
+            if e.type.node_type == 'Type_Enum':
+                return format_expr_16(e.expr) + '__' + e.member
             return format_expr_16(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
     if e.node_type == 'MethodCallExpression':
@@ -361,7 +386,8 @@ def format_expr_16(e, format_as_value=True):
             else:
                 return "(pd->headers[%s].pointer != NULL)" % format_expr_16(e.method.expr)
         elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
-            return format_expr_16(e.method) + '(' + format_expr_16(e.arguments[0]) + ', pd, tables)'
+            args = ", ".join([format_expr_16(arg) for arg in e.arguments])
+            return format_expr_16(e.method) + '(' + args + ', pd, tables)'
 #        elif e.arguments.is_vec() and e.arguments.vec != []:
 #            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:

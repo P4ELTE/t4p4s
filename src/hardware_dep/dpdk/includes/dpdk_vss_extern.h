@@ -23,10 +23,10 @@ extern Checksum16 {
 *******************************************************************************/
 
 struct Checksum16 {
-    uint16_t (*get) (uint8_t* data, int data_size, packet_descriptor_t* pd, lookup_table_t** tables);
+    uint16_t (*get) (struct uint8_buffer_t buf, packet_descriptor_t* pd, lookup_table_t** tables);
 };
 
 void Checksum16_init(struct Checksum16* x);
-uint16_t Checksum16_get(uint8_t* data, int size, packet_descriptor_t* pd, lookup_table_t** tables);
+uint16_t Checksum16_get(struct uint8_buffer_t buf, packet_descriptor_t* pd, lookup_table_t** tables);
 
 #endif // __DPDK_VSS_EXTERN_H_

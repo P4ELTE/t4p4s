@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.hlir import parsed_field, fld_id
-from utils.hlir16 import format_declaration_16, format_statement_16, format_expr_16
+from utils.hlir16 import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>
 #[ #include <string.h>
 #[ #include <stdbool.h>
 #[ #include "dpdk_lib.h"
+#[ #include "data_plane_data.h"
 #[ #include "actions.h"
-
-#[ void mark_to_drop() {} // TODO
 
 #[ uint8_t* emit_addr;
 
@@ -206,6 +205,42 @@ for f in hlir.p4_fields.values():
 
 ################################################################################
 # Pipeline
+
+class types:
+    def __init__(self, new_type_env):
+        global type_env
+        self.env_vars = set()
+        for v in new_type_env:
+            if v in type_env:
+                addWarning('adding a type environment', 'variable {} is already bound to type {}'.format(v, type_env[v]))
+            else:
+                self.env_vars.add(v)
+                type_env[v] = new_type_env[v]
+
+    def __enter__(self):
+        global type_env
+        return type_env
+
+    def __exit__(self, type, value, traceback):
+        global type_env
+        for v in self.env_vars:
+            del type_env[v]
+
+# TODO this is a temporary quick fix for "calculated_field"s
+for m in hlir16.declarations['Method']:
+    # TODO temporary fix for l3-routing-full, this will be computed later on
+    with types({
+        "T": "struct uint8_buffer_t",
+        "O": "int",
+        "HashAlgorithm": "int",
+    }):
+        t = m.type
+        ret_type = format_type_16(t.returnType)
+        args = ", ".join([format_expr_16(arg) for arg in t.parameters.parameters] + [STDPARAMS])
+
+    #[ ${ret_type} ${m.name}(${args}) {
+    #[     // TODO proper body
+    #[ }
 
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')

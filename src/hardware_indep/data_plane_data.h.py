@@ -38,4 +38,9 @@ for table in hlir16.tables:
 #[ REGISTER_
 #[ };
 #[
+#[ struct uint8_buffer_t {
+#[     int      buffer_size;
+#[     uint8_t* buffer;
+#[ };
+#[
 #[ #endif // __DATA_PLANE_DATA_H__

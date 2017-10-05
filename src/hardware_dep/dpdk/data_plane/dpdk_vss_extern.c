@@ -29,9 +29,9 @@ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
     return (uint16_t)tmp_num;
 }
 
-uint16_t Checksum16_get(uint8_t* data, int data_size, packet_descriptor_t* pd, lookup_table_t** tables) {
+uint16_t Checksum16_get(struct uint8_buffer_t buf, packet_descriptor_t* pd, lookup_table_t** tables) {
     uint32_t res = 0;
-    res = csum16_add(res, calculate_csum16(data, data_size));
+    res = csum16_add(res, calculate_csum16(buf.buffer, buf.buffer_size));
     res = (res == 0xffff) ? res : ((~res) & 0xffff);
     return res & 0xffff; // hex((2 ** 16) - 1)
 }
