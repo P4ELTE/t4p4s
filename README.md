@@ -9,43 +9,45 @@ See the [README of the previous version](README14.md).
 
 To start working with the compiler, do the following.
 
-1. Checkout the code the following way:
-
-    ~~~
-    git clone -b t4p4s-16 --recursive https://github.com/P4ELTE/t4p4s
-    ~~~
-
-1. Note that later on, when you pull further commits,
-   you will need to update the submodules as well.
-   Issue the following command from the root of the repo:
-
-    ~~~
-    git submodule update --init --recursive
-    ~~~
-
-    - Another option that might work:
-
-    ~~~
-    git submodule update --rebase --remote
-    ~~~
-
+1. Download `bootstrap-t4p4s.sh` and run it.
+    - It prepares all necessary tools in the current directory.
+    - It will ask for your password in the beginning.
+    - It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+    - By default, it runs downloads in parallel. You can force it to work sequentially with `PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh`.
+    - You can select a DPDK version like this: `DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh` or `DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh`.
+    - If you want to download T4P4S only, make sure to get it with its submodule like this: `git clone --recursive -b t4p4s-16 https://github.com/P4ELTE/t4p4s t4p4s-16`
+        - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
 1. Don't forget to setup your environment.
     - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
     - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
     - The system has to have hugepages configured. You can use `$RTE_SDK/tools/dpdk-setup.sh`, option `Setup hugepage mappings for non-NUMA systems`.
-1. Now you can use the compiler almost exactly as before.
-   The only difference is that you have to supply the option `-v 14` (or its longer form `--p4c 14`),
-   which currently is expected right after the filename.
+1. Running the examples is very simple: `./t4p4s.sh ./examples/l2-switch-test.p4`.
+    - Make sure that before running this command, your `P4C` variable points to your [`p4c`](https://github.com/p4lang/p4c) directory, and `RTE_SDK` points your [`DPDK`](http://dpdk.org/) directory. Both are downloaded by `bootstrap-t4p4s.sh`.
+    - This command uses defaults from `dpdk_parameters.cfg` and `examples.cfg`.
+    - You can override behaviour from the command line like this:
 
 ~~~
-P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+# This is the default behaviour
+./t4p4s.sh launch ./examples/l2-switch-test.p4
+# Run only C->executable compilation
+./t4p4s.sh c ./examples/l2-switch-test.p4
+# Launch an already compiled executable
+./t4p4s.sh run ./examples/l2-switch-test.p4
+# Compile and run a program in debug mode
+./t4p4s.sh dbg ./examples/l2-switch-test.p4
+# Specify P4 version explicitly
+./t4p4s.sh v14 ./examples/l2-switch-test.p4
+# Specify P4 version explicitly (default: from examples.cfg, or v16)
+./t4p4s.sh v14 ./examples/l2-switch-test.p4
+# Specify DPDK configuration explicitly
+./t4p4s.sh cfg "-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2-switch-test.p4
 ~~~
 
 At the moment, P4-16 programs are not expected to compile properly.
 However, they will produce C code in the `build` directory.
 
 ~~~
-P4DPDK_VARIANT=no_nic_l2 ./launch.sh $P4C/testdata/p4_16_samples/vss-example.p4 -v 16 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+./t4p4s.sh p4 $P4C/testdata/p4_16_samples/vss-example.p4
 ~~~
 
 
@@ -59,7 +61,7 @@ the system will open the debugger upon encountering a runtime error.
 - Note that for the following example, `ipdb` has to be installed (e.g. via `pip`).
 
 ~~~
-PDB=ipdb P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -v 14 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+PDB=ipdb ./t4p4s.sh dbg ./examples/l2-switch-test.p4
 ~~~
 
 Of course, you can also manually add debug triggers to the code if you wish.
