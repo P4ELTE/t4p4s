@@ -282,4 +282,10 @@ for hdr in hlir16.header_types:
         #[   header_${hdr.name}, // field_${hdr.name}_${fld.name}
 #[ };
 
+
+
+for enum in hlir16.declarations['Type_Enum']:
+    values = ", ".join([enum.name + "__" + m.name for m in enum.members])
+    #[ enum ${enum.name} { ${values} };
+
 #[ #endif // __HEADER_INFO_H__
