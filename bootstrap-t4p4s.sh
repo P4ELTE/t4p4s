@@ -1,0 +1,98 @@
+# Set sensible defaults
+export DPDK_VSN=${DPDK_VSN-17.08}
+export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
+export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-v3.4.1}
+export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
+
+case $DPDK_VSN in
+"17.08") DPDK_FILEVSN=${DPDK_FILEVSN-17.08};;
+"17.05") DPDK_FILEVSN=${DPDK_FILEVSN-17.05.2};;
+"17.02") DPDK_FILEVSN=${DPDK_FILEVSN-17.02.1};;
+"16.11") DPDK_FILEVSN=${DPDK_FILEVSN-16.11.3};;
+"16.07") DPDK_FILEVSN=${DPDK_FILEVSN-16.07.2};;
+esac
+
+# Download libraries
+sudo apt-get update && sudo apt-get install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev &
+WAITPROC_APTGET="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_APTGET"
+
+git clone --recursive https://github.com/p4lang/p4-hlir &
+WAITPROC_P4HLIR="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4HLIR"
+
+wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz &
+WAITPROC_DPDK="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_DPDK"
+
+git clone --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
+WAITPROC_PROTOBUF="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
+
+git clone --recursive https://github.com/p4lang/p4c &
+WAITPROC_P4C="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
+
+[ -d t4p4s-16 ] || git clone --recursive -b t4p4s-16 https://github.com/P4ELTE/t4p4s t4p4s-16 &
+WAITPROC_T4P4S="$!"
+[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_T4P4S"
+
+
+# Wait for apt-get to finish
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_APTGET"
+
+
+# Setup p4-hlir
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_P4HLIR"
+
+cd p4-hlir
+sudo python setup.py install
+cd ..
+
+
+# Setup DPDK
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_DPDK"
+
+export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
+
+cd "$RTE_SDK"
+make install DESTDIR="${RTE_TARGET}" T="${RTE_TARGET}" -j4
+cd ..
+
+
+# Setup protobuf
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_PROTOBUF"
+
+cd protobuf
+./autogen.sh
+./configure
+make -j 4
+sudo make install -j 4
+sudo ldconfig
+cd ..
+
+
+# Setup p4c
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_P4C"
+
+export P4C=`pwd`/p4c
+
+cd p4c
+./bootstrap.sh
+cd build
+cmake ..
+make -j 4
+sudo make install -j 4
+cd ../..
+
+
+# Enter t4p4s directory
+[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_T4P4S"
+
+cd t4p4s-16
+
+
+# Print environment variables
+echo "DPDK_VSN=${DPDK_VSN}"
+echo "RTE_SDK=${RTE_SDK}"
+echo "P4C=${P4C}"
