@@ -83,7 +83,8 @@ while [ $# -gt 0 ]; do
     case "$1" in
         "v14")          P4_VSN=14
                         ;;
-        "v16")          ;;
+        "v16")          P4_VSN=16
+                        ;;
         "p4")           T4P4S_P4=1
                         ;;
         "c")            T4P4S_C=1
