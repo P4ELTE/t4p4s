@@ -21,10 +21,14 @@ VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/data_plane
 
 # dpdk main
 SRCS-y += main.c
+ifdef P4DPDK_MAIN_LOOP_SRC
+SRCS-y += $(P4DPDK_MAIN_LOOP_SRC)
+else
 ifdef P4DPDK_VARIANT
 SRCS-y += main_loop_$(P4DPDK_VARIANT).c
 else
 SRCS-y += main_loop.c
+endif
 endif
 
 # control plane related sources
