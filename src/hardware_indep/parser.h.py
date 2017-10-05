@@ -134,11 +134,7 @@ for hdr in hlir16.header_instances:
 
 # TODO this should be available as a field
 def get_real_type(typenode):
-    ref = typenode.get_attr('ref')
-    if ref is not None:
-        return typenode.ref.type
-
-    return typenode
+    return typenode.type_ref if hasattr(typenode, 'type_ref') else typenode
 
 #[ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
@@ -239,12 +235,6 @@ for hdr in hlir16.header_types:
     for fld in hdr.fields:
         #[   field_${hdr.name}_${fld.name},
 #[ };
-
-def get_real_type(typenode):
-    ref = typenode.get_attr('ref')
-    if ref is not None:
-        return typenode.ref.type
-    return typenode
 
 #[ static const int field_bit_width[FIELD_COUNT] = {
 for hdr in hlir16.header_types:

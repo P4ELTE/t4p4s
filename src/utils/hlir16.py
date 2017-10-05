@@ -76,7 +76,7 @@ def format_declaration_16(d):
         return 'struct {0} {1};\n{0}_init(&{1});'.format(format_type_16(d.type, False), d.name)
     elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
         return ''
-        #for m in d.type.ref.methods:
+        #for m in d.type.type_ref.methods:
         #    if m.name != d.type.path.name:
         #        #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
     else:
@@ -84,12 +84,6 @@ def format_declaration_16(d):
         return ''
 
 ################################################################################
-
-def has_field_ref(node):
-    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and not hasattr(node.ref, 'header_type')
-
-def has_header_ref(node):
-    return hasattr(node, 'ref') and node.ref.node_type == 'StructField' and hasattr(node.ref, 'header_type')
 
 statement_buffer = ""
 
@@ -110,8 +104,8 @@ def format_statement_16(s):
     global statement_buffer
     statement_buffer = ""
     if s.node_type == 'AssignmentStatement':
-        if has_field_ref(s.left):
-            # fldid(s.left.expr.ref, s.left.ref)
+        if hasattr(s.left, 'field_ref'):
+            # fldid(s.left.expr.header_ref, s.left.field_ref)
             ret += 'MODIFY_INT32_INT32_AUTO_PACKET(pd, %s, %s);' % (format_expr_16(s.left, False), format_expr_16(s.right)) # TODO
         else:
             ret += '%s = %s;' % (format_expr_16(s.left), format_expr_16(s.right))
@@ -135,9 +129,9 @@ def format_statement_16(s):
 ################################################################################
 
 def resolve_reference(e):
-    if has_field_ref(e):
-        h = e.expr.ref
-        f = e.ref
+    if hasattr(e, 'field_ref'):
+        h = e.expr.header_ref
+        f = e.field_ref
         return (h, f)
     else:
         return e
@@ -343,13 +337,13 @@ def format_expr_16(e, format_as_value=True):
         else:
             return e.name
     if e.node_type == 'Member':
-        if has_field_ref(e) and hasattr(e.expr, 'ref'):
+        if hasattr(e, 'field_ref'):
             if format_as_value == False:
-                return fldid2(e.expr.ref, e.ref)
+                return fldid2(e.expr.header_ref, e.field_ref)
             else:
-                return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.ref.id + ', ' + e.ref.id + '))'
-        elif has_header_ref(e):
-            return e.ref.id
+                return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.header_ref.id + ', ' + e.field_ref.id + '))'
+        elif hasattr(e, 'header_ref'):
+            return e.header_ref.id
         elif e.expr.node_type == 'PathExpression':
             var = e.expr.path.name
             if e.expr.type.node_type == 'Type_Header':
@@ -364,7 +358,7 @@ def format_expr_16(e, format_as_value=True):
     # TODO some of these are formatted as statements, we shall fix this
     if e.node_type == 'MethodCallExpression':
         if e.method.node_type == 'Member' and e.method.member == 'setValid':
-            h = e.method.expr.ref
+            h = e.method.expr.header_ref
             ret  = 'pd->headers['+h.id+'] = (header_descriptor_t) {'
             ret += ' .type = '+h.id+','
 #            ret += ' .length = header_info('+h.id+').bytewidth,
@@ -381,8 +375,8 @@ def format_expr_16(e, format_as_value=True):
             ret += "emit_addr += %s;" % hlen
             return ret
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
-            if e.method.expr.get_attr('ref') is not None:
-                return "(pd->headers[%s].pointer != NULL)" % e.method.expr.ref.id
+            if hasattr(e.method.expr, 'header_ref'):
+                return "(pd->headers[%s].pointer != NULL)" % e.method.expr.header_ref.id
             else:
                 return "(pd->headers[%s].pointer != NULL)" % format_expr_16(e.method.expr)
         elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':

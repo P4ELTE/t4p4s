@@ -104,7 +104,7 @@ def extract_header_2(h, w):
     if not h.type.is_vw:
         addError("generating extract header call", "fixed-width header extracted with two-param extract")
     else:
-        x = sum([f.size if not f.is_vw else 0 for f in h.fields])
+        x = sum([f.size if not f.is_vw else 0 for f in h.type.fields])
         w = format_expr_16(w)
         #[ int hdrlen = ((${w}+${x})/8);
 
@@ -147,27 +147,18 @@ for s in parser.states:
     #[     uint32_t res32; (void)res32;
     #[     debug("entering parser state ${s.name}...\n");
     for c in s.components:
-        if format_statement_16(c).startswith('packet.extract'):# and hasattr(c.methodCall.arguments[0], 'member'):
-            h = c.methodCall.arguments[0]
-            tmp = False
-            if hasattr(h, 'ref'):
-                h = h.ref
-            elif hasattr(h, 'member'):
-                h = hlir16.header_instances.get(h.member)
-            else:
-                h = h.path.name
-                h = parser.parserLocals.get(h)
-                tmp = True
-            if not tmp:
-                if len(c.methodCall.arguments) == 1:
-                    #[ ${extract_header(h)}
-                elif len(c.methodCall.arguments) == 2:
-                    #[ ${extract_header_2(h, c.methodCall.arguments[1])}
-            else:
-                if len(c.methodCall.arguments) == 1:
-                    #[ ${extract_header_tmp(h)}
-                elif len(c.methodCall.arguments) == 2:
-                    #[ ${extract_header_tmp_2(h, c.methodCall.arguments[1])}
+        if hasattr(c, 'call'):
+            if c.call == 'extract_header':
+                if not c.is_tmp:
+                    if not c.is_vw:
+                        #[ ${extract_header(c.header)}
+                    else:
+                        #[ ${extract_header_2(c.header, c.width)}
+                else:
+                    if not c.is_vw:
+                        #[ ${extract_header_tmp(c.header)}
+                    else:
+                        #[ ${extract_header_tmp_2(c.header, c.width)}
         else:
             #[ ${format_statement_16(c)}
 
