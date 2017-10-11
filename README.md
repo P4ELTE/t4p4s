@@ -47,7 +47,7 @@ At the moment, P4-16 programs are not expected to compile properly.
 However, they will produce C code in the `build` directory.
 
 ~~~
-./t4p4s.sh p4 $P4C/testdata/p4_16_samples/vss-example.p4
+./t4p4s.sh v16 $P4C/testdata/p4_16_samples/vss-example.p4
 ~~~
 
 
