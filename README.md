@@ -51,6 +51,16 @@ However, they will produce C code in the `build` directory.
 ~~~
 
 
+# Using Docker with T4P4S
+
+The `docker` folder contains Dockerfiles and the script `t4p4s-docker-l2.sh` that illustrates how T4P4S can be used with Docker.
+
+- Docker Community Edition has to be configured on your system; see [this guide](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/).
+- Running `t4p4s-docker-l2.sh` sets up two containers called `t4p4s-16` and `t4p4s-16-l2-switch-test`. Both are usable separately; the second one also runs the L2 switch example (no network card needed).
+- The Docker instances rely on having the same version for `linux-headers` as the host system. See the `FROM` clause in the `t4p4s-16.docker` file.
+- The configuration is based on that of [`docker-dpdk` by Jeremy Eder](https://github.com/jeremyeder/docker-dpdk/), which includes using the host's `hugepages` inside the Docker instances. Make sure you have enough `hugepages` on the host before running the containers.
+
+
 # Working with the compiler
 
 If you set the `PDB` environment variable before running `launch.sh`,
