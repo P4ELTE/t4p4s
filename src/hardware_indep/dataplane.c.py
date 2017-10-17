@@ -35,7 +35,7 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables])
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
 
 main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
-package_name = main.type.baseType.path.name
+package_name = main.type.baseType.name
 pipeline_elements = main.arguments
 
 #package_type = hlir16.declarations.get(package_name, 'Type_Package')
@@ -112,7 +112,7 @@ for table in hlir16.tables:
     #[     } else {
     #[       switch (res->action_id) {
     for action in table.actions:
-        action_name = action.expression.method.path.name[:-2]
+        action_name = action.expression.method.name[:-2]
         if action_name == 'NoAction':
             continue
         #[         case action_${action_name}:

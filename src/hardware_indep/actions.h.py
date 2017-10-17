@@ -71,7 +71,7 @@ for table in hlir16.tables:
     for action in table.actions:
         # TODO what if the action is not a method call?
         # TODO what if there are more actions?
-        action_method_name = action.expression.method.path.name
+        action_method_name = action.expression.method.name
         #[         struct TODO16_action_${action.action_object.name}_params ${action_method_name}_params;
     #[     };
     #[ };
@@ -92,7 +92,7 @@ for table in hlir.p4_tables.values():
 for table in hlir16.tables:
     #[ void TODO16_apply_table_${table.name}(packet_descriptor_t *pd, lookup_table_t** tables);
     for action in table.actions:
-        action_method_name = action.expression.method.path.name
+        action_method_name = action.expression.method.name
         #[ void TODO16_action_code_${action.action_object.name}(packet_descriptor_t *pd, lookup_table_t **tables, struct TODO16_action_${action_method_name}_params);
 
 

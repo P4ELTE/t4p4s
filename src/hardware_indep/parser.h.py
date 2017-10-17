@@ -275,7 +275,9 @@ for hdr in hlir16.header_types:
 
 
 for enum in hlir16.declarations['Type_Enum']:
-    values = ", ".join([enum.name + "__" + m.name for m in enum.members])
-    #[ enum ${enum.name} { ${values} };
+    #[ enum ${enum.c_name} { ${', '.join([m.c_name for m in enum.members])} };
+
+for error in hlir16.declarations['Type_Error']:
+    #[ enum ${error.c_name} { ${', '.join([m.c_name for m in error.members])} };
 
 #[ #endif // __HEADER_INFO_H__

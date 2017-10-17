@@ -35,16 +35,17 @@ def format_type_16(t, resolve_names = True):
         else:
             addError('formatting type', 'The maximum supported bitwidth for bit<w> and int<w> are 32 bits. (found %s)' % t.size)
         return res
-    elif t.node_type == 'Type_Name':
-        if not resolve_names:
-            return t.path.name
-
+    elif t.node_type == 'Type_Var':
         global type_env
 
-        if t.path.name in type_env:
-            return type_env[t.path.name]
-        addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.path.name))
-        return "int /*type param {}*/".format(t.path.name)
+        if t.name in type_env:
+            return type_env[t.name]
+        addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.name))
+        return 'int /*type param {}*/'.format(t.name)
+    elif t.node_type in {'Type_Enum', 'Type_Error'}:
+        return 'enum ' + t.c_name
+    elif t.node_type in {'Type_Extern', 'Type_Struct'}:
+        return t.name
     else:
         addError('formatting type', 'The type %s is not supported yet!' % t.node_type)
         return ''
@@ -54,8 +55,6 @@ def pp_type_16(t): # Pretty print P4_16 type
         return 'bool'
     elif t.node_type == 'Type_Bits':
         return ('int' if t.isSigned else 'bit') + '<' + str(t.size) + '>'
-    elif t.node_type == 'Type_Name':
-        return format_expr_16(t.path)
     else:
         return str(t)
 
@@ -201,7 +200,7 @@ def format_expr_16(e, format_as_value=True):
     if e.node_type == 'StringLiteral':
         return '"' + e.value + '"';
     if e.node_type == 'TypeNameExpression':
-        return format_expr_16(e.typeName.path);
+        return format_expr_16(e.typeName);
 
     if e.node_type == 'Neg':
         if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
@@ -329,13 +328,10 @@ def format_expr_16(e, format_as_value=True):
             cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr_16(case.state)))
         return '\nelse\n'.join(cases)
 
-    if e.node_type == 'PathExpression':
-        return format_expr_16(e.path)
-    if e.node_type == 'Path':
-        if e.absolute:
-            return "???" #TODO
-        else:
-            return e.name
+    #These used to be PathExpressions
+    if e.node_type in {'Declaration_Variable', 'Declaration_Instance', 'Method', 'P4Table', 'ParserState'}:
+        return e.name
+
     if e.node_type == 'Member':
         if hasattr(e, 'field_ref'):
             if format_as_value == False:
@@ -344,16 +340,16 @@ def format_expr_16(e, format_as_value=True):
                 return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.header_ref.id + ', ' + e.field_ref.id + '))'
         elif hasattr(e, 'header_ref'):
             return e.header_ref.id
-        elif e.expr.node_type == 'PathExpression':
-            var = e.expr.path.name
+        elif e.expr.node_type == 'Declaration_Variable':
+            var = e.expr.name
             if e.expr.type.node_type == 'Type_Header':
                 h = e.expr.type
                 return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
             else:
                 return format_expr_16(e.expr) + '.' + e.member
         else:
-            if e.type.node_type == 'Type_Enum':
-                return format_expr_16(e.expr) + '__' + e.member
+            if e.type.node_type in {'Type_Enum', 'Type_Error'}:
+                return e.type.members.get(e.member).c_name
             return format_expr_16(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
     if e.node_type == 'MethodCallExpression':

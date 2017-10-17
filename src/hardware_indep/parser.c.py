@@ -170,7 +170,7 @@ for s in parser.states:
             #[ // rejected
     else:
         b = s.selectExpression
-        if b.node_type == 'PathExpression':
+        if b.node_type == 'ParserState':
             x = "parser_state_" + format_expr_16(b) + "(pd, buf, tables);"
         if b.node_type == 'SelectExpression':
             x = format_expr_16(b)

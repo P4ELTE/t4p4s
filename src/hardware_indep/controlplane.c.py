@@ -41,9 +41,6 @@ for table in hlir16.tables:
     for key in table.key.keyElements:
         # TODO make an attribute for it
         # key_width_bits = bits_to_bytes(key.width)
-        if key.expression.node_type == 'PathExpression':
-            # TODO
-            continue
         if key.expression.node_type == 'Member':
             if key.get_attr('width') is None:
                 # TODO
