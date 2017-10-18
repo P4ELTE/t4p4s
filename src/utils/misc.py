@@ -24,8 +24,13 @@ warnings = []
 
 
 def addError(where, msg):
+    import traceback
+    import itertools
+    sb  = traceback.extract_stack()
+    res = list(itertools.dropwhile(lambda (mod, line, fun, code): mod == 'src/compiler.py', sb))
+
     global errors
-    errors += ["ERROR: " + msg + " (While " + where + ").\n"]
+    errors += ["ERROR: " + msg + " (While " + where + ").\n"] + traceback.format_list(res)
 
 
 def addWarning(where, msg):
