@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.hlir import parsed_field, fld_id
-from utils.hlir16 import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
+from utils.codegen import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>

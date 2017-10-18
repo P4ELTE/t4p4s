@@ -14,7 +14,7 @@
 import p4_hlir.hlir.p4 as p4
 from utils.hlir import *
 from utils.misc import addError, addWarning 
-from utils.hlir16 import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
+from utils.codegen import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
 
 def format_state(state):
     generated_code = ""
