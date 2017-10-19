@@ -77,6 +77,7 @@ done < <(grep -v ";" dpdk_parameters.cfg)
 # Setting defaults
 ARCH=${ARCH-dpdk}
 CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+PYTHON=${PYTHON-python}
 
 # Processing arguments
 while [ $# -gt 0 ]; do
@@ -152,6 +153,13 @@ if [ -z "${P4_VSN+x}" ]; then
     echo "Using $P4_VSN, the default P4 version for the example $T4P4S_PRG"
 fi
 
+PYVSN=`$PYTHON -V`
+
+if [ -n "${T4P4S_DBG+x}" -a -z "${PDB+x}" ]; then
+    PDB=ipdb
+    echo "Using $PDB as debugger for $PYVSN"
+fi
+
 
 P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"./build/$T4P4S_PRG"}
 mkdir -p $P4DPDK_TARGET_DIR
@@ -163,9 +171,14 @@ if [ "$T4P4S_P4" == 1 ]; then
     if [ "$PDB" != "" ]; then
         # note: Python 3.2+ also accepts a  -c continue  option
         # to remain compatible with Python 2.x, a "c" has to be typed at the start
-        python -m "$PDB" src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
+        if echo "$PYVSN" | grep "Python 3[.][23456789]" >/dev/null; then
+            echo $PYTHON -m "$PDB" -c continue src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
+            $PYTHON -c continue -m "$PDB" src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
+        else
+            $PYTHON -m "$PDB" src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
+        fi
     else
-        python src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
+        $PYTHON src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN
     fi
 
     exit_on_error "P4 to C compilation failed"

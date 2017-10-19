@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from utils.hlir import parsed_field, fld_id
+from utils.hlir import is_parsed_field, fld_id, hdr_fld_id
 from utils.codegen import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
 
@@ -112,7 +112,7 @@ for table in hlir16.tables:
     #[     } else {
     #[       switch (res->action_id) {
     for action in table.actions:
-        action_name = action.expression.method.name[:-2]
+        action_name = action.action_object.name
         if action_name == 'NoAction':
             continue
         #[         case action_${action_name}:
@@ -130,6 +130,7 @@ for table in hlir16.tables:
     #[     void (*apply)(packet_descriptor_t* pd, lookup_table_t** tables);
     #[ };
     #[ struct ${table.name}_s ${table.name} = {.apply = &${table.name}_apply};
+
 
 ################################################################################
 
@@ -194,7 +195,7 @@ for table in hlir16.tables:
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
 for f in hlir.p4_fields.values():
-    if parsed_field(hlir, f):
+    if is_parsed_field(hlir, f):
         if f.width <= 32:
 #            #[ if(pd->headers[${hdr_prefix(f.instance.name)}].pointer != NULL) {
             #[ if(pd->fields.attr_${fld_id(f)} == MODIFIED) {
@@ -256,14 +257,14 @@ for pe in pipeline_elements:
         #[ }
 
 #[ void process_packet(${STDPARAMS})
-#[ {
+#{ {
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
     if c is not None:
         #[ control_${pe.type.name}(pd, tables);
         if pe.type.name == 'egress':
             #[ update_packet(pd); // we need to update the packet prior to calculating the new checksum
-#[ }
+#} }
 
 ################################################################################
 

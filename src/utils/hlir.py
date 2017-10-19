@@ -20,9 +20,11 @@ from misc import addError
 
 # TODO note that this current implementation is true for all fields modified by at least one primitive action;
 #   this should be refined in the future to reflect the intent of selecting frequently accessed field instances only
-def parsed_field(hlir, field):
-    if True:
-        return False
+def is_parsed_field(hlir, field):
+    # TODO is this hack really necessary?
+    # if True:
+    #     return False
+
     if field.instance.metadata or is_vwf(field) or field.width > 32: return False
     for fun in userActions(hlir):
         for call in fun.call_sequence:
@@ -103,7 +105,8 @@ def fld_id(f):
 
 # TEMPORARY TODO remove this after action.c.py has been upgraded to hlir16
 def hdr_fld_id(f):
-    return "header_instance_" + hdr_name(f.instance.name) + ", field_" + hdr_name(f.instance.name) + '_t_' + f.name
+    hname = hdr_name(f.instance.name)
+    return "header_instance_{}, field_{}_t_{}".format(hname, hname, f.name)
 
 def instances4stack(hlir, s):
     stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual and i.base_name is s, hlir.p4_header_instances.values())
@@ -228,6 +231,17 @@ def field_max_width(f):
     """For normal fields returns their width, for variable width fields returns the maximum possible width in bits"""
     if not is_vwf(f): return f.width
     return (f.instance.header_type.max_length * 8) - sum([field[1] if field[1] != p4.P4_AUTO_WIDTH else 0 for field in f.instance.header_type.layout.items()])
+
+
+def field_max_width_16(f):
+    """For normal fields returns their width, for variable width fields returns the maximum possible width in bits"""
+    if not f.field_ref.is_vw:
+        return f.field_ref.size
+
+    # TODO this code is untested yet
+    nonvw_fields_width  = [fld.size for fld in dst.expr.header_ref.type.fields if not fld.is_vw]
+    max_header_type_len = 12345 # TODO
+    return max_header_type_len - nonvw_fields_width
 
 
 def is_field_byte_aligned(f):

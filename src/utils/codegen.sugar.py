@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from misc import addWarning
+from utils.misc import addWarning, addError
+from utils.hlir import *
 
 ################################################################################
-from misc import addWarning, addError
 
 type_env = {}
 
-def format_type_16(t, resolve_names = True):
+def gen_format_type_16(t, resolve_names = True):
     if t.node_type == 'Type_Void':
-        return 'void'
-    if t.node_type == 'Type_Boolean':
-        return 'bool'
+        #[ void
+    elif t.node_type == 'Type_Boolean':
+        #[ bool
     elif t.node_type == 'Type_Bits':
         res = 'int' if t.isSigned else 'uint'
         if t.size <= 8:
@@ -33,7 +33,9 @@ def format_type_16(t, resolve_names = True):
         elif t.size <= 32:
             res += '32_t'
         else:
-            addError('formatting type', 'The maximum supported bitwidth for bit<w> and int<w> are 32 bits. (found %s)' % t.size)
+            name = "bit" if t.isSigned else "int"
+            
+            addError('formatting type', '{}<{}> too long, width only supported up to 32 bits'.format(name, t.size))
         return res
     elif t.node_type == 'Type_Var':
         global type_env
@@ -41,16 +43,16 @@ def format_type_16(t, resolve_names = True):
         if t.name in type_env:
             return type_env[t.name]
         addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.name))
-        return 'int /*type param {}*/'.format(t.name)
+        #[ int /*type param ${t.name}*/
     elif t.node_type in {'Type_Enum', 'Type_Error'}:
-        return 'enum ' + t.c_name
+        #[ enum ${t.c_name}
     elif t.node_type in {'Type_Extern', 'Type_Struct'}:
-        return t.name
+        #[ ${t.name}
     else:
         addError('formatting type', 'The type %s is not supported yet!' % t.node_type)
-        return ''
 
-def pp_type_16(t): # Pretty print P4_16 type
+def pp_type_16(t):
+    """Pretty print P4_16 type"""
     if t.node_type == 'Type_Boolean':
         return 'bool'
     elif t.node_type == 'Type_Bits':
@@ -58,29 +60,44 @@ def pp_type_16(t): # Pretty print P4_16 type
     else:
         return str(t)
 
-def format_type_mask(t):
+def gen_format_type_mask(t):
     if t.node_type == 'Type_Bits' and not t.isSigned:
-        return hex((2 ** t.size) - 1) + ' & '
+        mask = hex((2 ** t.size) - 1)
+        #[ $mask&
     else:
         addError('formatting a type mask', 'Currently only bit<w> is supported!')
-        return ''
 
-def format_declaration_16(d):
+def gen_format_declaration_16(d):
     if d.node_type == 'Declaration_Variable':
         if d.type.node_type == 'Type_Header':
-            return 'uint8_t {0}[{1}];\n uint8_t {0}_var = 0; // Width of the variable width field'.format(d.name, d.type.byte_width)
+            #[ // Width of the variable width field
+            #[ uint8_t ${d.name}[${d.type.byte_width}];\n uint8_t ${d.name}_var = 0;
         else:
-            return '%s %s;' % (format_type_16(d.type, False), d.name)
+            t = gen_format_type_16(d.type, False)
+            #[ $t ${d.name};
     elif d.node_type == 'Declaration_Instance':
-        return 'struct {0} {1};\n{0}_init(&{1});'.format(format_type_16(d.type, False), d.name)
+        t = gen_format_type_16(d.type, False)
+        #[ struct $t ${d.name};
+        #[ ${t}_init(&${d.name});
     elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
-        return ''
+        #[ /* nothing */
+
         #for m in d.type.type_ref.methods:
         #    if m.name != d.type.path.name:
-        #        #[ ${d.name}.${m.name} = &${format_type_16(d.type)}_${m.name};
+        #        #[ ${d.name}.${m.name} = &${gen_format_type_16(d.type)}_${m.name};
     else:
         addError('formatting declaration', 'Declaration of type %s is not supported yet!' % d.node_type)
-        return ''
+
+################################################################################
+
+def is_metadata(e):
+    if e.node_type == 'Member':
+        return e.expr.type.is_metadata
+    return False
+
+
+def is_std_metadata(e):
+    return is_metadata(e) and e.expr.type.name == 'standard_metadata_t'
 
 ################################################################################
 
@@ -98,32 +115,121 @@ def statement_buffer_value():
 
 ################################################################################
 
-def format_statement_16(s):
-    ret = ""
-    global statement_buffer
-    statement_buffer = ""
-    if s.node_type == 'AssignmentStatement':
-        if hasattr(s.left, 'field_ref'):
-            # fldid(s.left.expr.header_ref, s.left.field_ref)
-            ret += 'MODIFY_INT32_INT32_AUTO_PACKET(pd, %s, %s);' % (format_expr_16(s.left, False), format_expr_16(s.right)) # TODO
+bytebuf_id = 0
+
+# *valuebuff = value-in-width
+def write_int_to_bytebuff(value, width):
+    global bytebuf_id
+    generated_code = ""
+    l = int_to_big_endian_byte_array_with_length(value, width)
+    #[ uint8_t buffer_${bytebuf_id}[${len(l)}] = {
+    for c in l:
+        #[     ${c},
+    #[ };
+    bytebuf_id = bytebuf_id + 1
+    return generated_code
+
+
+
+def bit_bounding_unit(t):
+    """The bit width of the smallest int that can contain the type,
+    or the string "bytebuf" if it is larger than all possible container types."""
+    if t.size <= 8:
+        return 8
+    if t.size <= 16:
+        return 16
+    if t.size <= 32:
+        return 32
+    return "bytebuf"
+
+# TODO add all the special cases from the previous content of actions.c.py
+def gen_format_statement_16(stmt):
+    if stmt.node_type == 'AssignmentStatement':
+        dst = stmt.left
+        src = stmt.right
+
+        # TODO check for other cases, e.g. if dst.field_ref.is_vw == True
+        if is_metadata(dst) or is_std_metadata(dst):
+            hdr = dst.expr
+            fldname = dst.member
+            bitsize = hdr.type.fields.get(fldname).size
+            bytesize = (bitsize+7)/8
+
+            if src.node_type == 'Constant':
+                #[ value32 = ${src.value};
+                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_$fldname, value32)
+            elif src.node_type == 'Parameter':
+                # TODO is this always correct?
+                if hasattr(hdr, 'member'):
+                    #[ MODIFY_INT32_BYTEBUF_PACKET(pd, header_instance_${hdr.member}, field_${hdr.type.name}_$fldname, parameters.${src.name}, $bytesize)
+                else:
+                    #[ MODIFY_INT32_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_$fldname, parameters.${src.name}, $bytesize)
+            else:
+                addError('formatting statement', "Unhandled right hand side in assignment statement: {}".format(src))
+                #[ /* Unhandled right hand side in assignment statement: $src */
+        elif hasattr(stmt.left, 'field_ref'):
+            if (hasattr(src.type, 'size') and src.type.size > 32) or (hasattr(dst.type, 'size') and dst.type.size > 32):
+                param = dst.expr.expr
+                hdr = dst.expr.header_ref
+                size = dst.type.size
+
+                fd = "field_desc(pd, field_instance_{}_{})".format(hdr.name, dst.member)
+                #[ if (($size/8) < $fd.bytewidth) {
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${dst.member}, parameters.${src.name}, ($size/8));
+                #[ } else {
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${dst.member}, parameters.${src.name} + (($size/8) - $fd.bytewidth), $fd.bytewidth);
+                #[ }
+            else:
+                dstfmt = format_expr_16(dst, False)
+                srcfmt = format_expr_16(src)
+                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, $dstfmt, $srcfmt);
         else:
-            ret += '%s = %s;' % (format_expr_16(s.left), format_expr_16(s.right))
-    if s.node_type == 'BlockStatement':
-        for c in s.components:
-            ret += format_statement_16(c)
-    if s.node_type == 'IfStatement':
-        t = format_statement_16(s.ifTrue) if hasattr(s, 'ifTrue') else ';'
-        f = format_statement_16(s.ifFalse) if hasattr(s, 'ifFalse') else ';'
-        ret += 'if( %s ) { %s } else { %s }' % (format_expr_16(s.condition), t, f)
-    if s.node_type == 'MethodCallStatement':
-        if format_expr_16(s.methodCall) is None:
-            print (s.methodCall)
-            ret += ':('
+            dstfmt = format_expr_16(dst)
+            srcfmt = format_expr_16(src)
+            
+            #[ $dstfmt = $srcfmt;
+    elif stmt.node_type == 'BlockStatement':
+        for c in stmt.components:
+            #= format_statement_16(c)
+    elif stmt.node_type == 'IfStatement':
+        t = format_statement_16(stmt.ifTrue) if hasattr(stmt, 'ifTrue') else ';'
+        f = format_statement_16(stmt.ifFalse) if hasattr(stmt, 'ifFalse') else ';'
+        cond = format_expr_16(stmt.condition)
+        #[ if( $cond ) {
+        #[ $t
+        #[ } else {
+        #[ $f
+        #[ }
+    elif stmt.node_type == 'MethodCallStatement':
+        m = stmt.methodCall.method
+
+        if m.node_type == 'Method' and m.name == 'digest':
+            digest_name = stmt.methodCall.typeArguments[0].name
+            port, fields = stmt.methodCall.arguments
+
+            # TODO this will probably have to be generalised later on
+            #[ struct type_field_list fields;
+            #[ fields.fields_quantity = ${len(fields)};
+            #[ fields.field_offsets = malloc(sizeof(uint8_t*)*fields.fields_quantity);
+            #[ fields.field_widths = malloc(sizeof(uint8_t*)*fields.fields_quantity);
+
+            for idx, f in enumerate(fields.components):
+                if f.expr.type.is_metadata:
+                    #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.name}_${f.member}).byte_addr;
+                    #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.name}_${f.member}).bitwidth;
+                else:
+                    #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).byte_addr;
+                    #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).bitwidth;
+            #[ generate_digest(bg,"${digest_name}",0,&fields);
+            #[ sleep(1);
         else:
-            ret += format_expr_16(s.methodCall) + ';'
-    statement_buffer_ret = statement_buffer
-    statement_buffer = ""
-    return statement_buffer_ret + ret
+            mcall = format_expr_16(stmt.methodCall)
+            if mcall:
+                #[ $mcall;
+            else:
+                addError('generating method call statement', 'Invalid method call {}'.format(stmt.methodCall))
+                #[ /* unhandled method call ${stmt.methodCall} */
+
 
 ################################################################################
 
@@ -135,27 +241,34 @@ def resolve_reference(e):
     else:
         return e
 
-def subsequent_fields((h1, f1), (h2, f2)):
+def is_subsequent((h1, f1), (h2, f2)):
     fs = h1.type.fields.vec
     return h1 == h2 and fs.index(f1) + 1 == fs.index(f2)
 
-def group_references(refs):
-    ret = []
-    i = 0
-    while i < len(refs):
-        if not isinstance(refs[i], tuple):
-            ret.append(refs[i])
-            i += 1
+def groupby(xs, fun):
+    """Groups the elements of a list.
+    The upcoming element will be grouped if
+    fun(last element of the group, upcoming) evaluates to true."""
+    if not xs:
+        yield []
+        return
+
+    elems = []
+    for x in xs:
+        if elems == []:
+            elems = [x]
+        elif not fun(elems[-1], x):
+            yield elems
+            elems = [x]
         else:
-            h, f = refs[i]
-            fs = [f]
-            j = 1
-            while i+j < len(refs) and subsequent_fields((h, fs[-1]), refs[i+j]):
-                fs.append(refs[i+j][1])
-                j += 1
-            i += j
-            ret.append((h, fs))
-    return ret
+            elems.append(x)
+
+    if elems != []:
+        yield elems
+
+def group_references(refs):
+    for xs in groupby(refs, lambda x1, x2: isinstance(x1, tuple) and isinstance(x2, tuple) and is_subsequent(x1, x2)):
+        yield (xs[0][0], map(lambda (hdr, fld): fld, xs))
 
 def fldid(h, f): return 'field_instance_' + h.name + '_' + f.name
 def fldid2(h, f): return h.id + ',' +  f.id
@@ -164,71 +277,81 @@ def fldid2(h, f): return h.id + ',' +  f.id
 # A set of expression IDs that have already been generated.
 generated_exprs = set()
 
+def convert_component(component):
+    if component.node_type == 'Member':
+        hdr      = component.expr
+        fld_name = component.member
+        fld      = hdr.type.fields.get(fld_name)
+        return (hdr, fld)
+
+    addError('generating list expression buffer', 'List element (%s) not supported!' % component)
+    return None
+
 def listexpression_to_buf(expr):
+    def width(hdr, fld):
+        if fld.is_vw: return 'field_desc(pd, %s).bitwidth'%fldid(hdr, fld)
+        return str(fld.size)
+
     s = ""
     o = '0'
-    for x in group_references(map(resolve_reference, expr.components)):
-        if isinstance(x, tuple):
-            h, fs = x
-            def width(f):
-                if f.is_vw: return 'field_desc(pd, %s).bitwidth'%fldid(h, f)
-                else: return str(f.size)
-            w = '+'.join(map(width, fs))
-            s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);\n' % (expr.id, o, fldid(h, fs[0]), w)
-            o += '+'+w
-        else:
-            addError('generating list expression buffer', 'List element (%s) not supported!' % x)
+    components = [c if type(c) == tuple else convert_component(c) for c in map(resolve_reference, expr.components)]
+    for h, fs in group_references(components):
+        w = '+'.join(map(lambda f: width(h, f), fs))
+        s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);\n' % (expr.id, o, fldid(h, fs[0]), w)
+        o += '+'+w
     return 'int buffer{0}_size = ({1}+7)/8;\nuint8_t buffer{0}[buffer{0}_size];\n'.format(expr.id, o) + s
 
 ################################################################################
 
-def format_expr_16(e, format_as_value=True):
-    if e is None:
-        return "FORMAT_EXPR_16(None)"
-    if e.node_type == 'DefaultExpression':
-        return ""
-    if e.node_type == 'Parameter':
-        return format_type_16(e.type) + " " + e.name
-    if e.node_type == 'Constant':
-        if e.type.node_type == 'Type_Bits':
-            # 4294967136 versus (uint32_t)4294967136
-            return '(' + format_type_16(e.type) + ')' + str(e.value)
-        else:
-            return str(e.value)
-    if e.node_type == 'BoolLiteral':
-        return 'true' if e.value else 'false'
-    if e.node_type == 'StringLiteral':
-        return '"' + e.value + '"';
-    if e.node_type == 'TypeNameExpression':
-        return format_expr_16(e.typeName);
-
-    if e.node_type == 'Neg':
-        if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
-            return '(' + format_type_mask(e.type) + '(' + str(2**e.type.size) + '-' + format_expr_16(e.expr) + '))'
-        else:
-            return '(-' + format_expr_16(e.expr) + ')'
-    if e.node_type == 'Cmpl':
-        return '(' + format_type_mask(e.type) + '(~' + format_expr_16(e.expr) + '))'
-    if e.node_type == 'LNot':
-        return '(!' + format_expr_16(e.expr) + ')'
-
+def gen_format_expr_16(e, format_as_value=True):
     simple_binary_ops = {'Div':'/', 'Mod':'%',                                 #Binary arithmetic operators
                          'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
                          'BAnd':'&', 'BOr':'|', 'BXor':'^',                    #Bitwise operators
                          'LAnd':'&&', 'LOr':'||',                              #Boolean operators
                          'Equ':'==', 'Neq':'!='}                               #Equality operators
-    if e.node_type in simple_binary_ops:
+
+    complex_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Shl':'<<', 'Shr':'>>'}
+
+    if e is None:
+        return "FORMAT_EXPR_16(None)"
+    elif e.node_type == 'DefaultExpression':
+        return ""
+    elif e.node_type == 'Parameter':
+        return format_type_16(e.type) + " " + e.name
+    elif e.node_type == 'Constant':
+        if e.type.node_type == 'Type_Bits':
+            # 4294967136 versus (uint32_t)4294967136
+            return '(' + format_type_16(e.type) + ')' + str(e.value)
+        else:
+            return str(e.value)
+    elif e.node_type == 'BoolLiteral':
+        return 'true' if e.value else 'false'
+    elif e.node_type == 'StringLiteral':
+        return '"' + e.value + '"';
+    elif e.node_type == 'TypeNameExpression':
+        return format_expr_16(e.typeName);
+
+    elif e.node_type == 'Neg':
+        if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
+            return '(' + format_type_mask(e.type) + '(' + str(2**e.type.size) + '-' + format_expr_16(e.expr) + '))'
+        else:
+            return '(-' + format_expr_16(e.expr) + ')'
+    elif e.node_type == 'Cmpl':
+        return '(' + format_type_mask(e.type) + '(~' + format_expr_16(e.expr) + '))'
+    elif e.node_type == 'LNot':
+        return '(!' + format_expr_16(e.expr) + ')'
+
+    elif e.node_type in simple_binary_ops:
         return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
 
     #Subtraction on unsigned values is performed by adding the negation of the second operand
-    if e.node_type == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
+    elif e.node_type == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
         return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.left) + '+(' + str(2**e.type.size) + '-' + format_expr_16(e.right) + ')))'
     #Right shift on signed values is performed with a shift width check
-    if e.node_type == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
+    elif e.node_type == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
         return '(({1}>{2}) ? 0 : ({0} >> {1}))'.format(format_expr_16(e.left), format_expr_16(e.right), e.type.size)
     #These formatting rules MUST follow the previous special cases
-    complex_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Shl':'<<', 'Shr':'>>'}
-    if e.node_type in complex_binary_ops:
+    elif e.node_type in complex_binary_ops:
         temp_expr = '(' + format_expr_16(e.left) + complex_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
         if e.type.node_type == 'Type_InfInt':
             return temp_expr
@@ -242,16 +365,16 @@ def format_expr_16(e, format_as_value=True):
                     addError('formatting an expression', 'Expression of type %s is not supported on int<%s>. (Only int<8>, int<16> and int<32> are supported.)' % (e.node_type, e.type.size))
                     return ''
 
-    if e.node_type == 'Mux':
+    elif e.node_type == 'Mux':
         return '(' + format_expr_16(e.e0) + '?' + format_expr_16(e.e1) + ':' + format_expr_16(e.e2) + ')'
 
-    if e.node_type == 'Slice':
+    elif e.node_type == 'Slice':
         return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.e0) + '>>' + format_expr_16(e.e2) + '))'
 
-    if e.node_type == 'Concat':
+    elif e.node_type == 'Concat':
         return '((' + format_expr_16(e.left) + '<<' + str(e.right.type.size) + ') | ' + format_expr_16(e.right) + ')'
 
-    if e.node_type == 'Cast':
+    elif e.node_type == 'Cast':
         if e.expr.type.node_type == 'Type_Bits' and not e.expr.type.isSigned and e.expr.type.size == 1 \
                 and e.destType.node_type == 'Type_Boolean':        #Cast from bit<1> to bool
             return '(' + format_expr_16(e.expr) + ')'
@@ -279,13 +402,13 @@ def format_expr_16(e, format_as_value=True):
         addError('formatting an expression', 'Cast from %s to %s is not supported!' % (pp_type_16(e.expr.type), pp_type_16(e.destType)))
         return ''
 
-    if e.node_type == 'ListExpression':
+    elif e.node_type == 'ListExpression':
         if e.id not in generated_exprs:
             prepend_statement(listexpression_to_buf(e))
             generated_exprs.add(e.id)
         return '(struct uint8_buffer_t) {{ .buffer =  buffer{}, .buffer_size = buffer{}_size }}'.format(e.id, e.id)
         # return 'buffer{}, buffer{}_size'.format(e.id, e.id)
-    if e.node_type == 'SelectExpression':
+    elif e.node_type == 'SelectExpression':
         #Generate local variables for select values
         for k in e.select.components:
             if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
@@ -329,10 +452,10 @@ def format_expr_16(e, format_as_value=True):
         return '\nelse\n'.join(cases)
 
     #These used to be PathExpressions
-    if e.node_type in {'Declaration_Variable', 'Declaration_Instance', 'Method', 'P4Table', 'ParserState'}:
+    elif e.node_type in {'Declaration_Variable', 'Declaration_Instance', 'Method', 'P4Table', 'ParserState'}:
         return e.name
 
-    if e.node_type == 'Member':
+    elif e.node_type == 'Member':
         if hasattr(e, 'field_ref'):
             if format_as_value == False:
                 return fldid2(e.expr.header_ref, e.field_ref)
@@ -352,24 +475,30 @@ def format_expr_16(e, format_as_value=True):
                 return e.type.members.get(e.member).c_name
             return format_expr_16(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
-    if e.node_type == 'MethodCallExpression':
+    elif e.node_type == 'MethodCallExpression':
         if e.method.node_type == 'Member' and e.method.member == 'setValid':
             h = e.method.expr.header_ref
-            ret  = 'pd->headers['+h.id+'] = (header_descriptor_t) {'
-            ret += ' .type = '+h.id+','
-#            ret += ' .length = header_info('+h.id+').bytewidth,
-            ret += ' .length = %s,'%str((sum([f.size if not f.is_vw else 0 for f in h.type.fields])+7)/8)
-            ret += ' .pointer = calloc(%s, sizeof(uint8_t)),'%str(h.type.byte_width) # TODO is this the max size?
-            ret += ' .var_width_field_bitwidth = 0 };' # TODO determine and set this field
-            return ret + " // hdr.*.setValid()"
+            # TODO is this the max size?
+            length = (sum([f.size if not f.is_vw else 0 for f in h.type.fields])+7)/8
+
+            #[ pd->headers[${h.id}] = (header_descriptor_t) {'
+            #[     .type = ${h.id},'
+            #[     .length = header_info(${h.id}).bytewidth,
+            #[     .length = $length,
+            #[     .pointer = calloc(${h.type.byte_width}, sizeof(uint8_t)),
+            #[     // TODO determine and set this field
+            #[     .var_width_field_bitwidth = 0,
+            #[ };
+            #[ // hdr.*.setValid()
         if e.method.node_type == 'Member' and e.method.member == 'emit':
-            haddr = "pd->headers[header_instance_%s].pointer"%e.arguments[0].member
-            hlen  = "pd->headers[header_instance_%s].length" %e.arguments[0].member
-            ret = ""
-            ret += "if(emit_addr != %s)" % haddr
-            ret += "memcpy(emit_addr, %s, %s);" % (haddr, hlen)
-            ret += "emit_addr += %s;" % hlen
-            return ret
+            arg0 = e.arguments[0].member
+            haddr = "pd->headers[header_instance_%s].pointer"%arg0
+            hlen  = "pd->headers[header_instance_%s].length" %arg0
+
+            #[ if (emit_addr != $haddr) {
+            #[     memcpy(emit_addr, $haddr, $hlen);
+            #[ }
+            #[ emit_addr += $hlen;
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
             if hasattr(e.method.expr, 'header_ref'):
                 return "(pd->headers[%s].pointer != NULL)" % e.method.expr.header_ref.id
@@ -378,14 +507,45 @@ def format_expr_16(e, format_as_value=True):
         elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
             args = ", ".join([format_expr_16(arg) for arg in e.arguments])
             return format_expr_16(e.method) + '(' + args + ', pd, tables)'
-#        elif e.arguments.is_vec() and e.arguments.vec != []:
-#            addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
+       # elif e.arguments.is_vec() and e.arguments.vec != []:
+       #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
             return format_expr_16(e.method) + '(pd, tables)'
-    addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
-    return ""
+    else:
+        addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
 
 ################################################################################
 
+def format_declaration_16(d):
+    global file_sugar_style
+    with SugarStyle("no_comment"):
+        return gen_format_declaration_16(d)
+
+def format_type_16(t, resolve_names = True):
+    global file_sugar_style
+    with SugarStyle("inline_comment"):
+        return gen_format_type_16(t, resolve_names)
+
+def format_expr_16(e, format_as_value=True):
+    global file_sugar_style
+    with SugarStyle("inline_comment"):
+        return gen_format_expr_16(e, format_as_value)
+
+def format_statement_16(stmt):
+    global statement_buffer
+    statement_buffer = ""
+
+    ret = gen_format_statement_16(stmt)
+
+    statement_buffer_ret = statement_buffer
+    statement_buffer = ""
+    return statement_buffer_ret + ret
+
+
+def format_type_mask(t):
+    global file_sugar_style
+    with SugarStyle("inline_comment"):
+        return gen_format_type_mask(t)
+
 def gen_var_name(item):
-    return 'value_%d' % item.id
+    #[ value_${item.id}

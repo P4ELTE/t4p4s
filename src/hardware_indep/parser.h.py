@@ -53,7 +53,7 @@ def header_stack_size():
 #[ typedef struct parsed_fields_s {
 # TODO convert to hlir16
 for f in hlir.p4_fields.values():
-    if parsed_field(hlir, f):
+    if is_parsed_field(hlir, f):
         if f.width <= 32:
             #[ uint32_t ${fld_id(f)};
             #[ uint8_t attr_${fld_id(f)};

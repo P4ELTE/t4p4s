@@ -93,7 +93,7 @@ for table in hlir.p4_tables.values():
         #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action);
     #[ }
 
-for table in hlir.p4_tables.values():
+for table in hlir16.tables:
     #[ void ${table.name}_setdefault(struct ${table.name}_action action)
     #[ {
     #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
@@ -113,10 +113,12 @@ for table in hlir.p4_tables.values():
     for action in table.actions:
         #[ if(strcmp("${action.name}", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
-        #[     action.action_id = action_${action.name};
+        # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
+        #[     action.action_id = action_${action.name}_0;
         for j, (name, length) in enumerate(zip(action.signature, action.signature_widths)):
             #[ uint8_t* ${name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[${j}])->bitmap;
-            #[ memcpy(action.${action.name}_params.${name}, ${name}, ${(length+7)/8});
+            # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
+            #[ memcpy(action.${action.name}_0_params.${name}, ${name}, ${(length+7)/8});
         #[     debug("Reply from the control plane arrived.\n");
         #[     debug("Adding new entry to ${table.name} with action ${action.name}\n");
         #[     ${table.name}_add(
@@ -136,10 +138,12 @@ for table in hlir.p4_tables.values():
     for action in table.actions:
         #[ if(strcmp("${action.name}", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
-        #[     action.action_id = action_${action.name};
+        # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
+        #[     action.action_id = action_${action.name}_0;
         for j, (name, length) in enumerate(zip(action.signature, action.signature_widths)):
             #[ uint8_t* ${name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[${j}])->bitmap;
-            #[ memcpy(action.${action.name}_params.${name}, ${name}, ${(length+7)/8});
+            # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
+            #[ memcpy(action.${action.name}_0_params.${name}, ${name}, ${(length+7)/8});
         #[     debug("Message from the control plane arrived.\n");
         #[     debug("Set default action for ${table.name} with action ${action.name}\n");
         #[     ${table.name}_setdefault( action );
@@ -148,35 +152,17 @@ for table in hlir.p4_tables.values():
     #[ }
 
 
-#[ void TODO16_recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
-#[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
-#[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
-for table in hlir16.tables:
-    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
-    #[     ${table.name}_add_table_entry(ctrl_m);
-    #[ else
-#[ debug("Table add entry: table name mismatch (%s).\n", ctrl_m->table_name);
-#[     }
-#[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
-for table in hlir16.tables:
-    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
-    #[     ${table.name}_set_default_table_action(ctrl_m);
-    #[ else
-#[ debug("Table setdefault: table name mismatch (%s).\n", ctrl_m->table_name);
-#[     }
-#[ }
-
 #[ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
 #[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
 #[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
-for table in hlir.p4_tables.values():
+for table in hlir16.tables:
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_add_table_entry(ctrl_m);
     #[ else
 #[ debug("Table add entry: table name mismatch (%s).\n", ctrl_m->table_name);
 #[     }
 #[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
-for table in hlir.p4_tables.values():
+for table in hlir16.tables:
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_set_default_table_action(ctrl_m);
     #[ else
