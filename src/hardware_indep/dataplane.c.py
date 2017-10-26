@@ -194,7 +194,7 @@ for table in hlir16.tables:
 #[ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
-for hdr in hlir16.headers.fields:
+for hdr in hlir16.header_instances:
     for fld in hdr.type.fields:
         if not fld.preparsed and fld.type.size <= 32:
             #[ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {

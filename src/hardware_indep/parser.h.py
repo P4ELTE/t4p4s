@@ -24,7 +24,8 @@ from hlir16.utils_hlir16 import *
 
 
 #{ typedef struct parsed_fields_s {
-for hdr in hlir16.headers.fields:
+
+for hdr in hlir16.header_instances:
     for fld in hdr.type.fields:
         if not fld.preparsed and fld.type.size <= 32:
             #[ uint32_t field_instance_${hdr.name}_${fld.name};

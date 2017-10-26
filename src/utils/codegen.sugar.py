@@ -90,7 +90,7 @@ def gen_format_declaration_16(d):
 ################################################################################
 
 def is_metadata(e):
-    if e.node_type == 'Member':
+    if e.node_type == 'Member' and e.expr.type.node_type == 'Type_Struct':
         return e.expr.type.is_metadata
     return False
 
