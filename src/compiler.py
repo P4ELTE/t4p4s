@@ -18,11 +18,8 @@ from __future__ import print_function
 import argparse
 from hlir16.hlir16 import *
 from utils.misc import *
-from utils.json2hlir import json2hlir
 
 from subprocess import call
-
-from p4_hlir.main import HLIR
 
 import re
 import os
@@ -39,7 +36,6 @@ c_beautifier_opts = "-style=llvm"
 
 # Inside the compiler, these variables are considered singleton.
 args = []
-hlir = None
 hlir16 = None
 
 indentation_level = 0
@@ -270,7 +266,7 @@ def generate_code(file, genfile, localvars={}):
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
 
 
-def generate_desugared_src(hlir, hlir16):
+def generate_desugared_src(hlir16):
     """Some Python source files also use the sugared syntax.
     The desugared files are generated here."""
     import glob
@@ -284,9 +280,9 @@ def generate_desugared_src(hlir, hlir16):
             write_file(tofile, code)
 
 
-def generate_desugared(hlir, hlir16, filename, file_with_path):
+def generate_desugared(hlir16, filename, file_with_path):
     genfile = join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.desugared.py', filename))
-    code = generate_code(file_with_path, genfile, {'hlir': hlir, 'hlir16': hlir16})
+    code = generate_code(file_with_path, genfile, {'hlir16': hlir16})
 
     outfile = join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
 
@@ -354,33 +350,17 @@ def init_args():
 
 
 def load_file(filename):
-    global hlir
     global hlir16
 
     _, ext = os.path.splitext(filename)
     if ext == '.p4':
         if args['verbose']:
-            print("Compiling old HLIR for %s..." % filename)
-
-        hlir = HLIR(args['p4_file'])
-        success14 = build_hlir(hlir)
-
-        if args['verbose']:
-            print("Compiling new HLIR for %s..." % filename)
+            print("Compiling P4-16 HLIR for %s..." % filename)
 
         hlir16 = load_p4(args['p4_file'], args['p4v'], args['p4c_path'])
-        success16 = type(hlir16) is not int
-
-        success = success14 and success16
-
-        # TODO temporarily forcing success
-        success = True
+        success = type(hlir16) is not int
 
         return success
-    elif ext == '.json':
-        hlir = json2hlir(args['p4_file'])
-
-        return True
     else:
         print("EXTENSION NOT SUPPORTED: %s" % ext, file=sys.stderr)
         sys.exit(1)
@@ -410,8 +390,8 @@ def main():
         if not file_with_path.endswith(".c.py") and not file_with_path.endswith(".h.py"):
             continue
 
-        generate_desugared_src(hlir, hlir16)
-        generate_desugared(hlir, hlir16, filename, file_with_path)
+        generate_desugared_src(hlir16)
+        generate_desugared(hlir16, filename, file_with_path)
 
     showErrors()
     showWarnings()

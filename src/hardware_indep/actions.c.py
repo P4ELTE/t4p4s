@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.codegen import format_statement_16, is_parsed_field
+from utils.codegen import format_statement_16
 import math
 
 #[ #include "dpdk_lib.h"

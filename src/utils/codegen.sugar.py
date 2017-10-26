@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from utils.misc import addWarning, addError
-from utils.hlir import *
 
 ################################################################################
 
