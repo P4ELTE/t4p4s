@@ -11,49 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import p4_hlir.hlir.p4 as p4
-from utils.hlir import *
+
 from utils.misc import addError, addWarning 
 from utils.codegen import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
 
-def format_state(state):
-    generated_code = ""
-    if isinstance(state, p4.p4_parse_state):
-        #[ return parse_state_${state.name}(pd, buf, tables);
-    elif isinstance(state, p4.p4_parser_exception):
-        print("Parser exceptions are not supported yet.")
-    return generated_code
-
-def get_key_byte_width(branch_on):
-    """
-    :param branch_on: list of union(p4_field, tuple)
-    :rtype:           int
-    """
-    key_width = 0
-    for switch_ref in branch_on:
-        if type(switch_ref) is p4.p4_field:
-            if not is_vwf(switch_ref): #Variable width field in parser return select statement is not supported
-                key_width += (switch_ref.width+7)/8
-        elif type(switch_ref) is tuple:
-            key_width += max(4, (switch_ref[1] + 7) / 8)
-    return key_width
-
-pe_dict = { "p4_pe_index_out_of_bounds" : None,
-            "p4_pe_out_of_packet" : None,
-            "p4_pe_header_too_long" : None,
-            "p4_pe_header_too_short" : None,
-            "p4_pe_unhandled_select" : None,
-            "p4_pe_checksum" : None,
-            "p4_pe_default" : None }
-
-pe_default = p4.p4_parser_exception(None, None)
-pe_default.name = "p4_pe_default"
-pe_default.return_or_drop = p4.P4_PARSER_DROP
-
-for pe_name, pe in pe_dict.items():
-    pe_dict[pe_name] = pe_default
-for pe_name, pe in hlir.p4_parser_exceptions.items():
-    pe_dict[pe_name] = pe
 
 #[ #include "dpdk_lib.h"
 #[
@@ -61,13 +22,6 @@ for pe_name, pe in hlir.p4_parser_exceptions.items():
 #[ void print_ip(uint8_t* v) { printf("%d.%d.%d.%d\n",v[0],v[1],v[2],v[3]); }
 #[
 
-for pe_name, pe in pe_dict.items():
-    #[ static inline void ${pe_name}(packet_descriptor_t *pd) {
-    if pe.return_or_drop == p4.P4_PARSER_DROP:
-        #[ pd->dropped = 1;
-    else:
-        format_p4_node(pe.return_or_drop)
-    #[ }
 
 def extract_header_tmp(h):
     generated_code = ""
