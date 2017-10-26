@@ -17,10 +17,6 @@ sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-de
 WAITPROC_APTGET="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_APTGET"
 
-git clone --recursive https://github.com/p4lang/p4-hlir &
-WAITPROC_P4HLIR="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4HLIR"
-
 wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz &
 WAITPROC_DPDK="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_DPDK"
@@ -42,12 +38,6 @@ WAITPROC_T4P4S="$!"
 [ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_APTGET"
 
 
-# Setup p4-hlir
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_P4HLIR"
-
-cd p4-hlir
-sudo python setup.py install
-cd ..
 
 
 # Setup DPDK
