@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.hlir import *
 from utils.codegen import format_statement_16, is_parsed_field
 import math
 

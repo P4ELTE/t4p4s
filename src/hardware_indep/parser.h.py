@@ -11,35 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import inspect
-from utils.hlir import *
 from hlir16.utils_hlir16 import *
-
-# TODO remove once dependent functions are implemented
-def hsarray(t, es):
-    es2 = [ a + " // " + b + "" for (a,b) in zip(es, header_stack_ids(hlir))]
-    return "static const %s %s[HEADER_STACK_COUNT] = {\n  %s\n};\n\n" % (t, inspect.stack()[1][3], ",\n  ".join(es2))
-# TODO remove once dependent functions are implemented
-def hsarrayarray(t, es):
-    es2 = [ a + " // " + b + "" for (a,b) in zip(es, header_stack_ids(hlir))]
-    return "static const %s %s[HEADER_STACK_COUNT][10] = {\n  %s\n};\n\n" % (t, inspect.stack()[1][3], ",\n  ".join(es2))
-
-#==============================================================================
-
-# TODO remove after implemented in hlir16
-def header_stack_elements():
-    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_headers.values())
-    hs_names = list(set(map(lambda i: i.base_name, stack_instances)))
-    xs = map(lambda s : "{" + ",\n  ".join(instances4stack(hlir, s)) + "}", hs_names)
-    return hsarrayarray("header_instance_t", xs)
-
-# TODO remove after implemented in hlir16
-def header_stack_size():
-    stack_instances = filter(lambda i: i.max_index > 0 and not i.virtual, hlir.p4_headers.values())
-    hs_names = list(set(map(lambda i: i.base_name, stack_instances)))
-    xs = map(lambda s : str(len(instances4stack(hlir, s))), hs_names)
-    return hsarray("unsigned", xs)
-
 
 
 #[ #ifndef __HEADER_INFO_H__
@@ -50,31 +22,30 @@ def header_stack_size():
 #[ // TODO add documentation
 #[ #define MODIFIED 1
 
-#[ typedef struct parsed_fields_s {
-# TODO convert to hlir16
-for f in hlir.p4_fields.values():
-    if is_parsed_field(hlir, f):
-        if f.width <= 32:
-            #[ uint32_t ${fld_id(f)};
-            #[ uint8_t attr_${fld_id(f)};
-#[ } parsed_fields_t;
+
+#{ typedef struct parsed_fields_s {
+for hdr in hlir16.headers.fields:
+    for fld in hdr.type.fields:
+        if not fld.preparsed and fld.type.size <= 32:
+            #[ uint32_t field_instance_${hdr.name}_${fld.name};
+            #[ uint8_t attr_field_instance_${hdr.name}_${fld.name};
+#} } parsed_fields_t;
 
 
 #[ // Header stack infos
 #[ // ------------------
 
 
-sc = len(header_stack_ids(hlir))
+# TODO make proper header stacks (types grouped by instances? order?)
 
-#[ #define HEADER_STACK_COUNT ${sc}
+#[ #define HEADER_STACK_COUNT ${len(hlir16.header_instances)}
 
 
-#[ enum header_stack_e {
-# TODO convert to hlir16
-for hsid in header_stack_ids(hlir):
-    #[ ${hsid},
-#[   header_stack_,
-#[ };
+#{ enum header_stack_e {
+for hi in hlir16.header_instances:
+    #[ header_stack_${hi.name},
+#[ header_stack_, // dummy to prevent warning for empty stack
+#} };
 
 
 
@@ -182,17 +153,20 @@ for hdr in hlir16.header_instances:
 #[ };
 
 
-# TODO convert to hlir16 properly
-# #[ ${ header_stack_elements() }
-#[ static const header_instance_t header_stack_elements[HEADER_STACK_COUNT][10] = {
-#[     // TODO
-#[ };
+#[ // TODO current stacks are exactly 1 element deep 
+#{ static const header_instance_t header_stack_elements[HEADER_STACK_COUNT][10] = {
+for hi in hlir16.header_instances:
+    #[ // header_instance_${hi.name}
+    #{ {
+    for stack_elem in [hi.name]:
+        #[ header_instance_${stack_elem},
+    #} },
+#} };
 
-# TODO convert to hlir16 properly
-# #[ ${ header_stack_size() }
-#[ static const unsigned header_stack_size[HEADER_STACK_COUNT] = {
-#[     // TODO
-#[ };
+#{ static const unsigned header_stack_size[HEADER_STACK_COUNT] = {
+for hi in hlir16.header_instances:
+    #[ 1, // ${hi.name}
+#} };
 
 #[ typedef enum header_stack_e header_stack_t;
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from utils.hlir import is_parsed_field, fld_id, hdr_fld_id
+
 from utils.codegen import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
 
@@ -194,14 +194,14 @@ for table in hlir16.tables:
 #[ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
-for f in hlir.p4_fields.values():
-    if is_parsed_field(hlir, f):
-        if f.width <= 32:
-#            #[ if(pd->headers[${hdr_prefix(f.instance.name)}].pointer != NULL) {
-            #[ if(pd->fields.attr_${fld_id(f)} == MODIFIED) {
-            #[     value32 = pd->fields.${fld_id(f)};
-            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, ${hdr_fld_id(f)}, value32)
+for hdr in hlir16.headers.fields:
+    for fld in hdr.type.fields:
+        if not fld.preparsed and fld.type.size <= 32:
+            #[ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
+            #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
+            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${fld.name}, value32)
             #[ }
+
 #[ }
 
 ################################################################################

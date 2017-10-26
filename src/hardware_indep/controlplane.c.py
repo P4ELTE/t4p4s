@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import p4_hlir.hlir.p4 as p4
-from utils.hlir import fld_prefix, fld_id, getTypeAndLength, is_vwf
 
 def match_type_order(t):
-    if t is p4.p4_match_type.P4_MATCH_EXACT:   return 0
-    if t is p4.p4_match_type.P4_MATCH_LPM:     return 1
-    if t is p4.p4_match_type.P4_MATCH_TERNARY: return 2
+    match_types = {
+        "exact":    0,
+        "lpm":      1,
+        "ternary":  2,
+    }
+    return match_types[t]
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
@@ -27,12 +28,14 @@ def match_type_order(t):
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
 
-for table in hlir.p4_tables.values():
+
+for table in hlir16.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
 
 
-if len(hlir.p4_tables.values())>0:
-    #[ uint8_t reverse_buffer[${max([t[1] for t in map(getTypeAndLength, hlir.p4_tables.values())])}];
+if len(hlir16.tables)>0:
+    max_bytes = max([t.key_length_bytes for t in hlir16.tables])
+    #[ uint8_t reverse_buffer[$max_bytes];
 
 for table in hlir16.tables:
     #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
@@ -51,47 +54,50 @@ for table in hlir16.tables:
     #[ void TODO16_${table.name}_add(${', '.join(params)}, struct ${table.name}_action action) {
     #[ }
 
-    pass
+# Variable width fields are not supported
+def get_key_byte_width(k):
+    return (k.width+7)/8 if not k.header.type.is_vw else 0
 
-for table in hlir.p4_tables.values():
-    table_type, key_length = getTypeAndLength(table)
-    #[ // note: ${table_type}, ${key_length}
+for table in hlir16.tables:
+    #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
+    #{ void ${table.name}_add(
+    for k in table.key.keyElements:
+        byte_width = get_key_byte_width(k)
+        #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
+        
+        # TODO have keys' and tables' match_type the same case (currently: LPM vs lpm)
+        if k.match_type == "ternary":
+            #[ uint8_t ${k.field_name}_mask[$byte_width],
+        if k.match_type == "lpm":
+            #[ uint8_t field_instance_${k.header.name}_${k.field_name}_prefix_length,
 
-    params = []
-    for match_field, match_type, match_mask in table.match_fields:
-        byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
-        params += "uint8_t {}[{}]".format(fld_id(match_field), byte_width),
-        if match_type is p4.p4_match_type.P4_MATCH_TERNARY:
-            params += "uint8_t {}_mask[{}]".format(match_field, byte_width),
-        if match_type is p4.p4_match_type.P4_MATCH_LPM:
-            params += "uint8_t {}_prefix_length".format(fld_id(match_field)),
-    #[ void ${table.name}_add(${','.join(params)}, struct ${table.name}_action action)
-    #[ {
-    #[     uint8_t key[${key_length}];
-    sortedfields = sorted(table.match_fields, key=lambda field: match_type_order(field[1]))
-    k = 0
-    for match_field, match_type, match_mask in sortedfields:
-        byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
-        #[ memcpy(key+${k}, ${fld_id(match_field)}, ${byte_width});
-        k += byte_width;
-    if table_type == "LOOKUP_LPM":
+    #}     struct ${table.name}_action action)
+    #{ {
+
+    #[     uint8_t key[${table.key_length_bytes}];
+
+    byte_idx = 0
+    for k in sorted(table.key.keyElements, lambda k: match_type_order(k.match_type)):
+        byte_width = get_key_byte_width(k)
+        #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
+        byte_idx += byte_width
+
+    if table.match_type == "LPM":
         #[ uint8_t prefix_length = 0;
-        for match_field, match_type, match_mask in table.match_fields:
-            byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
-            if match_type is p4.p4_match_type.P4_MATCH_EXACT:
-                #Variable width fields are not supported
-                #[ prefix_length += ${match_field.width if not is_vwf(match_field) else 0};
-            if match_type is p4.p4_match_type.P4_MATCH_LPM:
-                #[ prefix_length += ${fld_id(match_field)}_prefix_length;
+        for k in table.key.keyElements:
+            if table.match_type == "EXACT":
+                #[ prefix_length += ${get_key_byte_width(k)};
+            if table.match_type == "LPM":
+                #[ prefix_length += field_instance_${k.header.name}_${k.field_name}_prefix_length;
         #[ int c, d;
-        #[ for(c = ${k-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(c = 0; c < ${k}; c++) *(key+c) = *(reverse_buffer+c);
+        #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
+        #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
         #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action);
-    if table_type == "LOOKUP_EXACT":
-        for match_field, match_type, match_mask in table.match_fields:
-            byte_width = (match_field.width+7)/8 if not is_vwf(match_field) else 0 #Variable width fields are not supported
+
+    if table.match_type == "EXACT":
         #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action);
-    #[ }
+
+    #} }
 
 for table in hlir16.tables:
     #[ void ${table.name}_setdefault(struct ${table.name}_action action)
@@ -100,56 +106,60 @@ for table in hlir16.tables:
     #[ }
 
 
-for table in hlir.p4_tables.values():
-    #[ void
-    #[ ${table.name}_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
-    for i, m in enumerate(table.match_fields):
-        match_field, match_type, match_mask = m
-        if match_type is p4.p4_match_type.P4_MATCH_EXACT:
-            #[ uint8_t* ${fld_id(match_field)} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
-        if match_type is p4.p4_match_type.P4_MATCH_LPM:
-            #[ uint8_t* ${fld_id(match_field)} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
-            #[ uint16_t ${fld_id(match_field)}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
-    for action in table.actions:
-        #[ if(strcmp("${action.name}", ctrl_m->action_name)==0) {
-        #[     struct ${table.name}_action action;
-        # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
-        #[     action.action_id = action_${action.name}_0;
-        for j, (name, length) in enumerate(zip(action.signature, action.signature_widths)):
-            #[ uint8_t* ${name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[${j}])->bitmap;
-            # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
-            #[ memcpy(action.${action.name}_0_params.${name}, ${name}, ${(length+7)/8});
-        #[     debug("Reply from the control plane arrived.\n");
-        #[     debug("Adding new entry to ${table.name} with action ${action.name}\n");
-        #[     ${table.name}_add(
-        for m in table.match_fields:
-            match_field, match_type, match_mask = m
-            #[ ${fld_id(match_field)},
-            if match_type is p4.p4_match_type.P4_MATCH_LPM:
-                #[ ${fld_id(match_field)}_prefix_length,
-        #[     action);
-        #[ } else
-    #[ debug("Table add entry: action name mismatch (%s).\n", ctrl_m->action_name);
-    #[ }
+# TODO is there a more appropriate source for this than the annotation?
+def get_action_name_str(action):
+    return action.action_object.annotations.annotations[0].expr[0].value.replace(".", "")
 
-for table in hlir.p4_tables.values():
-    #[ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
+
+for table in hlir16.tables:
+    #{ void ${table.name}_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
+    for i, k in enumerate(table.key.keyElements):
+        if k.match_type == "exact":
+            #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
+        if k.match_type == "lpm":
+            #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint16_t field_instance_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
+
+    for action in table.actions:
+        # TODO is there a more appropriate source for this than the annotation?
+        action_name_str = get_action_name_str(action)
+        #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
+        #[     struct ${table.name}_action action;
+        #[     action.action_id = action_${action.action_object.name};
+        for j, p in enumerate(action.action_object.parameters.parameters):
+            #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
+        #[     debug("Reply from the control plane arrived.\n");
+        #[     debug("Adding new entry to ${table.name} with action ${action.action_object.name}\n");
+        #{     ${table.name}_add(
+        for i, k in enumerate(table.key.keyElements):
+            #[ field_instance_${k.header.name}_${k.field_name},
+            if k.match_type == "lpm":
+                #[ field_instance_${k.header.name}_${k.field_name}_prefix_length,
+        #[     action);
+        #}
+        #} } else
+
+    #[ debug("Table add entry: action name mismatch (%s).\n", ctrl_m->action_name);
+    #} }
+
+for table in hlir16.tables:
+    #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     #[ debug("Action name: %s\n", ctrl_m->action_name);
     for action in table.actions:
-        #[ if(strcmp("${action.name}", ctrl_m->action_name)==0) {
+        action_name_str = get_action_name_str(action)
+        #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
-        # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
-        #[     action.action_id = action_${action.name}_0;
-        for j, (name, length) in enumerate(zip(action.signature, action.signature_widths)):
-            #[ uint8_t* ${name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[${j}])->bitmap;
-            # TODO the _0 part is a temporary P4_14->P4_16 adjustment until this code is fully converted into P4_16
-            #[ memcpy(action.${action.name}_0_params.${name}, ${name}, ${(length+7)/8});
+        #[     action.action_id = action_${action.action_object.name};
+        for j, p in enumerate(action.action_object.parameters.parameters):
+            #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
         #[     debug("Message from the control plane arrived.\n");
-        #[     debug("Set default action for ${table.name} with action ${action.name}\n");
+        #[     debug("Set default action for ${table.name} with action $action_name_str\n");
         #[     ${table.name}_setdefault( action );
-        #[ } else
+        #} } else
     #[ debug("Table setdefault: action name mismatch (%s).\n", ctrl_m->action_name);
-    #[ }
+    #} }
 
 
 #[ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
