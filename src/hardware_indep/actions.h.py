@@ -48,7 +48,7 @@ for table in hlir16.tables:
     for action in table.actions:
         # TODO what if the action is not a method call?
         # TODO what if there are more actions?
-        action_method_name = action.expression.method.name
+        action_method_name = action.expression.method.ref.name
         #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
     #[     };
     #[ };
@@ -59,7 +59,7 @@ for table in hlir16.tables:
     #[ void apply_table_${table.name}(packet_descriptor_t *pd, lookup_table_t** tables);
     for action in table.actions:
         aname = action.action_object.name
-        mname = action.expression.method.name
+        mname = action.expression.method.ref.name
 
         if len(action.action_object.parameters.parameters) == 0:
             #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables);

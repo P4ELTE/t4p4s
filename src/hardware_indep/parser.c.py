@@ -25,7 +25,7 @@ from utils.codegen import format_expr_16, format_statement_16, statement_buffer_
 
 def extract_header_tmp(h):
     generated_code = ""
-    #[ memcpy(${h.name}, buf, ${h.type.byte_width});
+    #[ memcpy(${h.ref.name}, buf, ${h.type.byte_width});
     #[ buf += ${h.type.byte_width};
     return generated_code
 
@@ -34,19 +34,19 @@ def extract_header_tmp_2(h, w):
     x = sum([f.size if not f.is_vw else 0 for f in h.type.fields])
     w = format_expr_16(w)
     #[ int hdrlen = ((${w}+${x})/8);
-    #[ memcpy(${h.name}, buf, hdrlen);
-    #[ ${h.name}_var = ${w};
+    #[ memcpy(${h.ref.name}, buf, hdrlen);
+    #[ ${h.ref.name}_var = ${w};
     #[ buf += hdrlen;
     return generated_code
 
 def extract_header(h):
     generated_code = ""
-    #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${h.type.byte_width} > pd->wrapper->pkt_len); // packet_too_short // TODO optimize this
+    #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${h.type.type_ref.byte_width} > pd->wrapper->pkt_len); // packet_too_short // TODO optimize this
     #[ pd->headers[${h.id}].pointer = buf;
-    #[ pd->headers[${h.id}].length = ${h.type.byte_width};
+    #[ pd->headers[${h.id}].length = ${h.type.type_ref.byte_width};
     #[ buf += pd->headers[${h.id}].length;
     #[ // pd->headers[${h.id}].valid = 1;
-    for f in h.type.fields:
+    for f in h.type.type_ref.fields:
         if f.preparsed and f.size <= 32:
             #[ EXTRACT_INT32_AUTO_PACKET(pd, ${h.id}, ${f.id}, value32)
             #[ pd->fields.${f.id} = value32;
@@ -124,7 +124,7 @@ for s in parser.states:
             #[ // rejected
     else:
         b = s.selectExpression
-        if b.node_type == 'ParserState':
+        if b.node_type == 'PathExpression':
             x = "parser_state_" + format_expr_16(b) + "(pd, buf, tables);"
         if b.node_type == 'SelectExpression':
             x = format_expr_16(b)

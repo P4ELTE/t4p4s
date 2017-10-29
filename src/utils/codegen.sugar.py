@@ -36,15 +36,19 @@ def gen_format_type_16(t, resolve_names = True):
             
             addError('formatting type', '{}<{}> too long, width only supported up to 32 bits'.format(name, t.size))
         return res
-    elif t.node_type == 'Type_Var':
-        global type_env
+    elif t.node_type == 'Type_Name':
+        if t.type_ref.node_type in {'Type_Enum', 'Type_Error'}:
+            #[ enum ${t.type_ref.c_name}
+        else:
+            if not resolve_names:
+                return t.type_ref.name
 
-        if t.name in type_env:
-            return type_env[t.name]
-        addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.name))
-        #[ int /*type param ${t.name}*/
-    elif t.node_type in {'Type_Enum', 'Type_Error'}:
-        #[ enum ${t.c_name}
+            global type_env
+
+            if t.type_ref.name in type_env:
+                return type_env[t.type_ref.name]
+            addWarning('using a named type parameter', 'no type found in environment for variable {}, defaulting to int'.format(t.type_ref.name))
+            #[ int /*type param ${t.type_ref.name}*/
     elif t.node_type in {'Type_Extern', 'Type_Struct'}:
         #[ ${t.name}
     else:
@@ -90,8 +94,13 @@ def gen_format_declaration_16(d):
 ################################################################################
 
 def is_metadata(e):
-    if e.node_type == 'Member' and e.expr.type.node_type == 'Type_Struct':
-        return e.expr.type.is_metadata
+    if e.node_type == 'Member':
+        if hasattr(e.expr, 'header_ref'):
+            return e.expr.header_ref.type.type_ref.is_metadata
+        elif hasattr(e.expr.type, 'is_metadata'):
+            return e.expr.type.is_metadata
+        else:
+            return False
     return False
 
 
@@ -154,15 +163,17 @@ def gen_format_statement_16(stmt):
             bitsize = hdr.type.fields.get(fldname).size
             bytesize = (bitsize+7)/8
 
+            if hdr.node_type == 'Member':
+                dst_hi_id = 'header_instance_{}'.format(hdr.member)
+            else:
+                dst_hi_id = 'header_instance_{}'.format(hdr.ref.name)
+
             if src.node_type == 'Constant':
                 #[ value32 = ${src.value};
-                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_$fldname, value32)
-            elif src.node_type == 'Parameter':
+                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, ${dst_hi_id}, field_${hdr.type.name}_$fldname, value32)
+            elif src.node_type == 'PathExpression':
                 # TODO is this always correct?
-                if hasattr(hdr, 'member'):
-                    #[ MODIFY_INT32_BYTEBUF_PACKET(pd, header_instance_${hdr.member}, field_${hdr.type.name}_$fldname, parameters.${src.name}, $bytesize)
-                else:
-                    #[ MODIFY_INT32_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_$fldname, parameters.${src.name}, $bytesize)
+                #[ MODIFY_INT32_BYTEBUF_PACKET(pd, ${dst_hi_id}, field_${hdr.type.name}_$fldname, parameters.${src.ref.name}, $bytesize)
             else:
                 addError('formatting statement', "Unhandled right hand side in assignment statement: {}".format(src))
                 #[ /* Unhandled right hand side in assignment statement: $src */
@@ -174,9 +185,9 @@ def gen_format_statement_16(stmt):
 
                 fd = "field_desc(pd, field_instance_{}_{})".format(hdr.name, dst.member)
                 #[ if (($size/8) < $fd.bytewidth) {
-                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${dst.member}, parameters.${src.name}, ($size/8));
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${dst.member}, parameters.${src.ref.name}, ($size/8));
                 #[ } else {
-                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${dst.member}, parameters.${src.name} + (($size/8) - $fd.bytewidth), $fd.bytewidth);
+                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${dst.member}, parameters.${src.ref.name} + (($size/8) - $fd.bytewidth), $fd.bytewidth);
                 #[ }
             else:
                 dstfmt = format_expr_16(dst, False)
@@ -241,7 +252,7 @@ def resolve_reference(e):
         return e
 
 def is_subsequent((h1, f1), (h2, f2)):
-    fs = h1.type.fields.vec
+    fs = h1.type.type_ref.fields.vec
     return h1 == h2 and fs.index(f1) + 1 == fs.index(f2)
 
 def groupby(xs, fun):
@@ -269,7 +280,11 @@ def group_references(refs):
     for xs in groupby(refs, lambda x1, x2: isinstance(x1, tuple) and isinstance(x2, tuple) and is_subsequent(x1, x2)):
         yield (xs[0][0], map(lambda (hdr, fld): fld, xs))
 
-def fldid(h, f): return 'field_instance_' + h.name + '_' + f.name
+def fldid(h, f):
+    if h.node_type == 'PathExpression':
+        return 'field_instance_' + h.ref.name + '_' + f.name
+    else:
+        return 'field_instance_' + h.name + '_' + f.name
 def fldid2(h, f): return h.id + ',' +  f.id
 
 
@@ -328,7 +343,7 @@ def gen_format_expr_16(e, format_as_value=True):
     elif e.node_type == 'StringLiteral':
         return '"' + e.value + '"';
     elif e.node_type == 'TypeNameExpression':
-        return format_expr_16(e.typeName);
+        return format_expr_16(e.typeName.type_ref);
 
     elif e.node_type == 'Neg':
         if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
@@ -450,9 +465,8 @@ def gen_format_expr_16(e, format_as_value=True):
             cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr_16(case.state)))
         return '\nelse\n'.join(cases)
 
-    #These used to be PathExpressions
-    elif e.node_type in {'Declaration_Variable', 'Declaration_Instance', 'Method', 'P4Table', 'ParserState'}:
-        return e.name
+    elif e.node_type == 'PathExpression':
+        return e.ref.name
 
     elif e.node_type == 'Member':
         if hasattr(e, 'field_ref'):
@@ -462,8 +476,8 @@ def gen_format_expr_16(e, format_as_value=True):
                 return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.header_ref.id + ', ' + e.field_ref.id + '))'
         elif hasattr(e, 'header_ref'):
             return e.header_ref.id
-        elif e.expr.node_type == 'Declaration_Variable':
-            var = e.expr.name
+        elif e.expr.node_type == 'PathExpression':
+            var = e.expr.ref.name
             if e.expr.type.node_type == 'Type_Header':
                 h = e.expr.type
                 return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
@@ -478,13 +492,13 @@ def gen_format_expr_16(e, format_as_value=True):
         if e.method.node_type == 'Member' and e.method.member == 'setValid':
             h = e.method.expr.header_ref
             # TODO is this the max size?
-            length = (sum([f.size if not f.is_vw else 0 for f in h.type.fields])+7)/8
+            length = (sum([f.size if not f.is_vw else 0 for f in h.type.type_ref.fields])+7)/8
 
             #[ pd->headers[${h.id}] = (header_descriptor_t) {'
             #[     .type = ${h.id},'
             #[     .length = header_info(${h.id}).bytewidth,
             #[     .length = $length,
-            #[     .pointer = calloc(${h.type.byte_width}, sizeof(uint8_t)),
+            #[     .pointer = calloc(${h.type.type_ref.byte_width}, sizeof(uint8_t)),
             #[     // TODO determine and set this field
             #[     .var_width_field_bitwidth = 0,
             #[ };

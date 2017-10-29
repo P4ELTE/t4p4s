@@ -35,7 +35,7 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables])
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
 
 main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
-package_name = main.type.baseType.name
+package_name = main.type.baseType.type_ref.name
 pipeline_elements = main.arguments
 
 #package_type = hlir16.declarations.get(package_name, 'Type_Package')
@@ -74,11 +74,11 @@ for table in hlir16.tables:
             # TODO find out why this is missing and fix it
             continue
         if f.width <= 32:
-            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.name}_${f.field_name}, *(uint32_t*)key)
+            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.type_ref.name}_${f.field_name}, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
         elif f.width > 32 and f.width % 8 == 0:
             byte_width = (f.width+7)/8
-            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.name}_${f.field_name}, key)
+            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.type_ref.name}_${f.field_name}, key)
             #[ key += ${byte_width};
         else:
             add_error("table key calculation", "Unsupported field %s ignored." % f.id)
@@ -136,7 +136,7 @@ for table in hlir16.tables:
 
 #[ void reset_headers(packet_descriptor_t* packet_desc) {
 for h in hlir16.header_instances:
-    if not h.type.is_metadata:
+    if not h.type.type_ref.is_metadata:
         #[ packet_desc->headers[${h.id}].pointer = NULL;
     else:
         #[ memset(packet_desc->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
@@ -144,7 +144,7 @@ for h in hlir16.header_instances:
 
 #[ void init_headers(packet_descriptor_t* packet_desc) {
 for h in hlir16.header_instances:
-    if not h.type.is_metadata:
+    if not h.type.type_ref.is_metadata:
         #[ packet_desc->headers[${h.id}] = (header_descriptor_t)
         #[ {
         #[     .type = ${h.id},
@@ -195,13 +195,12 @@ for table in hlir16.tables:
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         if not fld.preparsed and fld.type.size <= 32:
             #[ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
-            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.name}_${fld.name}, value32)
+            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}, value32)
             #[ }
-
 #[ }
 
 ################################################################################

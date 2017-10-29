@@ -26,7 +26,7 @@ from hlir16.utils_hlir16 import *
 #{ typedef struct parsed_fields_s {
 
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         if not fld.preparsed and fld.type.size <= 32:
             #[ uint32_t field_instance_${hdr.name}_${fld.name};
             #[ uint8_t attr_field_instance_${hdr.name}_${fld.name};
@@ -64,26 +64,26 @@ for hdr in hlir16.header_instances:
 
 #[ static const int header_instance_byte_width[HEADER_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    #[   ${hdr.type.byte_width}, // header_instance_${hdr.name}, ${hdr.type.bit_width} bits, ${hdr.type.bit_width/8.0} bytes
+    #[   ${hdr.type.type_ref.byte_width}, // header_instance_${hdr.name}, ${hdr.type.type_ref.bit_width} bits, ${hdr.type.type_ref.bit_width/8.0} bytes
 #[ };
 
 
 #[ static const int header_instance_is_metadata[HEADER_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    #[   ${1 if hdr.type.is_metadata else 0}, // header_instance_${hdr.name}
+    #[   ${1 if hdr.type.type_ref.is_metadata else 0}, // header_instance_${hdr.name}
 #[ };
 
 
 #[ // Note: -1: is fixed-width field
 #[ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    #[   ${1 if hdr.type.is_vw else -1}, // header_instance_${hdr.name}
+    #[   ${1 if hdr.type.type_ref.is_vw else -1}, // header_instance_${hdr.name}
 #[ };
 
 
 # TODO move to hlir16.py/set_additional_attrs?
 def all_field_instances():
-    return [fld for hdr in hlir16.header_instances for fld in hdr.type.fields]
+    return [fld for hdr in hlir16.header_instances for fld in hdr.type.type_ref.fields]
 
 
 #[ // Field instance infos
@@ -99,7 +99,7 @@ def all_field_instances():
 
 #[ enum field_instance_e {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         #[   field_instance_${hdr.name}_${fld.name},
 #[ };
 
@@ -110,7 +110,7 @@ def get_real_type(typenode):
 
 #[ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         fldtype = get_real_type(fld.type)
         #[   ${fldtype.size}, // field_instance_${hdr.name}_${fld.name}
 #[ };
@@ -118,7 +118,7 @@ for hdr in hlir16.header_instances:
 
 #[ static const int field_instance_bit_offset[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         #[   (${fld.offset} % 8), // field_instance_${hdr.name}_${fld.name}
 #[ };
 
@@ -127,7 +127,7 @@ for hdr in hlir16.header_instances:
 
 #[ static const int field_instance_byte_offset_hdr[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         #[   (${fld.offset} / 8), // field_instance_${hdr.name}_${fld.name}
 #[ };
 
@@ -141,7 +141,7 @@ for hdr in hlir16.header_instances:
 
 #[ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         fldtype = get_real_type(fld.type)
         #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_instance_${hdr.name}_${fld.name},
 #[ };
@@ -149,7 +149,7 @@ for hdr in hlir16.header_instances:
 
 #[ static const header_instance_t field_instance_header[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.fields:
+    for fld in hdr.type.type_ref.fields:
         #[   header_instance_${hdr.name}, // field_instance_${hdr.name}_${fld.name}
 #[ };
 

@@ -56,7 +56,7 @@ for table in hlir16.tables:
 
 # Variable width fields are not supported
 def get_key_byte_width(k):
-    return (k.width+7)/8 if not k.header.type.is_vw else 0
+    return (k.width+7)/8 if not k.header.type.type_ref.is_vw else 0
 
 for table in hlir16.tables:
     #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
