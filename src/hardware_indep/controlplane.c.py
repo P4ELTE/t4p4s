@@ -77,7 +77,7 @@ for table in hlir16.tables:
     #[     uint8_t key[${table.key_length_bytes}];
 
     byte_idx = 0
-    for k in sorted(table.key.keyElements, lambda k: match_type_order(k.match_type)):
+    for k in sorted(table.key.keyElements, key = lambda k: match_type_order(k.match_type)):
         byte_width = get_key_byte_width(k)
         #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
         byte_idx += byte_width

@@ -228,6 +228,8 @@ class types:
 
 # TODO this is a temporary quick fix for "calculated_field"s
 for m in hlir16.declarations['Method']:
+    if m.name in ['verify_checksum', 'update_checksum', 'mark_to_drop']:#These are already implemented in the DPDK HAL
+        continue
     # TODO temporary fix for l3-routing-full, this will be computed later on
     with types({
         "T": "struct uint8_buffer_t",

@@ -70,6 +70,15 @@ def gen_format_type_mask(t):
     else:
         addError('formatting a type mask', 'Currently only bit<w> is supported!')
 
+def gen_format_method_parameters(parameters, method_type):
+    res_params = []
+    for (par,tpar) in zip(parameters, method_type.parameters.parameters):
+        if hasattr(par, 'field_ref'):
+            res_params.append('handle(header_desc_ins(pd, {}), {})'.format(par.expr.header_ref.id, par.field_ref.id))
+        else:
+            res_params.append(format_expr_16(par))
+    #[ ${', '.join(res_params)}
+
 def gen_format_declaration_16(d):
     if d.node_type == 'Declaration_Variable':
         if d.type.node_type == 'Type_Header':
@@ -503,7 +512,7 @@ def gen_format_expr_16(e, format_as_value=True):
             #[     .var_width_field_bitwidth = 0,
             #[ };
             #[ // hdr.*.setValid()
-        if e.method.node_type == 'Member' and e.method.member == 'emit':
+        elif e.method.node_type == 'Member' and e.method.member == 'emit':
             arg0 = e.arguments[0].member
             haddr = "pd->headers[header_instance_%s].pointer"%arg0
             hlen  = "pd->headers[header_instance_%s].length" %arg0
@@ -518,8 +527,7 @@ def gen_format_expr_16(e, format_as_value=True):
             else:
                 return "(pd->headers[%s].pointer != NULL)" % format_expr_16(e.method.expr)
         elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
-            args = ", ".join([format_expr_16(arg) for arg in e.arguments])
-            return format_expr_16(e.method) + '(' + args + ', pd, tables)'
+            return '{}({}, pd, tables)'.format(e.method.ref.name, format_method_parameters(e.arguments, e.method.ref.type))
        # elif e.arguments.is_vec() and e.arguments.vec != []:
        #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
@@ -538,6 +546,11 @@ def format_type_16(t, resolve_names = True):
     global file_sugar_style
     with SugarStyle("inline_comment"):
         return gen_format_type_16(t, resolve_names)
+
+def format_method_parameters(ps, mt):
+    global file_sugar_style
+    with SugarStyle("inline_comment"):
+        return gen_format_method_parameters(ps, mt)
 
 def format_expr_16(e, format_as_value=True):
     global file_sugar_style

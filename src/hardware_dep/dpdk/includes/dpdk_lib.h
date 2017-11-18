@@ -52,6 +52,7 @@
 #include "dpdk_tables.h"
 #include "ctrl_plane_backend.h"
 #include "dpdk_vss_extern.h"
+#include "dpdk_v1model_extern.h"
 
 //=============================================================================
 // Backend-specific aliases
