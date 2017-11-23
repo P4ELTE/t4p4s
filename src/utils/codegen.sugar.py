@@ -81,9 +81,9 @@ def gen_format_method_parameters(parameters, method_type):
 
 def gen_format_declaration_16(d):
     if d.node_type == 'Declaration_Variable':
-        if d.type.node_type == 'Type_Header':
-            #[ // Width of the variable width field
-            #[ uint8_t ${d.name}[${d.type.byte_width}];\n uint8_t ${d.name}_var = 0;
+        if d.type.type_ref.node_type == 'Type_Header':
+            #[ uint8_t ${d.name}[${d.type.type_ref.byte_width}];
+            #[ uint8_t ${d.name}_var = 0;/* Width of the variable width field*/
         else:
             t = gen_format_type_16(d.type, False)
             #[ $t ${d.name};
@@ -165,48 +165,55 @@ def gen_format_statement_16(stmt):
         dst = stmt.left
         src = stmt.right
 
-        # TODO check for other cases, e.g. if dst.field_ref.is_vw == True
-        if is_metadata(dst) or is_std_metadata(dst):
-            hdr = dst.expr
-            fldname = dst.member
-            bitsize = hdr.type.fields.get(fldname).size
-            bytesize = (bitsize+7)/8
+        if hasattr(dst, 'field_ref'):
+            def member_to_field_id(member):
+                return 'field_{}_{}'.format(member.expr.type.name, member.member)
+            #TODO: handle preparsed fields, width assignment for vw fields and assignment to buffer instead header fields
+            dst_width = dst.type.size
+            dst_is_vw = dst.type.node_type == 'Type_Varbits'
+            dst_bytewidth = (dst_width+7)/8
 
-            if hdr.node_type == 'Member':
-                dst_hi_id = 'header_instance_{}'.format(hdr.member)
-            else:
-                dst_hi_id = 'header_instance_{}'.format(hdr.ref.name)
+            assert(dst_width == src.type.size)
+            assert(dst_is_vw == (src.type.node_type == 'Type_Varbits'))
 
-            if src.node_type == 'Constant':
-                #[ value32 = ${src.value};
-                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, ${dst_hi_id}, field_${hdr.type.name}_$fldname, value32)
-            elif src.node_type == 'PathExpression':
-                # TODO is this always correct?
-                #[ MODIFY_INT32_BYTEBUF_PACKET(pd, ${dst_hi_id}, field_${hdr.type.name}_$fldname, parameters.${src.ref.name}, $bytesize)
-            else:
-                addError('formatting statement', "Unhandled right hand side in assignment statement: {}".format(src))
-                #[ /* Unhandled right hand side in assignment statement: $src */
-        elif hasattr(stmt.left, 'field_ref'):
-            if (hasattr(src.type, 'size') and src.type.size > 32) or (hasattr(dst.type, 'size') and dst.type.size > 32):
-                param = dst.expr.expr
-                hdr = dst.expr.header_ref
-                size = dst.type.size
+            dst_header_id = 'header_instance_{}'.format(dst.expr.member if dst.expr.node_type == 'Member' else dst.expr.header_ref.name)
+            dst_field_id = member_to_field_id(dst)
 
-                fd = "field_desc(pd, field_instance_{}_{})".format(hdr.name, dst.member)
-                #[ if (($size/8) < $fd.bytewidth) {
-                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${dst.member}, parameters.${src.ref.name}, ($size/8));
-                #[ } else {
-                #[     MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${dst.member}, parameters.${src.ref.name} + (($size/8) - $fd.bytewidth), $fd.bytewidth);
-                #[ }
+            if dst_width < 32:
+                src_buffer = 'value32'
+                if src.node_type == 'Member':
+                    #[ $src_buffer = ${format_expr_16(src)};
+                elif src.node_type == 'PathExpression':
+                    #[ memcpy(&$src_buffer, parameters.${src.ref.name}, $dst_bytewidth);
+                else:
+                    #[ $src_buffer = ${format_expr_16(src)};
+
+                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, $dst_header_id, $dst_field_id, $src_buffer)
             else:
-                dstfmt = format_expr_16(dst, False)
-                srcfmt = format_expr_16(src)
-                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, $dstfmt, $srcfmt);
+                if src.node_type == 'Member':
+                    src_pointer = 'value_{}'.format(src.id)
+                    src_extract_params = '{0}, {0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
+                    #[ uint8_t $src_pointer[$dst_bytewidth];
+                    #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
+
+                    if dst_is_vw:
+                        src_vw_bitwidth = '{}_var'.format(src.expr.ref.name)
+                        dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
+                elif src.node_type == 'PathExpression':
+                    src_pointer = 'parameters.{}'.format(src.ref.name)
+                else:
+                    src_pointer = 'NOT_SUPPORTED'
+                    addError('formatting statement', 'Unhandled right hand side in assignment statement: {}'.format(src))
+
+                if dst_is_vw:
+                    dst_fixed_size = dst.expr.header_ref.type.type_ref.bit_width - dst.field_ref.size
+                    #[ pd->headers[$dst_header_id].length = ($dst_fixed_size + $src_vw_bitwidth)/8;
+                    #[ pd->headers[$dst_header_id].var_width_field_bitwidth = $src_vw_bitwidth;
+
+                #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, $dst_header_id, $dst_field_id, $src_pointer, $dst_bytewidth)
         else:
-            dstfmt = format_expr_16(dst)
-            srcfmt = format_expr_16(src)
-            
-            #[ $dstfmt = $srcfmt;
+            #[ ${format_expr_16(dst)} = ${format_expr_16(src)};
+
     elif stmt.node_type == 'BlockStatement':
         for c in stmt.components:
             #= format_statement_16(c)
@@ -503,15 +510,13 @@ def gen_format_expr_16(e, format_as_value=True):
             # TODO is this the max size?
             length = (sum([f.size if not f.is_vw else 0 for f in h.type.type_ref.fields])+7)/8
 
-            #[ pd->headers[${h.id}] = (header_descriptor_t) {'
-            #[     .type = ${h.id},'
-            #[     .length = header_info(${h.id}).bytewidth,
+            #[ pd->headers[${h.id}] = (header_descriptor_t) {
+            #[     .type = ${h.id},
             #[     .length = $length,
             #[     .pointer = calloc(${h.type.type_ref.byte_width}, sizeof(uint8_t)),
-            #[     // TODO determine and set this field
+            #[     /*TODO determine and set this field*/
             #[     .var_width_field_bitwidth = 0,
             #[ };
-            #[ // hdr.*.setValid()
         elif e.method.node_type == 'Member' and e.method.member == 'emit':
             arg0 = e.arguments[0].member
             haddr = "pd->headers[header_instance_%s].pointer"%arg0
