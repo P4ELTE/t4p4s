@@ -45,6 +45,16 @@ void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t ck
     }
 }
 
+void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+                     packet_descriptor_t* pd, lookup_table_t** tables) {
+    verify_checksum(cond, data, cksum_field_handle, algorithm, pd, tables);
+}
+
+void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+                     packet_descriptor_t* pd, lookup_table_t** tables) {
+    update_checksum(cond, data, cksum_field_handle, algorithm, pd, tables);
+}
+
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables) {
     uint32_t res32;
     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, 1)

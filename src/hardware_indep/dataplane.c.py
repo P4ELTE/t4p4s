@@ -244,9 +244,19 @@ for m in hlir16.declarations['Method']:
     #[     // TODO proper body
     #[ }
 
+def apply_annotations(x):
+    if ([]!=list(filter(lambda x: x.name == "Offload", hlir16.sc_annotations))) :
+        l = ['verify_checksum', 'update_checksum']
+        if (x.methodCall.method.node_type=="PathExpression" and x.methodCall.method.ref.name in l) : x.methodCall.method.ref.name += "_offload"
+        if (x.methodCall.method.node_type=="PathExpression" and x.methodCall.method.path.name in l) : x.methodCall.method.path.name += "_offload"
+    return x
+
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
     if c is not None:
+
+        c.body.components = map(apply_annotations, c.body.components)
+
         #[ void control_${pe.type.name}(${STDPARAMS})
         #[ {
         #[     debug("entering control ${c.name}...\n");

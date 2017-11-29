@@ -24,6 +24,12 @@ void verify_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t ck
 void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
+void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+                     packet_descriptor_t* pd, lookup_table_t** tables);
+
+void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+                     packet_descriptor_t* pd, lookup_table_t** tables);
+
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables);
 
 #endif // __DPDK_V1MODEL_EXTERN_H_

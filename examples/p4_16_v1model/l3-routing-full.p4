@@ -104,6 +104,7 @@ control DeparserImpl(packet_out packet, in headers hdr) {
     }
 }
 
+@Offload()
 control verifyChecksum(inout headers hdr, inout metadata meta) {
     apply {
         verify_checksum(hdr.ipv4.isValid(), { hdr.ipv4.versionIhl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr }, hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
