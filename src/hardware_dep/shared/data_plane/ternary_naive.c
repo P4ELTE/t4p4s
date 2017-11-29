@@ -13,6 +13,9 @@
 // limitations under the License.
 #include "ternary_naive.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 ternary_table*
 naive_ternary_create(uint8_t keylen, uint8_t max_size)
 {

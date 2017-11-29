@@ -19,8 +19,9 @@ def match_type_order(t):
     if t is p4.p4_match_type.P4_MATCH_LPM:     return 1
     if t is p4.p4_match_type.P4_MATCH_TERNARY: return 2
 
-#[ #include "dpdk_lib.h"
-#[ #include "actions.h"
+#[ #include "backend.h"
+#[
+#[ #include <string.h>
 #[ 
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
 #[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
@@ -151,11 +152,11 @@ for table in hlir.p4_tables.values():
 
 
 #[ backend bg;
-#[ void init_control_plane()
+#[ int init_control_plane(void)
 #[ {
 #[     debug("Creating control plane connection...\n");
 #[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
-#[     launch_backend(bg);
+#[     return launch_backend(bg);
 #[ /*
 if "smac" in hlir.p4_tables:
     #[ struct smac_action action;

@@ -11,26 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef TERNARY_NAIVE_H
-#define TERNARY_NAIVE_H
 
-#include <stdint.h>
+#include "linux_backend.h"
 
-typedef struct {
-    uint8_t* mask;
-    uint8_t* key;
-    uint8_t* value;
-} ternary_entry;
+#include <stdio.h>
 
-typedef struct {
-    void**  entries;
-    uint8_t keylen;
-    uint8_t size;
-} ternary_table;
+int main(int argc, char** argv)
+{
+    if (argc < 2)
+    {
+        printf("Usage: %s <network interfaces>\n", argv[0]);
+        return 1;
+    }
 
-ternary_table* naive_ternary_create (uint8_t keylen, uint8_t max_size);
-void           naive_ternary_destroy(ternary_table* t);
-void           naive_ternary_add    (ternary_table* t, uint8_t* key, uint8_t* mask, uint8_t* value);
-uint8_t*       naive_ternary_lookup (ternary_table* t, uint8_t* key);
+    initialize(argc, argv);
+    if (init_control_plane() == -1)
+        printf("Failed to initialize the control plane.\n");
 
-#endif
+    launch();
+    uninitialize();
+
+    return 0;
+}

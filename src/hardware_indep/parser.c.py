@@ -59,8 +59,11 @@ for pe_name, pe in pe_dict.items():
 for pe_name, pe in hlir.p4_parser_exceptions.items():
     pe_dict[pe_name] = pe
 
-#[ #include "dpdk_lib.h"
-#[ #include "actions.h" // apply_table_* and action_code_*
+#[ #include "backend.h"
+#[
+#[ #include <stdint.h>
+#[ #include <stdio.h>
+#[ #include <string.h>
 #[
 #[ extern int verify_packet(packet_descriptor_t* pd);
 #[

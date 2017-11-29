@@ -334,7 +334,7 @@ send_packet(packet_descriptor_t* pd)
         debug("    :: deparsing headers\n");
         debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
 
-        if (port==100)
+        if (port == BROADCAST_PORT)
             dpdk_bcast_packet((struct rte_mbuf *)pd->wrapper, inport, lcore_id);
         else
             dpdk_send_packet((struct rte_mbuf *)pd->wrapper, port, lcore_id);
@@ -355,6 +355,7 @@ packet_received(packet_descriptor_t* pd, packet *p, unsigned portid, struct lcor
 {
     pd->data = rte_pktmbuf_mtod(p, uint8_t *);
     pd->wrapper = p;
+    pd->dropped = 0;
     reset_headers(pd);
     set_metadata_inport(pd, portid);
     handle_packet(pd, conf->state.tables);

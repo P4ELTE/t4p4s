@@ -77,10 +77,10 @@ def field_instance_byte_offset_hdr():
     os = [str(item//8) for sublist in [field_offsets(hi.header_type) for hi in header_instances(hlir)] for item in sublist]
     return farray("int", os)
 
-def field_instance_mask():
+def field_instance_mask(byteorder):
     ws = [f[1] for hn,hi in hlir.p4_header_instances.items() for f in hi.header_type.layout.items()]
     os = [item%8 for sublist in [field_offsets(hi.header_type) for hi in header_instances(hlir)] for item in sublist]
-    ms = [field_mask(a, b) for (a,b) in zip(os, ws)]
+    ms = [field_mask(a, b, byteorder) for (a,b) in zip(os, ws)]
     return farray("uint32_t", ms)
 
 def field_instance_header():
@@ -97,6 +97,8 @@ fc = len(field_instance_ids(hlir))
 #[
 #[ #define MODIFIED 1
 #[
+#[ #include <stdint.h>
+#[ 
 #[ typedef struct parsed_fields_s {
 for f in hlir.p4_fields.values():
     if parsed_field(hlir, f):
@@ -120,7 +122,14 @@ for f in hlir.p4_fields.values():
 #[ ${ field_instance_bit_width() }
 #[ ${ field_instance_bit_offset() }
 #[ ${ field_instance_byte_offset_hdr() }
-#[ ${ field_instance_mask() }
+#[ #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#[ ${ field_instance_mask('little') }
+#[ #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#[ ${ field_instance_mask('big') }
+#[ #else
+#[ #error "Unsupported byte order."
+#[ #endif
+#[
 #[ ${ field_instance_header() }
 #[ 
 #[ ${ header_stack_elements() }

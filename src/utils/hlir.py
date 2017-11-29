@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 #Utility functions for analyzing HLIR and for generating some code parts from HLIR
 
-from p4_hlir.hlir.p4_tables import p4_match_type
 import re
 import p4_hlir.hlir.p4 as p4
+
+from p4_hlir.hlir.p4_tables import p4_match_type
 from misc import addError
+from byteorder import cpu_to_le, cpu_to_be
 
 # TODO note that this current implementation is true for all fields modified by at least one primitive action;
 #   this should be refined in the future to reflect the intent of selecting frequently accessed field instances only
@@ -145,7 +148,7 @@ def field_offsets(header_type):
             o += (-fixed_length) % 8
     return offsets
 
-def field_mask(bitoffset, bitwidth):
+def field_mask(bitoffset, bitwidth, byteorder):
     if bitwidth == p4.P4_AUTO_WIDTH: return "0x0 /* variable-width field */"
     if bitoffset+bitwidth > 32: return hex(0) # FIXME do something about this
     pos = bitoffset;
@@ -154,6 +157,10 @@ def field_mask(bitoffset, bitwidth):
         d,m = divmod(pos, 8)
         mask |= (1 << (8*d+7-m))
         pos += 1
+    if byteorder == "little":
+        mask = cpu_to_le(mask, bitoffset + bitwidth)
+    elif byteorder == "big":
+        mask = cpu_to_be(mask, bitoffset + bitwidth)
     return hex(mask)
 
 # TODO: better condition...

@@ -89,19 +89,24 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
 
 void mac_learn_digest(void* b) {
     uint8_t mac[6];
-    uint8_t port[2];
-    uint16_t offset=0;
-    offset = sizeof(struct p4_digest);
+    uint16_t port;
+    uint16_t offset = sizeof(struct p4_digest);
     struct p4_digest_field* df = netconv_p4_digest_field(unpack_p4_digest_field(b, offset));
     memcpy(mac, df->value, 6);
     offset += sizeof(struct p4_digest_field);
     df = netconv_p4_digest_field(unpack_p4_digest_field(b, offset));
-    memcpy(port, df->value, 2);
+    memcpy(&port, df->value, 2);
 
-    uint8_t p = port[0];
-    printf("Ctrl: mac_learn_digest PORT: %d MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", p, mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    fill_dmac_table(p, mac);
-    fill_smac_table(p, mac);
+    // switch and controller endianness must match
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    port &= 0xffu;
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    port >>= 7;
+#endif
+
+    printf("Ctrl: mac_learn_digest PORT: %u MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", port, mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    fill_dmac_table((uint8_t)port, mac);
+    fill_smac_table((uint8_t)port, mac);
 }
 
 void test_learn_ip(void* b) {
@@ -241,7 +246,7 @@ int read_macs_and_ports_from_file(char *filename) {
         while (fgets(line, sizeof(line), f)) {
                 line[strlen(line)-1] = '\0';
 
-		if (7 == sscanf(line, "%x:%x:%x:%x:%x:%x %d%c", 
+		if (7 == sscanf(line, "%x:%x:%x:%x:%x:%x %d", 
 				&values[0], &values[1], &values[2],
 				&values[3], &values[4], &values[5], &port) )
 		{

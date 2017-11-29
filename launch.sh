@@ -9,6 +9,10 @@ if [ $# -lt 1 ]; then
     print_usage_and_exit
 fi
 
+if [ -z ${P4_TARGET+x} ]; then
+    P4_TARGET=dpdk
+fi
+
 P4_SOURCE=$1
 shift
 
@@ -26,11 +30,11 @@ fi
 
 echo "-------------------- Compilation C -> executable"
 
-if [ ! -z ${P4DPDK_VARIANT+x} ]; then
-    echo "Note: using variant ${P4DPDK_VARIANT}"
+if [ ! -z ${P4_DPDK_VARIANT+x} ]; then
+    echo "Note: using variant ${P4_DPDK_VARIANT}"
 
     # If a no-NIC variant is used, the code has to be changed a bit, too.
-    if [[ ${P4DPDK_VARIANT} == *"no_nic"* ]]
+    if [[ ${P4_DPDK_VARIANT} == *"no_nic"* ]]
     then
         export P4_GCC_OPTS="${P4_GCC_OPTS} -DFAKEDPDK"
     fi
@@ -39,7 +43,6 @@ fi
 if [ ! -z ${P4_GCC_OPTS+x} ]; then
     echo "Note: extra C options: ${P4_GCC_OPTS}"
 fi
-
 
 P4_BASENAME=$(basename ${P4_SOURCE%.*})
 cd ./build/$P4_BASENAME
@@ -54,4 +57,4 @@ cd - >/dev/null
 
 echo "-------------------- Starting execution"
 
-./run.sh ./build/$P4_BASENAME/build/$P4_BASENAME $*
+./run.sh ./build/$P4_BASENAME/$P4_TARGET/$P4_BASENAME $*

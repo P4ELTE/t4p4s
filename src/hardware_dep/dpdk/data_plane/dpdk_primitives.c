@@ -17,6 +17,8 @@
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 
+#include <stdint.h>
+
 // TODO push N elements
 void
 push(packet_descriptor_t* p, header_stack_t h)
@@ -70,7 +72,7 @@ remove_header(packet_descriptor_t* p, header_reference_t h)
 }
 
 void 
-generate_digest(backend bg, char* name, int receiver, struct type_field_list* digest_field_list)
+generate_digest(backend bg, char* name, uint32_t receiver, struct type_field_list* digest_field_list)
 {
     digest d = create_digest(bg, name);
     int i;

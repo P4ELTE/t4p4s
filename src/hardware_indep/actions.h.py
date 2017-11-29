@@ -11,13 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from p4_hlir.hlir.p4_headers import p4_field
+from utils.hlir import userActions
+
 #[ #ifndef __ACTION_INFO_GENERATED_H__
 #[ #define __ACTION_INFO_GENERATED_H__
-#[ 
+#[
+#[ #include "dataplane.h"
 #[
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
-#[
 
+bcast_action = next((action for action in userActions(hlir) if action.name == "bcast"), None)
+if bcast_action != None:
+    bcast_port = next((call[1][1] for call in bcast_action.call_sequence if call[0].name == "modify_field" and call[1][0].name == "egress_port"), None)
+    if bcast_port != None:
+        #[ #define BROADCAST_PORT ${bcast_port}
+
+#[
 #[ enum actions {
 a = []
 for table in hlir.p4_tables.values():
