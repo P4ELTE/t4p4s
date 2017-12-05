@@ -259,7 +259,7 @@ for error in hlir16.declarations['Type_Error']:
 #[
 #[ // HW optimization related infos
 #[ // --------------------
-#[ #define OFFLOAD_CHECKSUM ${1 if []!=[x for x in hlir16.sc_annotations if x.name=='Offload'] else 0}
+#[ #define OFFLOAD_CHECKSUM ${1 if []!=[x for x in hlir16.sc_annotations if x.name=='offload'] else 0}
 
 
 #[ #endif // __HEADER_INFO_H__
