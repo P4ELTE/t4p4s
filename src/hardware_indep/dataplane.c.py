@@ -228,7 +228,8 @@ class types:
 
 # TODO this is a temporary quick fix for "calculated_field"s
 for m in hlir16.declarations['Method']:
-    if m.name in ['verify_checksum', 'update_checksum', 'mark_to_drop']:#These are already implemented in the DPDK HAL
+    # TODO Hacking the hack to support offload annotation
+    if m.name in ['verify_checksum', 'update_checksum', 'verify_checksum_offload', 'update_checksum_offload', 'mark_to_drop']:#These are already implemented in the DPDK HAL
         continue
     # TODO temporary fix for l3-routing-full, this will be computed later on
     with types({
@@ -244,28 +245,9 @@ for m in hlir16.declarations['Method']:
     #[     // TODO proper body
     #[ }
 
-def apply_annotations(postfix, extra_args, x):
-    if (x.methodCall.method.node_type=="PathExpression") : 
-	x.methodCall.method.ref.name += "_" + postfix
-        x.methodCall.method.path.name += "_" + postfix
-        x.methodCall.arguments.vec += extra_args
-    return x
-
-def search_for_annotations(x):
-    available_optimization_annotations = ['offload']
-
-    if (x.node_type == "BlockStatement") :
-        name_list = [annot.name for annot in x.annotations.annotations.vec if annot.name in  available_optimization_annotations]
-        arg_list = [annot.expr for annot in x.annotations.annotations.vec if annot.name in  available_optimization_annotations]
-        if ([] != name_list) :
-	    x.components = map(lambda x : apply_annotations('_'.join(name_list), arg_list, x), x.components)
-    return x
-
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
     if c is not None:
-
-        c.body.components = map(search_for_annotations, c.body.components)
 
         #[ void control_${pe.type.name}(${STDPARAMS})
         #[ {

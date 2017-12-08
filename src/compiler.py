@@ -18,6 +18,7 @@ from __future__ import print_function
 import argparse
 from hlir16.hlir16 import *
 from utils.misc import *
+from transform_hlir16 import *
 
 from subprocess import call
 
@@ -376,6 +377,8 @@ def main():
         sys.exit(1)
 
     success = load_file(args['p4_file'])
+
+    transform_hlir16(hlir16)
 
     if not success:
         print("P4 compilation failed for file %s" % (os.path.basename(__file__)), file=sys.stderr)
