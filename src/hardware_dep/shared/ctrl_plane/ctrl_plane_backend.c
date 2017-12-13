@@ -224,14 +224,14 @@ backend create_backend(int num_of_threads, int queue_size, char* controller_name
 	return (backend) bg;
 }
 
-void launch_backend(backend bg)
+int launch_backend(backend bg)
 {
 	backend_t *bgt = (backend_t*) bg;
 
         if( connect( bgt->controller_sock, (struct sockaddr *) &(bgt->controller_addr), sizeof(struct sockaddr_in) ) == -1 )
         {
-                fprintf(stdout, "Connecting stream socket\n" );
-                return;
+                fprintf(stderr, "Connecting stream socket\n" );
+                return -1;
         }  
 
 	/* !!!!!!!!!!! Launch the client thread connecting to the controller  */
@@ -241,6 +241,8 @@ void launch_backend(backend bg)
         dispatch(bgt->tpool, input_processor, (void*)bgt);
 					sleep(1);
         dispatch(bgt->tpool, output_processor, (void*)bgt);
+
+    return 0;
 }
 
 void stop_backend(backend bg)

@@ -11,26 +11,23 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef TERNARY_NAIVE_H
-#define TERNARY_NAIVE_H
 
-#include <stdint.h>
+#ifndef COMPILER_H
+#define COMPILER_H
 
-typedef struct {
-    uint8_t* mask;
-    uint8_t* key;
-    uint8_t* value;
-} ternary_entry;
+#ifndef likely
+#define likely(x) __builtin_expect(!!(x), 1)
+#endif
 
-typedef struct {
-    void**  entries;
-    uint8_t keylen;
-    uint8_t size;
-} ternary_table;
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
 
-ternary_table* naive_ternary_create (uint8_t keylen, uint8_t max_size);
-void           naive_ternary_destroy(ternary_table* t);
-void           naive_ternary_add    (ternary_table* t, uint8_t* key, uint8_t* mask, uint8_t* value);
-uint8_t*       naive_ternary_lookup (ternary_table* t, uint8_t* key);
+#define always_inline inline __attribute__((__always_inline__))
+#define unused __attribute__((__unused__))
+
+#define ASM_LABEL(label) asm ("#" label "\n\t")
+
+#define CRC32_INSTRUCTION_SUPPORTED (defined(__x86_64__) && defined(__SSE4_2__))
 
 #endif

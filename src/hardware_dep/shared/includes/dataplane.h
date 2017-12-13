@@ -14,10 +14,11 @@
 #ifndef DATAPLANE_H
 #define DATAPLANE_H
 
-#include <inttypes.h>
 #include "aliases.h"
 #include "parser.h"
 #include "vector.h"
+
+#include <stdint.h>
 
 #define LOOKUP_EXACT   0
 #define LOOKUP_LPM     1

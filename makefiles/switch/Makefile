@@ -12,23 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ifeq ($(RTE_SDK),)
-$(error "Please define the RTE_SDK environment variable")
-endif
+MK_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-# Default target, can be overriden by command line or environment
-RTE_TARGET ?= x86_64-native-linuxapp-gcc
+P4_TARGET ?= dpdk
+P4_TARGET := $(strip $(P4_TARGET))
+P4_INDEP_SRCDIR := $(MK_DIR)
+P4_SRCDIR := $(abspath $(MK_DIR)/../../src)
 
-include $(RTE_SDK)/mk/rte.vars.mk
+APP = placeholder_name
 
-CFLAGS += -O3
-CFLAGS += -Wall 
-CFLAGS += -Wno-unused-function
-CFLAGS += -Wno-unused-but-set-variable
-CFLAGS += -Wno-unused-variable
-CFLAGS += -g
-CFLAGS += -std=gnu99
-
-ifneq ($(P4_GCC_OPTS),)
-CFLAGS += $(P4_GCC_OPTS)
+ifeq ($(P4_TARGET),dpdk)
+  include $(MK_DIR)/dpdk_backend.mk
+else ifeq ($(P4_TARGET),linux)
+  include $(MK_DIR)/linux_backend.mk
+else
+  $(error "Invalid target: $(P4_TARGET)")
 endif

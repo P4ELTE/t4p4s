@@ -11,37 +11,35 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-CDIR := $(dir $(lastword $(MAKEFILE_LIST)))
-P4_SRCDIR := $(dir $(lastword $(MAKEFILE_LIST)))/../../src
 
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/includes
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/data_plane
+ifndef RTE_SDK
+$(error "Please define the RTE_SDK environment variable")
+endif
+
+RTE_TARGET ?= x86_64-native-linuxapp-gcc
+
+include $(RTE_SDK)/mk/rte.vars.mk
+
+# override output dir set in rte.vars.mk
+RTE_OUTPUT = $(RTE_SRCDIR)/dpdk
+
+include $(MK_DIR)/common.mk
+
+CFLAGS += -D P4_DPDK_TARGET
 
 # dpdk main
 SRCS-y += main.c
-ifdef P4DPDK_VARIANT
-SRCS-y += main_loop_$(P4DPDK_VARIANT).c
+ifdef P4_DPDK_VARIANT
+SRCS-y += main_loop_$(P4_DPDK_VARIANT).c
 else
 SRCS-y += main_loop.c
 endif
 
-# control plane related sources
-SRCS-y += ctrl_plane_backend.c
-SRCS-y += fifo.c
-SRCS-y += handlers.c
-SRCS-y += messages.c
-SRCS-y += sock_helpers.c
-SRCS-y += threadpool.c
-
-# data plane related includes
+# data plane related sources
 SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
 SRCS-y += dpdk_primitives.c
 SRCS-y += ternary_naive.c
 SRCS-y += vector.c
 
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/includes"
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane"
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/data_plane"
+include $(RTE_SDK)/mk/rte.extapp.mk

@@ -17,10 +17,11 @@ from utils.misc import addError, addWarning
 from utils.hlir import *
 import math
 
-#[ #include "dpdk_lib.h"
 #[ #include "actions.h"
+#[ #include "backend.h"
+#[
+#[ #include <stdlib.h>
 #[ #include <unistd.h>
-#[ #include <arpa/inet.h>
 #[
 #[ extern backend bg;
 #[

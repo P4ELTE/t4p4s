@@ -11,26 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef TERNARY_NAIVE_H
-#define TERNARY_NAIVE_H
 
-#include <stdint.h>
+#ifndef CONFIG_H
+#define CONFIG_H
 
-typedef struct {
-    uint8_t* mask;
-    uint8_t* key;
-    uint8_t* value;
-} ternary_entry;
+#define TABLE_CONTENT_MAX 256
 
-typedef struct {
-    void**  entries;
-    uint8_t keylen;
-    uint8_t size;
-} ternary_table;
+#define HASH_TABLE_ENTRIES 1024
+#define HASH_TABLE_BUCKET_ENTRIES 4
 
-ternary_table* naive_ternary_create (uint8_t keylen, uint8_t max_size);
-void           naive_ternary_destroy(ternary_table* t);
-void           naive_ternary_add    (ternary_table* t, uint8_t* key, uint8_t* mask, uint8_t* value);
-uint8_t*       naive_ternary_lookup (ternary_table* t, uint8_t* key);
+#define RX_QUEUE_LENGTH 256
+#define TX_QUEUE_LENGTH 128
+
+#define RX_FRAME_SIZE 2048
+#define TX_FRAME_SIZE 2048
+
+#define RX_FRAME_HEADROOM 128
+
+#define RX_BURST_MAX 16
+#define TX_BURST_DRAIN_NS 100000
 
 #endif

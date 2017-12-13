@@ -17,10 +17,12 @@ from p4_hlir.hlir.p4_headers import p4_field
 from utils.hlir import *
 from utils.misc import addError, addWarning
 
+#[ #include "actions.h"
+#[ #include "backend.h"
+#[
+#[ #include <inttypes.h>
 #[ #include <stdlib.h>
 #[ #include <string.h>
-#[ #include "dpdk_lib.h"
-#[ #include "actions.h"
 #[ 
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[
@@ -68,7 +70,7 @@ for table in hlir.p4_tables.values():
     #[ void apply_table_${table.name}(packet_descriptor_t* pd, lookup_table_t** tables)
     #[ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
-    #[     uint8_t* key[${key_length}];
+    #[     uint8_t key[${key_length}];
     #[     table_${table.name}_key(pd, (uint8_t*)key);
     #[     uint8_t* value = ${lookupfun[table_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
     #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
@@ -116,6 +118,7 @@ for table in hlir.p4_tables.values():
         #[       }
         #[     } else {
         #[       debug("    :: IGNORING PACKET.\n");
+        #[       pd->dropped = 1;
         #[       return;
         #[     }
     #[ }

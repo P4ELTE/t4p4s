@@ -11,26 +11,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef TERNARY_NAIVE_H
-#define TERNARY_NAIVE_H
+
+#ifndef LINUX_BACKEND_H
+#define LINUX_BACKEND_H
+
+#include "backend.h"
+#include "compiler.h"
+#include "config.h"
+#include "ethdev.h"
+#include "lib.h"
+#include "pktbuf.h"
 
 #include <stdint.h>
 
-typedef struct {
-    uint8_t* mask;
-    uint8_t* key;
-    uint8_t* value;
-} ternary_entry;
+extern lookup_table_t* tables[NB_TABLES];
+extern counter_t* counters[NB_COUNTERS];
+extern p4_register_t* registers[NB_REGISTERS];
 
-typedef struct {
-    void**  entries;
-    uint8_t keylen;
-    uint8_t size;
-} ternary_table;
+extern struct ethdev* ports;
+extern uint8_t port_count;
 
-ternary_table* naive_ternary_create (uint8_t keylen, uint8_t max_size);
-void           naive_ternary_destroy(ternary_table* t);
-void           naive_ternary_add    (ternary_table* t, uint8_t* key, uint8_t* mask, uint8_t* value);
-uint8_t*       naive_ternary_lookup (ternary_table* t, uint8_t* key);
+extern int init_control_plane(void);
+extern void uninitialize(void);
 
 #endif

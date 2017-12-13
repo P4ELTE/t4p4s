@@ -15,9 +15,9 @@ from utils.misc import addError, addWarning
 from utils.hlir import getTypeAndLength
 import p4_hlir.hlir.p4_stateful as p4_stateful
 
-#[ #include "dataplane.h"
 #[ #include "actions.h"
 #[ #include "data_plane_data.h"
+#[ #include "dataplane.h"
 #[
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir.p4_tables.values():
