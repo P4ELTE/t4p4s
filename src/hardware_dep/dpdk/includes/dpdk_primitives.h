@@ -141,7 +141,9 @@ typedef struct bitfield_handle_s {
                                         ((FIELD_BYTES(fd) & BITS_MASK1(fd)) | \
                                         ((FIELD_BYTES(fd) & BITS_MASK2(fd)) >> fd.bitoffset) | \
                                         ((FIELD_BYTES(fd) & BITS_MASK3(fd)) >> (fd.bytecount * 8 - fd.bitwidth)))) :\
-    (rte_be_to_cpu_32(FIELD_MASKED_BYTES(fd)) >> (32 - fd.bitcount)))
+    (fd.bytecount == 1 ? (FIELD_MASKED_BYTES(fd) >> (8 - fd.bitcount)) : \
+        (fd.bytecount == 2 ? (rte_be_to_cpu_16(FIELD_MASKED_BYTES(fd)) >> (16 - fd.bitcount)) : \
+            (rte_be_to_cpu_32(FIELD_MASKED_BYTES(fd)) >> (32 - fd.bitcount)))))
 
 /*******************************************************************************
    Extract - statement (unpack value to a destination variable)

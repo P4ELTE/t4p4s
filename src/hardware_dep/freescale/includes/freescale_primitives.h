@@ -85,7 +85,9 @@
                                         ((FIELD_BYTES(pd, field) & BITS_MASK1(field)) | \
                                         ((FIELD_BYTES(pd, field) & BITS_MASK2(field)) >> field_desc(field).bitoffset) | \
                                         ((FIELD_BYTES(pd, field) & BITS_MASK3(field)) >> (field_desc(field).bytecount * 8 - field_desc(field).bitwidth)))) :\
-    (odp_be_to_cpu_32((FIELD_BYTES(pd, field) & field_desc(field).mask)) >> (32 - FIELD_BITCOUNT(field))))
+    (field_desc(field).bytecount == 1 ? ((FIELD_BYTES(pd, field) & field_desc(field).mask) >> (8 - FIELD_BITCOUNT(field))) : \
+        (field_desc(field).bytecount == 2 ? (odp_be_to_cpu_16(FIELD_BYTES(pd, field) & field_desc(field).mask) >> (16 - FIELD_BITCOUNT(field))) : \
+            (odp_be_to_cpu_32((FIELD_BYTES(pd, field) & field_desc(field).mask)) >> (32 - FIELD_BITCOUNT(field))))))
 
 // Extracts a field to the given uint32_t variable (no byteorder conversion) [MAX 4 BYTES]
 #define EXTRACT_INT32_BITS(pd, field, dst) { \
