@@ -132,20 +132,15 @@ def statement_buffer_value():
 
 ################################################################################
 
-bytebuf_id = 0
-
-# *valuebuff = value-in-width
-def write_int_to_bytebuff(value, width):
-    global bytebuf_id
-    generated_code = ""
-    l = int_to_big_endian_byte_array_with_length(value, width)
-    #[ uint8_t buffer_${bytebuf_id}[${len(l)}] = {
-    for c in l:
-        #[     ${c},
-    #[ };
-    bytebuf_id = bytebuf_id + 1
-    return generated_code
-
+def int_to_big_endian_byte_array_with_length(value, width):
+    array = []
+    while value > 0:
+        array.append(int(value % 256))
+        value /= 256
+    array.reverse()
+    array_len = len(array)
+    padded_array = [0 for i in range(width-array_len)] + array[array_len-min(array_len, width) : array_len]
+    return '{' + ', '.join([str(x) for x in padded_array]) + '}'
 
 
 def bit_bounding_unit(t):
@@ -192,15 +187,24 @@ def gen_format_statement_16(stmt):
             else:
                 if src.node_type == 'Member':
                     src_pointer = 'value_{}'.format(src.id)
-                    src_extract_params = '{0}, {0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
                     #[ uint8_t $src_pointer[$dst_bytewidth];
-                    #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
 
-                    if dst_is_vw:
-                        src_vw_bitwidth = '{}_var'.format(src.expr.ref.name)
-                        dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
+                    if hasattr(src, 'field_ref'):
+                        #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${src.expr.member}, ${member_to_field_id(src)}, ${src_pointer})
+                        if dst_is_vw:
+                            src_vw_bitwidth = 'pd->headers[header_instance_{}].var_width_field_bitwidth'.format(src.expr.member)
+                            dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
+                    else:
+                        src_extract_params = '{0}, {0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
+                        #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
+                        if dst_is_vw:
+                            src_vw_bitwidth = '{}_var'.format(src.expr.ref.name)
+                            dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
                     src_pointer = 'parameters.{}'.format(src.ref.name)
+                elif src.node_type == 'Constant':
+                    src_pointer = 'value_{}'.format(src.id)
+                    #[ uint8_t $src_pointer[$dst_bytewidth] = ${int_to_big_endian_byte_array_with_length(src.value, dst_bytewidth)};
                 else:
                     src_pointer = 'NOT_SUPPORTED'
                     addError('formatting statement', 'Unhandled right hand side in assignment statement: {}'.format(src))
@@ -461,9 +465,8 @@ def gen_format_expr_16(e, format_as_value=True):
                 if case_type == 'DefaultExpression':
                     conds.append('true /* default */')
                 elif case_type == 'Constant' and select_type == 'Type_Bits' and 32 < size and size % 8 == 0:
-                    from  utils.hlir import int_to_big_endian_byte_array_with_length
-                    l = int_to_big_endian_byte_array_with_length(c.value, size/8)
-                    prepend_statement('uint8_t {0}[{1}] = {{{2}}};'.format(gen_var_name(c), size/8, ','.join([str(x) for x in l ])))
+                    byte_array = int_to_big_endian_byte_array_with_length(c.value, size/8)
+                    prepend_statement('uint8_t {}[{}] = {};'.format(gen_var_name(c), size/8, byte_array))
                     conds.append('memcmp({}, {}, {}) == 0'.format(gen_var_name(k), gen_var_name(c), size/8))
                 elif size <= 32:
                     if case_type == 'Range':
