@@ -9,6 +9,7 @@ function print_usage_and_exit {
     (>&2 echo "    - v14|v16")
     (>&2 echo "    - cfg <config string>")
     (>&2 echo "    - ctrl <controller name>")
+    (>&2 echo "    - ctrcfg <controller config file>")
     exit $ERROR_CODE
 }
 
@@ -107,6 +108,9 @@ while [ $# -gt 0 ]; do
         "cfg")          shift
                         DPDK_OPTS="$1"
                         ;;
+	"ctrcfg")	shift
+			CONTROLLER_PARAMS_FILE="$1"
+			;;
         *)
             if [ ! -z ${P4_SOURCE+x} ]; then
                 errmsg_exit "Error: extra parameter: $1" "P4 source file already defined: ${P4_SOURCE}"
@@ -268,8 +272,8 @@ if [ "$T4P4S_RUN" == 1 ]; then
 
     # Step 3A-3: Run controller
     # TODO params for controller
-    # stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_PARAMS_FILE > "${CONTROLLER_LOG}" &
-    stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER > "${CONTROLLER_LOG}" &
+    stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_PARAMS_FILE > "${CONTROLLER_LOG}" &
+    #stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER > "${CONTROLLER_LOG}" &
     sleep 0.05
 fi
 
