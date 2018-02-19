@@ -125,7 +125,7 @@ action forward(dmac_val,smac_val,port) {
     modify_field(ethernet.dstAddr, dmac_val);
     modify_field(standard_metadata.egress_port, port);
     modify_field(ethernet.srcAddr, smac_val);
-    subtract_from_field(ipv4.ttl, 1)
+    subtract_from_field(ipv4.ttl, 1);
 }
 
 table nexthops {
