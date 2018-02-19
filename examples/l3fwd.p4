@@ -152,7 +152,7 @@ table macfwd {
 
 control ingress {
        apply(macfwd) {
-          hit {
+          _nop {
                apply(ipv4_lpm);
                apply(nexthops);
           }
