@@ -525,10 +525,11 @@ def gen_format_expr_16(e, format_as_value=True):
             haddr = "pd->headers[header_instance_%s].pointer"%arg0
             hlen  = "pd->headers[header_instance_%s].length" %arg0
 
-            #[ if (emit_addr != $haddr) {
+            #[ if (($haddr != 0) && (emit_addr != $haddr)) {
             #[     memcpy(emit_addr, $haddr, $hlen);
             #[ }
-            #[ emit_addr += $hlen;
+            #[ if ($haddr != 0) 
+            #[ {  emit_addr += $hlen; }
         elif e.method.node_type == 'Member' and e.method.member == 'isValid':
             if hasattr(e.method.expr, 'header_ref'):
                 return "(pd->headers[%s].pointer != NULL)" % e.method.expr.header_ref.id
