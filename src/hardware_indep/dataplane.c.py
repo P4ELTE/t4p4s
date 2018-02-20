@@ -274,9 +274,11 @@ for pe in pipeline_elements:
 #[ void handle_packet(${STDPARAMS})
 #[ {
 #[     int value32;
+#[     int res32;
 #[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
 #[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
 #[     reset_headers(pd);
+#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
 #[     parse_packet(pd, tables);
 #[     emit_addr = pd->data;
 #[     process_packet(pd, tables);
