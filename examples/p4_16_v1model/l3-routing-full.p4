@@ -106,7 +106,7 @@ control DeparserImpl(packet_out packet, in headers hdr) {
 
 control verifyChecksum(inout headers hdr, inout metadata meta) {
     apply {
-        @offload("eth<tcp", hdr.ipv4.fragOffset, true) @almafa() {
+        @offload() {
 	verify_checksum(hdr.ipv4.isValid(), { hdr.ipv4.versionIhl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr }, hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
 	}
     }
@@ -114,7 +114,7 @@ control verifyChecksum(inout headers hdr, inout metadata meta) {
 
 control computeChecksum(inout headers hdr, inout metadata meta) {
     apply {
-        @offload() {
+        @offload(112, 160) {
 	update_checksum(hdr.ipv4.isValid(), { hdr.ipv4.versionIhl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr }, hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
 	}
     }

@@ -47,12 +47,20 @@ void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t ck
 
 void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
-    verify_checksum(cond, data, cksum_field_handle, algorithm, pd, tables);
+    
+   if((pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
+            uint32_t res32;
+            MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_checksum_error, 1)
+        }
 }
 
-void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, uint8_t len_l2, uint8_t len_l3,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
-    update_checksum(cond, data, cksum_field_handle, algorithm, pd, tables);
+    pd->wrapper->l2_len = len_l2;
+    pd->wrapper->l3_len = len_l3;
+    pd->wrapper->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    uint32_t res32;
+    MODIFY_INT32_INT32_BITS(cksum_field_handle, 0)
 }
 
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables) {
