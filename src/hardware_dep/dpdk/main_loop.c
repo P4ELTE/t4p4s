@@ -324,6 +324,7 @@ send_packet(packet_descriptor_t* pd)
 {
     if (pd->dropped) {
         debug("  :::: DROPPING\n");
+        pd->dropped=0;
     } else {
         int port = EXTRACT_EGRESSPORT(pd);
         int inport = EXTRACT_INGRESSPORT(pd);

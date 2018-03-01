@@ -26,6 +26,7 @@
 #include "sock_helpers.h"
 #include "fifo.h"
 #include <sys/select.h>
+#include <unistd.h> 
 
 #define P4_BG_MEM_CELL_SIZE 2048
 #define P4_BG_QUEUE_SIZE 1024
@@ -90,6 +91,11 @@ void backend_processor(void* bg)
 		if (FD_ISSET(bgt->controller_sock, &rfs))
 		{
 			mem_cell = touch_mem_cell(bgt);
+                        while (NULL == mem_cell){
+                                mem_cell = touch_mem_cell(bgt);
+                                usleep(1000);
+                        }
+
 			if ((rv=read_p4_msg(bgt->controller_sock, mem_cell->data, mem_cell->length)) > 0)
 			{
 				fifo_add_msg( &(bgt->input_queue), (void*)mem_cell );

@@ -98,7 +98,7 @@ hash_create(int socketid, const char* name, uint32_t keylen, rte_hash_function h
 }
 
 struct rte_lpm *
-lpm4_create(int socketid, const char* name, uint8_t max_size)
+lpm4_create(int socketid, const char* name, int max_size)
 {
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
     struct rte_lpm_config config = {
@@ -116,7 +116,7 @@ lpm4_create(int socketid, const char* name, uint8_t max_size)
 }
 
 struct rte_lpm6 *
-lpm6_create(int socketid, const char* name, uint8_t max_size)
+lpm6_create(int socketid, const char* name, int max_size)
 {
     struct rte_lpm6_config config = {
         .max_rules = max_size,
@@ -140,7 +140,7 @@ hash_add_key(struct rte_hash* h, void *key)
 }
 
 void
-lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint8_t value)
+lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint32_t value)
 {
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
@@ -149,7 +149,7 @@ lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, uint8_t value)
 }
 
 void
-lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, uint8_t value)
+lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, uint32_t value)
 {
     int ret = rte_lpm6_add(l, key, depth, value);
     if (ret < 0)
@@ -224,6 +224,7 @@ exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
     value = add_index(value, t->val_size, t->counter++);
     ext->content[index%256] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
+    debug("EXACT: Added key: %08x %32x (%d)\n", (unsigned)*key, (unsigned)index, value);
 }
 
 void
@@ -297,11 +298,11 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         uint32_t key32 = 0;
         memcpy(&key32, key, t->key_size);
 
-        uint8_t result;
+        uint32_t result;
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
         uint32_t result32;
         int ret = rte_lpm_lookup(ext->rte_table, key32, &result32);
-        result = (uint8_t)result32;
+        result = (uint32_t)result32;
 #else
         int ret = rte_lpm_lookup(ext->rte_table, key32, &result);
 #endif
@@ -313,13 +314,9 @@ lpm_lookup(lookup_table_t* t, uint8_t* key)
         memset(key128, 0, 16);
         memcpy(key128, key, t->key_size);
 
-        uint8_t result;
-#if RTE_VERSION < RTE_VERSION_NUM(17, 05, 0, 0)
+        uint32_t result;
         // note: DPDK 17.05 changed next_hop to 32 bits
         int ret = rte_lpm6_lookup(ext->rte_table, key128, &result);
-#else
-        int ret = rte_lpm6_lookup_v20(ext->rte_table, key128, &result);
-#endif
         return ret == 0 ? ext->content[result] : t->default_val;
     }
     return NULL;

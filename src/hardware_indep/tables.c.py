@@ -29,7 +29,7 @@ for table in hlir.p4_tables.values():
     #[  .key_size = ${key_length},
     #[  .val_size = sizeof(struct ${table.name}_action),
     #[  .min_size = 0, //${table.min_size},
-    #[  .max_size = 255 //${table.max_size}
+    #[  .max_size = 250000 //${table.max_size}
     #[ },
 #[ };
 

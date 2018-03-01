@@ -12,6 +12,11 @@ controller_for_example["l3_routing_test"]="dpdk_l3_controller"
 controller_for_example["l3_routing-full"]="dpdk_l3-full_controller"
 controller_for_example["l2_l3-fixed"]="dpdk_l2_l3_controller"
 controller_for_example["nat"]="dpdk_nat_controller"
+controller_for_example["portfwd"]="dpdk_portfwd_controller"
+controller_for_example["l3fwd"]="dpdk_l3fwd_controller"
+
+
+
 
 print_usage_and_exit() {
     (>&2 echo "Usage: $0 <switch executable> [controller name] [controller params file] -- <options for compiled switch>")
