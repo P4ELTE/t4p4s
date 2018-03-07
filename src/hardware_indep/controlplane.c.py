@@ -85,9 +85,9 @@ for table in hlir16.tables:
     if table.match_type == "LPM":
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
-            if table.match_type == "EXACT":
+            if k.match_type == "exact":
                 #[ prefix_length += ${get_key_byte_width(k)};
-            if table.match_type == "LPM":
+            if k.match_type == "lpm":
                 #[ prefix_length += field_instance_${k.header.name}_${k.field_name}_prefix_length;
         #[ int c, d;
         #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
