@@ -40,12 +40,17 @@ pipeline_elements = main.arguments
 
 #package_type = hlir16.declarations.get(package_name, 'Type_Package')
 
+#[ struct apply_result_s {
+#[     bool hit;
+#[     enum actions action_run;
+#[ };
+
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
     if c is not None:
         #[ void control_${pe.type.name}(${STDPARAMS});
         for t in c.controlLocals['P4Table']:
-            #[ void ${t.name}_apply(${STDPARAMS});
+            #[ struct apply_result_s ${t.name}_apply(${STDPARAMS});
 
 ################################################################################
 
@@ -94,20 +99,20 @@ for table in hlir16.tables:
 
 for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
-    #[ void ${table.name}_apply(${STDPARAMS})
+    #[ struct apply_result_s ${table.name}_apply(${STDPARAMS})
     #[ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
     #[     uint8_t* key[${table.key_length_bytes}];
     #[     table_${table.name}_key(pd, (uint8_t*)key);
     #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
     #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
-    #[     int index; (void)index;
+    #[     bool hit = res != NULL;
 
     # COUNTERS
     # TODO
 
     # ACTIONS
-    #[     if(res == NULL) {
+    #[     if(!hit) {
     #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
     #[     } else {
     #[       switch (res->action_id) {
@@ -124,10 +129,13 @@ for table in hlir16.tables:
         #[           break;
     #[       }
     #[     }
+
+    #[     struct apply_result_s apply_result = { hit, hit ? res->action_id : -1 };
+    #[     return apply_result;
     #[ }
     #[
     #[ struct ${table.name}_s {
-    #[     void (*apply)(packet_descriptor_t* pd, lookup_table_t** tables);
+    #[     struct apply_result_s (*apply)(packet_descriptor_t* pd, lookup_table_t** tables);
     #[ };
     #[ struct ${table.name}_s ${table.name} = {.apply = &${table.name}_apply};
 

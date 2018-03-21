@@ -259,6 +259,16 @@ def gen_format_statement_16(stmt):
             else:
                 addError('generating method call statement', 'Invalid method call {}'.format(stmt.methodCall))
                 #[ /* unhandled method call ${stmt.methodCall} */
+    elif stmt.node_type == 'SwitchStatement':
+        #[ switch(${format_expr_16(stmt.expression)}) {
+        for case in stmt.cases:
+            #[ case ${format_expr_16(case.label)}:
+            #[   ${format_statement_16(case.statement)}
+            #[   break;
+        #[   default: {}
+        #[ }
+    else:
+        addError('generating statement', '{} is not supported yet'.format(stmt.node_type))
 
 
 ################################################################################
@@ -485,6 +495,8 @@ def gen_format_expr_16(e, format_as_value=True):
         return '\nelse\n'.join(cases)
 
     elif e.node_type == 'PathExpression':
+        if e.type.node_type == 'Type_Action':
+            return 'action_{}'.format(e.ref.name)
         return e.ref.name
 
     elif e.node_type == 'Member':
