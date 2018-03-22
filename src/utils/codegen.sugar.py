@@ -364,6 +364,13 @@ def gen_format_expr_16(e, format_as_value=True):
         return format_type_16(e.type) + " " + e.name
     elif e.node_type == 'Constant':
         if e.type.node_type == 'Type_Bits':
+            if e.type.size > 32: # If the constant is more than 32 bits a temporary buffer has to be created for it
+                tmp_var_name = gen_var_name(e)
+                tmp_bytewidth = (e.type.size - 1) / 8 + 1
+                prepend_statement('uint8_t {}[{}] = {};'.format(tmp_var_name, tmp_bytewidth,
+                                                                int_to_big_endian_byte_array_with_length(e.value, tmp_bytewidth)));
+                return tmp_var_name
+
             # 4294967136 versus (uint32_t)4294967136
             return '(' + format_type_16(e.type) + ')' + str(e.value)
         else:
@@ -384,6 +391,10 @@ def gen_format_expr_16(e, format_as_value=True):
         return '(' + format_type_mask(e.type) + '(~' + format_expr_16(e.expr) + '))'
     elif e.node_type == 'LNot':
         return '(!' + format_expr_16(e.expr) + ')'
+
+    elif e.node_type == 'Equ' and e.left.type.node_type == 'Type_Bits' and e.left.type.size > 32:
+        tmp_bytewidth = (e.left.type.size - 1) / 8 + 1
+        return '(memcmp({}, {}, {}) == 0)'.format(format_expr_16(e.left), format_expr_16(e.right), tmp_bytewidth)
 
     elif e.node_type in simple_binary_ops:
         return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
@@ -504,6 +515,13 @@ def gen_format_expr_16(e, format_as_value=True):
             if format_as_value == False:
                 return fldid2(e.expr.header_ref, e.field_ref)
             else:
+                if e.type.size > 32: # If the field is more than 32 bits a temporary buffer has to be created for it
+                    tmp_var_name = gen_var_name(e)
+                    tmp_bytewidth = (e.type.size - 1) / 8 + 1
+                    prepend_statement('uint8_t {}[{}];'.format(tmp_var_name, tmp_bytewidth))
+                    prepend_statement('EXTRACT_BYTEBUF_PACKET(pd, {}, {}, {})'.format(e.expr.header_ref.id, e.field_ref.id, tmp_var_name))
+                    return tmp_var_name
+
                 return '(GET_INT32_AUTO_PACKET(pd, ' + e.expr.header_ref.id + ', ' + e.field_ref.id + '))'
         elif hasattr(e, 'header_ref'):
             return e.header_ref.id
