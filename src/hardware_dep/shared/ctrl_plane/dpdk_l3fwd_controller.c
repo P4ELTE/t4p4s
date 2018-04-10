@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 #define MAX_IPS 60000
 
@@ -48,6 +49,7 @@ void fill_macfwd_table(uint8_t mac[6])
         netconv_p4_action(a);
 
         send_p4_msg(c, buffer, 2048);
+	usleep(1200);
 }
 
 
@@ -87,6 +89,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4],uint8_t prefix, uint32_t nhgrp)
     netconv_p4_action_parameter(ap);
 
     send_p4_msg(c, buffer, 2048);
+    usleep(1200);
 }
 
 void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_t dmac[6])
@@ -99,6 +102,7 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
     struct p4_field_match_exact* exact;
 
     printf("nexthops\n");
+    printf("Group: %d Port: %d Smac: %d:%d:%d:%d:%d:%d Dmac: %d:%d:%d:%d:%d:%d\n", nhgroup, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
 
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
@@ -136,6 +140,7 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
     netconv_p4_action_parameter(ap3);
 
     send_p4_msg(c, buffer, 2048);
+    usleep(1200);
 }
 
 void set_default_action_macfwd()
@@ -244,9 +249,11 @@ int read_config_from_file(char *filename) {
 	f = fopen(filename, "r");
 	if (f == NULL) return -1;
 
+        int line_index = 0;
         while (fgets(line, sizeof(line), f)) {
                 line[strlen(line)-1] = '\0';
-
+                line_index++;
+                printf("Sor: %d.",line_index);
                 if (line[0]=='M') {
                     if (7 == sscanf(line, "%c %x:%x:%x:%x:%x:%x%c",
                                 &dummy, &dmac[0], &dmac[1], &dmac[2],
@@ -274,11 +281,15 @@ int read_config_from_file(char *filename) {
                     }
                 }
                 else if (line[0]=='N') {
+                    char dummy2;
                     if (15 == sscanf(line, "%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c",
-                                &dummy, &nhgrp, &port, &smac[0], &smac[1], &smac[2],
+                                &dummy2, &nhgrp, &port, &smac[0], &smac[1], &smac[2],
                                 &smac[3], &smac[4], &smac[5],&dmac[0], &dmac[1], &dmac[2],
                                 &dmac[3], &dmac[4], &dmac[5]) )
                     {
+                        printf(line);
+                        printf("\n");
+                        printf("%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c",dummy, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5],dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
                         fill_nexthops_table(nhgrp, port, smac, dmac);
                     }
                     else {

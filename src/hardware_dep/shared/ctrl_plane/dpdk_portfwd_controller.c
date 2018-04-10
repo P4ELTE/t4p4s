@@ -21,7 +21,7 @@
 
 controller c;
 
-void fill_t_fwd_table(uint8_t inport, uint8_t port, uint8_t mac[6], bool wmac)
+void fill_t_fwd_table(uint16_t inport, uint8_t port, uint8_t mac[6], bool wmac)
 {
         char buffer[2048];
         struct p4_header* h;
@@ -31,14 +31,18 @@ void fill_t_fwd_table(uint8_t inport, uint8_t port, uint8_t mac[6], bool wmac)
         struct p4_action_parameter* ap2;
         struct p4_field_match_exact* exact;
 
+/*	uint8_t v[2];
+	v[0]=inport;
+	v[1]=0;
+*/
         h = create_p4_header(buffer, 0, 2048);
         te = create_p4_add_table_entry(buffer,0,2048);
 	strcpy(te->table_name, "t_fwd");
 
         exact = add_p4_field_match_exact(te, 2048);
         strcpy(exact->header.name, "standard_metadata.ingress_port");
-        memcpy(exact->bitmap, &inport , 1);
-        exact->length = 1*8+0;
+        memcpy(exact->bitmap, &inport , 2);
+        exact->length = 2*8+0;
 	if (wmac) {
         	a = add_p4_action(h, 2048);
         	strcpy(a->description.name, "forward_rewrite");
@@ -89,6 +93,8 @@ void set_default_action_t_fwd()
 	struct p4_header* h;
 	struct p4_set_default_action* sda;
 	struct p4_action* a;
+	struct p4_action_parameter* ap;
+	uint8_t port = 1;
 
 	printf("Generate set_default_action message for table t_fwd\n");
 	
@@ -98,11 +104,19 @@ void set_default_action_t_fwd()
 	strcpy(sda->table_name, "t_fwd");
 
 	a = &(sda->action);
-	strcpy(a->description.name, "drop");
+	strcpy(a->description.name, "_drop");
+
+//        strcpy(a->description.name, "forward");
+
+//	ap = add_p4_action_parameter(h, a, 2048);
+//	strcpy(ap->name, "port");
+//	memcpy(ap->bitmap, &port, 1);
+//	ap->length = 1*8+0;
 
 	netconv_p4_header(h);
 	netconv_p4_set_default_action(sda);
 	netconv_p4_action(a);
+//	netconv_p4_action_parameter(ap);
 
 	send_p4_msg(c, buffer, sizeof(buffer));
 }

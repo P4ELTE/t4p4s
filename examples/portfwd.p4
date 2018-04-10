@@ -2,7 +2,7 @@ header_type ethernet_t {
     fields {
         dstAddr : 48;
         srcAddr : 48;
-        etherType : 14;
+        etherType : 16;
     }
 }
 
@@ -37,7 +37,7 @@ table t_fwd {
     reads {
         standard_metadata.ingress_port : exact;
     }
-    actions {forward; forward_rewrite;}
+    actions {forward; forward_rewrite; _drop;}
     size : 2048;
 }
 

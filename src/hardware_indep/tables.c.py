@@ -27,7 +27,7 @@ for table in hlir16.tables:
     #[  .key_size = ${table.key_length_bytes},
     #[  .val_size = sizeof(struct ${table.name}_action),
     #[  .min_size = 0,
-    #[  .max_size = 255,
+    #[  .max_size = 250000
     #[ },
 #[ };
 

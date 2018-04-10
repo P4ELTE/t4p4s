@@ -4,7 +4,7 @@
 header ethernet_t {
     bit<48> dstAddr;
     bit<48> srcAddr;
-    bit<14> etherType;
+    bit<16> etherType;
 }
 
 struct metadata {
