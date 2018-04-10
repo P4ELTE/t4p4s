@@ -7,12 +7,9 @@ CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
 # controllers for the examples
 declare -A controller_for_example
 controller_for_example["test"]="dpdk_controller"
-controller_for_example["l2_switch_test"]="dpdk_controller"
-controller_for_example["l3_routing_test"]="dpdk_l3_controller"
-controller_for_example["l3_routing-full"]="dpdk_l3-full_controller"
-controller_for_example["l2_l3-fixed"]="dpdk_l2_l3_controller"
 controller_for_example["nat"]="dpdk_nat_controller"
 controller_for_example["portfwd"]="dpdk_portfwd_controller"
+controller_for_example["l2fwd"]="dpdk_l2fwd_controller"
 controller_for_example["l3fwd"]="dpdk_l3fwd_controller"
 
 
