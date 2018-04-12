@@ -25,6 +25,7 @@ from subprocess import call
 import re
 import os
 import sys
+import traceback
 from os.path import isfile, join
 
 
@@ -197,12 +198,18 @@ def sugar(file, line):
     import re
     global file_sugar_style
     sugar_file = re.sub("[.].*$", "", file)
-    if file_sugar_style[-1] == 'line_comment': return ' // ' + sugar_file + '@' + str(line) + '\\n'
-    if file_sugar_style[-1] == 'inline_comment': return '/* ' + sugar_file + '@' + str(line) + '*/'
+    if file_sugar_style[-1] == 'line_comment':
+        # if file == "{2}":
+        #     return ' // @' + str(line) + '\\n'
+        return ' // ' + sugar_file + '@' + str(line) + '\\n'
+    if file_sugar_style[-1] == 'inline_comment':
+        # if file == "{2}":
+        #     return '\\n/* @' + str(line) + '*/'
+        return '\\n/* ' + sugar_file + '@' + str(line) + '*/'
     return ''
 
 
-""".format(file, indent_str).splitlines()
+""".format(file, indent_str, os.path.basename(file)).splitlines()
 
     code_lines = enumerate(code.splitlines())
     code_lines = add_gen_in_def(code_lines, file)
@@ -262,6 +269,8 @@ def generate_code(file, genfile, localvars={}):
                 # TODO better error output
                 # addError("{}:{}".format(genfile, tb.tb_frame.f_lineno), exc.message)
                 print("Error: cannot compile file {}".format(genfile), file=sys.stderr)
+                print("Exception: {}".format(str(exc)), file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 raise
 
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
@@ -404,4 +413,11 @@ def main():
         sys.exit(1)
 
 
-main()
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        # Most debuggers allow you to just do .post_mortem()
+        # but see https://github.com/gotcha/ipdb/pull/94
+        tb = sys.exc_info()[2]
+        import ipdb; ipdb.post_mortem(tb)

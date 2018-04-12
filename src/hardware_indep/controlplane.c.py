@@ -34,34 +34,28 @@ for table in hlir16.tables:
 
 
 if len(hlir16.tables)>0:
-    max_bytes = max([t.key_length_bytes for t in hlir16.tables])
+    max_bytes = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')])
     #[ uint8_t reverse_buffer[$max_bytes];
-
-for table in hlir16.tables:
-    #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
-
-    params = []
-    for key in table.key.keyElements:
-        # TODO make an attribute for it
-        # key_width_bits = bits_to_bytes(key.width)
-        if key.expression.node_type == 'Member':
-            if key.get_attr('width') is None:
-                # TODO
-                continue
-            key_width_bits = key.width / 8
-            params += "uint8_t {}[{}]".format(key.field_name, key_width_bits),
-
-    #[ void TODO16_${table.name}_add(${', '.join(params)}, struct ${table.name}_action action) {
-    #[ }
 
 # Variable width fields are not supported
 def get_key_byte_width(k):
+    # for special functions like isValid
+    if k.get_attr('header') is None:
+        return 0
+        
     return (k.width+7)/8 if not k.header.type.type_ref.is_vw else 0
 
 for table in hlir16.tables:
+    if not hasattr(table, 'key'):
+        continue
+
     #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
     #{ void ${table.name}_add(
     for k in table.key.keyElements:
+        # TODO should properly handle specials (isValid etc.)
+        if k.get_attr('header') is None:
+            continue
+
         byte_width = get_key_byte_width(k)
         #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
         
@@ -77,7 +71,11 @@ for table in hlir16.tables:
     #[     uint8_t key[${table.key_length_bytes}];
 
     byte_idx = 0
-    for k in sorted(table.key.keyElements, key = lambda k: match_type_order(k.match_type)):
+    for k in sorted((k for k in table.key.keyElements if k.get_attr('match_type') is not None), key = lambda k: match_type_order(k.match_type)):
+        # TODO should properly handle specials (isValid etc.)
+        if k.get_attr('header') is None:
+            continue
+
         byte_width = get_key_byte_width(k)
         #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
         byte_idx += byte_width
@@ -85,6 +83,10 @@ for table in hlir16.tables:
     if table.match_type == "LPM":
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
+            # TODO should properly handle specials (isValid etc.)
+            if k.get_attr('header') is None:
+                continue
+
             if k.match_type == "exact":
                 #[ prefix_length += ${get_key_byte_width(k)};
             if k.match_type == "lpm":
@@ -112,11 +114,22 @@ def get_action_name_str(action):
 
 
 for table in hlir16.tables:
+    if not hasattr(table, 'key'):
+        continue
+
     #{ void ${table.name}_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
     for i, k in enumerate(table.key.keyElements):
+        # TODO should properly handle specials (isValid etc.)
+        if k.get_attr('header') is None:
+            continue
+
         if k.match_type == "exact":
             #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
         if k.match_type == "lpm":
+            #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint16_t field_instance_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
+        if k.match_type == "ternary":
+            # TODO are these right?
             #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
             #[ uint16_t field_instance_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
 
@@ -133,9 +146,15 @@ for table in hlir16.tables:
         #[     debug("Adding new entry to ${table.name} with action ${action.action_object.name}\n");
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
+            # TODO handle specials properly (isValid etc.)
+            if k.get_attr('header') is None:
+                continue
+
             #[ field_instance_${k.header.name}_${k.field_name},
             if k.match_type == "lpm":
                 #[ field_instance_${k.header.name}_${k.field_name}_prefix_length,
+            if k.match_type == "ternary":
+                #[ 0 /* TODO dstPort_mask */,
         #[     action);
         #}
         #} } else
@@ -144,6 +163,9 @@ for table in hlir16.tables:
     #} }
 
 for table in hlir16.tables:
+    if not hasattr(table, 'key'):
+        continue
+
     #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     #[ debug("Action name: %s\n", ctrl_m->action_name);
     for action in table.actions:
@@ -166,6 +188,9 @@ for table in hlir16.tables:
 #[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
 #[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
 for table in hlir16.tables:
+    if not hasattr(table, 'key'):
+        continue
+
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_add_table_entry(ctrl_m);
     #[ else
@@ -173,6 +198,9 @@ for table in hlir16.tables:
 #[     }
 #[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
 for table in hlir16.tables:
+    if not hasattr(table, 'key'):
+        continue
+
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_set_default_table_action(ctrl_m);
     #[ else

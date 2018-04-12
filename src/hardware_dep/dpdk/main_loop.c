@@ -105,45 +105,18 @@ struct rte_mempool * pktmbuf_pool[NB_SOCKETS];
 
 
 /* Send burst of packets on an output interface */
-static inline int
+static inline void
 send_burst(struct lcore_conf *qconf, uint16_t n, uint8_t port)
 {
-    struct rte_mbuf **m_table;
-    int ret;
-    uint16_t queueid;
+    uint16_t queueid = qconf->tx_queue_id[port];
+    struct rte_mbuf **m_table = (struct rte_mbuf **)qconf->tx_mbufs[port].m_table;
 
-    queueid = qconf->tx_queue_id[port];
-    m_table = (struct rte_mbuf **)qconf->tx_mbufs[port].m_table;
-
-    ret = rte_eth_tx_burst(port, queueid, m_table, n);
+    int ret = rte_eth_tx_burst(port, queueid, m_table, n);
     if (unlikely(ret < n)) {
         do {
             rte_pktmbuf_free(m_table[ret]);
         } while (++ret < n);
     }
-
-    return 0;
-}
-
-/* Send burst of outgoing packet, if timeout expires. */
-static inline void
-send_timeout_burst(struct lcore_conf *qconf)
-{
-        uint64_t cur_tsc;
-        uint8_t portid;
-        const uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US;
-
-        cur_tsc = rte_rdtsc();
-        if (likely (cur_tsc < qconf->tx_tsc + drain_tsc))
-            return;
-
-        for (portid = 0; portid < MAX_PORTS; portid++) {
-            if (qconf->tx_mbufs[portid].len != 0) {
-                send_burst(qconf, qconf->tx_mbufs[portid].len, portid);
-                qconf->tx_mbufs[portid].len = 0; 
-            }
-        }
-        qconf->tx_tsc = cur_tsc;
 }
 
 
@@ -200,21 +173,30 @@ bitcnt(uint32_t v)
         return (n);
 }
 
-static void
-dpdk_send_packet(struct rte_mbuf *m, uint8_t port, uint32_t lcore_id)
+static uint16_t
+add_packet_to_queue(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
 {
     struct lcore_conf *qconf = &lcore_conf[lcore_id];
-    uint16_t len = qconf->tx_mbufs[port].len;
-    qconf->tx_mbufs[port].m_table[len] = m;
-    len++;
+    uint16_t queue_length = qconf->tx_mbufs[port].len;
+    qconf->tx_mbufs[port].m_table[queue_length] = mbuf;
+    queue_length++;
 
-    if (unlikely(len == MAX_PKT_BURST)) {
+    return queue_length;
+}
+
+static void
+dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
+{
+    struct lcore_conf *qconf = &lcore_conf[lcore_id];
+    uint16_t queue_length = add_packet_to_queue(mbuf, port, lcore_id);
+
+    if (unlikely(queue_length == MAX_PKT_BURST)) {
         debug("    :: BURST SENDING DPDK PACKETS - port:%d\n", port);
         send_burst(qconf, MAX_PKT_BURST, port);
-        len = 0;
+        queue_length = 0;
     }
 
-    qconf->tx_mbufs[port].len = len;
+    qconf->tx_mbufs[port].len = queue_length;
 }
 
 /* creating replicas of a packet for  */
@@ -335,28 +317,20 @@ dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
 
 
 /* Enqueue a single packet, and send burst if queue is filled */
-static inline int
-send_packet(packet_descriptor_t* pd)
+static inline void
+send_packet(struct rte_mbuf * mbuf, int egress_port, int ingress_port)
 {
-    if (pd->dropped) {
-        debug("  :::: DROPPING\n");
-        pd->dropped=0;
+    debug("  :::: EGRESSING\n");
+
+    uint32_t lcore_id = rte_lcore_id();
+
+    if (egress_port==100) {
+        debug("    :: broadcasting packet from port %d (lcore %d)\n", ingress_port, lcore_id);
+        dpdk_bcast_packet(mbuf, ingress_port, lcore_id);
     } else {
-        int port = EXTRACT_EGRESSPORT(pd);
-        int inport = EXTRACT_INGRESSPORT(pd);
-
-        uint32_t lcore_id = rte_lcore_id();
-
-        debug("  :::: EGRESSING\n");
-        debug("    :: deparsing headers\n");
-        debug("    :: sending packet on port %d (lcore %d)\n", port, lcore_id);
-
-        if (port==100)
-            dpdk_bcast_packet((struct rte_mbuf *)pd->wrapper, inport, lcore_id);
-        else
-            dpdk_send_packet((struct rte_mbuf *)pd->wrapper, port, lcore_id);
+        debug("    :: sending packet on port %d (lcore %d)\n", egress_port, lcore_id);
+        dpdk_send_packet(mbuf, egress_port, lcore_id);
     }
-    return 0;
 }
 
 static void
@@ -375,7 +349,16 @@ packet_received(packet_descriptor_t* pd, packet *p, unsigned portid, struct lcor
     pd->wrapper = p;
     set_metadata_inport(pd, portid);
     handle_packet(pd, conf->state.tables);
-    send_packet(pd);
+
+    if (pd->dropped) {
+        debug("  :::: DROPPING\n");
+    } else {
+        int egress_port = EXTRACT_EGRESSPORT(pd);
+        int ingress_port = EXTRACT_INGRESSPORT(pd);
+        struct rte_mbuf * mbuf = (struct rte_mbuf *)pd->wrapper;
+
+        send_packet(mbuf, egress_port, ingress_port);
+    }
 }
 
 void

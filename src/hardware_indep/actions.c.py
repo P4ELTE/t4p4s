@@ -12,14 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.codegen import format_statement_16
+from utils.codegen import format_declaration_16, format_statement_16_ctl
 import math
+
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
 #[ #include <unistd.h>
 
 #[ extern ctrl_plane_backend bg;
+
+
+
+#[ // TODO create this meter properly
+#[ void teid_meters(packet_descriptor_t* pd, lookup_table_t** tables) {
+#[ }
+
 
 for ctl in hlir16.controls:
     for act in ctl.actions:
@@ -30,10 +38,16 @@ for ctl in hlir16.controls:
         #{ void action_code_${act.name}(${', '.join(fun_params)}) {
         #[ uint32_t value32, res32, mask32;
         #[ (void)value32; (void)res32; (void)mask32;
+
+        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
+            local_var_name = "controlLocal_" + local_var_decl.name
+            #[ ${format_declaration_16(local_var_decl, local_var_name)}
+
         for stmt in act.body.components:
             global statement_buffer
             statement_buffer = ""
-            code = format_statement_16(stmt)
+
+            code = format_statement_16_ctl(stmt, ctl)
             if statement_buffer != "":
                 #= statement_buffer
                 statement_buffer = ""

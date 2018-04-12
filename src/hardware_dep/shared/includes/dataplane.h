@@ -15,6 +15,7 @@
 #define DATAPLANE_H
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include "aliases.h"
 #include "parser.h"
 #include "vector.h"
@@ -130,7 +131,16 @@ typedef struct packet_descriptor_s {
     header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
     parsed_fields_t     fields;
     packet *            wrapper;
+    packet *            out_wrapper;
     uint8_t             dropped;
+
+    int emit_length;
+    int parsed_length;
+    bool is_emit_reordering;
+    int header_reorder_length;
+    // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
+    int header_reorder[HEADER_INSTANCE_COUNT+8];
+    uint8_t header_tmp_storage[HEADER_INSTANCE_TOTAL_LENGTH];
 } packet_descriptor_t;
 
 //=============================================================================

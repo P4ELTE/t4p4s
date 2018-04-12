@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_declaration_16, format_statement_16, format_expr_16, format_type_16, type_env
+from utils.codegen import format_declaration_16, format_statement_16_ctl, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>
@@ -23,16 +23,19 @@ from utils.misc import addError, addWarning
 #[ #include "actions.h"
 
 #[ uint8_t* emit_addr;
+#[ uint32_t ingress_pkt_len;
 
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[ extern void increase_counter (int counterid, int index);
 
-max_key_length = max([t.key_length_bytes for t in hlir16.tables])
+# note: 0 is for the special case where there are no tables
+max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')] + [0])
 #[ uint8_t reverse_buffer[${max_key_length}];
 
 ################################################################################
 
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
+STDPARAMS_IN = "pd, tables"
 
 main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
 package_name = main.type.baseType.type_ref.name
@@ -47,10 +50,12 @@ pipeline_elements = main.arguments
 
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-        #[ void control_${pe.type.name}(${STDPARAMS});
-        for t in c.controlLocals['P4Table']:
-            #[ struct apply_result_s ${t.name}_apply(${STDPARAMS});
+    if c is None:
+        continue
+
+    #[ void control_${pe.type.name}(${STDPARAMS});
+    for t in c.controlLocals['P4Table']:
+        #[ struct apply_result_s ${t.name}_apply(${STDPARAMS});
 
 ################################################################################
 
@@ -65,12 +70,10 @@ def match_type_order_16(t):
 # Table key calculation
 
 for table in hlir16.tables:
-    # TODO find out why they are missing and fix it
-    #      this happens if k is a PathExpression
-    if any([k.get_attr('match_type') is None for k in table.key.keyElements]):
+    if not hasattr(table, 'key'):
         continue
 
-    #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
+    #{ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
     sortedfields = sorted(table.key.keyElements, key=lambda k: match_type_order_16(k.match_type))
     #TODO variable length fields
     #TODO field masks
@@ -87,26 +90,43 @@ for table in hlir16.tables:
             #[ key += ${byte_width};
         else:
             add_error("table key calculation", "Unsupported field %s ignored." % f.id)
+
     if table.match_type == "LPM":
         #[ key -= ${table.key_length_bytes};
         #[ int c, d;
         #[ for(c = ${table.key_length_bytes-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
         #[ for(c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
-    #[ }
+    #} }
 
 ################################################################################
 # Table application
+
+# for pe in pipeline_elements:
+#     c = hlir16.declarations.get(pe.type.name, 'P4Control')
+#     if c is None:
+#         continue
+
+#     for table in c.controlLocals['P4Table']:
+
+for pe in pipeline_elements:
+    c = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if c is None:
+        continue
 
 for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
     #[ struct apply_result_s ${table.name}_apply(${STDPARAMS})
     #[ {
-    #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
-    #[     uint8_t* key[${table.key_length_bytes}];
-    #[     table_${table.name}_key(pd, (uint8_t*)key);
-    #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
-    #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
-    #[     bool hit = res != NULL;
+    if hasattr(table, 'key'):
+        #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
+        #[     uint8_t* key[${table.key_length_bytes}];
+        #[     table_${table.name}_key(pd, (uint8_t*)key);
+        #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
+        #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
+        #[     bool hit = res != NULL;
+    else:
+        #[     struct ${table.name}_action* res = (struct ${table.name}_action*)0;
+        #[     bool hit = true;
 
     # COUNTERS
     # TODO
@@ -175,6 +195,8 @@ for h in hlir16.header_instances:
 #TODO are these keyless tabls supported in p4-16?
 
 def keyless_single_action_table(table):
+    if not table.get_attr('key'):
+        return True
     return table.key_length_bytes == 0 and len(table.actions) == 2 and table.actions[1].action_object.name.startswith('NoAction')
 
 for table in hlir16.tables:
@@ -254,40 +276,77 @@ for m in hlir16.declarations['Method']:
     #[ }
 
 for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-
+    ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
+        
+    if ctl is not None:
         #[ void control_${pe.type.name}(${STDPARAMS})
-        #[ {
-        #[     debug("entering control ${c.name}...\n");
+        #{ {
+        #[     debug("entering control ${ctl.name}...\n");
         #[     uint32_t value32, res32;
         #[     (void)value32, (void)res32;
-        for d in c.controlLocals:
-            #[ ${format_declaration_16(d)}
-        #[ ${format_statement_16(c.body)}
-        #[ }
+        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
+            local_var_name = "controlLocal_" + local_var_decl.name
+            #[ ${format_declaration_16(local_var_decl, local_var_name)}
+        #[ ${format_statement_16_ctl(ctl.body, ctl)}
+        #} }
 
 #[ void process_packet(${STDPARAMS})
 #{ {
 for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is not None:
-        #[ control_${pe.type.name}(pd, tables);
+    ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
+    if ctl is not None:
+        #[ control_${pe.type.name}(${STDPARAMS_IN});
         if pe.type.name == 'egress':
             #[ update_packet(pd); // we need to update the packet prior to calculating the new checksum
 #} }
 
 ################################################################################
 
+#[ void resize_packet_on_emit(${STDPARAMS})
+#{ {
+#{     if (unlikely(pd->emit_length != pd->parsed_length)) {
+#{         if (pd->emit_length < pd->parsed_length) {
+#[             rte_pktmbuf_adj((struct rte_mbuf*)pd, pd->parsed_length - pd->emit_length);
+#}         }
+#{         if (pd->emit_length > pd->parsed_length) {
+#[             rte_pktmbuf_prepend((struct rte_mbuf*)pd, pd->emit_length - pd->parsed_length);
+#}         }
+#}     }
+#} }
+
+#[ void emit_packet(${STDPARAMS})
+#{ {
+#[     resize_packet_on_emit(${STDPARAMS_IN});
+#[
+#[     uint8_t* emit_addr = pd->data + pd->parsed_length;
+#{     for (int i = pd->header_reorder_length - 1; i >= 0; --i) {
+#[         int hidx  = pd->header_reorder[i];
+#[         uint8_t* haddr = pd->headers[hidx].pointer;
+#[         int hlen  = pd->headers[hidx].length;
+#[
+#[         emit_addr -= hlen;
+#{         if (unlikely(emit_addr != haddr)) {
+#[             // memcpy(emit_addr, haddr, hlen);
+#}         }
+#}     }
+#} }
+
 #[ void handle_packet(${STDPARAMS})
-#[ {
+#{ {
 #[     int value32;
 #[     int res32;
 #[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
 #[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
 #[     reset_headers(pd);
-#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
-#[     parse_packet(pd, tables);
+#[     pd->parsed_length = 0;
+#[     parse_packet(${STDPARAMS_IN});
+#[
 #[     emit_addr = pd->data;
-#[     process_packet(pd, tables);
-#[ }
+#[     pd->emit_length = 0;
+#[     pd->is_emit_reordering = false;
+#[     pd->header_reorder_length = 0;
+#[
+#[     process_packet(${STDPARAMS_IN});
+#[
+#[     emit_packet(${STDPARAMS_IN});
+#} }

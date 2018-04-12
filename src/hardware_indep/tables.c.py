@@ -20,11 +20,13 @@ from utils.misc import addError, addWarning
 
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir16.tables:
+    tmt = table.match_type if hasattr(table, 'key') else "none"
+    ks  = table.key_length_bytes if hasattr(table, 'key') else 0
     #[ {
     #[  .name= "${table.name}",
     #[  .id = TABLE_${table.name},
-    #[  .type = LOOKUP_${table.match_type},
-    #[  .key_size = ${table.key_length_bytes},
+    #[  .type = LOOKUP_$tmt,
+    #[  .key_size = $ks,
     #[  .val_size = sizeof(struct ${table.name}_action),
     #[  .min_size = 0,
     #[  .max_size = 250000

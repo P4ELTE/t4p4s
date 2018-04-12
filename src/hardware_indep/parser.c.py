@@ -27,6 +27,7 @@ def extract_header_tmp(h):
     generated_code = ""
     #[ memcpy(${h.ref.name}, buf, ${h.type.byte_width});
     #[ buf += ${h.type.byte_width};
+    #[ pd->parsed_length += ${h.type.byte_width};
     return generated_code
 
 def extract_header_tmp_2(h, w):
@@ -34,20 +35,25 @@ def extract_header_tmp_2(h, w):
     x = sum([f.size if not f.is_vw else 0 for f in h.type.fields])
     w = format_expr_16(w)
     #[ int hdrlen = ((${w}+${x})/8);
+    #[ pd->parsed_length += hdrlen;
     #[ memcpy(${h.ref.name}, buf, hdrlen);
     #[ ${h.ref.name}_var = ${w};
     #[ buf += hdrlen;
     return generated_code
+
 
 def extract_header(h):
     generated_code = ""
     #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${h.type.type_ref.byte_width} > pd->wrapper->pkt_len); // packet_too_short // TODO optimize this
     #[ pd->headers[${h.id}].pointer = buf;
     #[ pd->headers[${h.id}].length = ${h.type.type_ref.byte_width};
+    #[ pd->parsed_length += ${h.type.type_ref.byte_width};
     #[ buf += pd->headers[${h.id}].length;
     #[ // pd->headers[${h.id}].valid = 1;
     for f in h.type.type_ref.fields:
-        if f.preparsed and f.size <= 32:
+        # TODO get rid of "f.get_attr('preparsed') is not None"
+        # TODO (f must always have a preparsed attribute)
+        if f.get_attr('preparsed') is not None and f.preparsed and f.size <= 32:
             #[ EXTRACT_INT32_AUTO_PACKET(pd, ${h.id}, ${f.id}, value32)
             #[ pd->fields.${f.id} = value32;
             #[ pd->fields.attr_${f.id} = 0;
@@ -65,7 +71,7 @@ def extract_header_2(h, w):
         #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len); // packet_too_short // TODO optimize this
         #[ if(hdrlen > ${h.type.byte_width}); // header_too_long
         #[ pd->headers[${h.id}].pointer = buf;
-        #[ pd->headers[${h.id}].length = hdrlen;
+        #[ pd->parsed_length += hdrlen;
         #[ pd->headers[${h.id}].var_width_field_bitwidth = hdrlen * 8 - ${sum([f.size if not f.is_vw else 0 for f in h.type.fields])};
         #[ // pd->headers[${h.id}].valid = 1;
     return generated_code

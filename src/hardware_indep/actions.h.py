@@ -29,7 +29,18 @@ a = {}
 for table in hlir16.tables:
     for action in unique_stable(table.actions):
         #[ action_${action.action_object.name},
+#[ action_dummy_action,
 #} };
+
+# TODO remove this; instead:
+# TODO in set_additional_attrs, replace all type references with the referenced types
+def resolve_typeref(hlir16, f):
+    # resolving type reference
+    if f.type.node_type == 'Type_Name':
+        tref = f.type.type_ref
+        return hlir16.declarations.get(tref.name)
+    else:
+        return f
 
 for table in hlir16.tables:
     for action in table.actions:
@@ -38,7 +49,10 @@ for table in hlir16.tables:
 
         #{ struct action_${action.action_object.name}_params {
         for param in action.action_object.parameters.parameters:
+            param = resolve_typeref(hlir16, param)
+            
             #[ FIELD(${param.name}, ${param.type.size});
+        #[ FIELD(DUMMY_FIELD, 0);
         #} };
 
 for table in hlir16.tables:

@@ -45,6 +45,7 @@ SRCS-y += dpdk_tables.c
 SRCS-y += dpdk_primitives.c
 SRCS-y += dpdk_vss_extern.c
 SRCS-y += dpdk_v1model_extern.c
+SRCS-y += dpdk_metadata.c
 SRCS-y += ternary_naive.c
 SRCS-y += vector.c
 
