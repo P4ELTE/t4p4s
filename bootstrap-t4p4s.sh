@@ -1,16 +1,21 @@
 # Set sensible defaults
-export DPDK_VSN=${DPDK_VSN-17.08}
 export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
 export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-v3.4.1}
 export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
 
-case $DPDK_VSN in
-"17.08") DPDK_FILEVSN=${DPDK_FILEVSN-17.08};;
-"17.05") DPDK_FILEVSN=${DPDK_FILEVSN-17.05.2};;
-"17.02") DPDK_FILEVSN=${DPDK_FILEVSN-17.02.1};;
-"16.11") DPDK_FILEVSN=${DPDK_FILEVSN-16.11.3};;
-"16.07") DPDK_FILEVSN=${DPDK_FILEVSN-16.07.2};;
-esac
+vsns=(18.02 17.11.2 17.08 17.05.2 17.02.1 16.11.3 16.07.2)
+for vsn in ${vsns[*]};
+do
+    shortvsn=`echo $vsn | sed -e 's/\([0-9]*[.][0-9]*\).*/\1/g'`
+    if [ "$DPDK_VSN" == $vsn -o "$DPDK_VSN" == $shortvsn ]; then
+        export DPDK_FILEVSN=$vsn
+        break
+    fi
+done
+
+export DPDK_FILEVSN=${DPDK_FILEVSN-${vsns[0]}}
+shortvsn=`echo $vsn | sed -e 's/\([0-9]*[.][0-9]*\).*/\1/g'`
+export DPDK_VSN=${DPDK_VSN-$shortvsn}
 
 # Download libraries
 sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev curl &
