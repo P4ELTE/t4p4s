@@ -37,6 +37,9 @@ dpdk_portfwd_controller:
 dpdk_l3fwd_controller:
 	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l3fwd_controller.c -o dpdk_l3fwd_controller
 
+dpdk_l2fwd_controller:
+	$(CC) $(CFLAGS) $(LIB) handlers.c controller.c messages.c sock_helpers.c threadpool.c fifo.c dpdk_l2fwd_controller.c -o dpdk_l2fwd_controller
+
 clean:
 	rm -f test_messages test_backend dpdk_controller dpdk_l3_controller dpdk_l3-full_controller dpdk_l2_l3_controller dpdk_nat_controller netpaxos_controller dpdk_portfwd_controller dpdk_l3fwd_controller
 

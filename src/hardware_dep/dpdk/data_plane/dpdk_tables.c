@@ -223,7 +223,7 @@ exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
     value = add_index(value, t->val_size, t->counter++);
     ext->content[index%t->max_size] = copy_to_socket(value, t->val_size+sizeof(int), t->socketid);
-    debug("EXACT: Added key: %08x %32x (%d)\n", (unsigned)*key, (unsigned)index, value);
+    debug("EXACT: Added key: %02x:%02x:%02x:%02x:%02x:%02x %32x (%d)\n", key[0],key[1],key[2],key[3],key[4],key[5], (unsigned)index, value);
 }
 
 void
