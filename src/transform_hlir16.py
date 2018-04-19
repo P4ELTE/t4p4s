@@ -32,6 +32,8 @@ def apply_annotations(postfix, extra_args, x):
         x.methodCall.method.ref = new_decl
         x.methodCall.method.path.name += "_" + postfix
         x.methodCall.arguments.vec += extra_args
+        del new_decl.type.parameters.parameters.vec[:2]
+        del x.methodCall.arguments.vec[:2]
     return x
 
 def search_for_annotations(x):

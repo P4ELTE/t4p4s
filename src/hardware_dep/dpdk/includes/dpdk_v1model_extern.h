@@ -24,10 +24,10 @@ void verify_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t ck
 void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
-void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
-void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, uint8_t len_l2, uint8_t len_l3,
+void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, uint8_t len_l2, uint8_t len_l3,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables);

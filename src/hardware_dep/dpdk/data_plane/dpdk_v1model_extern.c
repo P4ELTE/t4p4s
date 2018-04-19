@@ -16,8 +16,6 @@
 
 #include <rte_ip.h>
 
-extern int field_standard_metadata_t_checksum_error;
-
 void verify_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
     uint32_t res32, current_cksum = 0, calculated_cksum = 0;
@@ -47,7 +45,7 @@ void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t ck
     }
 }
 
-void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
     
    if((pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
@@ -56,7 +54,7 @@ void verify_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_han
         }
 }
 
-void update_checksum_offload(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, uint8_t len_l2, uint8_t len_l3,
+void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, uint8_t len_l2, uint8_t len_l3,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
     pd->wrapper->l2_len = len_l2;
     pd->wrapper->l3_len = len_l3;
