@@ -36,31 +36,31 @@ The most comfortable, all-inclusive choice is to run `launch.sh` (with proper pa
 ## Test examples (will work without any real network configuration)
 
 # using the L2 example without a real network configuration
-P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2_switch_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # using the L3 example without a real network configuration
-P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # the same as above, with verbose output
-P4_GCC_OPTS="-DP4DPDK_DEBUG" P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4_GCC_OPTS="-DP4DPDK_DEBUG" P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 
 ## The following examples will only work if you have a real network configuration with DPDK
 
 # supplying DPDK options directly
-./launch.sh examples/l3_routing_test.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+./launch.sh examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # supplying DPDK options via environment variable
 export P4DPDK_OPTS="-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"(0,0,0),(1,0,1)\""
-./launch.sh examples/l3_routing_test.p4
+./launch.sh examples/l3fwd.p4
 
 # using the L3 example with a configuration file for the control plane
 # and manual specification of the controller ("dpdk_controller")
-./launch.sh ./examples/l3_routing_test.p4 dpdk_controller examples/l3_switch_test_ctrl.txt -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+./launch.sh ./examples/l3fwd.p4 dpdk_controller examples/l3_switch_test_ctrl.txt -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # verbose output
 # "default" means that we use the default controller (applicable to example programs only)
-P4_GCC_OPTS="-DP4DPDK_DEBUG" ./launch.sh ./examples/l3_routing_test.p4 default -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4_GCC_OPTS="-DP4DPDK_DEBUG" ./launch.sh ./examples/l3fwd.p4 default -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 ~~~~~~~~
 
 
@@ -72,7 +72,7 @@ You can `compile`, `make` and `run` the code in separate steps.
     - The compiled files are placed within the directory `build/<P4-source-name>`.
 
     ~~~~~~~~{.bash}
-    ./compile.sh examples/l3_routing_test.p4
+    ./compile.sh examples/l3fwd.p4
     ~~~~~~~~
 
 1.  Run `make` in the directory `build/<P4-source-name>`.
@@ -86,11 +86,11 @@ You can `compile`, `make` and `run` the code in separate steps.
       except for the first one: here, you have to supply the name of the generated executable.
 
     ~~~~~~~~{.bash}
-    ./run.sh ./build/l3_routing_test/build/l3_routing_test -- -c 0xf -n 1 --log-level 3 -- -P -p 0x3
+    ./run.sh ./build/l3fwd/build/l3fwd -- -c 0xf -n 1 --log-level 3 -- -P -p 0x3
 
     # supplying DPDK options via environment variable
     export P4DPDK_OPTS="-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"(0,0,0),(1,0,1)\""
-    ./run.sh ./build/l3_routing_test/build/l3_routing_test
+    ./run.sh ./build/l3fwd/build/l3fwd
     ~~~~~~~~
 
 
