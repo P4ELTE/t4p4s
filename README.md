@@ -39,28 +39,29 @@ The most comfortable, all-inclusive choice is to run `launch.sh` (with proper pa
 P4DPDK_VARIANT=no_nic_l2 ./launch.sh ./examples/l2fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # using the L3 example without a real network configuration
-P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd-wo-chksm.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # the same as above, with verbose output
-P4_GCC_OPTS="-DP4DPDK_DEBUG" P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4_GCC_OPTS="-DP4DPDK_DEBUG" P4DPDK_VARIANT=no_nic_l3 ./launch.sh ./examples/l3fwd-wo-chksm.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 
 ## The following examples will only work if you have a real network configuration with DPDK
 
 # supplying DPDK options directly
-./launch.sh examples/l3fwd.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+./launch.sh examples/l3fwd-wo-chksm.p4 -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # supplying DPDK options via environment variable
 export P4DPDK_OPTS="-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"(0,0,0),(1,0,1)\""
-./launch.sh examples/l3fwd.p4
+./launch.sh examples/l3fwd-wo-chksm.p4
 
 # using the L3 example with a configuration file for the control plane
-# and manual specification of the controller ("dpdk_controller")
-./launch.sh ./examples/l3fwd.p4 dpdk_controller examples/l3_switch_test_ctrl.txt -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+# and manual specification of the controller (dpdk_l3fwd_controller)
+# the corresponding traffic files for the example configurations are named simmilarly (e.g.: l3fwd_traffic.pcap)
+./launch.sh ./examples/l3fwd-wo-chksm.p4 dpdk_l3fwd_controller examples/l3fwd_table.txt -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 
 # verbose output
 # "default" means that we use the default controller (applicable to example programs only)
-P4_GCC_OPTS="-DP4DPDK_DEBUG" ./launch.sh ./examples/l3fwd.p4 default -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
+P4_GCC_OPTS="-DP4DPDK_DEBUG" ./launch.sh ./examples/l3fwd-wo-chksm.p4 default -- -c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config "\"(0,0,0),(1,0,1)\""
 ~~~~~~~~
 
 
@@ -72,7 +73,7 @@ You can `compile`, `make` and `run` the code in separate steps.
     - The compiled files are placed within the directory `build/<P4-source-name>`.
 
     ~~~~~~~~{.bash}
-    ./compile.sh examples/l3fwd.p4
+    ./compile.sh examples/l3fwd-wo-chksm.p4
     ~~~~~~~~
 
 1.  Run `make` in the directory `build/<P4-source-name>`.
