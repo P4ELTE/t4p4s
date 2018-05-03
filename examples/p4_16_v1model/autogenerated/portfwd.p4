@@ -11,7 +11,7 @@ struct metadata {
 }
 
 struct headers {
-    @name("ethernet") 
+    @name(".ethernet") 
     ethernet_t ethernet;
 }
 
@@ -30,46 +30,30 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
     }
 }
 
-@name("mac_learn_digest") struct mac_learn_digest {
-    bit<48> srcAddr;
-    bit<9>  ingress_port;
-}
-
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name(".forward") action forward(bit<9> port) {
         standard_metadata.egress_port = port;
     }
-    @name(".bcast") action bcast() {
-        standard_metadata.egress_port = 9w100;
+    @name(".forward_rewrite") action forward_rewrite(bit<9> port, bit<48> mac) {
+        standard_metadata.egress_port = port;
+        hdr.ethernet.srcAddr = mac;
     }
-    @name(".mac_learn") action mac_learn() {
-        digest<mac_learn_digest>((bit<32>)1024, { hdr.ethernet.srcAddr, standard_metadata.ingress_port });
+    @name("._drop") action _drop() {
+        mark_to_drop();
     }
-    @name("._nop") action _nop() {
-    }
-    @name(".dmac") table dmac {
+    @name(".t_fwd") table t_fwd {
         actions = {
             forward;
-            bcast;
+            forward_rewrite;
+            _drop;
         }
         key = {
-            hdr.ethernet.dstAddr: exact;
+            standard_metadata.ingress_port: exact;
         }
-        size = 512;
-    }
-    @name(".smac") table smac {
-        actions = {
-            mac_learn;
-            _nop;
-        }
-        key = {
-            hdr.ethernet.srcAddr: exact;
-        }
-        size = 512;
+        size = 2048;
     }
     apply {
-        smac.apply();
-        dmac.apply();
+        t_fwd.apply();
     }
 }
 
@@ -79,7 +63,7 @@ control DeparserImpl(packet_out packet, in headers hdr) {
     }
 }
 
-control verifyChecksum(in headers hdr, inout metadata meta) {
+control verifyChecksum(inout headers hdr, inout metadata meta) {
     apply {
     }
 }
@@ -90,3 +74,4 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
+
