@@ -21,26 +21,26 @@ To start working with the compiler, do the following.
     - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
     - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
     - The system has to have hugepages configured. You can use `$RTE_SDK/tools/dpdk-setup.sh`, option `Setup hugepage mappings for non-NUMA systems`.
-1. Running the examples is very simple: `./t4p4s.sh ./examples/l2-switch-test.p4`.
+1. Running the examples is very simple: `./t4p4s.sh ./examples/l2fwd.p4`.
     - Make sure that before running this command, your `P4C` variable points to your [`p4c`](https://github.com/p4lang/p4c) directory, and `RTE_SDK` points your [`DPDK`](http://dpdk.org/) directory. Both are downloaded by `bootstrap-t4p4s.sh`.
     - This command uses defaults from `dpdk_parameters.cfg` and `examples.cfg`.
     - You can override behaviour from the command line like this:
 
 ~~~
 # This is the default behaviour
-./t4p4s.sh launch ./examples/l2-switch-test.p4
+./t4p4s.sh launch ./examples/l2fwd.p4
 # Run only C->executable compilation
-./t4p4s.sh c ./examples/l2-switch-test.p4
+./t4p4s.sh c ./examples/l2fwd.p4
 # Launch an already compiled executable
-./t4p4s.sh run ./examples/l2-switch-test.p4
+./t4p4s.sh run ./examples/l2fwd.p4
 # Compile and run a program in debug mode
-./t4p4s.sh dbg ./examples/l2-switch-test.p4
+./t4p4s.sh dbg ./examples/l2fwd.p4
 # Specify P4 version explicitly
-./t4p4s.sh v14 ./examples/l2-switch-test.p4
+./t4p4s.sh v14 ./examples/l2fwd.p4
 # Specify P4 version explicitly (default: from examples.cfg, or v16)
-./t4p4s.sh v14 ./examples/l2-switch-test.p4
+./t4p4s.sh v14 ./examples/l2fwd.p4
 # Specify DPDK configuration explicitly
-./t4p4s.sh cfg "-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2-switch-test.p4
+./t4p4s.sh cfg "-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2fwd.p4
 ~~~
 
 At the moment, P4-16 programs are not expected to compile properly.
@@ -56,7 +56,7 @@ However, they will produce C code in the `build` directory.
 The `docker` folder contains Dockerfiles and the script `t4p4s-docker-l2.sh` that illustrates how T4P4S can be used with Docker.
 
 - Docker Community Edition has to be configured on your system; see [this guide](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/).
-- Running `t4p4s-docker-l2.sh` sets up two containers called `t4p4s-16` and `t4p4s-16-l2-switch-test`. Both are usable separately; the second one also runs the L2 switch example (no network card needed).
+- Running `t4p4s-docker-l2.sh` sets up two containers called `t4p4s-16` and `t4p4s-16-l2fwd`. Both are usable separately; the second one also runs the L2 switch example (no network card needed).
 - The Docker instances rely on having the same version for `linux-headers` as the host system. See the `FROM` clause in the `t4p4s-16.docker` file.
 - The configuration is based on that of [`docker-dpdk` by Jeremy Eder](https://github.com/jeremyeder/docker-dpdk/), which includes using the host's `hugepages` inside the Docker instances. Make sure you have enough `hugepages` on the host before running the containers.
 
@@ -73,7 +73,7 @@ the system will open the debugger upon encountering a runtime error.
 - Note that for the following example, `ipdb` has to be installed (e.g. via `pip`).
 
 ~~~
-PDB=ipdb ./t4p4s.sh dbg ./examples/l2-switch-test.p4
+PDB=ipdb ./t4p4s.sh dbg ./examples/l2fwd.p4
 ~~~
 
 Of course, you can also manually add debug triggers to the code if you wish.
