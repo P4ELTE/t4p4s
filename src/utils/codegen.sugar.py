@@ -305,7 +305,10 @@ def gen_format_statement_16(stmt):
             if stmt.methodCall.method.get_attr('member') is not None:
                 #[ // ${stmt.methodCall.method.member} called on ${stmt.methodCall.method.expr}
 
-                if stmt.methodCall.method.expr.get_attr('member') is None:
+                if stmt.methodCall.method.expr.node_type == 'PathExpression' and stmt.methodCall.method.expr.ref.node_type == 'P4Table' \
+                   and stmt.methodCall.method.member == 'apply':
+                    #[ ${gen_method_apply(stmt.methodCall)};
+                elif stmt.methodCall.method.expr.get_attr('member') is None:
                     #[ // TODO handle call: ${stmt.methodCall.method.member} called on ${stmt.methodCall.method.expr}
                     pass
                 else:
@@ -323,6 +326,14 @@ def gen_format_statement_16(stmt):
                         #= gen_methodcall(stmt)
             else:
                 #= gen_methodcall(stmt)
+    elif stmt.node_type == 'SwitchStatement':
+        #[ switch(${format_expr_16(stmt.expression)}) {
+        for case in stmt.cases:
+            #[ case ${format_expr_16(case.label)}:
+            #[   ${format_statement_16(case.statement)}
+            #[   break;
+        #[   default: {}
+        #[ }
 
 def gen_methodcall(stmt):
     mcall = format_expr_16(stmt.methodCall)
@@ -652,12 +663,7 @@ def gen_format_expr_16(e, format_as_value=True):
         else:
             if e.type.node_type in {'Type_Enum', 'Type_Error'}:
                 return e.type.members.get(e.member).c_name
-            if e.member == "hit":
-                prepend_statement(format_expr_16(e.expr) + ";")
-
-                #[ /* TODO implement hit properly */ true
-            else:
-                return format_expr_16(e.expr) + '.' + e.member
+            return format_expr_16(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
     elif e.node_type == 'MethodCallExpression':
         special_methods = {

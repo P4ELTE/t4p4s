@@ -117,22 +117,27 @@ for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
     #[ struct apply_result_s ${table.name}_apply(${STDPARAMS})
     #[ {
+    #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
     if hasattr(table, 'key'):
-        #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
         #[     uint8_t* key[${table.key_length_bytes}];
         #[     table_${table.name}_key(pd, (uint8_t*)key);
         #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
         #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
-        #[     bool hit = res != NULL;
+        #[     bool hit = res != NULL && -42 != (*(int*)(value+sizeof(struct ${table.name}_action)));
     else:
-        #[     struct ${table.name}_action* res = (struct ${table.name}_action*)0;
-        #[     bool hit = true;
+        if hasattr(table, 'default_action'):
+            #[    struct ${table.name}_action resStruct = { action_${table.default_action.expression.method.ref.name} };
+            #[    struct ${table.name}_action* res = &resStruct;
+            #[    bool hit = true;
+        else:
+            #[    struct ${table.name}_action* res = (struct ${table.name}_action*)0;
+            #[    bool hit = false;
 
     # COUNTERS
     # TODO
 
     # ACTIONS
-    #[     if(!hit) {
+    #[     if(res == NULL) {
     #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
     #[     } else {
     #[       switch (res->action_id) {
@@ -150,7 +155,7 @@ for table in hlir16.tables:
     #[       }
     #[     }
 
-    #[     struct apply_result_s apply_result = { hit, hit ? res->action_id : -1 };
+    #[     struct apply_result_s apply_result = { hit, res != NULL ? res->action_id : -1 };
     #[     return apply_result;
     #[ }
     #[
