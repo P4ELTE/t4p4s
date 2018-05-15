@@ -11,7 +11,8 @@ controller_for_example["nat"]="dpdk_nat_controller"
 controller_for_example["portfwd"]="dpdk_portfwd_controller"
 controller_for_example["l2fwd"]="dpdk_l2fwd_controller"
 controller_for_example["l3fwd"]="dpdk_l3fwd_controller"
-
+controller_for_example["l3fwd-wo-chksm"]="dpdk_l3fwd_controller"
+controller_for_example["l3fwd-with-chksm"]="dpdk_l3fwd_controller"
 
 
 
