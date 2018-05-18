@@ -363,7 +363,7 @@ def load_file(filename):
     global hlir16
 
     _, ext = os.path.splitext(filename)
-    if ext == '.p4':
+    if ext == '.p4' or ext == '.p4_16':
         if args['verbose']:
             print("Compiling P4-16 HLIR for %s..." % filename)
 

@@ -116,7 +116,7 @@ while [ $# -gt 0 ]; do
                 errmsg_exit "Error: extra parameter: $1" "P4 source file already defined: ${P4_SOURCE}"
             elif [ ! -z ${P4_EXECUTABLE+x}  ]; then
                 errmsg_exit "Error: extra parameter: $1" "P4 executable file already defined: ${P4_EXECUTABLE}"
-            elif [ "${1##*.}" == "p4" ]; then
+            elif [ "${1##*.}" == "p4" ] || [ "${1##*.}" == "p4_16" ]; then
                 P4_SOURCE=$1
                 T4P4S_PRG=$(basename ${P4_SOURCE%.*})
                 P4_EXECUTABLE="./build/${T4P4S_PRG}/build/${T4P4S_PRG}"
