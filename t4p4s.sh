@@ -62,9 +62,8 @@ declare -A example_controller
 declare -A controller_param_count
 declare -A dpdk_opts_id
 declare -A main_loop
-declare -A no_nic
 declare -A hugepages
-while read -r example variant pvsn controller param_count huges mloop nnic opts_id; do
+while read -r example variant pvsn controller param_count huges mloop opts_id; do
     if [ "$example" == "" ]; then continue; fi
 
     opt="${example}__$variant"
@@ -74,7 +73,6 @@ while read -r example variant pvsn controller param_count huges mloop nnic opts_
     controller_param_count[$opt]="$param_count"
     hugepages[$opt]="$huges"
     main_loop[$opt]="$mloop"
-    no_nic[$opt]="$nnic"
     dpdk_opts_id[$opt]="$opts_id"
 done < <(grep -v ";" $EXAMPLE_FILE)
 
@@ -200,6 +198,20 @@ if [ "${T4P4S_SILENT}" == 1 ]; then
 fi
 
 
+if [ -z ${DPDK_OPTS+x} ]; then
+    DPDK_OPTS=${dpdk_opts_id[$T4P4S_CHOICE]}
+fi
+
+DPDK_OPTS_TEXT=""
+for optid in $(echo "$DPDK_OPTS" | sed "s/,/ /g"); do
+    if [ "$optid" == "no_nic" ]; then
+        export P4_GCC_OPTS="${P4_GCC_OPTS} -DFAKEDPDK"
+    fi
+    DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
+done
+
+
+
 
 P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"./build/$T4P4S_PRG"}
 mkdir -p $P4DPDK_TARGET_DIR
@@ -237,13 +249,6 @@ if [ "$T4P4S_C" == 1 ]; then
         fi
     fi
 
-
-    VARIANT=${no_nic["$T4P4S_CHOICE"]}
-
-    # Setting compile options.
-    if [ "$VARIANT" == "no_nic" ]; then
-        export P4_GCC_OPTS="${P4_GCC_OPTS} -DFAKEDPDK"
-    fi
 
     if [ -n "${T4P4S_DBG+x}" ]; then
         export P4_GCC_OPTS="${P4_GCC_OPTS} -DP4DPDK_DEBUG"
@@ -285,15 +290,6 @@ if [ "$T4P4S_RUN" == 1 ]; then
 
         msg "Controller    : ${CONTROLLER} (default for $T4P4S_PRG)"
         msg "Controller log: ${CONTROLLER_LOG}"
-
-        if [ -z ${DPDK_OPTS+x} ]; then
-            DPDK_OPTS=${dpdk_opts_id[$T4P4S_CHOICE]}
-        fi
-
-        DPDK_OPTS_TEXT=""
-        for optid in $(echo "$DPDK_OPTS" | sed "s/,/ /g"); do
-            DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
-        done
     else
         CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
     fi
