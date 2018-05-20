@@ -1,11 +1,8 @@
 
 # Getting started with T4P4S-16
 
-This is an experimental compiler that is
-in the process of transitioning into using P4-16,
-replacing more and more P4-14 code.
-It still makes use of P4-14 until all parts have been transformed.
-See the [README of the previous version](README14.md).
+This is an experimental compiler that compiles P4-16 and P4-14 files.
+An [older version of the compiler](README14.md) is also available.
 
 To start working with the compiler, do the following.
 
@@ -14,40 +11,47 @@ To start working with the compiler, do the following.
     - It will ask for your password in the beginning.
     - It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
     - By default, it runs downloads in parallel. You can force it to work sequentially with `PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh`.
-    - You can select a DPDK version like this: `DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh` or `DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh`.
+    - You can select a DPDK version: `DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh` or `DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh`.
     - If you want to download T4P4S only, make sure to get it with its submodule like this: `git clone --recursive -b t4p4s-16 https://github.com/P4ELTE/t4p4s t4p4s-16`
         - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
 1. Don't forget to setup your environment.
     - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
     - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
     - The system has to have hugepages configured. You can use `$RTE_SDK/tools/dpdk-setup.sh`, option `Setup hugepage mappings for non-NUMA systems`.
-1. Running the examples is very simple: `./t4p4s.sh ./examples/l2fwd.p4`.
+1. Running the examples is very simple: `./t4p4s.sh examples/l2fwd.p4`.
     - Make sure that before running this command, your `P4C` variable points to your [`p4c`](https://github.com/p4lang/p4c) directory, and `RTE_SDK` points your [`DPDK`](http://dpdk.org/) directory. Both are downloaded by `bootstrap-t4p4s.sh`.
     - This command uses defaults from `dpdk_parameters.cfg` and `examples.cfg`.
     - You can override behaviour from the command line like this:
 
 ~~~
-# This is the default behaviour
+# Run an example with the default configuration
+./t4p4s.sh ./examples/l2fwd.p4
+# This is equivalent to the above
 ./t4p4s.sh launch ./examples/l2fwd.p4
 # Run only C->executable compilation
 ./t4p4s.sh c ./examples/l2fwd.p4
 # Launch an already compiled executable
 ./t4p4s.sh run ./examples/l2fwd.p4
-# Compile and run a program in debug mode
+# Compile and run a program, show debug info during packet processing
 ./t4p4s.sh dbg ./examples/l2fwd.p4
-# Specify P4 version explicitly
-./t4p4s.sh v14 ./examples/l2fwd.p4
+# Compile and run a program, debug the Python code
+./t4p4s.sh dbgpy ./examples/l2fwd.p4
 # Specify P4 version explicitly (default: from examples.cfg, or v16)
 ./t4p4s.sh v14 ./examples/l2fwd.p4
-# Specify DPDK configuration explicitly
-./t4p4s.sh cfg "-c 0x3 -n 4 - --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2fwd.p4
+# Choose a variant (if the example has one other than the default)
+./t4p4s.sh var myCustomVariant ./examples/l2fwd.p4
+# Specify DPDK configuration manually
+./t4p4s.sh cfg "-c 0x3 -n 4 --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2fwd.p4
 ~~~
 
-At the moment, P4-16 programs are not expected to compile properly.
-However, they will produce C code in the `build` directory.
+At this point, P4-16 programs will probably compile, and they may or may not run properly.
+To see small examples, see the P4 files under `examples/p4_16_v1model/test`.
+
+- Note: if you find yourself inside a Python prompt, which indicates an error in the compilation process, you can try ignoring it by executing `c` (`continue`).
 
 ~~~
-./t4p4s.sh v16 $P4C/testdata/p4_16_samples/vss-example.p4
+./t4p4s.sh dbg examples/p4_16_v1model/test/test-setValid-1.p4
+./t4p4s.sh dbg $P4C/testdata/p4_16_samples/vss-example.p4
 ~~~
 
 
