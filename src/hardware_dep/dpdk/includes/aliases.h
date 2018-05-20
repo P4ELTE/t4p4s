@@ -17,6 +17,8 @@
 #include <rte_mbuf.h>
 typedef struct rte_mbuf packet;
 
+typedef uint8_t packet_data_t;
+
 #include <rte_spinlock.h>
 typedef rte_spinlock_t lock;
 

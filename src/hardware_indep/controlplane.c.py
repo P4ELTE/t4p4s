@@ -159,7 +159,8 @@ for table in hlir16.tables:
         #}
         #} } else
 
-    #[ debug("Table add entry: action name mismatch (%s).\n", ctrl_m->action_name);
+    valid_actions = ", ".join([get_action_name_str(a) for a in table.actions])
+    #[ debug("Table add entry: action name mismatch (%s), expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 for table in hlir16.tables:
@@ -180,7 +181,9 @@ for table in hlir16.tables:
         #[     debug("Set default action for ${table.name} with action $action_name_str\n");
         #[     ${table.name}_setdefault( action );
         #} } else
-    #[ debug("Table setdefault: action name mismatch (%s).\n", ctrl_m->action_name);
+
+    valid_actions = ", ".join([get_action_name_str(a) for a in table.actions])
+    #[ debug("Table setdefault: action name mismatch (%s), expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 

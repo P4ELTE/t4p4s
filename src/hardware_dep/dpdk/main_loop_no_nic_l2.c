@@ -17,50 +17,13 @@
 #include <arpa/inet.h>
 #include <netinet/if_ether.h>
 #include <netinet/ether.h> 
+#include "util.h"
 
 #include <stdio.h> 
-
-#define info(M, ...) fprintf(stderr, "[L2TEST] " M "", ##__VA_ARGS__)
 
 struct rte_mempool * pktmbuf_pool[NB_SOCKETS];
 struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 uint32_t enabled_port_mask = 0;
-
-// =============================================================================
-// Tools
-
-static inline void
-dbg_pd_data(packet_descriptor_t* pd)
-{
-    if (pd->headers == 0) {
-        debug("    :: headers is NULL");
-    } else {
-        int pktlen = 42;
-        // int pktlen = rte_pktmbuf_pkt_len((struct rte_mbuf *)pd->data);
-        debug("    :: header (pd=%d, len=%d) =", pd, pktlen);
-        for (int i = 0; i < pktlen; ++i) {
-            printf("%02x ", ((uint8_t*)(pd->data))[i]);
-        }
-        printf("\n");
-    }
-}
-
-static inline void
-dbg_print_headers(packet_descriptor_t* pd)
-{
-    if (pd->headers == 0) {
-        debug("    :: headers is NULL");
-    } else {
-        for (int i = 0; i < HEADER_INSTANCE_COUNT; ++i) {
-
-            debug("    :: header %d (type=%d, len=%d) = ", i, pd->headers[i].type, pd->headers[i].length);
-            for (int j = 0; j < pd->headers[i].length; ++j) {
-                debug("%02x ", ((uint8_t*)(pd->headers[i].pointer))[j]);
-            }
-            debug("\n");
-        }
-    }
-}
 
 // =============================================================================
 // Fake incoming bytes
@@ -113,10 +76,10 @@ struct fake_output_data fake_expected_output0[] = {
 };
 
 struct fake_output_data fake_expected_output1[] = {
-    {42, fake_expected_output1},
-    {42, fake_expected_output1},
-    {42, fake_expected_output1},
-    {42, fake_expected_output1},
+    {42, fake_expected_output11},
+    {42, fake_expected_output12},
+    {42, fake_expected_output13},
+    {42, fake_expected_output14},
 };
 
 static void
@@ -166,15 +129,9 @@ fake_dpdk_packet(unsigned lcore_id, int index)
 static void
 send_packet(struct rte_mbuf * mbuf, int egress_port)
 {
-#ifdef NDEBUG
-    if (mbuf != NULL) {
-        uint8_t* data = rte_pktmbuf_mtod(mbuf, uint8_t*);
-        info(" :::: PACKET len: %d\n", rte_pktmbuf_data_len(mbuf));
-        for (int i = 0; i < rte_pktmbuf_data_len(mbuf); ++i) {
-            info(" :::: PACKET data: %x\n", data[i]);
-        }
-    }
-#endif
+    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "Emitting packet on port %d (%d bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+
+    rte_pktmbuf_free(mbuf);
 }
 
 static void
@@ -189,35 +146,33 @@ dpdk_main_loop(void)
 {
     unsigned lcore_id = rte_lcore_id();
     struct lcore_conf *conf = &lcore_conf[lcore_id];
-	RTE_LOG(INFO, L2FWD, "entering main loop on lcore %u\n", lcore_id);
+#ifdef P4DPDK_DEBUG
+	debug("entering main loop on lcore %u\n", lcore_id);
+#endif
     int index = 0;
 
     packet_descriptor_t pd;
     init_dataplane(&pd, conf->state.tables);
 
 	while (index < 4) { 
-        struct rte_mbuf* p = fake_dpdk_packet(lcore_id, index);
-        pd.data = rte_pktmbuf_mtod(p, uint8_t*);
-        ((struct rte_mbuf*)pd.data)->pkt_len = p->pkt_len;
-        ((struct rte_mbuf*)pd.data)->data_len = p->data_len;
-
-        struct rte_mbuf* mbuf = (struct rte_mbuf *)pd.data;
+        pd.wrapper = fake_dpdk_packet(lcore_id, index);
+        pd.data = rte_pktmbuf_mtod(pd.wrapper, uint8_t*);
 
         init_metadata(&pd, (lcore_id*2+index+1)); // fake input port
 
         handle_packet(&pd, conf->state.tables);
 
-        dbg_pd_data(&pd);
-
         int egress_port = EXTRACT_EGRESSPORT(&pd);
-        send_packet(mbuf, egress_port);
+        send_packet(pd.wrapper, egress_port);
 
         if(index == 1) {
-            info("PACKET_GEN IS WAITING FOR THE DATAPLANE TO LEARN\n");
+            debug("PACKET_GEN IS WAITING FOR THE DATAPLANE TO LEARN\n");
             sleep(1);
         }
         index++;
     }
+
+    debug("Core is done\n");
 }
 
 static int
@@ -229,11 +184,11 @@ launch_one_lcore(__attribute__((unused)) void *dummy)
 
 int launch_dpdk()
 {
-    info("Creating fake packets for test...\n");
+    debug("Creating fake packets for test...\n");
     init_fake_packets_l2();
-    info("Faked packets created.\n");
+    debug("Faked packets created.\n");
     init_mem();
-    info("Executing packet handlers on each core...\n");
+    debug("Executing packet handlers on each core...\n");
 	rte_eal_mp_remote_launch(launch_one_lcore, NULL, CALL_MASTER);
 	unsigned lcore_id;
 	RTE_LCORE_FOREACH_SLAVE(lcore_id)

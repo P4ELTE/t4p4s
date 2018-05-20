@@ -21,6 +21,7 @@ from utils.misc import addError, addWarning
 #[ #include "dpdk_lib.h"
 #[ #include "data_plane_data.h"
 #[ #include "actions.h"
+#[ #include "util.h"
 
 #[ uint8_t* emit_addr;
 #[ uint32_t ingress_pkt_len;
@@ -37,11 +38,9 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'k
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
 STDPARAMS_IN = "pd, tables"
 
-main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
-package_name = main.type.baseType.type_ref.name
+main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more packet instances?
+packet_name = main.type.baseType.type_ref.name
 pipeline_elements = main.arguments
-
-#package_type = hlir16.declarations.get(package_name, 'Type_Package')
 
 #[ struct apply_result_s {
 #[     bool hit;
@@ -167,26 +166,27 @@ for table in hlir16.tables:
 
 ################################################################################
 
-#[ void reset_headers(packet_descriptor_t* packet_desc) {
+#[ void reset_headers(${STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
-        #[ packet_desc->headers[${h.id}].pointer = NULL;
+        #[ pd->headers[${h.id}].pointer = NULL;
     else:
-        #[ memset(packet_desc->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
+        #[ memset(pd->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
 #[ }
 
-#[ void init_headers(packet_descriptor_t* packet_desc) {
+#[ void init_headers(${STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
-        #[ packet_desc->headers[${h.id}] = (header_descriptor_t)
+        #[ pd->headers[${h.id}] = (header_descriptor_t)
         #[ {
         #[     .type = ${h.id},
         #[     .length = header_info(${h.id}).bytewidth,
         #[     .pointer = NULL,
-        #[     .var_width_field_bitwidth = 0
+        #[     .var_width_field_bitwidth = 0,
+        #[     .name = "${h.name}",
         #[ };
     else:
-        #[ packet_desc->headers[${h.id}] = (header_descriptor_t)
+        #[ pd->headers[${h.id}] = (header_descriptor_t)
         #[ {
         #[     .type = ${h.id},
         #[     .length = header_info(${h.id}).bytewidth,
@@ -220,8 +220,8 @@ for table in hlir16.tables:
 ################################################################################
 
 #[ void init_dataplane(${STDPARAMS}) {
-#[     init_headers(pd);
-#[     reset_headers(pd);
+#[     init_headers(${STDPARAMS_IN});
+#[     reset_headers(${STDPARAMS_IN});
 #[     init_keyless_tables();
 #[     pd->dropped=0;
 #[ }
@@ -307,49 +307,99 @@ for pe in pipeline_elements:
 
 ################################################################################
 
+metadata_names = {hi.name for hi in hlir16.header_instances if hi.type.type_ref.is_metadata}
+longest_hdr_name_len = max({len(h.name) for h in hlir16.header_instances if h.name not in metadata_names})
+
+pkt_name_indent = " " * longest_hdr_name_len
+
+#[ void store_headers_for_emit(${STDPARAMS})
+#{ {
+#[     debug("   :: Preparing %d header instances for storage...\n", pd->emit_hdrinst_count);
+
+#[     uint8_t* storage = pd->header_tmp_storage;
+#[     pd->emit_length = 0;
+#{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
+#[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
+
+#{         if (hdr.pointer == NULL) {
+#[             debug("    : Skipping header   (%${longest_hdr_name_len}s)  : (invalid header)\n", hdr.name);
+#[             continue;
+#}         }
+
+#[         dbg_bytes(hdr.pointer, hdr.length, "    : Storing  %02d bytes (%${longest_hdr_name_len}s)  : ", hdr.length, hdr.name);
+
+#[         memcpy(storage, hdr.pointer, hdr.length);
+#[         storage += hdr.length;
+#[         pd->emit_length += hdr.length;
+#}     }
+
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_length, "   :: Stored   %02d bytes     $pkt_name_indent: ", pd->emit_length);
+#} }
+
 #[ void resize_packet_on_emit(${STDPARAMS})
 #{ {
 #{     if (unlikely(pd->emit_length != pd->parsed_length)) {
-#{         if (pd->emit_length < pd->parsed_length) {
+#{         if (likely(pd->emit_length > pd->parsed_length)) {
+#[             debug("   :: Adding   %02d bytes %${longest_hdr_name_len}s    : (from %d bytes to %d bytes)\n", pd->emit_length - pd->parsed_length, "to packet", pd->parsed_length, pd->emit_length);
+#[             char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, pd->emit_length - pd->parsed_length);
+#[             if (new_ptr == NULL) {
+#[                 rte_exit(1, "Could not reserve necessary headroom (%d additional bytes)", pd->emit_length - pd->parsed_length);
+#[             }
+#[             pd->data = (packet_data_t*)new_ptr;
+#[         } else {
+#[             debug("   :: Removing %02d bytes %${longest_hdr_name_len}s  : (from %d bytes to %d bytes)\n", pd->parsed_length - pd->emit_length, "from packet", pd->emit_length, pd->parsed_length);
 #[             rte_pktmbuf_adj((struct rte_mbuf*)pd, pd->parsed_length - pd->emit_length);
 #}         }
-#{         if (pd->emit_length > pd->parsed_length) {
-#[             rte_pktmbuf_prepend((struct rte_mbuf*)pd, pd->emit_length - pd->parsed_length);
-#}         }
+#[     } else {
+#[         debug("   :: To emit %02d bytes (no resize)\n", pd->emit_length);
 #}     }
+#} }
+
+#[ void copy_emit_contents(${STDPARAMS})
+#{ {
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_length, "   :: Packet:  %02d bytes %${longest_hdr_name_len}s : ", pd->emit_length, "from storage");
+#[     memcpy((struct rte_mbuf*)pd->data, pd->header_tmp_storage, pd->emit_length);
 #} }
 
 #[ void emit_packet(${STDPARAMS})
 #{ {
-#[     resize_packet_on_emit(${STDPARAMS_IN});
-#[
-#[     uint8_t* emit_addr = pd->data + pd->parsed_length;
-#{     for (int i = pd->header_reorder_length - 1; i >= 0; --i) {
-#[         int hidx  = pd->header_reorder[i];
-#[         uint8_t* haddr = pd->headers[hidx].pointer;
-#[         int hlen  = pd->headers[hidx].length;
-#[
-#[         emit_addr -= hlen;
-#{         if (unlikely(emit_addr != haddr)) {
-#[             // memcpy(emit_addr, haddr, hlen);
-#}         }
-#}     }
+#[     if (unlikely(pd->is_emit_reordering)) {
+#[         debug(" :::: Reordering emit\n");
+#[         store_headers_for_emit(${STDPARAMS_IN});
+#[         resize_packet_on_emit(${STDPARAMS_IN});
+#[         copy_emit_contents(${STDPARAMS_IN});
+#[     }
+#} }
+
+#[ void debug_print_parsed_packet(${STDPARAMS})
+#{ {
+#[ #ifdef P4DPDK_DEBUG
+#[     debug("Parsed packet\n");
+#[     for (int i = 0; i < HEADER_INSTANCE_COUNT; ++i) {
+#[         if (!header_instance_is_metadata[i] && pd->headers[i].pointer != NULL) {
+#[             dbg_bytes(pd->headers[i].pointer, pd->headers[i].length, " :::: Header %${longest_hdr_name_len}s (%02d bytes): ",  pd->headers[i].name, pd->headers[i].length);
+#[         }
+#[     }
+#[ #endif
 #} }
 
 #[ void handle_packet(${STDPARAMS})
 #{ {
 #[     int value32;
 #[     int res32;
+
 #[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
-#[     debug("### HANDLING PACKET ARRIVING AT PORT %" PRIu32 "...\n", value32);
-#[     reset_headers(pd);
+#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "HANDLING PACKET (port %" PRIu32 ", %02d bytes) : ", value32, rte_pktmbuf_pkt_len(pd->wrapper));
+
+#[     reset_headers(${STDPARAMS_IN});
 #[     pd->parsed_length = 0;
 #[     parse_packet(${STDPARAMS_IN});
 #[
+#[     debug_print_parsed_packet(${STDPARAMS_IN});
+#[
 #[     emit_addr = pd->data;
-#[     pd->emit_length = 0;
+#[     pd->emit_hdrinst_count = 0;
 #[     pd->is_emit_reordering = false;
-#[     pd->header_reorder_length = 0;
 #[
 #[     process_packet(${STDPARAMS_IN});
 #[

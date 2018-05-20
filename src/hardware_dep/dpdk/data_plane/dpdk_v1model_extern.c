@@ -16,6 +16,9 @@
 
 #include <rte_ip.h>
 
+// TODO remove
+int field_standard_metadata_t_checksum_error;
+
 void verify_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables) {
     uint32_t res32, current_cksum = 0, calculated_cksum = 0;

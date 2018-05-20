@@ -2,6 +2,11 @@ CC=gcc
 CFLAGS=-Wall -pthread -std=c99
 LIB=
 
+ifneq ($(P4_GCC_OPTS),)
+CFLAGS += $(P4_GCC_OPTS)
+endif
+
+
 all: dpdk_portfwd_controller dpdk_l2fwd_controller dpdk_l3fwd_controller dpdk_smgw_controller
 
 dpdk_portfwd_controller:

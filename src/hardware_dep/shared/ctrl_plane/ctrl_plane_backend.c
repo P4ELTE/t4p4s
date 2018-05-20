@@ -120,7 +120,9 @@ void input_processor(void *bg)
 		if (mem_cell==0) continue;
 
 		rval = handle_p4_msg( mem_cell->data, mem_cell->length, bgt->cb );
-		printf("  :::: Handle msg: %d\n", rval);
+#ifdef P4DPDK_DEBUG
+		printf("[CTRL] Handle msg: %d\n", rval);
+#endif
 
 		detouch_mem_cell( bgt, mem_cell );
 	}

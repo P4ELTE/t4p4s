@@ -352,6 +352,7 @@ packet_received(packet_descriptor_t* pd, packet *p, unsigned portid, struct lcor
 
     if (pd->dropped) {
         debug("  :::: DROPPING\n");
+        rte_pktmbuf_free((struct rte_mbuf*)pd->data);
     } else {
         int egress_port = EXTRACT_EGRESSPORT(pd);
         int ingress_port = EXTRACT_INGRESSPORT(pd);

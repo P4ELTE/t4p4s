@@ -124,20 +124,20 @@ typedef struct header_descriptor_s {
     void *              pointer;
     uint32_t            length;
     int                 var_width_field_bitwidth;
+    char*               name;
 } header_descriptor_t;
 
 typedef struct packet_descriptor_s {
-    void *              data;
+    packet_data_t*      data;
     header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
     parsed_fields_t     fields;
-    packet *            wrapper;
-    packet *            out_wrapper;
+    packet*             wrapper;
     uint8_t             dropped;
 
+    int emit_hdrinst_count;
     int emit_length;
     int parsed_length;
     bool is_emit_reordering;
-    int header_reorder_length;
     // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
     int header_reorder[HEADER_INSTANCE_COUNT+8];
     uint8_t header_tmp_storage[HEADER_INSTANCE_TOTAL_LENGTH];

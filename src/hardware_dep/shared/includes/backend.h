@@ -17,11 +17,28 @@
 #include "ctrl_plane_backend.h"
 #include "data_plane_data.h"
 #include "dataplane.h"
+#include <string.h>
 
 #ifdef P4DPDK_DEBUG
-#define debug(M, ...) fprintf(stderr, "[DEBUG] " M "", ##__VA_ARGS__)
+	#define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+	#define lcore_debug(M, ...) fprintf(stderr, "[CORE %d@%d] (%13s@%03d) " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), __SHORTFILENAME__, __LINE__, ##__VA_ARGS__)
+	#define no_core_debug(M, ...) fprintf(stderr, "[NO-CORE] " M "", ##__VA_ARGS__)
+
+	#include <pthread.h>
+	pthread_mutex_t dbg_mutex;
+
+	#define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
+
+	#define debug(M, ...) \
+	    { \
+		    pthread_mutex_lock(&dbg_mutex); \
+			debug_printf(M, ##__VA_ARGS__); \
+		    pthread_mutex_unlock(&dbg_mutex); \
+		}
+
 #else
-#define debug(M, ...)
+	#define debug(M, ...)
 #endif
 
 typedef struct packet_descriptor_s packet_descriptor_t;

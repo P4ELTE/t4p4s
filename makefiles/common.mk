@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+P4_SRCDIR := $(dir $(lastword $(MAKEFILE_LIST)))/../../src
+
 ifeq ($(RTE_SDK),)
 $(error "Please define the RTE_SDK environment variable")
 endif
@@ -28,7 +30,10 @@ CFLAGS += -Wno-unused-but-set-variable
 CFLAGS += -Wno-unused-variable
 CFLAGS += -g
 CFLAGS += -std=gnu99
+CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/shared/includes"
 
 ifneq ($(P4_GCC_OPTS),)
 CFLAGS += $(P4_GCC_OPTS)
 endif
+
+SRCS-y += util.c

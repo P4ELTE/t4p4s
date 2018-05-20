@@ -241,7 +241,7 @@ int read_macs_and_ports_from_file(char *filename) {
         while (fgets(line, sizeof(line), f)) {
                 line[strlen(line)-1] = '\0';
 
-		if (7 == sscanf(line, "%x:%x:%x:%x:%x:%x %d%c", 
+		if (7 == sscanf(line, "%x:%x:%x:%x:%x:%x %d", 
 				&values[0], &values[1], &values[2],
 				&values[3], &values[4], &values[5], &port) )
 		{

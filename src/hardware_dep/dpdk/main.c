@@ -22,6 +22,6 @@ int main(int argc, char** argv)
     initialize(argc, argv);
     init_control_plane();
     int retval = launch_dpdk();
-    printf("Exiting program.\n");
+    debug("Exiting program.\n");
     return retval;
 }
