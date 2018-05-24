@@ -42,11 +42,11 @@ def format_p4_node(node):
         return "if (%s) { %s } else { %s }" % (format_expr(node.condition), format_p4_node(node.next_[True]), format_p4_node(node.next_[False]))
 
 def format_op(op):
-    if op is "not":
+    if op == "not":
         return "!"
-    elif op is "and":
+    elif op == "and":
         return "&&"
-    elif op is "or":
+    elif op == "or":
         return "||"
     else:
         return str(op)
