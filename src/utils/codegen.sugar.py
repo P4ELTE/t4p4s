@@ -137,7 +137,7 @@ def statement_buffer_value():
     return ret
 
 
-def is_local_var(var_name):
+def is_control_local_var(var_name):
     global enclosing_control
 
     return enclosing_control is not None and [] != [cl for cl in enclosing_control.controlLocals if cl.name == var_name]
@@ -235,8 +235,8 @@ def gen_format_statement_16(stmt):
                             src_vw_bitwidth = '{}_var'.format(src.expr.ref.name)
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
-                    if is_local_var(src.ref.name):
-                        src_pointer = "controlLocal_" + src.ref.name
+                    if is_control_local_var(src.ref.name):
+                        src_pointer = "control_locals." + src.ref.name
                     else:
                         src_pointer = 'parameters.{}'.format(src.ref.name)
                 elif src.node_type == 'Constant':
@@ -637,8 +637,8 @@ def gen_format_expr_16(e, format_as_value=True):
         return '\nelse\n'.join(cases)
 
     elif e.node_type == 'PathExpression':
-        if e.ref.node_type == 'Declaration_Variable' and is_local_var(e.ref.name):
-            return "controlLocal_" + e.ref.name
+        if e.ref.node_type == 'Declaration_Variable' and is_control_local_var(e.ref.name):
+            return "control_locals." + e.ref.name
         return e.ref.name
 
     elif e.node_type == 'Member':

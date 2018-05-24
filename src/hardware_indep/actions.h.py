@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.codegen import format_type_16
+
 #[ #ifndef __ACTION_INFO_GENERATED_H__
 #[ #define __ACTION_INFO_GENERATED_H__
 
@@ -80,5 +82,15 @@ for table in hlir16.tables:
         else:
             #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
 
+
+# TODO: The controls shouldn't be accessed through an instance declaration parameter
+for pe in hlir16.declarations['Declaration_Instance'][0].arguments:
+    ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
+
+    if ctl is not None:
+        #[ typedef struct control_locals_${pe.type.name}_s {
+        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
+            #[ ${format_type_16(local_var_decl.type, False)} ${local_var_decl.name};
+        #[ } control_locals_${pe.type.name}_t;
 
 #[ #endif

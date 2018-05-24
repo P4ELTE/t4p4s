@@ -289,9 +289,8 @@ for pe in pipeline_elements:
         #[     debug("entering control ${ctl.name}...\n");
         #[     uint32_t value32, res32;
         #[     (void)value32, (void)res32;
-        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-            local_var_name = "controlLocal_" + local_var_decl.name
-            #[ ${format_declaration_16(local_var_decl, local_var_name)}
+        #[     control_locals_${pe.type.name}_t control_locals;
+        #[     pd->control_locals = (void*) &control_locals;
         #[ ${format_statement_16_ctl(ctl.body, ctl)}
         #} }
 
