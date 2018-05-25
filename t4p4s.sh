@@ -369,8 +369,8 @@ if [ "$T4P4S_RUN" == 1 ]; then
     # Run T4P4S program
     if [ "${T4P4S_SILENT}" == 1 ]; then
         # TODO: is it possible to ignore the EAL's messages in a better way?
-        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS} 2>&1 | egrep -v "^EAL: "
+        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS_TEXT} 2>&1 | egrep -v "^EAL: "
     else
-        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS}
+        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS_TEXT}
     fi
 fi
