@@ -216,7 +216,9 @@ for optid in $DPDK_OPTS; do
         export P4_GCC_OPTS="${P4_GCC_OPTS} ${dpdk_gcc_opts[$optid]}"
     fi
 
-    DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
+    if [ "${dpdk_opts[$optid]}" != "-" ]; then
+        DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
+    fi
 done
 
 
@@ -256,8 +258,6 @@ if [ "$T4P4S_C" == 1 ]; then
                 echo "SRCS-y += $source" >> ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
             done
         fi
-
-        DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
     done
 
     if [ ! -f "${P4DPDK_TARGET_DIR}/Makefile" ]; then
