@@ -197,7 +197,9 @@ for table in hlir16.tables:
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_add_table_entry(ctrl_m);
     #[ else
-#[ debug("Table add entry: table name mismatch (%s).\n", ctrl_m->table_name);
+
+valid_table_names = ", ".join([table.name for table in hlir16.tables])
+#[ debug("Table add entry: table name mismatch (%s), expected one of ($valid_table_names).\n", ctrl_m->table_name);
 #[     }
 #[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
 for table in hlir16.tables:
@@ -207,7 +209,7 @@ for table in hlir16.tables:
     #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
     #[     ${table.name}_set_default_table_action(ctrl_m);
     #[ else
-#[ debug("Table setdefault: table name mismatch (%s).\n", ctrl_m->table_name);
+#[ debug("Table setdefault: table name mismatch (%s), expected one of ($valid_table_names).\n", ctrl_m->table_name);
 #[     }
 #[ }
 
