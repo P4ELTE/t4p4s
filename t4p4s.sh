@@ -58,30 +58,36 @@ fi
 
 # Controllers for the examples
 declare -A p4vsn
-declare -A example_controller
-declare -A controller_param_count
-declare -A dpdk_opts_id
-declare -A main_loop
+declare -A dpdk_opt_ids
 declare -A hugepages
-while read -r example variant pvsn controller param_count huges mloop opts_id; do
+while read -r example variant pvsn huges opt_ids; do
     if [ "$example" == "" ]; then continue; fi
 
     opt="${example}__$variant"
 
     p4vsn[$opt]="$pvsn"
-    example_controller[$opt]="$controller"
-    controller_param_count[$opt]="$param_count"
     hugepages[$opt]="$huges"
-    main_loop[$opt]="$mloop"
-    dpdk_opts_id[$opt]="$opts_id"
+    dpdk_opt_ids[$opt]="$opt_ids"
 done < <(grep -v ";" $EXAMPLE_FILE)
 
 # Default parameter sets
+declare -A dpdk_gcc_opts
+declare -A dpdk_sources
+declare -A dpdk_controller
+all_dpdk_controllers=()
+declare -A dpdk_controller_params
 declare -A dpdk_opts
-while read -r opts_id params; do
-    if [ "$opts_id" == "" ]; then continue; fi
+while read -r opt gcc_opts sources controller controller_params opts; do
+    if [ "$opt" == "" ]; then continue; fi
 
-    dpdk_opts[$opts_id]="$params"
+    dpdk_gcc_opts[$opt]="$gcc_opts"
+    dpdk_sources[$opt]="$sources"
+    dpdk_controller[$opt]="$controller"
+    if [ "$controller" != "-" ]; then
+        all_dpdk_controllers+=" $controller"
+    fi
+    dpdk_controller_params[$opt]="$controller_params"
+    dpdk_opts[$opt]="$opts"
 done < <(grep -v ";" dpdk_parameters.cfg)
 
 
@@ -155,6 +161,8 @@ while [ $# -gt 0 ]; do
 done
 
 
+P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"./build/$T4P4S_PRG"}
+
 T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_PRG}__${T4P4S_VARIANT}}
 
 
@@ -199,21 +207,21 @@ fi
 
 
 if [ -z ${DPDK_OPTS+x} ]; then
-    DPDK_OPTS=${dpdk_opts_id[$T4P4S_CHOICE]}
+    DPDK_OPTS=${dpdk_opt_ids[$T4P4S_CHOICE]}
 fi
 
 DPDK_OPTS_TEXT=""
-for optid in $(echo "$DPDK_OPTS" | sed "s/,/ /g"); do
-    if [ "$optid" == "no_nic" ]; then
-        export P4_GCC_OPTS="${P4_GCC_OPTS} -DFAKEDPDK"
+for optid in $DPDK_OPTS; do
+    if [ "${dpdk_gcc_opts[$optid]}" != "-" ]; then
+        export P4_GCC_OPTS="${P4_GCC_OPTS} ${dpdk_gcc_opts[$optid]}"
     fi
+
     DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
 done
 
 
 
 
-P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"./build/$T4P4S_PRG"}
 mkdir -p $P4DPDK_TARGET_DIR
 
 # Phase 1: P4 to C compilation
@@ -241,6 +249,17 @@ fi
 if [ "$T4P4S_C" == 1 ]; then
     # Copying Makefiles
     cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
+
+    for optid in $DPDK_OPTS; do
+        if [ "${dpdk_sources[$optid]}" != "-" ]; then
+            for source in $(echo "${dpdk_sources[$optid]}" | sed "s/,/ /g"); do
+                echo "SRCS-y += $source" >> ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
+            done
+        fi
+
+        DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
+    done
+
     if [ ! -f "${P4DPDK_TARGET_DIR}/Makefile" ]; then
         cat makefiles/Makefile | sed -e "s/example_dpdk1/${T4P4S_PRG}/g" > "${P4DPDK_TARGET_DIR}/Makefile"
     else
@@ -265,9 +284,9 @@ if [ "$T4P4S_C" == 1 ]; then
 
     cd ./build/$T4P4S_PRG
     if [ "${T4P4S_SILENT}" == 1 ]; then
-        P4DPDK_MAIN_LOOP_SRC=${main_loop["$T4P4S_CHOICE"]} make -j >/dev/null
+        make -j >/dev/null
     else
-        P4DPDK_MAIN_LOOP_SRC=${main_loop["$T4P4S_CHOICE"]} make -j
+        make -j
     fi
     exit_on_error "C compilation failed"
 
@@ -281,8 +300,13 @@ if [ "$T4P4S_RUN" == 1 ]; then
 
     # Getting default parameters
     if [ -n ${CONTROLLER+x} ]; then
-        CONTROLLER=${example_controller["$T4P4S_CHOICE"]}
-        CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
+        for optid in $DPDK_OPTS; do
+            if [ "${dpdk_controller[$optid]}" != "-" ]; then
+                # TODO check for clashing controllers
+                CONTROLLER=${dpdk_controller[$optid]}
+                CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
+            fi
+        done
 
         if [ "$CONTROLLER" = "" ]; then
             errmsg_exit "No default controller found for $T4P4S_PRG"
@@ -305,8 +329,7 @@ if [ "$T4P4S_RUN" == 1 ]; then
     cd - >/dev/null
 
     # Step 3A-2: Stop all running controllers
-    for controller in "${example_controller[@]}"
-    do
+    for controller in $all_dpdk_controllers; do
         sudo killall -q "$controller"
     done
 

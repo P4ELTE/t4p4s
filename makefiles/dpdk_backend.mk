@@ -21,14 +21,10 @@ VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/data_plane
 
 # dpdk main
 SRCS-y += main.c
+
+# main loop file is usually described in dpdk_parameters.cfg
 ifdef P4DPDK_MAIN_LOOP_SRC
 SRCS-y += $(P4DPDK_MAIN_LOOP_SRC)
-else
-ifdef P4DPDK_VARIANT
-SRCS-y += main_loop_$(P4DPDK_VARIANT).c
-else
-SRCS-y += main_loop.c
-endif
 endif
 
 # control plane related sources
@@ -43,8 +39,6 @@ SRCS-y += threadpool.c
 SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
 SRCS-y += dpdk_primitives.c
-SRCS-y += dpdk_vss_extern.c
-SRCS-y += dpdk_v1model_extern.c
 SRCS-y += ternary_naive.c
 SRCS-y += vector.c
 
