@@ -24,6 +24,9 @@ import math
 
 
 
+#[ void digest(uint32_t, struct uint8_buffer_t, packet_descriptor_t*, lookup_table_t** tables);
+
+
 #[ // TODO create this meter properly
 #[ void teid_meters(packet_descriptor_t* pd, lookup_table_t** tables) {
 #[ }
