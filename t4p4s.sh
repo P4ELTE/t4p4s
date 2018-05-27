@@ -250,6 +250,7 @@ fi
 # Phase 2: C compilation
 if [ "$T4P4S_C" == 1 ]; then
     # Copying Makefiles
+    rm ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
     cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
 
     for optid in $DPDK_OPTS; do
