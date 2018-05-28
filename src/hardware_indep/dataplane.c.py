@@ -289,8 +289,9 @@ for pe in pipeline_elements:
         #[     debug("entering control ${ctl.name}...\n");
         #[     uint32_t value32, res32;
         #[     (void)value32, (void)res32;
-        #[     control_locals_${pe.type.name}_t control_locals;
-        #[     pd->control_locals = (void*) &control_locals;
+        #[     control_locals_${pe.type.name}_t control_locals_struct;
+        #[     control_locals_${pe.type.name}_t* control_locals = &control_locals_struct;
+        #[     pd->control_locals = (void*) control_locals;
         #[ ${format_statement_16_ctl(ctl.body, ctl)}
         #} }
 

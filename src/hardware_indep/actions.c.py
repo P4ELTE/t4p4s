@@ -41,7 +41,7 @@ for ctl in hlir16.controls:
         #{ void action_code_${act.name}(${', '.join(fun_params)}) {
         #[ uint32_t value32, res32, mask32;
         #[ (void)value32; (void)res32; (void)mask32;
-        #[ control_locals_${ctl.name}_t control_locals = *(control_locals_${ctl.name}_t*) pd->control_locals;
+        #[ control_locals_${ctl.name}_t* control_locals = (control_locals_${ctl.name}_t*) pd->control_locals;
 
         for stmt in act.body.components:
             global statement_buffer

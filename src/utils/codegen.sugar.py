@@ -236,7 +236,7 @@ def gen_format_statement_16(stmt):
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
                     if is_control_local_var(src.ref.name):
-                        src_pointer = "control_locals." + src.ref.name
+                        src_pointer = "control_locals->" + src.ref.name
                     else:
                         src_pointer = 'parameters.{}'.format(src.ref.name)
                 elif src.node_type == 'Constant':
@@ -638,7 +638,7 @@ def gen_format_expr_16(e, format_as_value=True):
 
     elif e.node_type == 'PathExpression':
         if e.ref.node_type == 'Declaration_Variable' and is_control_local_var(e.ref.name):
-            return "control_locals." + e.ref.name
+            return "control_locals->" + e.ref.name
         return e.ref.name
 
     elif e.node_type == 'Member':
