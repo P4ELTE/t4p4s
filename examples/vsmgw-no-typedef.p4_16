@@ -383,7 +383,7 @@ control MyIngress(inout headers hdr,
    action gtp_encapsulate(bit<32> teid, bit<32> ip) {
         hdr.inner_ipv4.setValid();
         hdr.inner_ipv4 = hdr.ipv4;
-	hdr.inner_udp = hdr.udp;
+	//hdr.inner_udp = hdr.udp;
         hdr.udp.setValid();
         hdr.gtp_common.setValid();
         hdr.gtp_teid.setValid();
@@ -402,8 +402,8 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = 255;
         hdr.ipv4.totalLen = hdr.udp.plength + 28;
         meta.gtp_metadata.teid = teid;
-	hdr.inner_icmp = hdr.icmp;
-	hdr.icmp.setInvalid();
+	//hdr.inner_icmp = hdr.icmp;
+	//hdr.icmp.setInvalid();
     }
 
     action gtp_decapsulate() {
