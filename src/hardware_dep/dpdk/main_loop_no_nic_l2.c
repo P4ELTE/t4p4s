@@ -115,10 +115,16 @@ static void init_mem()
 static struct rte_mbuf*
 fake_dpdk_packet(unsigned lcore_id, int index)
 {
-    int offset = ((lcore_id * 4) + index)*sizeof(struct ether_header);
+    int PAYLOAD_LENGTH = 6;
+    uint8_t PAYLOAD[] = { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
+
+    int HEADERS_TOTAL_LENGTH = sizeof(struct ether_header);
+
+    int offset = ((lcore_id * 4) + index)*HEADERS_TOTAL_LENGTH;
     struct rte_mbuf *p = rte_pktmbuf_alloc(mempools[lcore_id]);
-    char* p2 = rte_pktmbuf_prepend(p, sizeof(struct ether_header)); 
-    memcpy(p2, bytes+offset, sizeof(struct ether_header));
+    char* p2 = rte_pktmbuf_prepend(p, HEADERS_TOTAL_LENGTH + PAYLOAD_LENGTH); 
+    memcpy(p2, bytes+offset, HEADERS_TOTAL_LENGTH);
+    memcpy(p2 + HEADERS_TOTAL_LENGTH, PAYLOAD, PAYLOAD_LENGTH);
     return p;
 }
 
