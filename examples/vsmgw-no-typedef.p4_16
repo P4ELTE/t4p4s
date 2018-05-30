@@ -312,7 +312,7 @@ parser MyParser(packet_in packet,
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(in headers hdr, inout metadata meta) {   
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
     apply {  }
 }
 
@@ -500,14 +500,14 @@ table ipv4_forward {
 
 
 apply {
-	smac.apply();
-	dmac.apply();
+//	smac.apply();
+//	dmac.apply();
 	if ( (hdr.ethernet.dstAddr == OWN_MAC) || (hdr.ethernet.dstAddr == BCAST_MAC) )
 	{
 		    if ( hdr.ipv4.isValid() ) {
 			    ue_selector.apply();
-			    teid_rate_limiter.apply();
-			    m_filter.apply();
+			    //teid_rate_limiter.apply();
+			    //m_filter.apply();
 			    ipv4_lpm.apply();
 			    ipv4_forward.apply();
 		    }
