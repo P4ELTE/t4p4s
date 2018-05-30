@@ -453,7 +453,7 @@ table dmac {
 table ue_selector {
 	key = {
 		hdr.ipv4.dstAddr : lpm;
-		hdr.udp.dstPort  : ternary; /* in most of the cases the mask is 0 */
+		/*hdr.udp.dstPort  : ternary; /* in most of the cases the mask is 0 */
 	}
 	actions = { drop; gtp_encapsulate; gtp_decapsulate;}
 	size = 10000;

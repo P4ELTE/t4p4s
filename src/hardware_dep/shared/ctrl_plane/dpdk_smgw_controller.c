@@ -99,7 +99,7 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
   
   uint16_t mask = (mode==0?65565:0);
 
-  printf("ue_selector\n");
+  printf("ue_selector %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
   strcpy(te->table_name, "ue_selector");
@@ -109,15 +109,16 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
   memcpy(lpm->bitmap, ip, 4);
   lpm->prefix_length = prefix;
 
-  ternary = add_p4_field_match_ternary(te, 2048);
+/*  ternary = add_p4_field_match_ternary(te, 2048);
   strcpy(ternary->header.name, "udp.dstPort");
   memcpy(ternary->bitmap, &port, 2);
   memcpy(ternary->mask, &mask, 2);
 
+*/
   a = add_p4_action(h, 2048);
   if (mode == 1) {
     printf("add mode gtp_encapsulate\n");
-    strcpy(a->description.name, "gtp_encapsulate");
+    strcpy(a->description.name, "MyIngressgtp_encapsulate");
     ap1 = add_p4_action_parameter(h, a, 2048);
     strcpy(ap1->name, "teid");
     memcpy(ap1->bitmap, &teid, 4);
@@ -129,13 +130,13 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
     ap2->length = 4 * 8 + 0;
   } else {
     printf("add mode gtp_decapsulate\n");
-    strcpy(a->description.name, "gtp_decapsulate");
+    strcpy(a->description.name, "MyIngressgtp_decapsulate");
   }
 
   netconv_p4_header(h);
   netconv_p4_add_table_entry(te);
   netconv_p4_field_match_lpm(lpm);
-  netconv_p4_field_match_ternary(ternary);
+  //netconv_p4_field_match_ternary(ternary);
   netconv_p4_action(a);
   if (mode == 1) {
     netconv_p4_action_parameter(ap1);
@@ -224,7 +225,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint8_t prefix, uint8_t nhgrp) {
   struct p4_action_parameter * ap;
   struct p4_field_match_lpm * lpm;
 
-  printf("ipv4_lpm\n");
+  printf("ipv4_lpm %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
   strcpy(te->table_name, "ipv4_lpm");
@@ -235,7 +236,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint8_t prefix, uint8_t nhgrp) {
   lpm->prefix_length = prefix;
 
   a = add_p4_action(h, 2048);
-  strcpy(a->description.name, "set_nhgrp");
+  strcpy(a->description.name, "MyIngressset_nhgrp");
 
   printf("add nhgrp\n");
   ap = add_p4_action_parameter(h, a, 2048);
@@ -274,7 +275,7 @@ void fill_ipv4_forward_table(uint8_t nhgroup, uint8_t port, uint8_t smac[6], uin
   exact->length = 1 * 8 + 0;
 
   a = add_p4_action(h, 2048);
-  strcpy(a->description.name, "pkt_send");
+  strcpy(a->description.name, "MyIngresspkt_send");
 
   ap = add_p4_action_parameter(h, a, 2048);
   strcpy(ap->name, "nhmac");
@@ -362,7 +363,7 @@ void set_default_action_ue_selector_table() {
   strcpy(sda->table_name, "ue_selector");
 
   a = & (sda->action);
-  strcpy(a->description.name, "drop");
+  strcpy(a->description.name, "MyIngressdrop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
@@ -431,7 +432,7 @@ void set_default_action_ipv4_forward() {
   strcpy(sda->table_name, "ipv4_forward");
 
   a = & (sda->action);
-  strcpy(a->description.name, "drop");
+  strcpy(a->description.name, "MyIngressdrop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
@@ -454,7 +455,7 @@ void set_default_action_ipv4_lpm() {
   strcpy(sda->table_name, "ipv4_lpm");
 
   a = & (sda->action);
-  strcpy(a->description.name, "drop");
+  strcpy(a->description.name, "MyIngressdrop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
@@ -511,6 +512,7 @@ int read_config_from_file(char * filename) {
   uint32_t teid;
   uint8_t color;
   uint8_t prefix;
+  uint16_t temp;
   uint8_t nhgrp;
   char dummy;
 
@@ -540,8 +542,12 @@ int read_config_from_file(char * filename) {
         return -1;
       }
   */  } else if (line[0] == 'U') { //UE_SELECTOR
-      if (13 == sscanf(line, "%c %d.%d.%d.%d %d %d %d %d %d.%d.%d.%d%c", & dummy, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
+      if (13 == sscanf(line, "%c %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d%c", &dummy, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
       {
+	prefix = 32;
+	printf(line);
+	printf("%c %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", dummy, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
+	printf("PREFIX:::%d %d\n", prefix, temp);
         fill_ue_selector_table(ip, prefix, udpport, mode, teid, ipbst );
       } else {
         printf("Wrong format error in line\n");
@@ -599,8 +605,8 @@ int read_config_from_file(char * filename) {
 char * fn;
 
 void init_complex() {
-  set_default_action_smac();
-  set_default_action_dmac();
+  //set_default_action_smac();
+  //set_default_action_dmac();
   set_default_action_ue_selector_table();
  // set_default_action_teid_rate_limiter_table();
  // set_default_action_m_filter_table();
