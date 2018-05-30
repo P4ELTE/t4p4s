@@ -12,6 +12,7 @@ function print_usage_and_exit {
     (>&2 echo "    - cfg <config string>")
     (>&2 echo "    - ctrl <controller name>")
     (>&2 echo "    - ctrcfg <controller config file>")
+    (>&2 echo "    - var <variant name>")
     (>&2 echo "    - silent")
     (>&2 echo "    - dbg")
     (>&2 echo "    - dbgpy")
@@ -188,7 +189,7 @@ if [ -z "${P4_VSN+x}" ]; then
     P4_VSN=${p4vsn[$T4P4S_CHOICE]}
 
     if [ "${P4_VSN}" == "" ]; then
-        errmsg_exit "No defaults in example.cfg for ${T4P4S_PRG} and none given"
+        errmsg_exit "No defaults in example.cfg for ${T4P4S_PRG} (variant ${T4P4S_VARIANT}) and none given"
     fi
 
     msg "Using P4-${P4_VSN}, the default P4 version for the example ${T4P4S_PRG}"
@@ -250,7 +251,7 @@ fi
 # Phase 2: C compilation
 if [ "$T4P4S_C" == 1 ]; then
     # Copying Makefiles
-    rm ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
+    rm -f ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
     cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
 
     for optid in $DPDK_OPTS; do
