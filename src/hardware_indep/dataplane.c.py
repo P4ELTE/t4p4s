@@ -317,7 +317,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     debug("   :: Preparing %d header instances for storage...\n", pd->emit_hdrinst_count);
 
 #[     uint8_t* storage = pd->header_tmp_storage;
-#[     pd->emit_length = 0;
+#[     pd->emit_headers_length = 0;
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
 
@@ -330,35 +330,37 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[         memcpy(storage, hdr.pointer, hdr.length);
 #[         storage += hdr.length;
-#[         pd->emit_length += hdr.length;
+#[         pd->emit_headers_length += hdr.length;
 #}     }
 
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_length, "   :: Stored   %02d bytes     $pkt_name_indent: ", pd->emit_length);
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Stored   %02d bytes     $pkt_name_indent: ", pd->emit_headers_length);
 #} }
 
 #[ void resize_packet_on_emit(${STDPARAMS})
 #{ {
-#{     if (unlikely(pd->emit_length != pd->parsed_length)) {
-#{         if (likely(pd->emit_length > pd->parsed_length)) {
-#[             debug("   :: Adding   %02d bytes %${longest_hdr_name_len}s    : (from %d bytes to %d bytes)\n", pd->emit_length - pd->parsed_length, "to packet", pd->parsed_length, pd->emit_length);
-#[             char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, pd->emit_length - pd->parsed_length);
+#{     if (unlikely(pd->emit_headers_length != pd->parsed_length)) {
+#{         if (likely(pd->emit_headers_length > pd->parsed_length)) {
+#[             int len_change = pd->emit_headers_length - pd->parsed_length;
+#[             debug("   :: Adding   %02d bytes %${longest_hdr_name_len}s   : (header: from %d bytes to %d bytes)\n", len_change, "to packet", pd->parsed_length, pd->emit_headers_length);
+#[             char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, len_change);
 #[             if (new_ptr == NULL) {
-#[                 rte_exit(1, "Could not reserve necessary headroom (%d additional bytes)", pd->emit_length - pd->parsed_length);
+#[                 rte_exit(1, "Could not reserve necessary headroom (%d additional bytes)", len_change);
 #[             }
 #[             pd->data = (packet_data_t*)new_ptr;
 #[         } else {
-#[             debug("   :: Removing %02d bytes %${longest_hdr_name_len}s  : (from %d bytes to %d bytes)\n", pd->parsed_length - pd->emit_length, "from packet", pd->emit_length, pd->parsed_length);
-#[             rte_pktmbuf_adj((struct rte_mbuf*)pd, pd->parsed_length - pd->emit_length);
+#[             int len_change = pd->parsed_length - pd->emit_headers_length;
+#[             debug("   :: Removing %02d bytes %${longest_hdr_name_len}s  : (header: from %d bytes to %d bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
+#[             rte_pktmbuf_adj((struct rte_mbuf*)pd, len_change);
 #}         }
 #[     } else {
-#[         debug("   :: To emit %02d bytes (no resize)\n", pd->emit_length);
+#[         debug("   :: To emit  %02d bytes (no resize)\n", pd->emit_headers_length);
 #}     }
 #} }
 
 #[ void copy_emit_contents(${STDPARAMS})
 #{ {
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_length, "   :: Packet:  %02d bytes %${longest_hdr_name_len}s : ", pd->emit_length, "from storage");
-#[     memcpy((struct rte_mbuf*)pd->data, pd->header_tmp_storage, pd->emit_length);
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: %02d bytes %${longest_hdr_name_len}s: ", pd->emit_headers_length, "from storage");
+#[     memcpy((struct rte_mbuf*)pd->data, pd->header_tmp_storage, pd->emit_headers_length);
 #} }
 
 #[ void emit_packet(${STDPARAMS})
@@ -377,7 +379,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     debug("Parsed packet\n");
 #[     for (int i = 0; i < HEADER_INSTANCE_COUNT; ++i) {
 #[         if (!header_instance_is_metadata[i] && pd->headers[i].pointer != NULL) {
-#[             dbg_bytes(pd->headers[i].pointer, pd->headers[i].length, " :::: Header %${longest_hdr_name_len}s (%02d bytes): ",  pd->headers[i].name, pd->headers[i].length);
+#[             dbg_bytes(pd->headers[i].pointer, pd->headers[i].length, " :::: Header %${longest_hdr_name_len}s (%02d bytes)    : ",  pd->headers[i].name, pd->headers[i].length);
 #[         }
 #[     }
 #[ #endif
@@ -389,11 +391,12 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     int res32;
 
 #[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
-#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "HANDLING PACKET (port %" PRIu32 ", %02d bytes) : ", value32, rte_pktmbuf_pkt_len(pd->wrapper));
+#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "HANDLING PACKET (port %" PRIu32 ", %02d bytes)  : ", value32, rte_pktmbuf_pkt_len(pd->wrapper));
 
 #[     reset_headers(${STDPARAMS_IN});
 #[     pd->parsed_length = 0;
 #[     parse_packet(${STDPARAMS_IN});
+#[     pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
 #[
 #[     debug_print_parsed_packet(${STDPARAMS_IN});
 #[

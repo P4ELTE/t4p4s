@@ -135,8 +135,9 @@ typedef struct packet_descriptor_s {
     uint8_t             dropped;
 
     int emit_hdrinst_count;
-    int emit_length;
+    int emit_headers_length;
     int parsed_length;
+    int payload_length;
     bool is_emit_reordering;
     // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
     int header_reorder[HEADER_INSTANCE_COUNT+8];
