@@ -332,10 +332,25 @@ def beautify(filename):
             pass
 
 
+def does_file_contain_text(filename, text):
+    """Returns True iff the file exists and it already contains the given text."""
+    if os.path.isfile(filename):
+        with open(filename, "r") as infile:
+            intext = infile.read()
+            return text == intext
+
+    return False
+
+
 def write_file(filename, text):
     """Writes the given text to the given file with optional beautification."""
-    with open(filename, "w") as genfile:
-        genfile.write(text)
+
+    if not does_file_contain_text(filename, text):
+        with open(filename, "w") as genfile:
+            genfile.write(text)
+    else:
+        if args['verbose']:
+            print("Skipping", filename)
 
     if args['beautify']:
         beautify(filename)
@@ -385,7 +400,13 @@ def main():
         print("FILE NOT FOUND: %s" % args['p4_file'], file=sys.stderr)
         sys.exit(1)
 
+    if args['verbose']:
+        print("Loading file", args['p4_file'])
+
     success = load_file(args['p4_file'])
+
+    if args['verbose']:
+        print("Transforming HLIR")
 
     transform_hlir16(hlir16)
 
@@ -394,6 +415,8 @@ def main():
         sys.exit(1)
 
     for filename in os.listdir(args['compiler_files_dir']):
+        if args['verbose']:
+            print("Compiling", filename)
         file_with_path = join(args['compiler_files_dir'], filename)
 
         if not isfile(file_with_path):
