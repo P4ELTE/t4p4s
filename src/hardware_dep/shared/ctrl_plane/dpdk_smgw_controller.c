@@ -29,8 +29,8 @@ void fill_smac_table(uint8_t port, uint8_t mac[6]) {
   struct p4_header * h;
   struct p4_add_table_entry * te;
   struct p4_action * a;
-  /*	struct p4_action_parameter* ap;
-  	struct p4_field_match_header* fmh;*/
+  /*  struct p4_action_parameter* ap;
+    struct p4_field_match_header* fmh;*/
   struct p4_field_match_exact * exact;
 
   h = create_p4_header(buffer, 0, 2048);
@@ -95,9 +95,9 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
   struct p4_action_parameter * ap1;
   struct p4_action_parameter * ap2;
   struct p4_field_match_lpm * lpm;
-  struct p4_field_match_ternary * ternary;
+  // struct p4_field_match_ternary * ternary;
   
-  uint16_t mask = (mode==0?65565:0);
+  // uint16_t mask = (mode==0?65565:0);
 
   printf("ue_selector %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
@@ -259,7 +259,9 @@ void fill_ipv4_forward_table(uint8_t nhgroup, uint8_t port, uint8_t smac[6], uin
   struct p4_header * h;
   struct p4_add_table_entry * te;
   struct p4_action * a;
-  struct p4_action_parameter * ap, * ap2, * ap3;
+  struct p4_action_parameter * ap;
+  // struct p4_action_parameter * ap2;
+  struct p4_action_parameter * ap3;
   struct p4_field_match_exact * exact;
 
   printf("ipv4_forward\n");
@@ -475,23 +477,23 @@ void init_simple() {
     99,
     99
   };
-  uint8_t mac[6] = {
-    0xd2,
-    0x69,
-    0x0f,
-    0xa8,
-    0x39,
-    0x9c
-  };
-  uint8_t smac[6] = {
-    0xd2,
-    0x69,
-    0x0f,
-    0x00,
-    0x00,
-    0x9c
-  };
-  uint8_t port = 15;
+  // uint8_t mac[6] = {
+  //   0xd2,
+  //   0x69,
+  //   0x0f,
+  //   0xa8,
+  //   0x39,
+  //   0x9c
+  // };
+  // uint8_t smac[6] = {
+  //   0xd2,
+  //   0x69,
+  //   0x0f,
+  //   0x00,
+  //   0x00,
+  //   0x9c
+  // };
+  // uint8_t port = 15;
   uint32_t nhgrp = 0;
 
   fill_ipv4_lpm_table(ip, 16, nhgrp);
@@ -514,8 +516,9 @@ int read_config_from_file(char * filename) {
   uint8_t prefix;
   uint16_t temp;
   uint8_t nhgrp;
-  char dummy;
+  char format_code[256];
 
+  printf("Opening config file %s\n", filename);
   f = fopen(filename, "r");
   if (f == NULL) return -1;
 
@@ -523,69 +526,79 @@ int read_config_from_file(char * filename) {
   while (fgets(line, sizeof(line), f)) {
     line[strlen(line) - 1] = '\0';
     line_index++;
-    printf("Sor: %d.", line_index);
-    if (line[0] == 'M') { //SMAC
-      if (7 == sscanf(line, "%c %x:%x:%x:%x:%x:%x%c", & dummy, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
+    printf("Line: %d. ", line_index);
+
+    sscanf(line, "%s ", format_code);
+    printf("Found code %s\n", format_code);
+
+    if (!strcmp("SMAC", format_code)) { //SMAC
+      if (7 == sscanf(line, "%s %x:%x:%x:%x:%x:%x", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
         //fill_smac_table(port, dmac);
-        printf("skip M\n");
+        printf("Skipping SMAC\n");
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-/*    } else if (line[0] == 'D') { //DMAC
-      if (8 == sscanf(line, "%c %x:%x:%x:%x:%x:%x %d%c", & dummy, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
+    } else if (!strcmp("SMAC", format_code)) { //DMAC
+      if (8 == sscanf(line, "%s %x:%x:%x:%x:%x:%x %d", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
         fill_dmac_table(port, dmac);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-  */  } else if (line[0] == 'U') { //UE_SELECTOR
-      if (13 == sscanf(line, "%c %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d%c", &dummy, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
+    } else if (!strcmp("UE-SELECTOR", format_code)) { //UE_SELECTOR
+      if (13 == sscanf(line, "%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
       {
-	prefix = 32;
-	printf(line);
-	printf("%c %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", dummy, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
-	printf("PREFIX:::%d %d\n", prefix, temp);
+  prefix = 32;
+  printf(line);
+  printf("%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", format_code, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
+  printf("PREFIX:::%d %d\n", prefix, temp);
         fill_ue_selector_table(ip, prefix, udpport, mode, teid, ipbst );
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-/*    } else if (line[0] == 'T') { //teid_rate_limiter
-      if (3 == sscanf(line, "%c %d %d%c", & dummy, & teid, & mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
+    } else if (!strcmp("TEID-RATE-LIMITER", format_code)) { //teid_rate_limiter
+      char teid_mode[256];
+      if (3 == sscanf(line, "%s %d %d", format_code, & teid, & teid_mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
       {
+        if (!strcmp("APPLY-METER", teid_mode))  mode = 0;
+        if (!strcmp("NOP", teid_mode))          mode = 1;
+        if (!strcmp("DROP", teid_mode))         mode = 2;
         fill_teid_rate_limiter_table(teid, mode);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-    } else if (line[0] == 'M') { //m_filter
-      if (3 == sscanf(line, "%c %d %d%c", & dummy, & color, & mode)) //mode 1 _nop, 2 _drop
+    } else if (!strcmp("M-FILTER", format_code)) { //m_filter
+      char m_filter_mode[256];
+      if (3 == sscanf(line, "%s %d %d", format_code, & color, & m_filter_mode)) //mode 1 _nop, 2 _drop
       {
+        if (!strcmp("NOP", m_filter_mode))          mode = 1;
+        if (!strcmp("DROP", m_filter_mode))         mode = 2;
         fill_m_filter_table(color, mode);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-  */  } else if (line[0] == 'E') {
-      if (7 == sscanf(line, "%c %d.%d.%d.%d %d %d%c", & dummy, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
+    } else if (!strcmp("NEXTHOP", format_code)) {
+      if (7 == sscanf(line, "%s %d.%d.%d.%d %d %d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
         fill_ipv4_lpm_table(ip, prefix, nhgrp);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-    } else if (line[0] == 'N') {
-      char dummy2;
-      if (15 == sscanf(line, "%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c", & dummy2, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
+    } else if (!strcmp("SMAC-DMAC", format_code)) {
+      if (15 == sscanf(line, "%s %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
         printf(line);
         printf("\n");
-        printf("%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c", dummy, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
+        printf("%s %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x", format_code, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
         fill_ipv4_forward_table(nhgrp, port, smac, dmac);
       } else {
         printf("Wrong format error in line\n");
@@ -593,7 +606,7 @@ int read_config_from_file(char * filename) {
         return -1;
       }
     } else {
-      printf("Wrong format error in line\n");
+      printf("Wrong format error in line, unknown code %s\n", format_code);
       fclose(f);
       return -1;
     }
