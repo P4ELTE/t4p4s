@@ -23,7 +23,7 @@ void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
     pthread_mutex_lock(&dbg_mutex);
 
     for (int i = 0; i < byte_count; ++i) {
-        fprintf(out_file, "%02x ", ((uint8_t*)bytes)[i]);
+        fprintf(out_file, i%2 == 0 ? "%02x" : "%02x ", ((uint8_t*)bytes)[i]);
     }
 
     pthread_mutex_unlock(&dbg_mutex);
