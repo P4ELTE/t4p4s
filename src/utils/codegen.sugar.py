@@ -330,12 +330,12 @@ def gen_format_statement_16(stmt):
                     if m.member == 'isValid':
                         #[ controlLocal_tmp_0 = (pd->headers[header_instance_$hdr_name].pointer != NULL);
                     elif m.member == 'setValid':
-                        #[ debug("Setting header instance $hdr_name as valid");
+                        #[ debug("Setting header instance $hdr_name as valid\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = (pd->header_tmp_storage + header_instance_byte_width_summed[header_instance_$hdr_name]);
                         #[ // TODO initialise header instance contents?
                         #[
                     elif m.member == 'setInvalid':
-                        #[ debug("Setting header instance $hdr_name as invalid");
+                        #[ debug("Setting header instance $hdr_name as invalid\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = NULL;
                     else:
                         #= gen_methodcall(stmt)
