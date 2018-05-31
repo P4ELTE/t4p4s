@@ -254,8 +254,9 @@ def gen_format_statement_16(stmt):
                 #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, $dst_header_id, $dst_field_id, $src_pointer, $dst_bytewidth)
         else:
             if dst.type.node_type == 'Type_Header':
-                #[ // TODO make it work properly for non-byte-aligned fields
-                #[ memcpy(pd->headers[header_instance_${dst.member}].pointer, pd->headers[header_instance_${src.member}].pointer, (field_instance_bit_width[header_instance_${dst.member}]+7)/8);
+                #[ // TODO make it work properly for non-byte-aligned headers
+                #[ memcpy(pd->headers[header_instance_${dst.member}].pointer, pd->headers[header_instance_${src.member}].pointer, header_instance_byte_width[header_instance_${src.member}]);
+                #[ dbg_bytes(pd->headers[header_instance_${dst.member}].pointer, header_instance_byte_width[header_instance_${src.member}], "Copied %02d bytes from header_instance_${src.member} to header_instance_${dst.member}: ", header_instance_byte_width[header_instance_${src.member}]);
             else:
                 if format_expr_16(dst) == 'tmp_0':
                     import ipdb; ipdb.set_trace()
