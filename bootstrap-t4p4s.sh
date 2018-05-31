@@ -3,6 +3,9 @@ export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
 export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-v3.4.1}
 export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
 
+# Note: recent versions of P4C introduced changes currently incompatible with T4P4S
+P4C_COMMIT=80f8970b5ec8e57c4a3611da343461b5b0a8dda3
+
 vsns=(18.02 17.11.2 17.08 17.05.2 17.02.1 16.11.3 16.07.2)
 for vsn in ${vsns[*]};
 do
@@ -30,7 +33,7 @@ git clone --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf
 WAITPROC_PROTOBUF="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
 
-git clone --recursive https://github.com/p4lang/p4c &
+git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --recursive &
 WAITPROC_P4C="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
 
