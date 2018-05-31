@@ -226,17 +226,20 @@ for table in hlir16.tables:
 #[     pd->dropped=0;
 #[ }
 
-#[ void update_packet(packet_descriptor_t* pd) {
+#{ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
 for hdr in hlir16.header_instances:
+    #[ 
+    #[ // updating header instance ${hdr.name}
+
     for fld in hdr.type.type_ref.fields:
         if not fld.preparsed and fld.type.size <= 32:
-            #[ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
+            #{ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
             #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}, value32)
-            #[ }
-#[ }
+            #} }
+#} }
 
 ################################################################################
 # Pipeline
@@ -350,7 +353,8 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[         } else {
 #[             int len_change = pd->parsed_length - pd->emit_headers_length;
 #[             debug("   :: Removing %02d bytes %${longest_hdr_name_len}s  : (header: from %d bytes to %d bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
-#[             rte_pktmbuf_adj((struct rte_mbuf*)pd, len_change);
+#[             char* new_ptr = rte_pktmbuf_adj(pd->wrapper, len_change);
+#[             pd->data = (packet_data_t*)new_ptr;
 #}         }
 #[     } else {
 #[         debug("   :: To emit  %02d bytes (no resize)\n", pd->emit_headers_length);
@@ -359,7 +363,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[ void copy_emit_contents(${STDPARAMS})
 #{ {
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: %02d bytes %${longest_hdr_name_len}s: ", pd->emit_headers_length, "from storage");
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: %02d bytes %${longest_hdr_name_len}s : ", pd->emit_headers_length, "from storage");
 #[     memcpy((struct rte_mbuf*)pd->data, pd->header_tmp_storage, pd->emit_headers_length);
 #} }
 
@@ -382,6 +386,8 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[             dbg_bytes(pd->headers[i].pointer, pd->headers[i].length, " :::: Header %${longest_hdr_name_len}s (%02d bytes)    : ",  pd->headers[i].name, pd->headers[i].length);
 #[         }
 #[     }
+
+#[     dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " :::: Payload  %02d bytes  %${longest_hdr_name_len}s   : ", pd->payload_length, " ");
 #[ #endif
 #} }
 
