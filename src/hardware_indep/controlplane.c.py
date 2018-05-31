@@ -142,8 +142,7 @@ for table in hlir16.tables:
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
-        #[     debug("Reply from the control plane arrived.\n");
-        #[     debug("Adding new entry to ${table.name} with action ${action.action_object.name}\n");
+        #[     debug("From controller: add new entry to ${table.name} with action ${action.action_object.name}\n");
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
             # TODO handle specials properly (isValid etc.)
@@ -168,7 +167,6 @@ for table in hlir16.tables:
         continue
 
     #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
-    #[ debug("Action name: %s\n", ctrl_m->action_name);
     for action in table.actions:
         action_name_str = get_action_name_str(action)
         #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
@@ -177,8 +175,7 @@ for table in hlir16.tables:
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
-        #[     debug("Message from the control plane arrived.\n");
-        #[     debug("Set default action for ${table.name} with action $action_name_str\n");
+        #[     debug("From controller: set default action for ${table.name} with action $action_name_str\n");
         #[     ${table.name}_setdefault( action );
         #} } else
 
@@ -188,7 +185,6 @@ for table in hlir16.tables:
 
 
 #[ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
-#[     debug("MSG from controller %d %s\n", ctrl_m->type, ctrl_m->table_name);
 #[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
 for table in hlir16.tables:
     if not hasattr(table, 'key'):
