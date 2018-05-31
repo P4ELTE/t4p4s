@@ -76,9 +76,9 @@ declare -A dpdk_gcc_opts
 declare -A dpdk_sources
 declare -A dpdk_controller
 all_dpdk_controllers=()
-declare -A dpdk_controller_params
+declare -A dpdk_controller_opts
 declare -A dpdk_opts
-while read -r opt gcc_opts sources controller controller_params opts; do
+while read -r opt gcc_opts sources controller controller_opts opts; do
     if [ "$opt" == "" ]; then continue; fi
 
     dpdk_gcc_opts[$opt]="$gcc_opts"
@@ -87,7 +87,7 @@ while read -r opt gcc_opts sources controller controller_params opts; do
     if [ "$controller" != "-" ]; then
         all_dpdk_controllers+=" $controller"
     fi
-    dpdk_controller_params[$opt]="$controller_params"
+    dpdk_controller_opts[$opt]="$controller_opts"
     dpdk_opts[$opt]="$opts"
 done < <(grep -v ";" dpdk_parameters.cfg)
 
@@ -97,6 +97,7 @@ ARCH=${ARCH-dpdk}
 CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
 PYTHON=${PYTHON-python}
 T4P4S_VARIANT=${T4P4S_VARIANT-default}
+CONTROLLER_OPTS=${CONTROLLER_OPTS-}
 
 # Processing arguments
 while [ $# -gt 0 ]; do
@@ -134,7 +135,7 @@ while [ $# -gt 0 ]; do
                         DPDK_OPTS="$1"
                         ;;
         "ctrcfg")       shift
-                        CONTROLLER_PARAMS_FILE="$1"
+                        CONTROLLER_OPTS="$CONTROLLER_OPTS $1"
                         ;;
         "var")          shift
                         T4P4S_VARIANT="$1"
@@ -314,8 +315,8 @@ if [ "$T4P4S_RUN" == 1 ]; then
             errmsg_exit "No default controller found for $T4P4S_PRG"
         fi
 
-        msg "Controller    : ${CONTROLLER} (default for $T4P4S_PRG)"
-        msg "Controller log: ${CONTROLLER_LOG}"
+        msg "Controller     : ${CONTROLLER} (default for $T4P4S_PRG)"
+        msg "Controller log : ${CONTROLLER_LOG}"
     else
         CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
     fi
@@ -335,8 +336,21 @@ if [ "$T4P4S_RUN" == 1 ]; then
         sudo killall -q "$controller"
     done
 
+
+    if [ "$CONTROLLER_OPTS" == "" ]; then
+        for optid in $DPDK_OPTS; do
+            if [ "${dpdk_controller_opts[$optid]}" != "-" ]; then
+                for controller_opt in "${dpdk_controller_opts[$optid]}"; do
+                    CONTROLLER_OPTS="$CONTROLLER_OPTS $controller_opt"
+                done
+            fi
+        done
+    fi
+
+    msg "Controller opts: ${CONTROLLER_OPTS}"
+
     # Step 3A-3: Run controller
-    stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_PARAMS_FILE > "${CONTROLLER_LOG}" &
+    stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_OPTS > "${CONTROLLER_LOG}" &
     sleep 0.05
 fi
 
