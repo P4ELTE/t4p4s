@@ -107,11 +107,11 @@ for hdr in hlir16.header_instances:
         #[   field_instance_${hdr.name}_${fld.name},
 #} };
 
-#[ // Note: -1: is fixed-width field
+#[ #define FIXED_WIDTH_FIELD -1
 #{ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
     field_id_pattern = 'field_instance_{}_{}'
-    #[   ${reduce((lambda x, f: field_id_pattern.format(hdr.name, f.name) if f.is_vw else x), hdr.type.type_ref.fields, -1)}, // header_instance_${hdr.name}
+    #[   ${reduce((lambda x, f: field_id_pattern.format(hdr.name, f.name) if hasattr(f, 'is_vw') and f.is_vw else x), hdr.type.type_ref.fields, 'FIXED_WIDTH_FIELD')}, // header_instance_${hdr.name}
 #} };
 
 
@@ -256,7 +256,7 @@ for hdr in hlir16.header_types:
 
 #{ static const int header_var_width_field[HEADER_COUNT] = {
 for hdr in hlir16.header_types:
-    #[   ${reduce((lambda x, f: f.id if f.is_vw else x), hdr.fields, -1)}, // ${hdr.name}
+    #[   ${reduce((lambda x, f: f.id if hasattr(f, 'is_vw') and f.is_vw else x), hdr.fields, 'FIXED_WIDTH_FIELD')}, // ${hdr.name}
 #} };
 
 
