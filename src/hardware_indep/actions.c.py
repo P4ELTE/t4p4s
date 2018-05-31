@@ -19,6 +19,7 @@ import math
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
 #[ #include <unistd.h>
+#[ #include "util.h"
 
 #[ extern ctrl_plane_backend bg;
 
