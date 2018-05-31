@@ -281,7 +281,7 @@ parser MyParser(packet_in packet,
 
     state parse_teid {
         packet.extract(hdr.gtp_teid);
-        transition accept;
+        transition parse_inner;
 /*select( hdr.gtp_common.version, hdr.gtp_common.eFlag, hdr.gtp_common.sFlag, hdr.gtp_common.pnFlag ) {
 		    0x10 &  0x18 : parse_gtpv2; / v2 /
 		    0x0c & 0x1c : parse_gtpv1optional; / v1 + E /
