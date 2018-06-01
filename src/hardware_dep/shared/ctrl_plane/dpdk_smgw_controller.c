@@ -531,7 +531,7 @@ int read_config_from_file(char * filename) {
     sscanf(line, "%s ", format_code);
     printf("Found code %s\n", format_code);
 
-    if (!strcmp("SMAC", format_code)) { //SMAC
+    if (!strcmp("SMAC", format_code) || !strcmp("S", format_code)) { //SMAC
       if (7 == sscanf(line, "%s %x:%x:%x:%x:%x:%x", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
         //fill_smac_table(port, dmac);
         printf("Skipping SMAC\n");
@@ -548,7 +548,7 @@ int read_config_from_file(char * filename) {
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("UE-SELECTOR", format_code)) { //UE_SELECTOR
+    } else if (!strcmp("UE-SELECTOR", format_code) || !strcmp("U", format_code)) { //UE_SELECTOR
       if (13 == sscanf(line, "%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
       {
   prefix = 32;
@@ -561,32 +561,32 @@ int read_config_from_file(char * filename) {
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("TEID-RATE-LIMITER", format_code)) { //teid_rate_limiter
+    } else if (!strcmp("TEID-RATE-LIMITER", format_code) || !strcmp("T", format_code)) { //teid_rate_limiter
       char teid_mode[256];
       if (3 == sscanf(line, "%s %d %d", format_code, & teid, & teid_mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
       {
-        if (!strcmp("APPLY-METER", teid_mode))  mode = 0;
-        if (!strcmp("NOP", teid_mode))          mode = 1;
-        if (!strcmp("DROP", teid_mode))         mode = 2;
+        if (!strcmp("APPLY-METER", teid_mode) || !strcmp("0", format_code))  mode = 0;
+        if (!strcmp("NOP", teid_mode)         || !strcmp("1", format_code))  mode = 1;
+        if (!strcmp("DROP", teid_mode)        || !strcmp("2", format_code))  mode = 2;
         fill_teid_rate_limiter_table(teid, mode);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("M-FILTER", format_code)) { //m_filter
+    } else if (!strcmp("M-FILTER", format_code) || !strcmp("M", format_code)) { //m_filter
       char m_filter_mode[256];
       if (3 == sscanf(line, "%s %d %d", format_code, & color, & m_filter_mode)) //mode 1 _nop, 2 _drop
       {
-        if (!strcmp("NOP", m_filter_mode))          mode = 1;
-        if (!strcmp("DROP", m_filter_mode))         mode = 2;
+        if (!strcmp("NOP", m_filter_mode)  || !strcmp("1", format_code))         mode = 1;
+        if (!strcmp("DROP", m_filter_mode) || !strcmp("2", format_code))         mode = 2;
         fill_m_filter_table(color, mode);
       } else {
         printf("Wrong format error in line\n");
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("NEXTHOP", format_code)) {
+    } else if (!strcmp("NEXTHOP", format_code) || !strcmp("E", format_code)) {
       if (7 == sscanf(line, "%s %d.%d.%d.%d %d %d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
         fill_ipv4_lpm_table(ip, prefix, nhgrp);
       } else {
@@ -594,7 +594,7 @@ int read_config_from_file(char * filename) {
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("SMAC-DMAC", format_code)) {
+    } else if (!strcmp("SMAC-DMAC", format_code) || !strcmp("N", format_code)) {
       if (15 == sscanf(line, "%s %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
         printf(line);
         printf("\n");
