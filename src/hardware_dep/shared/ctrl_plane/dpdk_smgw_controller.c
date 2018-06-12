@@ -531,7 +531,7 @@ int read_config_from_file(char * filename) {
     sscanf(line, "%s ", format_code);
     printf("Found code %s\n", format_code);
 
-    if (!strcmp("SMAC", format_code) || !strcmp("S", format_code)) { //SMAC
+    if (!strcmp("SMAC", format_code) || !strcmp("M", format_code)) { //SMAC
       if (7 == sscanf(line, "%s %x:%x:%x:%x:%x:%x", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
         //fill_smac_table(port, dmac);
         printf("Skipping SMAC\n");
@@ -540,7 +540,7 @@ int read_config_from_file(char * filename) {
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("SMAC", format_code)) { //DMAC
+    } else if (!strcmp("DMAC", format_code)) { //DMAC
       if (8 == sscanf(line, "%s %x:%x:%x:%x:%x:%x %d", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
         fill_dmac_table(port, dmac);
       } else {
@@ -574,7 +574,7 @@ int read_config_from_file(char * filename) {
         fclose(f);
         return -1;
       }
-    } else if (!strcmp("M-FILTER", format_code) || !strcmp("M", format_code)) { //m_filter
+    } else if (!strcmp("M-FILTER", format_code) || !strcmp("F", format_code)) { //m_filter
       char m_filter_mode[256];
       if (3 == sscanf(line, "%s %d %d", format_code, & color, & m_filter_mode)) //mode 1 _nop, 2 _drop
       {
