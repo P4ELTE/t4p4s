@@ -14,12 +14,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "vector.h"
+
+#ifdef P4_DPDK_TARGET
 #include <rte_malloc.h>
+#endif
+
+#include <stdio.h>
+#include <stdlib.h>
 
 static void vector_init_elements(vector_t* vector, int from, int to) {
     int i;
     for(i = from; i < to; i++) {
+#ifdef P4_DPDK_TARGET
         vector->data[i] = rte_malloc_socket("counter_array_element", vector->data_size, 0, vector->socketid);
+#else
+		vector->data[i] = malloc(vector->data_size);
+#endif
         vector->value_init(vector->data[i]);
     }
 }
@@ -30,7 +40,11 @@ void vector_init(vector_t *vector, int size, int capacity, int data_size, void (
     vector->data_size = data_size;
     vector->capacity = capacity;
     vector->value_init = value_init;
+#ifdef P4_DPDK_TARGET
     vector->data = rte_malloc_socket("counter_array", sizeof(void*) * vector->capacity, 0, socketid);
+#else
+	vector->data = malloc(sizeof(void*) * vector->capacity);
+#endif
     vector_init_elements(vector, 0, size);
 }
 
@@ -58,7 +72,11 @@ void vector_double_capacity_if_full(vector_t *vector) {
     if (vector->size >= vector->capacity) {
         int i = vector->capacity;
         vector->capacity *= 2;
+#ifdef P4_DPDK_TARGET
         vector->data = rte_realloc(vector->data, vector->data_size * vector->capacity, 0);
+#else
+		vector->data = realloc(vector->data, vector->data_size * vector->capacity);
+#endif
         vector_init_elements(vector, i, vector->capacity);
     }
 }
