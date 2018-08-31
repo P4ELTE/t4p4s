@@ -13,8 +13,8 @@
 # limitations under the License.
 #!/usr/bin/env python
 
-from hlir16.p4node import P4Node, deep_copy
-from hlir16.hlir16 import get_fresh_node_id
+from hlir16.p4node import P4Node, deep_copy, get_fresh_node_id
+from hlir16.hlir16_attrs import get_main
 
 def apply_annotations(postfix, extra_args, x):
     if (x.methodCall.method.node_type=="PathExpression") :
@@ -49,14 +49,10 @@ def search_for_annotations(x):
     return x
 
 def transform_hlir16(hlir16):
-
-    main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more package instances?
+    main = get_main(hlir16)
     pipeline_elements = main.arguments 
 	
     for pe in pipeline_elements:
         c = hlir16.declarations.get(pe.type.name, 'P4Control')
         if c is not None:
             c.body.components = map(search_for_annotations, c.body.components)
-
-
-

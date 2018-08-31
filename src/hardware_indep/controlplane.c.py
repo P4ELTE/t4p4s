@@ -22,6 +22,7 @@ def match_type_order(t):
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
+#[ #include "tables.h"
 
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
 #[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
@@ -45,10 +46,12 @@ def get_key_byte_width(k):
         
     return (k.width+7)/8 if not k.header.type.type_ref.is_vw else 0
 
-for table in hlir16.tables:
-    if not hasattr(table, 'key'):
-        continue
 
+hlir16_tables_with_keys = [t for t in hlir16.tables if hasattr(t, 'key')]
+keyed_table_names = ", ".join([table.name for table in hlir16_tables_with_keys])
+
+
+for table in hlir16_tables_with_keys:
     #[ // note: ${table.name}, ${table.match_type}, ${table.key_length_bytes}
     #{ void ${table.name}_add(
     for k in table.key.keyElements:
@@ -110,13 +113,11 @@ for table in hlir16.tables:
 
 # TODO is there a more appropriate source for this than the annotation?
 def get_action_name_str(action):
-    return action.action_object.annotations.annotations[0].expr[0].value.replace(".", "")
+    name_parts = action.action_object.annotations.annotations.get('name').expr[0].value
+    return name_parts.rsplit(".")[-1]
 
 
-for table in hlir16.tables:
-    if not hasattr(table, 'key'):
-        continue
-
+for table in hlir16_tables_with_keys:
     #{ void ${table.name}_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
     for i, k in enumerate(table.key.keyElements):
         # TODO should properly handle specials (isValid etc.)
@@ -162,10 +163,7 @@ for table in hlir16.tables:
     #[ debug("Table add entry: action name mismatch (%s), expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
-for table in hlir16.tables:
-    if not hasattr(table, 'key'):
-        continue
-
+for table in hlir16_tables_with_keys:
     #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     for action in table.actions:
         action_name_str = get_action_name_str(action)
@@ -184,30 +182,35 @@ for table in hlir16.tables:
     #} }
 
 
-#[ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
-#[     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
-for table in hlir16.tables:
-    if not hasattr(table, 'key'):
-        continue
-
-    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
+#{ void ctrl_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
+for table in hlir16_tables_with_keys:
+    #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_add_table_entry(ctrl_m);
-    #[ else
+    #[     return;
+    #} }
+#[     debug("Table add entry: table name mismatch (%s), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
+#} }
 
-valid_table_names = ", ".join([table.name for table in hlir16.tables])
-#[ debug("Table add entry: table name mismatch (%s), expected one of ($valid_table_names).\n", ctrl_m->table_name);
+
+#{ void ctrl_setdefault(struct p4_ctrl_msg* ctrl_m) {
+for table in hlir16_tables_with_keys:
+    #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
+    #[     ${table.name}_set_default_table_action(ctrl_m);
+    #[     return;
+    #} }
+
+#[     debug("Table setdefault: table name mismatch (%s), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
+#} }
+
+
+#{ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
+#{     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
+#[          ctrl_add_table_entry(ctrl_m);
 #[     }
 #[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
-for table in hlir16.tables:
-    if not hasattr(table, 'key'):
-        continue
-
-    #[ if (strcmp("${table.name}", ctrl_m->table_name) == 0)
-    #[     ${table.name}_set_default_table_action(ctrl_m);
-    #[ else
-#[ debug("Table setdefault: table name mismatch (%s), expected one of ($valid_table_names).\n", ctrl_m->table_name);
-#[     }
-#[ }
+#[         ctrl_setdefault(ctrl_m);
+#}     }
+#} }
 
 
 

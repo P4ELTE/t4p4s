@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from utils.codegen import format_type_16
+from hlir16.hlir16_attrs import get_main
 
 #[ #ifndef __ACTION_INFO_GENERATED_H__
 #[ #define __ACTION_INFO_GENERATED_H__
@@ -25,13 +26,11 @@ def unique_stable(items):
     from collections import OrderedDict
     return list(OrderedDict.fromkeys(items))
 
-# NOTE: hlir16 version
 #{ enum actions {
-a = {}
 for table in hlir16.tables:
     for action in unique_stable(table.actions):
         #[ action_${action.action_object.name},
-#[ action_dummy_action,
+#[ action_,
 #} };
 
 # TODO remove this; instead:
@@ -58,7 +57,7 @@ for table in hlir16.tables:
         #} };
 
 for table in hlir16.tables:
-    #[ struct ${table.name}_action {
+    #{ struct ${table.name}_action {
     #[     int action_id;
     #[     union {
     for action in table.actions:
@@ -67,7 +66,7 @@ for table in hlir16.tables:
         action_method_name = action.expression.method.ref.name
         #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
     #[     };
-    #[ };
+    #} };
 
 
 
@@ -84,7 +83,7 @@ for table in hlir16.tables:
 
 
 # TODO: The controls shouldn't be accessed through an instance declaration parameter
-for pe in hlir16.declarations['Declaration_Instance'][0].arguments:
+for pe in get_main(hlir16).arguments:
     ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
 
     if ctl is not None:

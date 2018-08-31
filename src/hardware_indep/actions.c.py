@@ -23,9 +23,23 @@ import math
 
 #[ extern ctrl_plane_backend bg;
 
+#[ extern void sleep_millis(int millis);
+
+# TODO do not duplicate code
+def unique_stable(items):
+    """Returns only the first occurrence of the items in a list.
+    Equivalent to unique_everseen from Python 3."""
+    from collections import OrderedDict
+    return list(OrderedDict.fromkeys(items))
+
+#{ char* action_names[] = {
+for table in hlir16.tables:
+    for action in unique_stable(table.actions):
+        #[ "action_${action.action_object.name}",
+#} };
 
 
-#[ void digest(uint32_t, struct uint8_buffer_t, packet_descriptor_t*, lookup_table_t** tables);
+#[ void digest(uint32_t, struct uint8_buffer_s, packet_descriptor_t*, lookup_table_t** tables);
 
 
 #[ // TODO create this meter properly
@@ -40,17 +54,22 @@ for ctl in hlir16.controls:
             fun_params += ["struct action_{}_params parameters".format(act.name)]
 
         #{ void action_code_${act.name}(${', '.join(fun_params)}) {
-        #[ uint32_t value32, res32, mask32;
-        #[ (void)value32; (void)res32; (void)mask32;
-        #[ control_locals_${ctl.name}_t* control_locals = (control_locals_${ctl.name}_t*) pd->control_locals;
+        #[     uint32_t value32, res32, mask32;
+        #[     (void)value32; (void)res32; (void)mask32;
+        #[     control_locals_${ctl.name}_t* control_locals = (control_locals_${ctl.name}_t*) pd->control_locals;
 
         for stmt in act.body.components:
-            global statement_buffer
-            statement_buffer = ""
+            global pre_statement_buffer
+            global post_statement_buffer
+            pre_statement_buffer = ""
+            post_statement_buffer = ""
 
             code = format_statement_16_ctl(stmt, ctl)
-            if statement_buffer != "":
-                #= statement_buffer
-                statement_buffer = ""
+            if pre_statement_buffer != "":
+                #= pre_statement_buffer
+                pre_statement_buffer = ""
             #= code
+            if post_statement_buffer != "":
+                #= post_statement_buffer
+                post_statement_buffer = ""
         #} }
