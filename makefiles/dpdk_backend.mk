@@ -14,10 +14,12 @@
 CDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 P4_SRCDIR := $(dir $(lastword $(MAKEFILE_LIST)))/../../src
 
+VPATH += $(CDIR)
 VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/
 VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/includes
 VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane
 VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/data_plane
+VPATH += $(P4_SRCDIR)/examples/hardware_dep/dpdk/p4_16_v1model/test
 
 # dpdk main
 SRCS-y += main.c
@@ -38,9 +40,7 @@ SRCS-y += threadpool.c
 # data plane related includes
 SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
-SRCS-y += dpdk_primitives.c
 SRCS-y += ternary_naive.c
-SRCS-y += vector.c
 
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/includes"
 CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane"
