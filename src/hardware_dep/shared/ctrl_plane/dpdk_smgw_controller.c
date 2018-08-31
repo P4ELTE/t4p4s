@@ -118,7 +118,7 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
   a = add_p4_action(h, 2048);
   if (mode == 1) {
     printf("add mode gtp_encapsulate\n");
-    strcpy(a->description.name, "MyIngressgtp_encapsulate");
+    strcpy(a->description.name, "gtp_encapsulate");
     ap1 = add_p4_action_parameter(h, a, 2048);
     strcpy(ap1->name, "teid");
     memcpy(ap1->bitmap, &teid, 4);
@@ -130,7 +130,7 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
     ap2->length = 4 * 8 + 0;
   } else {
     printf("add mode gtp_decapsulate\n");
-    strcpy(a->description.name, "MyIngressgtp_decapsulate");
+    strcpy(a->description.name, "gtp_decapsulate");
   }
 
   netconv_p4_header(h);
@@ -236,7 +236,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint8_t prefix, uint8_t nhgrp) {
   lpm->prefix_length = prefix;
 
   a = add_p4_action(h, 2048);
-  strcpy(a->description.name, "MyIngressset_nhgrp");
+  strcpy(a->description.name, "set_nhgrp");
 
   printf("add nhgrp\n");
   ap = add_p4_action_parameter(h, a, 2048);
@@ -277,7 +277,7 @@ void fill_ipv4_forward_table(uint8_t nhgroup, uint8_t port, uint8_t smac[6], uin
   exact->length = 1 * 8 + 0;
 
   a = add_p4_action(h, 2048);
-  strcpy(a->description.name, "MyIngresspkt_send");
+  strcpy(a->description.name, "pkt_send");
 
   ap = add_p4_action_parameter(h, a, 2048);
   strcpy(ap->name, "nhmac");
@@ -365,7 +365,7 @@ void set_default_action_ue_selector_table() {
   strcpy(sda->table_name, "ue_selector");
 
   a = & (sda->action);
-  strcpy(a->description.name, "MyIngressdrop");
+  strcpy(a->description.name, "drop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
@@ -434,7 +434,7 @@ void set_default_action_ipv4_forward() {
   strcpy(sda->table_name, "ipv4_forward");
 
   a = & (sda->action);
-  strcpy(a->description.name, "MyIngressdrop");
+  strcpy(a->description.name, "drop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
@@ -457,7 +457,7 @@ void set_default_action_ipv4_lpm() {
   strcpy(sda->table_name, "ipv4_lpm");
 
   a = & (sda->action);
-  strcpy(a->description.name, "MyIngressdrop");
+  strcpy(a->description.name, "drop");
 
   netconv_p4_header(h);
   netconv_p4_set_default_action(sda);
