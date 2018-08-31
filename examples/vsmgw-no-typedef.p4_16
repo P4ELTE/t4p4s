@@ -506,7 +506,7 @@ apply {
 	{
 		    if ( hdr.ipv4.isValid() ) {
 			    ue_selector.apply();
-			    //teid_rate_limiter.apply();
+			    teid_rate_limiter.apply();
 			    //m_filter.apply();
 			    ipv4_lpm.apply();
 			    ipv4_forward.apply();
