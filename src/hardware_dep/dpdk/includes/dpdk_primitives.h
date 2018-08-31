@@ -182,6 +182,7 @@ typedef struct bitfield_handle_s {
     memcpy(dst, fd.byte_addr, fd.bytewidth); \
 }
 
+
 /*******************************************************************************
    Interface
 *******************************************************************************/
@@ -222,6 +223,15 @@ typedef struct bitfield_handle_s {
 #define MODIFY_INT32_INT32_AUTO_BUFFER(buf, w, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_buf(buf, w), f), value32);
 
 //#define GET_INT32_AUTO(mode, x, y, f) GET_INT32_AUTO(handle((mode == 1 ? header_desc_ins(x, y) : header_desc_buf(x, y)), f))
+
+
+/*******************************************************************************
+   Extract - statement
+*******************************************************************************/
+
+#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
+#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
+
 
 #endif // DPDK_PRIMITIVES_H
 
