@@ -14,6 +14,7 @@
 
 #include "backend.h"
 #include "util.h"
+#include <unistd.h>
 #include <pthread.h>
 
 pthread_mutex_t dbg_mutex;
@@ -28,4 +29,9 @@ void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
 
     pthread_mutex_unlock(&dbg_mutex);
 #endif
+}
+
+
+void sleep_millis(int millis) {
+    usleep(millis * 1000);
 }
