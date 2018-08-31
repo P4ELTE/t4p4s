@@ -25,23 +25,45 @@ To start working with the compiler, do the following.
 
 ~~~
 # Run an example with the default configuration
+./t4p4s.sh l2fwd
+# The program finds the source file, but you can also specify it manually
 ./t4p4s.sh ./examples/l2fwd.p4
 # This is equivalent to the above
 ./t4p4s.sh launch ./examples/l2fwd.p4
-# Run only C->executable compilation
-./t4p4s.sh c ./examples/l2fwd.p4
-# Launch an already compiled executable
+
+# Run test cases (offline; no network card needed)
+# Here, one is called "test" and the other is "payload"
+./t4p4s.sh l2fwd ?test
+./t4p4s.sh l2fwd ?payload
+
+# Get detailed debug output
+./t4p4s.sh l2fwd ??test
+./t4p4s.sh l2fwd ??payload
+
+# Edit the configuration and introduce a new configuration variant
+# (Examples by default use @std, test examples use @test)
+./t4p4s.sh l2fwd @my_variant
+# This is equivalent to the above
+./t4p4s.sh l2fwd var my_variant
+
+# Specify which steps are taken
+# The above default to "launch", which is equivalent to "p4 c run"
+./t4p4s.sh p4 ./examples/l2fwd.p4
+./t4p4s.sh c  ./examples/l2fwd.p4
 ./t4p4s.sh run ./examples/l2fwd.p4
-# Compile and run a program, show debug info during packet processing
 ./t4p4s.sh dbg ./examples/l2fwd.p4
+
 # Compile and run a program, debug the Python code
-./t4p4s.sh dbgpy ./examples/l2fwd.p4
+./t4p4s.sh l2fwd dbgpy
+
 # Specify P4 version explicitly (default: from examples.cfg, or v16)
-./t4p4s.sh v14 ./examples/l2fwd.p4
-# Choose a variant (if the example has one other than the default)
-./t4p4s.sh var myCustomVariant ./examples/l2fwd.p4
-# Specify DPDK configuration manually
-./t4p4s.sh cfg "-c 0x3 -n 4 --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\"" ./examples/l2fwd.p4
+./t4p4s.sh l2fwd v14
+
+# Specify the configuration in more detail
+./t4p4s.sh l2fwd ??payload cfg "v1model test l2fwd smem silent 2cores 0ports"
+
+# ... or even more detail
+./t4p4s.sh l2fwd dpdkcfg "-c 0x3 -n 4 --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\""
 ~~~
 
 At this point, P4-16 programs will probably compile, and they may or may not run properly.
