@@ -15,7 +15,6 @@
 #define __BACKEND_H_
 
 #include "ctrl_plane_backend.h"
-#include "data_plane_data.h"
 #include "dataplane.h"
 #include <string.h>
 
@@ -23,8 +22,8 @@
 	#define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 	#define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
 
-	#define lcore_debug(M, ...) fprintf(stderr, "%11.11s@%4d [CORE%2d@%d] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-	#define no_core_debug(M, ...) fprintf(stderr, "[NO-CORE] " M "", ##__VA_ARGS__)
+	#define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE%2d@%d] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+	#define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
 
 	#include <pthread.h>
 	pthread_mutex_t dbg_mutex;
@@ -47,11 +46,17 @@ typedef struct header_descriptor_s header_descriptor_t;
 typedef struct header_reference_s  header_reference_t;
 typedef struct field_reference_s   field_reference_t;
 
+
+struct uint8_buffer_s {
+	   int      buffer_size;
+	   uint8_t* buffer;
+};
+
 //=============================================================================
 // General
 
-uint8_t       initialize   (int argc, char **argv);
-int           launch       (void);
+void          initialize (int argc, char **argv);
+int           launch     (void);
 
 //=============================================================================
 // Table mgmt

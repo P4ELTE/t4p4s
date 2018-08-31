@@ -15,7 +15,6 @@
 #define __BACKEND_H_
 
 #include "ctrl_plane_backend.h"
-#include "data_plane_data.h"
 #include "dataplane.h"
 #include <stdio.h>
 #include <stdlib.h>
