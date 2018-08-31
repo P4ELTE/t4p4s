@@ -20,9 +20,10 @@ typedef struct rte_mbuf packet;
 typedef uint8_t packet_data_t;
 
 #include <rte_spinlock.h>
-typedef rte_spinlock_t lock;
+typedef rte_spinlock_t lock_t;
 
-#define DEFAULT_ACTION_INDEX -42
+#define INVALID_TABLE_ENTRY -42
+#define VALID_TABLE_ENTRY   0xd00ff00d
 
 #endif // __ALIASES_H_
 
