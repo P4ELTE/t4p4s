@@ -124,16 +124,23 @@ def is_std_metadata(e):
 
 enclosing_control = None
 
-statement_buffer = ""
+pre_statement_buffer = ""
+post_statement_buffer = ""
 
 def prepend_statement(s):
-    global statement_buffer
-    statement_buffer += "\n" + s
+    global pre_statement_buffer
+    pre_statement_buffer += "\n" + s
+
+def append_statement(s):
+    global post_statement_buffer
+    post_statement_buffer += s + "\n"
 
 def statement_buffer_value():
-    global statement_buffer
-    ret = statement_buffer
-    statement_buffer = ""
+    global pre_statement_buffer
+    global post_statement_buffer
+    ret = (pre_statement_buffer, post_statement_buffer)
+    pre_statement_buffer = ""
+    post_statement_buffer = ""
     return ret
 
 
@@ -258,9 +265,6 @@ def gen_format_statement_16(stmt):
                 #[ memcpy(pd->headers[header_instance_${dst.member}].pointer, pd->headers[header_instance_${src.member}].pointer, header_instance_byte_width[header_instance_${src.member}]);
                 #[ dbg_bytes(pd->headers[header_instance_${dst.member}].pointer, header_instance_byte_width[header_instance_${src.member}], "Copied %02d bytes from header_instance_${src.member} to header_instance_${dst.member}: ", header_instance_byte_width[header_instance_${src.member}]);
             else:
-                if format_expr_16(dst) == 'tmp_0':
-                    import ipdb; ipdb.set_trace()
-                    
                 #[ ${format_expr_16(dst)} = ${format_expr_16(src)};
 
     elif stmt.node_type == 'BlockStatement':
@@ -301,11 +305,9 @@ def gen_format_statement_16(stmt):
                     #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).byte_addr;
                     #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).bitwidth;
             #[ generate_digest(bg,"${digest_name}",0,&fields);
-            #[ sleep(1);
+            #[ sleep_millis(DIGEST_SLEEP_MILLIS);
         else:
             if m.get_attr('member') is not None:
-                #[ // ${m.member} called on ${m.expr}
-
                 def is_emit(m):
                     return hasattr(m, 'expr') and hasattr(m.expr, 'path') and (m.expr.path.name, m.member) == ('packet', 'emit')
 
@@ -322,8 +324,39 @@ def gen_format_statement_16(stmt):
                 elif hasattr(m.expr, 'ref') and (m.expr.node_type, m.expr.ref.node_type, m.member) == ('PathExpression', 'P4Table', 'apply'):
                     #[ ${gen_method_apply(stmt.methodCall)};
                 elif m.expr.get_attr('member') is None:
-                    #[ // TODO handle call: ${m.member} called on ${m.expr}
-                    pass
+                    type = m.expr.type.substituted if m.expr.type.node_type == "Type_SpecializedCanonical" else m.expr.type
+
+                    args = ", ".join([format_expr_16(arg, expand_parameters=True) for arg in stmt.methodCall.arguments])
+
+                    # the indexes of the parameters which originate from a type parameter
+                    # TODO generalize and move to hlir16_attrs
+                    externs = [
+                        ('meter',        'execute_meter', [1]),
+                        ('direct_meter', 'read',          [0]),
+                        ('register',     'read',          [0]),
+                        ('register',     'write',         [1]),
+                    ]
+
+                    base_type = m.expr.ref.type
+                    if hasattr(base_type, 'baseType'):
+                        base_type = base_type.baseType
+
+                    extern_type = base_type.type_ref.name
+
+                    def resolve_type(t, type_params):
+                        if t.node_type == 'Type_Var':
+                            return type_params[t.name]
+
+                        return t
+
+                    type_param_names = (t.name for t in stmt.methodCall.method.type.typeParameters.parameters)
+                    type_params = dict(zip(type_param_names, stmt.methodCall.typeArguments))
+
+                    pars = (par for et, mn, ps in externs if (et, mn) == (extern_type, m.member) for par in ps)
+                    types = (m.type.parameters.parameters[par].type for par in pars)
+                    type_args = "".join(["_" + format_type_16(resolve_type(t, type_params)) for t in types])
+
+                    #[ extern_${type.name}_${m.member}${type_args}($args);
                 else:
                     hdr_name = m.expr.member
 
@@ -332,7 +365,7 @@ def gen_format_statement_16(stmt):
                     elif m.member == 'setValid':
                         #[ debug("Setting header instance $hdr_name as valid\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = (pd->header_tmp_storage + header_instance_byte_width_summed[header_instance_$hdr_name]);
-                        #[ // TODO initialise header instance contents?
+                        #[ // TODO initialise header instance contents on setValid?
                         #[
                     elif m.member == 'setInvalid':
                         #[ debug("Setting header instance $hdr_name as invalid\n");
@@ -471,7 +504,7 @@ def gen_method_setValid(e):
     #[     .var_width_field_bitwidth = 0,
     #[ };
 
-def gen_format_expr_16(e, format_as_value=True):
+def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
     simple_binary_ops = {'Div':'/', 'Mod':'%',                                 #Binary arithmetic operators
                          'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
                          'BAnd':'&', 'BOr':'|', 'BXor':'^',                    #Bitwise operators
@@ -524,9 +557,8 @@ def gen_format_expr_16(e, format_as_value=True):
     elif e.node_type == 'LNot':
         return '(!' + format_expr_16(e.expr) + ')'
 
-    elif e.node_type in simple_binary_ops:
-        if e.node_type == 'Equ' and e.left.type.size > 32:
-            return "0 == memcmp({}, {}, ({} + 7) / 8)".format(format_expr_16(e.left), format_expr_16(e.right), e.left.type.size)
+    elif e.node_type in simple_binary_ops and e.node_type == 'Equ' and e.left.type.size > 32:
+        return "0 == memcmp({}, {}, ({} + 7) / 8)".format(format_expr_16(e.left), format_expr_16(e.right), e.left.type.size)
 
     elif e.node_type in simple_binary_ops:
         return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
@@ -593,7 +625,7 @@ def gen_format_expr_16(e, format_as_value=True):
         if e.id not in generated_exprs:
             prepend_statement(listexpression_to_buf(e))
             generated_exprs.add(e.id)
-        return '(struct uint8_buffer_t) {{ .buffer =  buffer{}, .buffer_size = buffer{}_size }}'.format(e.id, e.id)
+        return '(struct uint8_buffer_s) {{ .buffer =  buffer{}, .buffer_size = buffer{}_size }}'.format(e.id, e.id)
         # return 'buffer{}, buffer{}_size'.format(e.id, e.id)
     elif e.node_type == 'SelectExpression':
         #Generate local variables for select values
@@ -640,6 +672,8 @@ def gen_format_expr_16(e, format_as_value=True):
     elif e.node_type == 'PathExpression':
         if e.ref.node_type == 'Declaration_Variable' and is_control_local_var(e.ref.name):
             return "control_locals->" + e.ref.name
+        if expand_parameters and not e.path.absolute:
+            return "parameters." + e.ref.name
         return e.ref.name
 
     elif e.node_type == 'Member':
@@ -684,7 +718,7 @@ def gen_format_expr_16(e, format_as_value=True):
 
         if method:
             #[ ${method(e)}
-        elif e.arguments.is_vec() and e.arguments.vec != []:# and e.arguments[0].node_type == 'ListExpression':
+        elif e.arguments.is_vec() and e.arguments.vec != []:
             # TODO is this right? shouldn't e.method always have a .ref?
             if e.method.get_attr('ref') is None:
                 mref = e.method.expr.ref
@@ -693,14 +727,35 @@ def gen_format_expr_16(e, format_as_value=True):
                 mref = e.method.ref
                 method_params = mref.type.parameters
 
-            fmt_params = format_method_parameters(e.arguments, method_params)
-            if "," not in fmt_params:
-                all_params = "pd, tables"
-            else:
-                all_params = ", ".join([fmt_params, "pd", "tables"])
+            if mref.name == 'digest':
+                fields = ", ".join(["{}/{}".format(c.field_ref.name, c.field_ref.type.size) for c in e.arguments[1].components])
 
-            # TODO the l2fwd example (autogenerated from P4-14) uses mref.name=='digest' with somewhat different parameters
-            #[ ${mref.name}($all_params)
+                prepend_statement("debug(\"Sending digest to port %d (fields: {})\\n\", {});\n".format(fields, e.arguments[0].value))
+                append_statement("sleep_millis(300);")
+
+                id = e.id
+                name = e.typeArguments['Type_Name'][0].path.name
+                receiver = e.arguments[0].value
+                
+                prepend_statement('ctrl_plane_digest digest{} = create_digest(bg, "{}");\n'.format(id, name));
+                for fld in e.arguments[1].components:
+                    bitsize = fld.type.size
+
+                    prepend_statement('add_digest_field(digest{}, field_desc(pd, field_instance_{}_{}).byte_addr, {});\n'.format(
+                                      id, fld.expr.header_ref.name, fld.field_ref.name, bitsize));
+
+                #[ send_digest(bg, digest$id, $receiver)
+            else:
+                # TODO is this part reachable, or does the `digest` case cover every possibility?
+
+                fmt_params = format_method_parameters(e.arguments, method_params)
+                if "," not in fmt_params:
+                    all_params = "pd, tables"
+                else:
+                    all_params = ", ".join([fmt_params, "pd", "tables"])
+
+                #[ ${mref.name}($all_params)
+
        # elif e.arguments.is_vec() and e.arguments.vec != []:
        #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
@@ -725,20 +780,24 @@ def format_method_parameters(ps, mt):
     with SugarStyle("inline_comment"):
         return gen_format_method_parameters(ps, mt)
 
-def format_expr_16(e, format_as_value=True):
+def format_expr_16(e, format_as_value=True, expand_parameters=False):
     global file_sugar_style
     with SugarStyle("inline_comment"):
-        return gen_format_expr_16(e, format_as_value)
+        return gen_format_expr_16(e, format_as_value, expand_parameters)
 
 def format_statement_16(stmt):
-    global statement_buffer
-    statement_buffer = ""
+    global pre_statement_buffer
+    global post_statement_buffer
+    pre_statement_buffer = ""
+    post_statement_buffer = ""
 
     ret = gen_format_statement_16(stmt)
 
-    statement_buffer_ret = statement_buffer
-    statement_buffer = ""
-    return statement_buffer_ret + ret
+    pre_statement_buffer_ret = pre_statement_buffer
+    pre_statement_buffer = ""
+    post_statement_buffer_ret = post_statement_buffer
+    post_statement_buffer = ""
+    return pre_statement_buffer_ret + ret + post_statement_buffer_ret
 
 def format_statement_16_ctl(stmt, ctl):
     global enclosing_control

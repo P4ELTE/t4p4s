@@ -134,8 +134,12 @@ for s in parser.states:
             x = "parser_state_" + format_expr_16(b) + "(pd, buf, tables);"
         if b.node_type == 'SelectExpression':
             x = format_expr_16(b)
-        #[ ${statement_buffer_value()}
-        #[ ${x}
+
+        prebuf, postbuf = statement_buffer_value()
+
+        #[ $prebuf
+        #[ $x
+        #[ $postbuf
     #[ }
 
 #[ void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables) {
