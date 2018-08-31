@@ -18,10 +18,10 @@
 #include <stdbool.h>
 #include "backend.h"
 
-void verify_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
-void update_checksum(bool cond, struct uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
+void update_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,
                      packet_descriptor_t* pd, lookup_table_t** tables);
 
 void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm,

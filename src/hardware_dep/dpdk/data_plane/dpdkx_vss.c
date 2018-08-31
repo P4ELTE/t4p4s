@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "backend.h"
-#include "dpdk_vss_extern.h"
+#include "dpdkx_vss.h"
 
 // extern Checksum16
 
@@ -29,7 +29,7 @@ uint16_t csum16_add(uint16_t num1, uint16_t num2) {
     return (uint16_t)tmp_num;
 }
 
-uint16_t Checksum16_get(struct uint8_buffer_t buf, packet_descriptor_t* pd, lookup_table_t** tables) {
+uint16_t Checksum16_get(struct uint8_buffer_s buf, packet_descriptor_t* pd, lookup_table_t** tables) {
     uint32_t res = 0;
     res = csum16_add(res, calculate_csum16(buf.buffer, buf.buffer_size));
     res = (res == 0xffff) ? res : ((~res) & 0xffff);
