@@ -14,17 +14,22 @@
 
 from utils.codegen import format_declaration_16, format_statement_16_ctl, format_expr_16, format_type_16, type_env
 from utils.misc import addError, addWarning
+from hlir16.hlir16_attrs import get_main
 
 #[ #include <stdlib.h>
 #[ #include <string.h>
 #[ #include <stdbool.h>
 #[ #include "dpdk_lib.h"
-#[ #include "data_plane_data.h"
 #[ #include "actions.h"
+#[ #include "backend.h"
 #[ #include "util.h"
+#[ #include "tables.h"
 
 #[ uint8_t* emit_addr;
 #[ uint32_t ingress_pkt_len;
+
+#[ extern ctrl_plane_backend bg;
+#[ extern char* action_names[];
 
 #[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
 #[ extern void increase_counter (int counterid, int index);
@@ -38,14 +43,14 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'k
 STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
 STDPARAMS_IN = "pd, tables"
 
-main = hlir16.declarations['Declaration_Instance'][0] # TODO what if there are more packet instances?
+main = get_main(hlir16)
 packet_name = main.type.baseType.type_ref.name
 pipeline_elements = main.arguments
 
-#[ struct apply_result_s {
+#{ struct apply_result_s {
 #[     bool hit;
 #[     enum actions action_run;
-#[ };
+#} };
 
 for pe in pipeline_elements:
     c = hlir16.declarations.get(pe.type.name, 'P4Control')
@@ -100,104 +105,98 @@ for table in hlir16.tables:
 ################################################################################
 # Table application
 
-# for pe in pipeline_elements:
-#     c = hlir16.declarations.get(pe.type.name, 'P4Control')
-#     if c is None:
-#         continue
-
-#     for table in c.controlLocals['P4Table']:
-
-for pe in pipeline_elements:
-    c = hlir16.declarations.get(pe.type.name, 'P4Control')
-    if c is None:
-        continue
-
 for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
     #[ struct apply_result_s ${table.name}_apply(${STDPARAMS})
-    #[ {
+    #{ {
     #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
     if hasattr(table, 'key'):
         #[     uint8_t* key[${table.key_length_bytes}];
         #[     table_${table.name}_key(pd, (uint8_t*)key);
-        #[     uint8_t* value = ${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
-        #[     struct ${table.name}_action* res = (struct ${table.name}_action*)value;
-        #[     bool hit = res != NULL && -42 != (*(int*)(value+sizeof(struct ${table.name}_action)));
+
+        #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
+        #[     bool hit = entry != NULL && entry->is_entry_valid;
+
+        #[     dbg_bytes(key, hit ? ${table.key_length_bytes} : 0, "Lookup %s on table ${table.name}: action %s%s", hit ? "HIT" : "MISS", hit ? action_names[entry->action.action_id] : "default", hit ? ", data " : "");
+
+        #{     if (hit) {
+        for smem in table.meters + table.counters:
+            for comp in smem.components:
+                value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
+                type = comp['type']
+                name  = comp['name']
+                #[ apply_direct_smem_$type(&(entry->state.$name), $value, "${table.name}", "${smem.smem_type}", "$name");
+        #}    }
     else:
-        if hasattr(table, 'default_action'):
-            #[    struct ${table.name}_action resStruct = { action_${table.default_action.expression.method.ref.name} };
-            #[    struct ${table.name}_action* res = &resStruct;
+        action = table.default_action.expression.method.ref.name if hasattr(table, 'default_action') else None
+
+        if action:
+            #[    table_entry_${table.name}_t resStruct = { .action = action_${table.default_action.expression.method.ref.name} };
+            #[    table_entry_${table.name}_t* entry = &resStruct;
             #[    bool hit = true;
         else:
-            #[    struct ${table.name}_action* res = (struct ${table.name}_action*)0;
+            #[    table_entry_${table.name}_t* entry = (struct ${table.name}_action*)NULL;
             #[    bool hit = false;
 
-    # COUNTERS
-    # TODO
 
     # ACTIONS
-    #[     if(res == NULL) {
+    #[     if (!hit) {
     #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
     #[     } else {
-    #[       switch (res->action_id) {
+    #{       switch (entry->action.action_id) {
     for action in table.actions:
         action_name = action.action_object.name
         if action_name == 'NoAction':
             continue
-        #[         case action_${action_name}:
+        #{         case action_${action_name}:
         #[           debug("    :: EXECUTING ACTION ${action_name}...\n");
-        if action.action_object.parameters.parameters: # action.expression.arguments != []:
-            #[           action_code_${action_name}(pd, tables, res->${action_name}_params);
+        if action.action_object.parameters.parameters:
+            #[           action_code_${action_name}(pd, tables, entry->action.${action_name}_params);
         else:
             #[           action_code_${action_name}(pd, tables);
-        #[           break;
+        #}           break;
     #[       }
-    #[     }
+    #}     }
 
-    #[     struct apply_result_s apply_result = { hit, res != NULL ? res->action_id : -1 };
+    #[     struct apply_result_s apply_result = { hit, hit ? entry->action.action_id : -1 };
     #[     return apply_result;
-    #[ }
-    #[
-    #[ struct ${table.name}_s {
-    #[     struct apply_result_s (*apply)(packet_descriptor_t* pd, lookup_table_t** tables);
-    #[ };
-    #[ struct ${table.name}_s ${table.name} = {.apply = &${table.name}_apply};
+    #} }
 
 
 ################################################################################
 
-#[ void reset_headers(${STDPARAMS}) {
+#{ void reset_headers(${STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}].pointer = NULL;
     else:
         #[ memset(pd->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
-#[ }
+#} }
 
-#[ void init_headers(${STDPARAMS}) {
+#{ void init_headers(${STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}] = (header_descriptor_t)
-        #[ {
+        #{ {
         #[     .type = ${h.id},
         #[     .length = header_info(${h.id}).bytewidth,
         #[     .pointer = NULL,
         #[     .var_width_field_bitwidth = 0,
         #[     .name = "${h.name}",
-        #[ };
+        #} };
     else:
         #[ pd->headers[${h.id}] = (header_descriptor_t)
-        #[ {
+        #{ {
         #[     .type = ${h.id},
         #[     .length = header_info(${h.id}).bytewidth,
         #[     .pointer = malloc(header_info(${h.id}).bytewidth * sizeof(uint8_t)),
         #[     .var_width_field_bitwidth = 0
-        #[ };
-#[ }
+        #} };
+#} }
 
 ################################################################################
 
-#TODO are these keyless tabls supported in p4-16?
+#TODO are these keyless tables supported in p4-16?
 
 def keyless_single_action_table(table):
     if not table.get_attr('key'):
@@ -208,23 +207,23 @@ for table in hlir16.tables:
     if keyless_single_action_table(table):
         #[ extern void ${table.name}_setdefault(struct ${table.name}_action);
 
-#[ void init_keyless_tables() {
+#{ void init_keyless_tables() {
 for table in hlir16.tables:
     if keyless_single_action_table(table):
         action = table.actions[0].action_object
         #[ struct ${table.name}_action ${table.name}_a;
         #[ ${table.name}_a.action_id = action_${action.name};
         #[ ${table.name}_setdefault(${table.name}_a);
-#[ }
+#} }
 
 ################################################################################
 
-#[ void init_dataplane(${STDPARAMS}) {
+#{ void init_dataplane(${STDPARAMS}) {
 #[     init_headers(${STDPARAMS_IN});
 #[     reset_headers(${STDPARAMS_IN});
 #[     init_keyless_tables();
 #[     pd->dropped=0;
-#[ }
+#} }
 
 #{ void update_packet(packet_descriptor_t* pd) {
 #[     uint32_t value32, res32;
@@ -271,7 +270,7 @@ for m in hlir16.declarations['Method']:
         continue
     # TODO temporary fix for l3-routing-full, this will be computed later on
     with types({
-        "T": "struct uint8_buffer_t",
+        "T": "struct uint8_buffer_s",
         "O": "int",
         "HashAlgorithm": "int",
     }):
@@ -279,9 +278,16 @@ for m in hlir16.declarations['Method']:
         ret_type = format_type_16(t.returnType)
         args = ", ".join([format_expr_16(arg) for arg in t.parameters.parameters] + [STDPARAMS])
 
-    #[ ${ret_type} ${m.name}(${args}) {
-    #[     // TODO proper body
-    #[ }
+
+    if m.name == 'digest':
+        # TODO this is a temporary solution, only works for the l2fwd example
+        #[ ${ret_type} ${m.name}(${args}) {
+        #[     // TODO remove, as digest is implemented elsewhere
+        #[ }
+    else:
+        #[ ${ret_type} ${m.name}(${args}) {
+        #[     // TODO proper body
+        #[ }
 
 for pe in pipeline_elements:
     ctl = hlir16.declarations.get(pe.type.name, 'P4Control')

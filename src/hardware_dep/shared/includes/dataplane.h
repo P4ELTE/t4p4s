@@ -18,7 +18,6 @@
 #include <stdbool.h>
 #include "aliases.h"
 #include "parser.h"
-#include "vector.h"
 
 enum lookup_t {
     LOOKUP_none,
@@ -38,40 +37,34 @@ struct type_field_list {
     uint8_t* field_widths;
 };
 
+typedef struct lookup_table_entry_info_s {
+    int entry_count;
+
+    uint8_t key_size;
+
+    // entry size == val_size + validity_size + state_size
+    uint8_t entry_size;
+    uint8_t action_size;
+    uint8_t validity_size;
+    uint8_t state_size;
+} lookup_table_entry_info_t;
+
 typedef struct lookup_table_s {
     char* name;
     unsigned id;
     uint8_t type;
-    uint8_t key_size;
-    uint8_t val_size;
+
     int min_size;
     int max_size;
-    int counter;
+
     void* default_val;
     void* table;
+
     int socketid;
     int instance;
+
+    lookup_table_entry_info_t entry;
 } lookup_table_t;
-
-typedef struct counter_s {
-    char* name;
-    uint8_t type;
-    uint8_t min_width;
-    int size;
-    uint8_t saturating;
-    vector_t *values; //rte_atomic32_t *cnt; // volatile ints
-    int socketid;
-} counter_t;
-
-typedef struct p4_register_s {
-    char* name;
-    uint8_t width;
-    int size;
-    lock *locks;
-    uint8_t **values;
-} p4_register_t;
-/* /usr/include/x86_64-linux-gnu/sys/types.h:205:13: note: previous declaration of ‘register_t’ was here
-   typedef int register_t __attribute__ ((__mode__ (__word__))); */
 
 typedef struct field_reference_s {
     header_instance_t header;
@@ -150,8 +143,6 @@ typedef struct packet_descriptor_s {
 // Callbacks
 
 extern lookup_table_t table_config[];
-extern counter_t counter_config[];
-extern p4_register_t register_config[];
 
 void init_dataplane(packet_descriptor_t* packet, lookup_table_t** tables);
 void handle_packet(packet_descriptor_t* packet, lookup_table_t** tables);
