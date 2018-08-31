@@ -15,7 +15,8 @@ from utils.misc import addError, addWarning
 
 #[ #include "dataplane.h"
 #[ #include "actions.h"
-#[ #include "data_plane_data.h"
+#[ #include "tables.h"
+#[ #include "stateful_memory.h"
 #[
 
 #[ lookup_table_t table_config[NB_TABLES] = {
@@ -26,17 +27,19 @@ for table in hlir16.tables:
     #[  .name= "${table.name}",
     #[  .id = TABLE_${table.name},
     #[  .type = LOOKUP_$tmt,
-    #[  .key_size = $ks,
-    #[  .val_size = sizeof(struct ${table.name}_action),
+
+    #[  .entry = {
+    #[      .entry_count = 0,
+
+    #[      .key_size = $ks,
+
+    #[      .entry_size = sizeof(struct ${table.name}_action) + sizeof(local_state_${table.name}_t) + sizeof(bool),
+    #[      .action_size   = sizeof(struct ${table.name}_action),
+    #[      .state_size    = sizeof(local_state_${table.name}_t),
+    #[      .validity_size = sizeof(entry_validity_t),
+    #[  },
+
     #[  .min_size = 0,
-    #[  .max_size = 250000
+    #[  .max_size = 250000,
     #[ },
-#[ };
-
-#[ counter_t counter_config[NB_COUNTERS] = {
-#[     // TODO feature temporarily not supported (hlir16)
-#[ };
-
-#[ p4_register_t register_config[NB_REGISTERS] = {
-#[     // TODO feature temporarily not supported (hlir16)
 #[ };
