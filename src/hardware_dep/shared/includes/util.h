@@ -29,13 +29,9 @@ void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
 
     #define dbg_bytes(bytes, byte_count, M, ...)   \
         { \
-            if (byte_count > MAX_DBG_BYTE_COUNT) { \
-                rte_exit(1, "More than %d bytes are read at %s@%d\n", MAX_DBG_BYTE_COUNT, __SHORTFILENAME__, __LINE__); \
-            } else { \
-                debug(M, ##__VA_ARGS__); \
-                dbg_fprint_bytes(stderr, bytes, byte_count); \
-                fprintf(stderr, "\n"); \
-            } \
+            debug(M, ##__VA_ARGS__); \
+            dbg_fprint_bytes(stderr, bytes, byte_count); \
+            fprintf(stderr, "\n"); \
         }
 #else
     #define dbg_bytes(bytes, byte_count, M, ...)   
