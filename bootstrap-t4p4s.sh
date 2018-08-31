@@ -37,7 +37,7 @@ git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P
 WAITPROC_P4C="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
 
-[ -d t4p4s-16 ] || git clone --recursive https://github.com/P4ELTE/t4p4s t4p4s-16 &
+[ -d t4p4s-16 ] || git clone --recursive https://github.com/P4ELTE/t4p4s &
 WAITPROC_T4P4S="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_T4P4S"
 
@@ -87,7 +87,7 @@ cd ../..
 # Enter t4p4s directory
 [ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_T4P4S"
 
-cd t4p4s-16
+cd t4p4s
 
 
 # Print environment variables
