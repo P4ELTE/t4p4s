@@ -15,67 +15,15 @@
 #ifndef __NO_NIC_H_
 #define __NO_NIC_H_
 
+#include "test.h"
 
 struct lcore_data {
     struct lcore_conf*  conf;
-
-    packet*             pkts_burst[MAX_PKT_BURST];
-    unsigned            nb_rx;
 
     bool                is_valid;
 
 	unsigned            iteration_idx;
 };
 
-// ------------------------------------------------------
-// Fake packet data
-
-enum fake_cmd_e {
-    FAKE_PKT,
-    FAKE_END,
-};
-
-#define MAX_SECTION_COUNT 128
-
-struct fake_cmd_s {
-    enum fake_cmd_e action;
-    char*           in[MAX_SECTION_COUNT];
-
-    int             sleep_millis;
-
-    int             out_port;
-    char*           out[MAX_SECTION_COUNT];
-};
-
-typedef struct fake_cmd_s fake_cmd_t;
-
-// ------------------------------------------------------
-// Fake packet data creation helpers
-
-#define FDATA(...)    { __VA_ARGS__, "" }
-
-#define FSLEEP(time)  {FAKE_PKT, FDATA(""), time, 0, FDATA("")}
-#define FEND          {FAKE_END, FDATA(""),    0, 0, FDATA("")}
-
-#define ETH(dst, src, ...) FDATA(dst, src, "0800", ##__VA_ARGS__)
-
-#define ETH01 "000001000000"
-#define ETH02 "000002000000"
-#define ETH03 "000003000000"
-#define ETH04 "000004000000"
-
-#define ETH1A "001234567890"
-
-// random payloads
-
-#define PAYLOAD01 "0123456789abcdef"
-#define PAYLOAD02 "089789755756"
-#define PAYLOAD03 "048989520487"
-#define PAYLOAD04 "ffffffffffffff"
-
-#define PAYLOAD11 "0a0a0a0a0a"
-#define PAYLOAD12 "a0a0a0a0a0"
-#define PAYLOAD13 "00000000"
-#define PAYLOAD14 "f00ff00f"
 
 #endif
