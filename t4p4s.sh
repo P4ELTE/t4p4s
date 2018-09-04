@@ -1,20 +1,21 @@
 #!/bin/bash
 
-EXAMPLE_FILE=examples.cfg
+CONFIG_FILE=${CONFIG_FILE-examples.cfg}
 
 ERROR_CODE=1
 
 # bold and normal text
-bb="\033[1m"
+bb="\033[1;31m"
 nn="\033[0m"
 
-function print_usage_and_exit {
+print_usage_and_exit() {
     (>&2 echo "Usage: $0 <options...> <P4 file>")
     (>&2 echo "- execution options: p4, c, run, launch, dbg (default: launch)")
     (>&2 echo "- further options:")
     (>&2 echo "    - v14|v16")
     (>&2 echo "    - cfg <T4P4S options>")
-    (>&2 echo "    - dpdkcfg <DPDK options>")
+    (>&2 echo "    - ealopts <EAL options>")
+    (>&2 echo "    - cmdopts <switch command line options>")
     (>&2 echo "    - ctrl <controller name>")
     (>&2 echo "    - ctrcfg <controller config file>")
     (>&2 echo "    - var <variant name>")
@@ -26,13 +27,13 @@ function print_usage_and_exit {
     exit $ERROR_CODE
 }
 
-function verbosemsg {
+verbosemsg() {
     if [ -n "${T4P4S_VERBOSE+x}" ]; then
         msg "$@"
     fi
 }
 
-function msg {
+msg() {
     if [ "$T4P4S_SILENT" != 1 ]; then
         for var in "$@"
         do
@@ -41,19 +42,19 @@ function msg {
     fi
 }
 
-function errmsg {
+errmsg() {
     for var in "$@"
     do
         (>&2 echo -e "$var")
     done
 }
 
-function errmsg_exit {
+errmsg_exit() {
     errmsg "Error: $*"
     print_usage_and_exit
 }
 
-function exit_on_error {
+exit_on_error() {
     ERROR_CODE=$?
     if [ "$ERROR_CODE" -ne 0 ]; then
         errmsg "Error: $1 (error code: $ERROR_CODE)"
@@ -61,28 +62,40 @@ function exit_on_error {
     fi
 }
 
-if [ -z ${RTE_SDK+x} ]; then
-    errmsg_exit "Error: \$RTE_SDK not defined"
-fi
+array_contains() {
+    local n=$#
+    local value=${!n}
+    for ((i=1;i < $#;i++)) {
+        if [ "${!i}" == "${value}" ]; then
+            echo "y"
+            return 0
+        fi
+    }
+    echo "n"
+    return 1
+}
 
-if [ -z ${P4C+x} ]; then
-    errmsg_exit "Error: \$P4C not defined"
-fi
+# Set defaults
+ARCH=${ARCH-dpdk}
+CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+PYTHON=${PYTHON-python}
+T4P4S_VARIANT=${T4P4S_VARIANT-std}
+CONTROLLER_OPTS=${CONTROLLER_OPTS-}
+
+# Check if configuration is valid
+[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && errmsg_exit "Error: \$RTE_SDK not defined"
+[ "${P4C}" == "" ] && errmsg_exit "Error: \$P4C not defined"
 
 
-# Controllers for the examples
-declare -A p4vsn
-declare -A dpdk_opt_ids
-declare -A hugepages
+# Read configurations for the examples
+declare -A t4p4s_opt_ids
 declare -A single_variant
-while read -r example variant pvsn huges opt_ids; do
+while read -r example variant opt_ids; do
     if [ "$example" == "" ]; then continue; fi
 
     opt="${example}__$variant"
 
-    p4vsn[$opt]="$pvsn"
-    hugepages[$opt]="$huges"
-    dpdk_opt_ids[$opt]="$opt_ids"
+    t4p4s_opt_ids[$opt]="$opt_ids"
 
     if [ "${single_variant[$example]}" != "-" ]; then
         if [ "${single_variant[$example]}" == "" ]; then
@@ -91,39 +104,10 @@ while read -r example variant pvsn huges opt_ids; do
             single_variant[$example]="-"
         fi
     fi
-done < <(grep -v ";" $EXAMPLE_FILE)
-
-# Default parameter sets
-declare -A dpdk_gcc_opts
-declare -A dpdk_headers
-declare -A dpdk_sources
-declare -A dpdk_controller
-all_dpdk_controllers=()
-declare -A dpdk_controller_opts
-declare -A dpdk_opts
-while read -r opt gcc_opts headers sources controller controller_opts opts; do
-    if [ "$opt" == "" ]; then continue; fi
-
-    dpdk_gcc_opts[$opt]="$gcc_opts"
-    dpdk_sources[$opt]="$sources"
-    dpdk_headers[$opt]="$headers"
-    dpdk_controller[$opt]="$controller"
-    if [ "$controller" != "-" ]; then
-        all_dpdk_controllers+=" $controller"
-    fi
-    dpdk_controller_opts[$opt]="$controller_opts"
-    dpdk_opts[$opt]="$opts"
-done < <(grep -v ";" dpdk_parameters.cfg)
+done < <(grep -v ";" $CONFIG_FILE)
 
 
-# Setting defaults
-ARCH=${ARCH-dpdk}
-CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
-PYTHON=${PYTHON-python}
-T4P4S_VARIANT=${T4P4S_VARIANT-std}
-CONTROLLER_OPTS=${CONTROLLER_OPTS-}
-
-# Processing arguments
+# Process arguments
 while [ $# -gt 0 ]; do
     if [[ "$1" == \?\?* ]]; then
         T4P4S_TEST="${1#\?\?}"
@@ -187,10 +171,10 @@ while [ $# -gt 0 ]; do
                         T4P4S_CONTROLLER="$1"
                         ;;
         "cfg")          shift
-                        DPDK_OPTS="$1"
+                        OPTIDS="$1"
                         ;;
-        "dpdkcfg")      shift
-                        DPDK_OPTS_TEXT="$1"
+        "execopt")      shift
+                        CMD_OPTS="$1"
                         ;;
         "ctrcfg")       shift
                         CONTROLLER_OPTS="$CONTROLLER_OPTS $1"
@@ -202,202 +186,217 @@ while [ $# -gt 0 ]; do
                         T4P4S_TEST="$1"
                         ;;
         *)
-            if [ ! -z ${P4_SOURCE+x} ]; then
-                errmsg_exit "Extra parameter: $1" "P4 source file already defined: $bb${P4_SOURCE}$nn"
-            elif [ ! -z ${P4_EXECUTABLE+x}  ]; then
-                errmsg_exit "Extra parameter: $1" "P4 executable file already defined: $bb${P4_EXECUTABLE}$nn"
-            elif [ "${1##*.}" == "p4" ] || [ "${1##*.}" == "p4_16" ]; then
-                P4_SOURCE=$1
-                T4P4S_PRG=$(basename ${P4_SOURCE%.*})
-                P4_EXECUTABLE="./build/${T4P4S_PRG}/build/${T4P4S_PRG}"
-            else
-                # this is the name of an example with a single variant, and there is exactly one corresponding file
-                if [ "${single_variant[$1]}" != "" ] && [ `find examples/ -type f -name "${1}.p4*" -printf '.' | wc -c` -eq 1 ]; then
-                    P4_SOURCE=`find examples/ -type f -name "${1}.p4*"`
-                    T4P4S_PRG=$1
-                    P4_EXECUTABLE="./build/$1/build/$1"
-                else
-                    if [ ! -x "$1" ]; then
-                        errmsg_exit "File $bb$1$nn is not a P4 file or an executable"
-                    fi
-
-                    T4P4S_PRG=$(basename "$1")
-                    P4_EXECUTABLE="$1"
-                fi
+            if [ "$T4P4S_EXAMPLE_TYPE" != "" ]; then
+                msg "Example $T4P4S_EXAMPLE ($T4P4S_EXAMPLE_TYPE) already found, $bb$1$nn will override it"
             fi
+
+            EXTENSION="${1##*.}"
+
+            if [ "$EXTENSION" == "p4" ] || [ "$EXTENSION" == "p4_16" ]; then
+                T4P4S_EXAMPLE_TYPE="p4"
+            elif [ -x "$1" ]; then
+                T4P4S_EXAMPLE_TYPE="executable"
+            # there is exactly one corresponding file to the example name
+            elif [ `find examples/ -type f -name "${1}.p4*" -printf '.' | wc -c` -eq 1 ]; then
+                T4P4S_EXAMPLE_TYPE="example"
+            fi
+
+            if [ "$T4P4S_EXAMPLE_TYPE" == "" ]; then
+                errmsg_exit "Cannot determine example configuration for parameter $bb$1$nn"
+            fi
+
+            T4P4S_EXAMPLE_PAR="$1"
+            verbosemsg "Found $bb$T4P4S_EXAMPLE_PAR$nn ($T4P4S_EXAMPLE_TYPE)"
             ;;
     esac
 
     shift
 done
 
-
-P4DPDK_TARGET_DIR=${P4DPDK_TARGET_DIR-"./build/$T4P4S_PRG"}
-
-T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_PRG}__${T4P4S_VARIANT}}
+[ "$T4P4S_EXAMPLE_TYPE" == "" ] && errmsg_exit "No example found"
 
 
 # Sanity checks
+[ "$T4P4S_P4" == 1 ] && [ "$T4P4S_EXAMPLE_TYPE" == "executable" ] && errmsg_exit "Executable $T4P4S_EXECUTABLE is already compiled"
+[ "$T4P4S_C"  == 1 ] && [ "$T4P4S_EXAMPLE_TYPE" == "executable" ] && errmsg_exit "Executable $T4P4S_EXECUTABLE is already compiled"
+
+# Default to launch if not specified
 if [ "$T4P4S_P4" != 1 ] && [ "$T4P4S_C" != 1 ] && [ "$T4P4S_RUN" != 1 ]; then
-    if [ -n "${P4_SOURCE+x}" ]; then
-        T4P4S_P4=1
-        T4P4S_C=1
-        T4P4S_RUN=1
-        verbosemsg "Defaulting to launching ${P4_SOURCE}"
-    else
-        errmsg_exit "No action given, nothing to do"
-    fi
-fi
-
-if [ -z "${P4_SOURCE+x}" ] && [ -z "${P4_EXECUTABLE+x}" ]; then
-    errmsg_exit "No P4 file given"
+    T4P4S_P4=1
+    T4P4S_C=1
+    T4P4S_RUN=1
+    verbosemsg "Defaulting to launching ${EXAMPLE_SOURCE}"
 fi
 
 
-# Setting more defaults
-TESTDIR="examples/p4_16_v1model/test"
-TESTFILE="test_${T4P4S_PRG}_${T4P4S_TEST}.c"
-
-if [ -z "${P4_VSN+x}" ]; then
-    P4_VSN=${p4vsn[$T4P4S_CHOICE]}
-
-    if [ "${P4_VSN}" == "" ]; then
-        if [ "${single_variant[$T4P4S_PRG]}" != "" ] && [ "${single_variant[$T4P4S_PRG]}" != "-" ]; then
-            T4P4S_VARIANT="${single_variant[$T4P4S_PRG]}"
-
-            T4P4S_CHOICE="${T4P4S_PRG}__${T4P4S_VARIANT}"
-            P4_VSN=${p4vsn[$T4P4S_CHOICE]}
-
-            verbosemsg "Defaulting to variant ${T4P4S_VARIANT}, the only one in ${EXAMPLE_FILE} for ${T4P4S_PRG}"
-        else
-            errmsg_exit "No defaults in example.cfg for ${T4P4S_PRG} (variant ${T4P4S_VARIANT}) and none given"
-        fi
-    fi
-
-    verbosemsg "Using P4-${P4_VSN}, the default P4 version for the example ${T4P4S_PRG}"
+if [ "$T4P4S_EXAMPLE_TYPE" == "p4" ]; then
+    EXAMPLE_SOURCE=${T4P4S_EXAMPLE_PAR}
+    T4P4S_EXAMPLE_NAME=$(basename ${EXAMPLE_SOURCE%.*})
+    T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_EXAMPLE_NAME}__${T4P4S_VARIANT}}
+    T4P4S_EXECUTABLE="./build/${T4P4S_CHOICE}/build/${T4P4S_EXAMPLE_NAME}"
+elif [ "$T4P4S_EXAMPLE_TYPE" == "example" ]; then
+    EXAMPLE_SOURCE=`find examples/ -type f -name "${T4P4S_EXAMPLE_PAR}.p4*"`
+    T4P4S_EXAMPLE_NAME="${T4P4S_EXAMPLE_PAR}"
+    T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_EXAMPLE_NAME}__${T4P4S_VARIANT}}
+    T4P4S_EXECUTABLE="./build/${T4P4S_CHOICE}/build/${T4P4S_EXAMPLE_NAME}"
+elif [ "$T4P4S_EXAMPLE_TYPE" == "executable" ]; then
+    T4P4S_EXAMPLE_NAME=$(basename "${T4P4S_EXAMPLE_PAR}")
+    T4P4S_EXECUTABLE="${T4P4S_EXAMPLE_PAR}"
 fi
+
+OPTIDS=${OPTIDS-${t4p4s_opt_ids[$T4P4S_CHOICE]}}
+
+# Read options with parameters
+declare -A t4p4s_opts
+for opt in $OPTIDS; do
+    [[ $opt != *"="* ]] && continue
+
+    IFS='=' read -r -a optparts <<< "$opt"
+    t4p4s_opts[${optparts[0]}]="${optparts[1]}"
+done
+
+
+# Set defaults
+CC_OPTS=""
+CMD_OPTS=""
+EAL_OPTS=""
+CONTROLLER_OPTS=""
+
+TESTDIR="examples"
+TESTFILE="test_${T4P4S_EXAMPLE_NAME}_${T4P4S_TEST}.c"
+
+T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/$T4P4S_CHOICE"}
+T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"./build/$T4P4S_CHOICE/srcgen"}
+T4P4S_GEN_INCLUDE="${T4P4S_SRCGEN_DIR}/gen_include.h"
 
 PYVSN="$($PYTHON -V 2>&1)"
 
+GEN_MAKEFILE="${T4P4S_TARGET_DIR}/Makefile"
+
+HUGEPAGES=${HUGEPAGES-${t4p4s_opts["hugepages"]}}
+P4_VSN=${P4_VSN-${t4p4s_opts["vsn"]}}
+
+[ "${T4P4S_SILENT}" == 1 ] && T4P4S_MAKE_OPTS="$T4P4S_MAKE_OPTS >/dev/null"
+
+if [ -z "${P4_VSN+x}" ]; then
+    P4_VSN=${p4vsn[$T4P4S_CHOICE]}
+    [ "${P4_VSN}" !=  "" ] && verbosemsg "Using P4-${P4_VSN}, the default P4 version for the example ${T4P4S_EXAMPLE_NAME}"
+
+    if [ "${P4_VSN}" == "" ]; then
+        T4P4S_VARIANT="${single_variant[$T4P4S_EXAMPLE_NAME]}"
+        [ $T4P4S_VARIANT ==  "" ] && errmsg_exit "No defaults in example.cfg for ${T4P4S_EXAMPLE_NAME} (variant ${T4P4S_VARIANT}) and none given"
+        [ $T4P4S_VARIANT == "-" ] && errmsg_exit "No defaults in example.cfg for ${T4P4S_EXAMPLE_NAME} (variant ${T4P4S_VARIANT}) and none given"
+
+        verbosemsg "Defaulting to variant ${T4P4S_VARIANT}, the only one in ${CONFIG_FILE} for ${T4P4S_EXAMPLE_NAME}"
+    fi
+fi
+
 if [ -n "${T4P4S_DBGPY+x}" -a -z "${PDB+x}" ]; then
-    PDB=ipdb
+    PDB=${PDB-ipdb}
 
     verbosemsg "Using $PDB as debugger for $PYVSN"
 fi
 
-if [ "${T4P4S_SILENT}" == 1 ]; then
-    T4P4S_MAKE_OPTS="$T4P4S_MAKE_OPTS >/dev/null"
-fi
+
+CONTROLLER_LOG=$(dirname $(dirname ${T4P4S_EXECUTABLE}))/controller.log
 
 
-if [ -z ${DPDK_OPTS+x} ]; then
-    DPDK_OPTS=${dpdk_opt_ids[$T4P4S_CHOICE]}
-fi
+# Generate directories and files
+mkdir -p $T4P4S_TARGET_DIR
+mkdir -p $T4P4S_SRCGEN_DIR
 
-if [ -z ${DPDK_OPTS_TEXT+x} ]; then
-    DPDK_OPTS_TEXT=""
-    for optid in $DPDK_OPTS; do
-        if [ "${dpdk_gcc_opts[$optid]}" != "-" ]; then
-            export P4_GCC_OPTS="${P4_GCC_OPTS} ${dpdk_gcc_opts[$optid]}"
-        fi
+rm -rf "${T4P4S_GEN_INCLUDE}"
+echo "" >> "${T4P4S_GEN_INCLUDE}.tmp"
 
-        if [ "${dpdk_opts[$optid]}" != "-" ]; then
-            DPDK_OPTS_TEXT="$DPDK_OPTS_TEXT ${dpdk_opts[$optid]}"
-        fi
-    done
-fi
+cat <<EOT >${GEN_MAKEFILE}
+CDIR := \$(dir \$(lastword \$(MAKEFILE_LIST)))
+APP = ${T4P4S_EXAMPLE_NAME}
+include \$(CDIR)/../../makefiles/${ARCH}_backend_pre.mk
+include \$(CDIR)/../../makefiles/common.mk
+include \$(CDIR)/../../makefiles/hw_independent.mk
+EOT
 
+ARCH_OPTS_FILE=${ARCH_OPTS_FILE-t4p4s_${ARCH}.cfg}
+# Default parameter sets
+while read -r optid opttype optdata; do
+    [ "$optid" == "" ] && continue
 
+    [ "$opttype" == "ctrl" ] && sudo killall -q "$optid"
 
-mkdir -p $P4DPDK_TARGET_DIR
+    [ $(array_contains ${OPTIDS[@]} "$optid") == "n" ] && continue
+
+    [ "$opttype" == "cmdopts" ] && CMD_OPTS="$CMD_OPTS $optdata"
+    [ "$opttype" == "ealopts" ] && EAL_OPTS="$EAL_OPTS $optdata"
+
+    [ "$opttype" == "source"  ] && echo "SRCS-y += $optdata" >> "${GEN_MAKEFILE}"
+    [ "$opttype" == "header"  ] && echo "#include \"$optdata\"" >> "${T4P4S_GEN_INCLUDE}.tmp"
+
+    [ "$opttype" == "ctrl"    ] && CONTROLLER="$optdata"
+    [ "$opttype" == "ctrcfg"  ] && CONTROLLER_OPTS="$CONTROLLER_OPTS $optdata"
+
+    [ "$opttype" == "cflags"  ] && T4P4S_CFLAGS="$T4P4S_CFLAGS $optdata"
+done < <(grep -v ";" "${ARCH_OPTS_FILE}")
+
+# --------------------------------------------------------------------
+
+reserve_hugepages() {
+    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
+    if [ $OLD_HUGEPAGES -lt $1 ]; then
+        verbosemsg "Reserving $bb$1 hugepages$nn (previous size: $bb$OLD_HUGEPAGES$nn)"
+
+        echo "echo $1 > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
+        sudo sh .echo_tmp
+        rm -f .echo_tmp
+    else
+        verbosemsg "Using $bb$OLD_HUGEPAGES hugepages$nn (sufficient, as $1 are needed)"
+    fi
+}
+
+# $1.tmp is a file that has some (generated) contents; $1 may or may not exist
+# Only (over)write $1 if the generated content differs from the existing one
+overwrite_on_difference() {
+    [ ! -f "$1" ] && cp "$1.tmp" "$1"
+    cmp -s "$1.tmp" "$1"
+    [ "$?" -ne 0 ] && mv "$1.tmp" "$1"
+    rm -rf "$1.tmp"
+}
+
+# --------------------------------------------------------------------
 
 # Phase 1: P4 to C compilation
 if [ "$T4P4S_P4" == 1 ]; then
-    msg "[${bb}P4-${P4_VSN}  -> C$nn] $bb${P4_SOURCE}$nn@$bb${T4P4S_VARIANT}$nn"
+    msg "[${bb}COMPILE  P4-${P4_VSN}$nn] $bb${EXAMPLE_SOURCE}$nn@$bb${T4P4S_VARIANT}$nn"
 
-    if [ -n "${T4P4S_VERBOSE+x}" ]; then
-        export T4P4S_P4_OPTS="${T4P4S_P4_OPTS} -verbose"
-    fi
+    [ -n "${T4P4S_VERBOSE+x}" ] && export T4P4S_P4_OPTS="${T4P4S_P4_OPTS} -verbose"
+    [ "$PDB" != "" ] && export T4P4S_P4_OPTS="${T4P4S_P4_OPTS} -m $PDB"
 
-    if [ "$PDB" != "" ]; then
-        # note: Python 3.2+ also accepts a  -c continue  option
-        # to remain compatible with Python 2.x, a "c" has to be typed at the start
-        if echo "$PYVSN" | grep "Python 3[.][23456789]" >/dev/null; then
-            $PYTHON -c continue -m "$PDB" src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN ${T4P4S_P4_OPTS}
-        else
-            $PYTHON -m "$PDB" src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN ${T4P4S_P4_OPTS}
-        fi
-    else
-        $PYTHON src/compiler.py "${P4_SOURCE}" --p4v $P4_VSN ${T4P4S_P4_OPTS}
-    fi
-
+    $PYTHON src/compiler.py "${EXAMPLE_SOURCE}" --p4v $P4_VSN -g ${T4P4S_SRCGEN_DIR} ${T4P4S_P4_OPTS}
     exit_on_error "P4 to C compilation failed"
 fi
 
 
 # Phase 2: C compilation
 if [ "$T4P4S_C" == 1 ]; then
-    # Copying Makefiles
-    rm -f ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
-    cp -u makefiles/*.mk "${P4DPDK_TARGET_DIR}/"
-
-    for optid in $DPDK_OPTS; do
-        if [ "${dpdk_sources[$optid]}" != "-" ]; then
-            for source in $(echo "${dpdk_sources[$optid]}" | sed "s/,/ /g"); do
-                echo "SRCS-y += $source" >> ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
-            done
-        fi
-    done
-
-    for optid in $DPDK_OPTS; do
-        if [ "${dpdk_headers[$optid]}" != "-" ]; then
-            P4DPDK_GEN_INCLUDE="${P4DPDK_TARGET_DIR}/../src_hardware_indep/dpdk_gen_include.h"
-            rm -rf "${P4DPDK_GEN_INCLUDE}"
-
-            echo "" >> "${P4DPDK_GEN_INCLUDE}"
-
-            for header in $(echo "${dpdk_headers[$optid]}" | sed "s/,/ /g"); do
-                echo "#include \"${header}\"" >> "${P4DPDK_GEN_INCLUDE}"
-            done
-        fi
-    done
-
-
-
-    if [ ! -f "${P4DPDK_TARGET_DIR}/Makefile" ]; then
-        cat makefiles/Makefile | sed -e "s/example_dpdk1/${T4P4S_PRG}/g" > "${P4DPDK_TARGET_DIR}/Makefile"
-    else
-        if [[ "${@#--verbose}" != "$@" ]]; then
-            verbosemsg Makefile already exists, skipping
-        fi
-    fi
-
-
     if [ -n "${T4P4S_TEST+x}" ]; then
-        echo "VPATH += \$(P4_SRCDIR)/../$TESTDIR" >> "${P4DPDK_TARGET_DIR}/dpdk_backend.mk"
+        [ ! -f "$TESTDIR/$TESTFILE" ] && errmsg_exit "Test data file $bb$TESTFILE$nn in $bb$TESTDIR$nn not found"
 
-        if [ -f "$TESTDIR/$TESTFILE" ]; then
-            echo "SRCS-y += $TESTFILE" >> ${P4DPDK_TARGET_DIR}/dpdk_backend.mk
-        else
-            errmsg_exit "Test data file $bb$TESTFILE$nn in $bb$TESTDIR$nn not found"
-        fi
+        echo "VPATH += \$(CDIR)/../../$TESTDIR" >> "${GEN_MAKEFILE}"
+        echo "SRCS-y += $TESTFILE" >> "${GEN_MAKEFILE}"
     fi
 
+    overwrite_on_difference "${T4P4S_GEN_INCLUDE}"
 
-    if [ -n "${T4P4S_DBG+x}" ]; then
-        export P4_GCC_OPTS="${P4_GCC_OPTS} -DP4DPDK_DEBUG"
-    fi
+    [ -n "${T4P4S_DBG+x}" ] && export T4P4S_CFLAGS="${T4P4S_CFLAGS} -DT4P4S_DEBUG"
+    [ -n "${T4P4S_SILENT+x}" ] && export T4P4S_CFLAGS="${T4P4S_CFLAGS} -DT4P4S_SILENT"
 
-    if [ -n "${T4P4S_SILENT+x}" ]; then
-        export P4_GCC_OPTS="${P4_GCC_OPTS} -DP4DPDK_SILENT"
-    fi
+    [ "${T4P4S_CFLAGS}" != "" ] && echo "CFLAGS += ${T4P4S_CFLAGS}" >> "${GEN_MAKEFILE}"
+    echo "include \$(CDIR)/../../makefiles/${ARCH}_backend_post.mk" >> "${GEN_MAKEFILE}"
 
-    msg "[${bb}C$nn -> ${bb}switch$nn]"
-    if [ ! -z ${P4_GCC_OPTS+x} ]; then
-        msg "Options for C compiler: ${bb}${P4_GCC_OPTS}${nn}"
-    fi
+    msg "[${bb}COMPILE SWITCH$nn]"
+    verbosemsg "Options for C compiler: ${bb}${T4P4S_CFLAGS}${nn}"
 
-    cd ./build/$T4P4S_PRG
+    cd ${T4P4S_TARGET_DIR}
     if [ "${T4P4S_SILENT}" == 1 ]; then
         make -j >/dev/null
     else
@@ -411,27 +410,11 @@ fi
 
 # Phase 3A: Execution (controller)
 if [ "$T4P4S_RUN" == 1 ]; then
-    msg "-------------------- Running controller"
+    msg "[${bb}RUN CONTROLLER$nn]"
 
-    # Getting default parameters
-    if [ -n ${CONTROLLER+x} ]; then
-        for optid in $DPDK_OPTS; do
-            if [ "${dpdk_controller[$optid]}" != "-" ]; then
-                # TODO check for clashing controllers
-                CONTROLLER=${dpdk_controller[$optid]}
-                CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
-            fi
-        done
-
-        if [ "$CONTROLLER" = "" ]; then
-            errmsg_exit "No default controller found for $T4P4S_PRG"
-        fi
-
-        msg "Controller     : $bb${CONTROLLER}$nn (default for $T4P4S_PRG)"
-        verbosemsg "Controller log : $bb${CONTROLLER_LOG}$nn"
-    else
-        CONTROLLER_LOG=$(dirname $(dirname ${P4_EXECUTABLE}))/controller.log
-    fi
+    msg "Controller     : $bb${CONTROLLER}$nn (default for $T4P4S_EXAMPLE_NAME)"
+    verbosemsg "Controller log : $bb${CONTROLLER_LOG}$nn"
+    verbosemsg "Controller opts: ${CONTROLLER_OPTS}"
 
     # Step 3A-1: Compile the controller
     cd $CTRL_PLANE_DIR
@@ -443,24 +426,6 @@ if [ "$T4P4S_RUN" == 1 ]; then
     exit_on_error "Controller compilation failed"
     cd - >/dev/null
 
-    # Step 3A-2: Stop all running controllers
-    for controller in $all_dpdk_controllers; do
-        sudo killall -q "$controller"
-    done
-
-
-    if [ "$CONTROLLER_OPTS" == "" ]; then
-        for optid in $DPDK_OPTS; do
-            if [ "${dpdk_controller_opts[$optid]}" != "-" ]; then
-                for controller_opt in "${dpdk_controller_opts[$optid]}"; do
-                    CONTROLLER_OPTS="$CONTROLLER_OPTS $controller_opt"
-                done
-            fi
-        done
-    fi
-
-    verbosemsg "Controller opts: ${CONTROLLER_OPTS}"
-
     # Step 3A-3: Run controller
     stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_OPTS > "${CONTROLLER_LOG}" &
     sleep 0.05
@@ -469,36 +434,27 @@ fi
 
 # Phase 3B: Execution (switch)
 if [ "$T4P4S_RUN" == 1 ]; then
-    msg "-------------------- Running switch"
+    msg "[${bb}RUN SWITCH$nn]"
 
     sudo mkdir -p /mnt/huge
 
     grep -s '/mnt/huge' /proc/mounts > /dev/null
     if [ $? -ne 0 ] ; then
-            sudo mount -t hugetlbfs nodev /mnt/huge
+        sudo mount -t hugetlbfs nodev /mnt/huge
     fi
 
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
-    HUGEPAGES=${hugepages["$T4P4S_CHOICE"]}
-    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
-    if [ $OLD_HUGEPAGES -lt $HUGEPAGES ]; then
-        verbosemsg "Reserving $bb$HUGEPAGES hugepages$nn (previous size: $bb$OLD_HUGEPAGES$nn)"
+    [ "$HUGEPAGES" != "" ] && reserve_hugepages "$HUGEPAGES"
 
-        echo "echo $HUGEPAGES > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
-        sudo sh .echo_tmp
-        rm -f .echo_tmp
-    else
-        verbosemsg "Using $bb$OLD_HUGEPAGES hugepages$nn (sufficient, as $HUGEPAGES are needed)"
-    fi
+    [ "$ARCH" == "dpdk" ] && EXEC_OPTS="${EAL_OPTS} -- ${CMD_OPTS}"
 
-    verbosemsg "DPDK options  : $bb${DPDK_OPTS}$nn"
-    verbosemsg "DPDK params   : $bb${DPDK_OPTS_TEXT}$nn"
+    verbosemsg "Option ids : $bb${OPTIDS}$nn"
+    verbosemsg "Options    : $bb${EXEC_OPTS}$nn"
 
     # Run T4P4S program
     if [ "${T4P4S_SILENT}" == 1 ]; then
         # TODO: is it possible to ignore the EAL's messages in a better way?
-        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS_TEXT} 2>&1 | egrep -v "^EAL: "
+        sudo -E "${T4P4S_EXECUTABLE}" ${EXEC_OPTS} 2>&1 | egrep -v "^EAL: "
     else
-        sudo -E "${P4_EXECUTABLE}" ${DPDK_OPTS_TEXT}
+        sudo -E "${T4P4S_EXECUTABLE}" ${EXEC_OPTS}
     fi
 fi
