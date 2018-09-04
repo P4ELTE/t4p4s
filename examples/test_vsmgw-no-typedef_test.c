@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dpdk_lib.h"
-#include "dpdk_nicoff.h"
+#include "test.h"
 
 fake_cmd_t fake_commands[][RTE_MAX_LCORE] = {
     {
