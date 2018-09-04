@@ -1,4 +1,4 @@
-# Copyright 2016 Eotvos Lorand University, Budapest, Hungary
+# Copyright 2018 Eotvos Lorand University, Budapest, Hungary
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CFLAGS += -O3
-CFLAGS += -Wall 
-CFLAGS += -Wno-unused-function
-CFLAGS += -Wno-unused-but-set-variable
-CFLAGS += -Wno-unused-variable
-CFLAGS += -g
-CFLAGS += -std=gnu99
-CFLAGS += -I "$(CDIR)/../../hardware_dep/shared/includes"
-
-CFLAGS += -I "$(CDIR)/srcgen"
-VPATH  += $(CDIR)/srcgen
-
-ifneq ($(P4_GCC_OPTS),)
-CFLAGS += $(P4_GCC_OPTS)
+ifeq ($(RTE_SDK),)
+$(error "Please define the RTE_SDK environment variable")
 endif
 
-SRCS-y += util.c
+# Default target, can be overriden by command line or environment
+RTE_TARGET ?= x86_64-native-linuxapp-gcc
+
+include $(RTE_SDK)/mk/rte.vars.mk

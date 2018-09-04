@@ -9,10 +9,8 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 include $(RTE_SDK)/mk/rte.vars.mk
 include $(SRCDIR)/common.mk
 
-# binary name
-APP = example_dpdk1
-
 include $(SRCDIR)/dpdk_backend.mk
 include $(SRCDIR)/hw_independent.mk
+include $(SRCDIR)/generated.mk
 
 include $(RTE_SDK)/mk/rte.extapp.mk

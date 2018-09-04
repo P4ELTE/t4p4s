@@ -11,23 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-CDIR := $(dir $(lastword $(MAKEFILE_LIST)))
-P4_SRCDIR := $(dir $(lastword $(MAKEFILE_LIST)))/../../src
 
-VPATH += $(CDIR)
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/includes
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane
-VPATH += $(P4_SRCDIR)/hardware_dep/dpdk/data_plane
-VPATH += $(P4_SRCDIR)/examples/hardware_dep/dpdk/p4_16_v1model/test
+VPATH += $(CDIR)/../../src/hardware_dep/dpdk/
+VPATH += $(CDIR)/../../src/hardware_dep/dpdk/includes
+VPATH += $(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane
+VPATH += $(CDIR)/../../src/hardware_dep/dpdk/data_plane
+VPATH += $(CDIR)/../../src/examples
 
 # dpdk main
 SRCS-y += main.c
-
-# main loop file is usually described in dpdk_parameters.cfg
-ifdef P4DPDK_MAIN_LOOP_SRC
-SRCS-y += $(P4DPDK_MAIN_LOOP_SRC)
-endif
 
 # control plane related sources
 SRCS-y += ctrl_plane_backend.c
@@ -42,6 +34,8 @@ SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
 SRCS-y += ternary_naive.c
 
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/includes"
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/ctrl_plane"
-CFLAGS += -I "$(P4_SRCDIR)/hardware_dep/dpdk/data_plane"
+CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/includes"
+CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane"
+CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/data_plane"
+
+include $(RTE_SDK)/mk/rte.extapp.mk
