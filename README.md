@@ -17,7 +17,6 @@ To start working with the compiler, do the following.
 1. Don't forget to setup your environment.
     - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
     - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
-    - The system has to have hugepages configured. You can use `$RTE_SDK/tools/dpdk-setup.sh`, option `Setup hugepage mappings for non-NUMA systems`.
 1. Running the examples is very simple: `./t4p4s.sh examples/l2fwd.p4`.
     - Make sure that before running this command, your `P4C` variable points to your [`p4c`](https://github.com/p4lang/p4c) directory, and `RTE_SDK` points your [`DPDK`](http://dpdk.org/) directory. Both are downloaded by `bootstrap-t4p4s.sh`.
     - This command uses defaults from `dpdk_parameters.cfg` and `examples.cfg`.
@@ -30,6 +29,8 @@ To start working with the compiler, do the following.
 ./t4p4s.sh ./examples/l2fwd.p4
 # This is equivalent to the above
 ./t4p4s.sh launch ./examples/l2fwd.p4
+# Options can be given in any order
+./t4p4s.sh l2fwd launch
 
 # Run test cases (offline; no network card needed)
 # Here, one is called "test" and the other is "payload"
@@ -46,12 +47,13 @@ To start working with the compiler, do the following.
 # This is equivalent to the above
 ./t4p4s.sh l2fwd var my_variant
 
-# Specify which steps are taken
+# Specify one or more steps to be taken
 # The above default to "launch", which is equivalent to "p4 c run"
-./t4p4s.sh p4 ./examples/l2fwd.p4
-./t4p4s.sh c  ./examples/l2fwd.p4
-./t4p4s.sh run ./examples/l2fwd.p4
-./t4p4s.sh dbg ./examples/l2fwd.p4
+./t4p4s.sh p4   l2fwd
+./t4p4s.sh c    l2fwd
+./t4p4s.sh p4 c l2fwd
+./t4p4s.sh run  l2fwd
+./t4p4s.sh dbg  l2fwd
 
 # Compile and run a program, debug the Python code
 ./t4p4s.sh l2fwd dbgpy
@@ -64,6 +66,10 @@ To start working with the compiler, do the following.
 
 # ... or even more detail
 ./t4p4s.sh l2fwd dpdkcfg "-c 0x3 -n 4 --log-level 3 -- -p 0x3 --config \"\\\"(0,0,0),(1,0,1)\\\"\""
+
+# Use environment variables to override most options
+CONFIG_FILE="my_configs.cfg" ./t4p4s.sh my_p4 @test
+CONFIG_FILE="my_configs.cfg" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh my_p4 @test
 ~~~
 
 At this point, P4-16 programs will probably compile, and they may or may not run properly.
