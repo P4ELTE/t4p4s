@@ -61,4 +61,10 @@ parser parse_igmp {
     return ingress;
 }
 
+
+parser parse_paxos {
+    extract(paxos);
+    return ingress;
+}
+
 #endif

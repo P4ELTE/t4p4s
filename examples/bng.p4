@@ -1,5 +1,6 @@
 #include <core.p4>
 #include <v1model.p4>
+#include "include/std_headers.p4"
 
 /***********************  C O N S T A N T S  *****************************/
 const bit<16> ETHERTYPE_IPV4 = 0x0800;
@@ -12,123 +13,6 @@ const bit<16> ARP_HTYPE_ETHERNET = 0x0001;
 const bit<16> ARP_PTYPE_IPV4     = 0x0800;
 const bit<8>  ARP_HLEN_ETHERNET  = 6;
 const bit<8>  ARP_PLEN_IPV4      = 4;
-
-header cpu_header_t {
-    bit<64> preamble;
-    bit<8>  device;
-    bit<8>  reason;
-    bit<8>  if_index;
-}
-
-header arp_t {
-    bit<16> htype;
-    bit<16> ptype;
-    bit<8>  hlen;
-    bit<8>  plen;
-    bit<16> oper;
-}
-
-header ethernet_t
-{
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
-
-header ipv4_t {
-    bit<4>       version;
-    bit<4>       ihl;
-    bit<8>       diffserv;
-    bit<16>      totalLen;
-    bit<16>      identification;
-    bit<3>       flags;
-    bit<13>      fragOffset;
-    bit<8>       ttl;
-    bit<8>       protocol;
-    bit<16>      hdrChecksum;
-    bit<32>      srcAddr;
-    bit<32>      dstAddr;
-}
-
-/*header icmp_h {
-    bit<8> type_;
-    bit<8> code;
-    bit<16> hdrChecksum;
-}*/
-
-header icmp_t {
-    bit<8>  type;
-    bit<8>  code;
-    bit<16> checksum;
-}
-
-header tcp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4> dataOffset;
-    bit<4> res;
-    bit<8> flags;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
-}
-
-header gre_t {
-    bit<1> C;
-    bit<1> R;
-    bit<1> K;
-    bit<1> S;
-    bit<1> s;
-    bit<3> recurse;
-    bit<5> flags;
-    bit<3> ver;
-    bit<16> proto;
-}
-
-header udp_h {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<16> length_;
-    bit<16> checksum;
-}
-
-header sctp_h {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> verifTag;
-    bit<32> checksum;
-}
-
-
-header nvgre_t {
-    bit<24> tni;
-    bit<8> reserved;
-}
-
-/*header arp_rarp_h {
-    bit<16> hwType;
-    bit<16> protoType;
-    bit<8> hwAddrLen;
-    bit<8> protoAddrLen;
-    bit<16> opcode;
-}*/
-
-/*header arp_rarp_ipv4_h {
-    bit<48> srcHwAddr;
-    bit<32> srcProtoAddr;
-    bit<48> dstHwAddr;
-    bit<32> dstProtoAddr;
-}*/
-
-header arp_ipv4_t {
-    bit<48>  sha;
-    bit<32>  spa;
-    bit<48>  tha;
-    bit<32>  tpa;
-}
-
 
 
 struct headers {
@@ -511,3 +395,4 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
+

@@ -192,7 +192,7 @@ while [ $# -gt 0 ]; do
 
             EXTENSION="${1##*.}"
 
-            if [ "$EXTENSION" == "p4" ] || [ "$EXTENSION" == "p4_16" ]; then
+            if [ "$EXTENSION" == "p4" ] || [ "$EXTENSION" == "p4_14" ]; then
                 T4P4S_EXAMPLE_TYPE="p4"
             elif [ -x "$1" ]; then
                 T4P4S_EXAMPLE_TYPE="executable"

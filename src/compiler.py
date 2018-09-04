@@ -450,7 +450,7 @@ def load_file(filename):
     global hlir16
 
     _, ext = os.path.splitext(filename)
-    if ext not in {'.p4', '.p4_16'}:
+    if ext not in {'.p4', '.p4_14'}:
         print("EXTENSION NOT SUPPORTED: %s" % ext, file=sys.stderr)
         sys.exit(1)
 
