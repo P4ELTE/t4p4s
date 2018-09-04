@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from utils.misc import addError, addWarning 
-from utils.codegen import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
+from utils.codegen import format_expr, format_statement, statement_buffer_value, format_declaration
 
 
 #[ #include "dpdk_lib.h"
@@ -33,7 +33,7 @@ def extract_header_tmp(h):
 def extract_header_tmp_2(h, w):
     generated_code = ""
     x = sum([f.size if not f.is_vw else 0 for f in h.type.fields])
-    w = format_expr_16(w)
+    w = format_expr(w)
     #[ int hdrlen = ((${w}+${x})/8);
     #[ pd->parsed_length += hdrlen;
     #[ memcpy(${h.ref.name}, buf, hdrlen);
@@ -65,7 +65,7 @@ def extract_header_2(h, w):
         addError("generating extract header call", "fixed-width header extracted with two-param extract")
     else:
         x = sum([f.size if not f.is_vw else 0 for f in h.type.fields])
-        w = format_expr_16(w)
+        w = format_expr(w)
         #[ int hdrlen = ((${w}+${x})/8);
 
         #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len); // packet_too_short // TODO optimize this
@@ -93,7 +93,7 @@ def extract_header_2(h, w):
 parser = hlir16.declarations['P4Parser'][0]
 
 for l in parser.parserLocals:
-    #[ ${format_declaration_16(l)}
+    #[ ${format_declaration(l)}
 
 for s in parser.states:
     #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables);
@@ -120,7 +120,7 @@ for s in parser.states:
                     else:
                         #[ ${extract_header_tmp_2(c.header, c.width)}
         else:
-            #[ ${format_statement_16(c)}
+            #[ ${format_statement(c)}
 
     if not hasattr(s, 'selectExpression'):
         if s.name == 'accept':
@@ -131,9 +131,9 @@ for s in parser.states:
     else:
         b = s.selectExpression
         if b.node_type == 'PathExpression':
-            x = "parser_state_" + format_expr_16(b) + "(pd, buf, tables);"
+            x = "parser_state_" + format_expr(b) + "(pd, buf, tables);"
         if b.node_type == 'SelectExpression':
-            x = format_expr_16(b)
+            x = format_expr(b)
 
         prebuf, postbuf = statement_buffer_value()
 

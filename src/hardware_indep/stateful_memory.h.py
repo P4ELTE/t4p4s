@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_expr_16, format_statement_16, statement_buffer_value, format_declaration_16
+from utils.codegen import format_expr, format_statement, statement_buffer_value, format_declaration
 
 
 # In v1model, all software memory cells are represented as 32 bit integers

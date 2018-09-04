@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_type_16
+from utils.codegen import format_type
 from hlir16.hlir16_attrs import get_main
 
 #[ #ifndef __ACTION_INFO_GENERATED_H__
@@ -89,7 +89,7 @@ for pe in get_main(hlir16).arguments:
     if ctl is not None:
         #[ typedef struct control_locals_${pe.type.name}_s {
         for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-            #[ ${format_type_16(local_var_decl.type, False)} ${local_var_decl.name};
+            #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
         #[ } control_locals_${pe.type.name}_t;
 
 #[ #endif

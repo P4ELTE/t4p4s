@@ -18,7 +18,7 @@ from utils.misc import addWarning, addError
 
 type_env = {}
 
-def gen_format_type_16(t, resolve_names = True):
+def gen_format_type(t, resolve_names = True):
     if t.node_type == 'Type_Void':
         #[ void
     elif t.node_type == 'Type_Boolean':
@@ -76,10 +76,10 @@ def gen_format_method_parameters(args, method_params):
         if hasattr(par, 'field_ref'):
             res_params.append('handle(header_desc_ins(pd, {}), {})'.format(par.expr.header_ref.id, par.field_ref.id))
         else:
-            res_params.append(format_expr_16(par))
+            res_params.append(format_expr(par))
     #[ ${', '.join(res_params)}
 
-def gen_format_declaration_16(d, varname_override):
+def gen_format_declaration(d, varname_override):
     var_name = d.name if varname_override is None else varname_override
 
     if d.node_type == 'Declaration_Variable':
@@ -89,10 +89,10 @@ def gen_format_declaration_16(d, varname_override):
         elif d.type.node_type == 'Type_Boolean':
             #[ bool ${var_name} = false;
         else:
-            t = gen_format_type_16(d.type, False)
+            t = gen_format_type(d.type, False)
             #[ $t ${var_name};
     elif d.node_type == 'Declaration_Instance':
-        t = gen_format_type_16(d.type, False)
+        t = gen_format_type(d.type, False)
         #[ struct $t ${var_name};
         #[ ${t}_init(&${var_name});
     elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
@@ -100,7 +100,7 @@ def gen_format_declaration_16(d, varname_override):
 
         #for m in d.type.type_ref.methods:
         #    if m.name != d.type.path.name:
-        #        #[ ${d.name}.${m.name} = &${gen_format_type_16(d.type)}_${m.name};
+        #        #[ ${d.name}.${m.name} = &${gen_format_type(d.type)}_${m.name};
     else:
         addError('formatting declaration', 'Declaration of type %s is not supported yet!' % d.node_type)
 
@@ -196,7 +196,7 @@ def bit_bounding_unit(t):
     return "bytebuf"
 
 # TODO add all the special cases from the previous content of actions.c.py
-def gen_format_statement_16(stmt):
+def gen_format_statement(stmt):
     if stmt.node_type == 'AssignmentStatement':
         dst = stmt.left
         src = stmt.right
@@ -218,11 +218,11 @@ def gen_format_statement_16(stmt):
             if dst_width < 32:
                 src_buffer = 'value32'
                 if src.node_type == 'Member':
-                    #[ $src_buffer = ${format_expr_16(src)};
+                    #[ $src_buffer = ${format_expr(src)};
                 elif src.node_type == 'PathExpression':
                     #[ memcpy(&$src_buffer, parameters.${src.ref.name}, $dst_bytewidth);
                 else:
-                    #[ $src_buffer = ${format_expr_16(src)};
+                    #[ $src_buffer = ${format_expr(src)};
 
                 #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, $dst_header_id, $dst_field_id, $src_buffer)
             else:
@@ -265,15 +265,15 @@ def gen_format_statement_16(stmt):
                 #[ memcpy(pd->headers[header_instance_${dst.member}].pointer, pd->headers[header_instance_${src.member}].pointer, header_instance_byte_width[header_instance_${src.member}]);
                 #[ dbg_bytes(pd->headers[header_instance_${dst.member}].pointer, header_instance_byte_width[header_instance_${src.member}], "Copied %02d bytes from header_instance_${src.member} to header_instance_${dst.member}: ", header_instance_byte_width[header_instance_${src.member}]);
             else:
-                #[ ${format_expr_16(dst)} = ${format_expr_16(src)};
+                #[ ${format_expr(dst)} = ${format_expr(src)};
 
     elif stmt.node_type == 'BlockStatement':
         for c in stmt.components:
-            #= format_statement_16(c)
+            #= format_statement(c)
     elif stmt.node_type == 'IfStatement':
-        t = format_statement_16(stmt.ifTrue) if hasattr(stmt, 'ifTrue') else ';'
-        f = format_statement_16(stmt.ifFalse) if hasattr(stmt, 'ifFalse') else ';'
-        cond = format_expr_16(stmt.condition)
+        t = format_statement(stmt.ifTrue) if hasattr(stmt, 'ifTrue') else ';'
+        f = format_statement(stmt.ifFalse) if hasattr(stmt, 'ifFalse') else ';'
+        cond = format_expr(stmt.condition)
 
         # TODO this happens when .hit() is called; make a proper solution
         if cond.strip() == '':
@@ -326,7 +326,7 @@ def gen_format_statement_16(stmt):
                 elif m.expr.get_attr('member') is None:
                     type = m.expr.type.substituted if m.expr.type.node_type == "Type_SpecializedCanonical" else m.expr.type
 
-                    args = ", ".join([format_expr_16(arg, expand_parameters=True) for arg in stmt.methodCall.arguments])
+                    args = ", ".join([format_expr(arg, expand_parameters=True) for arg in stmt.methodCall.arguments])
 
                     # the indexes of the parameters which originate from a type parameter
                     # TODO generalize and move to hlir16_attrs
@@ -354,7 +354,7 @@ def gen_format_statement_16(stmt):
 
                     pars = (par for et, mn, ps in externs if (et, mn) == (extern_type, m.member) for par in ps)
                     types = (m.type.parameters.parameters[par].type for par in pars)
-                    type_args = "".join(["_" + format_type_16(resolve_type(t, type_params)) for t in types])
+                    type_args = "".join(["_" + format_type(resolve_type(t, type_params)) for t in types])
 
                     #[ extern_${type.name}_${m.member}${type_args}($args);
                 else:
@@ -375,16 +375,16 @@ def gen_format_statement_16(stmt):
             else:
                 #= gen_methodcall(stmt)
     elif stmt.node_type == 'SwitchStatement':
-        #[ switch(${format_expr_16(stmt.expression)}) {
+        #[ switch(${format_expr(stmt.expression)}) {
         for case in stmt.cases:
-            #[ case ${format_expr_16(case.label)}:
-            #[   ${format_statement_16(case.statement)}
+            #[ case ${format_expr(case.label)}:
+            #[   ${format_statement(case.statement)}
             #[   break;
         #[   default: {}
         #[ }
 
 def gen_methodcall(stmt):
-    mcall = format_expr_16(stmt.methodCall)
+    mcall = format_expr(stmt.methodCall)
 
     if mcall:
         #[ $mcall;
@@ -473,13 +473,13 @@ def gen_method_isValid(e):
     if hasattr(e.method.expr, 'header_ref'):
         return "(pd->headers[%s].pointer != NULL)" % e.method.expr.header_ref.id
     else:
-        return "(pd->headers[%s].pointer != NULL)" % format_expr_16(e.method.expr)
+        return "(pd->headers[%s].pointer != NULL)" % format_expr(e.method.expr)
 
 def gen_method_setInvalid(e):
     if hasattr(e.method.expr, 'header_ref'):
         return "pd->headers[%s].pointer = NULL" % e.method.expr.header_ref.id
     else:
-        return "pd->headers[%s].pointer = NULL" % format_expr_16(e.method.expr)
+        return "pd->headers[%s].pointer = NULL" % format_expr(e.method.expr)
 
 def gen_method_apply(e):
     #[ ${e.method.expr.path.name}_apply(pd, tables)
@@ -504,7 +504,7 @@ def gen_method_setValid(e):
     #[     .var_width_field_bitwidth = 0,
     #[ };
 
-def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
+def gen_format_expr(e, format_as_value=True, expand_parameters=False):
     simple_binary_ops = {'Div':'/', 'Mod':'%',                                 #Binary arithmetic operators
                          'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
                          'BAnd':'&', 'BOr':'|', 'BXor':'^',                    #Bitwise operators
@@ -514,11 +514,11 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
     complex_binary_ops = {'Add':'+', 'Sub':'-', 'Mul':'*', 'Shl':'<<', 'Shr':'>>'}
 
     if e is None:
-        return "FORMAT_EXPR_16(None)"
+        return "FORMAT_EXPR(None)"
     elif e.node_type == 'DefaultExpression':
         return ""
     elif e.node_type == 'Parameter':
-        return format_type_16(e.type) + " " + e.name
+        return format_type(e.type) + " " + e.name
     elif e.node_type == 'Constant':
         if e.type.node_type == 'Type_Bits':
             if e.type.size > 32:
@@ -537,7 +537,7 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
                 return var_name
             else:
                 # 4294967136 versus (uint32_t)4294967136
-                return '(' + format_type_16(e.type) + ')' + str(e.value)
+                return '(' + format_type(e.type) + ')' + str(e.value)
         else:
             return str(e.value)
     elif e.node_type == 'BoolLiteral':
@@ -545,33 +545,33 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
     elif e.node_type == 'StringLiteral':
         return '"' + e.value + '"';
     elif e.node_type == 'TypeNameExpression':
-        return format_expr_16(e.typeName.type_ref);
+        return format_expr(e.typeName.type_ref);
 
     elif e.node_type == 'Neg':
         if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
-            return '(' + format_type_mask(e.type) + '(' + str(2**e.type.size) + '-' + format_expr_16(e.expr) + '))'
+            return '(' + format_type_mask(e.type) + '(' + str(2**e.type.size) + '-' + format_expr(e.expr) + '))'
         else:
-            return '(-' + format_expr_16(e.expr) + ')'
+            return '(-' + format_expr(e.expr) + ')'
     elif e.node_type == 'Cmpl':
-        return '(' + format_type_mask(e.type) + '(~' + format_expr_16(e.expr) + '))'
+        return '(' + format_type_mask(e.type) + '(~' + format_expr(e.expr) + '))'
     elif e.node_type == 'LNot':
-        return '(!' + format_expr_16(e.expr) + ')'
+        return '(!' + format_expr(e.expr) + ')'
 
     elif e.node_type in simple_binary_ops and e.node_type == 'Equ' and e.left.type.size > 32:
-        return "0 == memcmp({}, {}, ({} + 7) / 8)".format(format_expr_16(e.left), format_expr_16(e.right), e.left.type.size)
+        return "0 == memcmp({}, {}, ({} + 7) / 8)".format(format_expr(e.left), format_expr(e.right), e.left.type.size)
 
     elif e.node_type in simple_binary_ops:
-        return '(' + format_expr_16(e.left) + simple_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
+        return '(' + format_expr(e.left) + simple_binary_ops[e.node_type] + format_expr(e.right) + ')'
 
     #Subtraction on unsigned values is performed by adding the negation of the second operand
     elif e.node_type == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
-        return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.left) + '+(' + str(2**e.type.size) + '-' + format_expr_16(e.right) + ')))'
+        return '(' + format_type_mask(e.type) + '(' + format_expr(e.left) + '+(' + str(2**e.type.size) + '-' + format_expr(e.right) + ')))'
     #Right shift on signed values is performed with a shift width check
     elif e.node_type == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
-        return '(({1}>{2}) ? 0 : ({0} >> {1}))'.format(format_expr_16(e.left), format_expr_16(e.right), e.type.size)
+        return '(({1}>{2}) ? 0 : ({0} >> {1}))'.format(format_expr(e.left), format_expr(e.right), e.type.size)
     #These formatting rules MUST follow the previous special cases
     elif e.node_type in complex_binary_ops:
-        temp_expr = '(' + format_expr_16(e.left) + complex_binary_ops[e.node_type] + format_expr_16(e.right) + ')'
+        temp_expr = '(' + format_expr(e.left) + complex_binary_ops[e.node_type] + format_expr(e.right) + ')'
         if e.type.node_type == 'Type_InfInt':
             return temp_expr
         elif e.type.node_type == 'Type_Bits':
@@ -579,41 +579,41 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
                 return '(' + format_type_mask(e.type) + temp_expr + ')'
             else:
                 if e.type.size in {8,16,32}:
-                    return '((' + format_type_16(e.type) + ') ' + temp_expr + ')'
+                    return '((' + format_type(e.type) + ') ' + temp_expr + ')'
                 else:
                     addError('formatting an expression', 'Expression of type %s is not supported on int<%s>. (Only int<8>, int<16> and int<32> are supported.)' % (e.node_type, e.type.size))
                     return ''
 
     elif e.node_type == 'Mux':
-        return '(' + format_expr_16(e.e0) + '?' + format_expr_16(e.e1) + ':' + format_expr_16(e.e2) + ')'
+        return '(' + format_expr(e.e0) + '?' + format_expr(e.e1) + ':' + format_expr(e.e2) + ')'
 
     elif e.node_type == 'Slice':
-        return '(' + format_type_mask(e.type) + '(' + format_expr_16(e.e0) + '>>' + format_expr_16(e.e2) + '))'
+        return '(' + format_type_mask(e.type) + '(' + format_expr(e.e0) + '>>' + format_expr(e.e2) + '))'
 
     elif e.node_type == 'Concat':
-        return '((' + format_expr_16(e.left) + '<<' + str(e.right.type.size) + ') | ' + format_expr_16(e.right) + ')'
+        return '((' + format_expr(e.left) + '<<' + str(e.right.type.size) + ') | ' + format_expr(e.right) + ')'
 
     elif e.node_type == 'Cast':
         if e.expr.type.node_type == 'Type_Bits' and not e.expr.type.isSigned and e.expr.type.size == 1 \
                 and e.destType.node_type == 'Type_Boolean':        #Cast from bit<1> to bool
-            return '(' + format_expr_16(e.expr) + ')'
+            return '(' + format_expr(e.expr) + ')'
         elif e.expr.type.node_type == 'Type_Boolean' and e.destType.node_type == 'Type_Bits' and not e.destType.isSigned \
                 and e.destType.size == 1:                          #Cast from bool to bit<1>
-            return '(' + format_expr_16(e.expr) + '? 1 : 0)'
+            return '(' + format_expr(e.expr) + '? 1 : 0)'
         elif e.expr.type.node_type == 'Type_Bits' and e.destType.node_type == 'Type_Bits':
             if e.expr.type.isSigned == e.destType.isSigned:
                 if not e.expr.type.isSigned:                       #Cast from bit<w> to bit<v>
                     if e.expr.type.size > e.destType.size:
-                        return '(' + format_type_mask(e.destType) + format_expr_16(e.expr) + ')'
+                        return '(' + format_type_mask(e.destType) + format_expr(e.expr) + ')'
                     else:
-                        return format_expr_16(e.expr)
+                        return format_expr(e.expr)
                 else:                                              #Cast from int<w> to int<v>
-                    return '((' + format_type_16(e.destType) + ') ' + format_expr_16(e.expr) + ')'
+                    return '((' + format_type(e.destType) + ') ' + format_expr(e.expr) + ')'
             elif e.expr.type.isSigned and not e.destType.isSigned: #Cast from int<w> to bit<w>
-                return '(' + format_type_mask(e.destType) + format_expr_16(e.expr) + ')'
+                return '(' + format_type_mask(e.destType) + format_expr(e.expr) + ')'
             elif not e.expr.type.isSigned and e.destType.isSigned: #Cast from bit<w> to int<w>
                 if e.destType.size in {8,16,32}:
-                    return '((' + format_type_16(e.destType) + ')' + format_expr_16(e.expr) + ')'
+                    return '((' + format_type(e.destType) + ')' + format_expr(e.expr) + ')'
                 else:
                     addError('formatting an expression', 'Cast from bit<%s> to int<%s> is not supported! (Only int<8>, int<16> and int<32> are supported.)' % e.destType.size)
                     return ''
@@ -631,10 +631,10 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
         #Generate local variables for select values
         for k in e.select.components:
             if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
-                prepend_statement('{} {} = {};'.format(format_type_16(k.type), gen_var_name(k), format_expr_16(k)))
+                prepend_statement('{} {} = {};'.format(format_type(k.type), gen_var_name(k), format_expr(k)))
             elif k.type.node_type == 'Type_Bits' and k.type.size % 8 == 0:
                 prepend_statement('uint8_t {0}[{1}];\n EXTRACT_BYTEBUF_PACKET(pd, {2}, {0});'
-                                  .format(gen_var_name(k), k.type.size/8, format_expr_16(k, False)))
+                                  .format(gen_var_name(k), k.type.size/8, format_expr(k, False)))
             else:
                 addError('formatting select expression', 'Select on type %s is not supported!' % pp_type_16(k.type))
 
@@ -655,18 +655,18 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
                     conds.append('memcmp({}, {}, {}) == 0'.format(gen_var_name(k), gen_var_name(c), size/8))
                 elif size <= 32:
                     if case_type == 'Range':
-                        conds.append('{0} <= {1} && {1} <= {2}'.format(format_expr_16(c.left), gen_var_name(k), format_expr_16(c.right)))
+                        conds.append('{0} <= {1} && {1} <= {2}'.format(format_expr(c.left), gen_var_name(k), format_expr(c.right)))
                     elif case_type == 'Mask':
-                        conds.append('{0} & {1} == {2} & {1}'.format(format_expr_16(c.left), format_expr_16(c.right), gen_var_name(k)))
+                        conds.append('{0} & {1} == {2} & {1}'.format(format_expr(c.left), format_expr(c.right), gen_var_name(k)))
                     else:
                         if case_type not in {'Constant'}: #Trusted expressions
                             addWarning('formatting a select case', 'Select statement cases of type %s on %s might not work properly.'
                                        % (case_type, pp_type_16(k.type)))
-                        conds.append('{} == {}'.format(gen_var_name(k), format_expr_16(c)))
+                        conds.append('{} == {}'.format(gen_var_name(k), format_expr(c)))
                 else:
                     addError('formatting a select case', 'Select statement cases of type %s on %s is not supported!'
                              % (case_type, pp_type_16(k.type)))
-            cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr_16(case.state)))
+            cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr(case.state)))
         return '\nelse\n'.join(cases)
 
     elif e.node_type == 'PathExpression':
@@ -700,11 +700,11 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
                 h = e.expr.type
                 return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
             else:
-                return format_expr_16(e.expr) + '.' + e.member
+                return format_expr(e.expr) + '.' + e.member
         else:
             if e.type.node_type in {'Type_Enum', 'Type_Error'}:
                 return e.type.members.get(e.member).c_name
-            return format_expr_16(e.expr) + '.' + e.member
+            return format_expr(e.expr) + '.' + e.member
     # TODO some of these are formatted as statements, we shall fix this
     elif e.node_type == 'MethodCallExpression':
         special_methods = {
@@ -759,39 +759,39 @@ def gen_format_expr_16(e, format_as_value=True, expand_parameters=False):
        # elif e.arguments.is_vec() and e.arguments.vec != []:
        #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
-            return format_expr_16(e.method) + '(pd, tables)'
+            return format_expr(e.method) + '(pd, tables)'
     else:
         addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
 
 ################################################################################
 
-def format_declaration_16(d, varname_override = None):
+def format_declaration(d, varname_override = None):
     global file_sugar_style
     with SugarStyle("no_comment"):
-        return gen_format_declaration_16(d, varname_override)
+        return gen_format_declaration(d, varname_override)
 
-def format_type_16(t, resolve_names = True):
+def format_type(t, resolve_names = True):
     global file_sugar_style
     with SugarStyle("inline_comment"):
-        return gen_format_type_16(t, resolve_names)
+        return gen_format_type(t, resolve_names)
 
 def format_method_parameters(ps, mt):
     global file_sugar_style
     with SugarStyle("inline_comment"):
         return gen_format_method_parameters(ps, mt)
 
-def format_expr_16(e, format_as_value=True, expand_parameters=False):
+def format_expr(e, format_as_value=True, expand_parameters=False):
     global file_sugar_style
     with SugarStyle("inline_comment"):
-        return gen_format_expr_16(e, format_as_value, expand_parameters)
+        return gen_format_expr(e, format_as_value, expand_parameters)
 
-def format_statement_16(stmt):
+def format_statement(stmt):
     global pre_statement_buffer
     global post_statement_buffer
     pre_statement_buffer = ""
     post_statement_buffer = ""
 
-    ret = gen_format_statement_16(stmt)
+    ret = gen_format_statement(stmt)
 
     pre_statement_buffer_ret = pre_statement_buffer
     pre_statement_buffer = ""
@@ -799,11 +799,11 @@ def format_statement_16(stmt):
     post_statement_buffer = ""
     return pre_statement_buffer_ret + ret + post_statement_buffer_ret
 
-def format_statement_16_ctl(stmt, ctl):
+def format_statement_ctl(stmt, ctl):
     global enclosing_control
     enclosing_control = ctl
 
-    return format_statement_16(stmt)
+    return format_statement(stmt)
 
 
 def format_type_mask(t):

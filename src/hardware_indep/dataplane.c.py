@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_declaration_16, format_statement_16_ctl, format_expr_16, format_type_16, type_env
+from utils.codegen import format_declaration, format_statement_ctl, format_expr, format_type, type_env
 from utils.misc import addError, addWarning
 from hlir16.hlir16_attrs import get_main
 
@@ -64,7 +64,7 @@ for pe in pipeline_elements:
 ################################################################################
 
 # TODO move this to HAL
-def match_type_order_16(t):
+def match_type_order(t):
     if t == 'EXACT':   return 0
     if t == 'LPM':     return 1
     if t == 'TERNARY': return 2
@@ -78,7 +78,7 @@ for table in hlir16.tables:
         continue
 
     #{ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
-    sortedfields = sorted(table.key.keyElements, key=lambda k: match_type_order_16(k.match_type))
+    sortedfields = sorted(table.key.keyElements, key=lambda k: match_type_order(k.match_type))
     #TODO variable length fields
     #TODO field masks
     for f in sortedfields:
@@ -275,8 +275,8 @@ for m in hlir16.declarations['Method']:
         "HashAlgorithm": "int",
     }):
         t = m.type
-        ret_type = format_type_16(t.returnType)
-        args = ", ".join([format_expr_16(arg) for arg in t.parameters.parameters] + [STDPARAMS])
+        ret_type = format_type(t.returnType)
+        args = ", ".join([format_expr(arg) for arg in t.parameters.parameters] + [STDPARAMS])
 
 
     if m.name == 'digest':
@@ -301,7 +301,7 @@ for pe in pipeline_elements:
         #[     control_locals_${pe.type.name}_t control_locals_struct;
         #[     control_locals_${pe.type.name}_t* control_locals = &control_locals_struct;
         #[     pd->control_locals = (void*) control_locals;
-        #[ ${format_statement_16_ctl(ctl.body, ctl)}
+        #[ ${format_statement_ctl(ctl.body, ctl)}
         #} }
 
 #[ void process_packet(${STDPARAMS})

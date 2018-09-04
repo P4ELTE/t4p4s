@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.codegen import format_declaration_16, format_statement_16_ctl
+from utils.codegen import format_declaration, format_statement_ctl
 import math
 
 
@@ -64,7 +64,7 @@ for ctl in hlir16.controls:
             pre_statement_buffer = ""
             post_statement_buffer = ""
 
-            code = format_statement_16_ctl(stmt, ctl)
+            code = format_statement_ctl(stmt, ctl)
             if pre_statement_buffer != "":
                 #= pre_statement_buffer
                 pre_statement_buffer = ""
