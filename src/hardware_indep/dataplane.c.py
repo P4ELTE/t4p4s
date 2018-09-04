@@ -117,7 +117,7 @@ for table in hlir16.tables:
         #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
         #[     bool hit = entry != NULL && entry->is_entry_valid;
 
-        #[     dbg_bytes(key, hit ? ${table.key_length_bytes} : 0, "Lookup %s on table ${table.name}: action %s%s", hit ? "HIT" : "MISS", hit ? action_names[entry->action.action_id] : "default", hit ? ", data " : "");
+        #[     debug("Lookup " T4ON "%s" T4OFF " on table " T4ON "${table.name}" T4OFF ": " T4ON "%s" T4OFF "\n", hit ? "HIT" : "MISS", hit ? action_names[entry->action.action_id] : "default");
 
         #{     if (hit) {
         for smem in table.meters + table.counters:
