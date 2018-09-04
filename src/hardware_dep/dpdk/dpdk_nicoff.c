@@ -174,3 +174,7 @@ struct lcore_data init_lcore_data() {
         .iteration_idx = 0,
     };
 }
+
+void initialize_nic() {
+    // nothing to do    
+}

@@ -36,7 +36,7 @@
 #include "dpdk_lib.h"
 #include <rte_ethdev.h>
 
-#include "dpdk_gen_include.h"
+#include "gen_include.h"
 
 
 // TODO from...
@@ -164,22 +164,13 @@ int launch_dpdk()
     return 0;
 }
 
-void initialize(int argc, char **argv)
+int main(int argc, char** argv)
 {
     initialize_args(argc, argv);
-
-#ifndef FAKEDPDK
     initialize_nic();
-#endif
-
     init_tables();
     init_memories();
     init_lcore_confs();
-}
-
-int main(int argc, char** argv)
-{
-    initialize(argc, argv);
     init_control_plane();
 
     int retval = launch_dpdk();

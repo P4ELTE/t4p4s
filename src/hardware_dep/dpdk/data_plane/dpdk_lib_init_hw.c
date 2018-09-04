@@ -275,7 +275,7 @@ void dpdk_init_lcore(unsigned lcore_id) {
     }
 }
 
-void initialize_nic()
+void dpdk_init_nic()
 {
     int ret = init_lcore_rx_queues();
     if (ret < 0)

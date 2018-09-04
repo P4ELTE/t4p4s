@@ -276,3 +276,7 @@ unsigned get_pkt_count_in_group(struct lcore_data lcdata) {
 unsigned get_queue_count(struct lcore_data lcdata) {
     return lcdata.conf->hw.n_rx_queue;
 }
+
+void initialize_nic() {
+    dpdk_init_nic();
+}
