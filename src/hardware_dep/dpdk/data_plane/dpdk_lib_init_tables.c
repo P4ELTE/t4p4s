@@ -16,6 +16,8 @@
 // This file is included directly from `dpdk_lib.c`.
 
 
+extern void create_table(lookup_table_t* t, int socketid);
+
 void create_tables_on_socket(int socketid)
 {
     if(table_config == NULL) return;
