@@ -32,7 +32,7 @@ from os.path import isfile, join
 
 generate_code_files = True
 show_code = False
-cache_dir_name = ".cache"
+cache_dir_name = "build/.cache"
 
 # The names of the applicable beautifier programs.
 c_beautifiers = ["clang-format-3.6", "clang-format-3.7", "clang-format-3.8", ]
@@ -369,7 +369,7 @@ def init_args():
     parser.add_argument('-v', '--p4v', help='Use P4-14 (default is P4-16)', required=False, choices=[16, 14], type=int, default=16)
     parser.add_argument('-p', '--p4c_path', help='P4C path', required=False)
     parser.add_argument('-c', '--compiler_files_dir', help='Source directory of the compiler\'s files', required=False, default=join("src", "hardware_indep"))
-    parser.add_argument('-g', '--generated_dir', help='Output directory for hardware independent files', required=False, default=join("build", "src_hardware_indep"))
+    parser.add_argument('-g', '--generated_dir', help='Output directory for hardware independent files', required=True)
     parser.add_argument('-desugared_path', help='Output directory for the compiler\'s files', required=False, default=join("build", "util", "desugared_compiler"))
     parser.add_argument('-desugar_info', help='Markings in the generated source code', required=False, choices=["comment", "pragma", "none"], default="comment")
     parser.add_argument('-verbose', help='Verbosity', required=False, default=False, action='store_const', const=True)
