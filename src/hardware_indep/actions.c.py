@@ -39,19 +39,10 @@ for table in hlir16.tables:
 #} };
 
 
-#[ void digest(uint32_t, struct uint8_buffer_s, packet_descriptor_t*, lookup_table_t** tables);
-
-
-#[ // TODO create this meter properly
-#[ void teid_meters(packet_descriptor_t* pd, lookup_table_t** tables) {
-#[ }
-
-
 for ctl in hlir16.controls:
     for act in ctl.actions:
         fun_params = ["packet_descriptor_t* pd", "lookup_table_t** tables"]
-        if act.parameters.parameters.vec != []:
-            fun_params += ["struct action_{}_params parameters".format(act.name)]
+        fun_params += ["struct action_{}_params parameters".format(act.name)]
 
         #{ void action_code_${act.name}(${', '.join(fun_params)}) {
         #[     uint32_t value32, res32, mask32;

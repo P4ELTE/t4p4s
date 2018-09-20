@@ -15,8 +15,10 @@
 from utils.codegen import format_type
 from hlir16.hlir16_attrs import get_main
 
-#[ #ifndef __ACTION_INFO_GENERATED_H__
-#[ #define __ACTION_INFO_GENERATED_H__
+#[ #ifndef __ACTIONS_H__
+#[ #define __ACTIONS_H__
+
+#[ #include "dataplane.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
@@ -59,13 +61,13 @@ for table in hlir16.tables:
 for table in hlir16.tables:
     #{ struct ${table.name}_action {
     #[     int action_id;
-    #[     union {
+    #{     union {
     for action in table.actions:
         # TODO what if the action is not a method call?
         # TODO what if there are more actions?
         action_method_name = action.expression.method.ref.name
         #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
-    #[     };
+    #}     };
     #} };
 
 
@@ -76,10 +78,7 @@ for table in hlir16.tables:
         aname = action.action_object.name
         mname = action.expression.method.ref.name
 
-        if len(action.action_object.parameters.parameters) == 0:
-            #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables);
-        else:
-            #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
+        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
 
 
 # TODO: The controls shouldn't be accessed through an instance declaration parameter
