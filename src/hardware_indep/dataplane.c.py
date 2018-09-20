@@ -31,7 +31,12 @@ from hlir16.hlir16_attrs import get_main
 #[ extern ctrl_plane_backend bg;
 #[ extern char* action_names[];
 
-#[ extern void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables);
+SHORT_STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
+SHORT_STDPARAMS_IN = "pd, tables"
+STDPARAMS = SHORT_STDPARAMS + ", parser_state_t* pstate"
+STDPARAMS_IN = SHORT_STDPARAMS_IN + ", pstate"
+
+#[ extern void parse_packet(${STDPARAMS});
 #[ extern void increase_counter (int counterid, int index);
 
 # note: 0 is for the special case where there are no tables
@@ -39,9 +44,6 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'k
 #[ uint8_t reverse_buffer[${max_key_length}];
 
 ################################################################################
-
-STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
-STDPARAMS_IN = "pd, tables"
 
 main = get_main(hlir16)
 packet_name = main.type.baseType.type_ref.name
@@ -109,17 +111,21 @@ for table in hlir16.tables:
     lookupfun = {'LPM':'lpm_lookup', 'EXACT':'exact_lookup', 'TERNARY':'ternary_lookup'}
     #[ struct apply_result_s ${table.name}_apply(${STDPARAMS})
     #{ {
-    #[     debug("  :::: EXECUTING TABLE ${table.name}\n");
     if hasattr(table, 'key'):
         #[     uint8_t* key[${table.key_length_bytes}];
         #[     table_${table.name}_key(pd, (uint8_t*)key);
 
         #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
-        #[     bool hit = entry != NULL && entry->is_entry_valid;
+        #[     bool hit = entry != NULL && entry->is_entry_valid == INVALID_TABLE_ENTRY;
 
-        #[     debug("Lookup " T4ON "%s" T4OFF " on table " T4ON "${table.name}" T4OFF ": " T4ON "%s" T4OFF "\n", hit ? "HIT" : "MISS", hit ? action_names[entry->action.action_id] : "default");
+        #[     dbg_bytes(key, table_config[TABLE_${table.name}].entry.key_size,
+        #[               "Lookup $$[success]{}{%s} on table $$[table]{table.name}: $${}{%s}%s <- %s",
+        #[               hit ? "hit" : "miss",
+        #[               entry == 0 ? "(no action)" : action_names[entry->action.action_id],
+        #[               hit ? "" : " (default)",
+        #[               ${table.key_length_bytes} == 0 ? "$$[bytes]{}{(empty key)}" : "");
 
-        #{     if (hit) {
+        #{     if (likely(hit)) {
         for smem in table.meters + table.counters:
             for comp in smem.components:
                 value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
@@ -131,31 +137,33 @@ for table in hlir16.tables:
         action = table.default_action.expression.method.ref.name if hasattr(table, 'default_action') else None
 
         if action:
-            #[    table_entry_${table.name}_t resStruct = { .action = action_${table.default_action.expression.method.ref.name} };
+            #[    table_entry_${table.name}_t resStruct = {
+            #[        .action = action_${table.default_action.expression.method.ref.name},
+            #[        .port   = INVALID_PORT,
+            #[    };
             #[    table_entry_${table.name}_t* entry = &resStruct;
             #[    bool hit = true;
+            #[    bool is_default = false;
         else:
-            #[    table_entry_${table.name}_t* entry = (struct ${table.name}_action*)NULL;
+            #[    table_entry_${table.name}_t* entry = (struct ${table.name}_action*)0;
             #[    bool hit = false;
+            #[    bool is_default = false;
 
 
     # ACTIONS
-    #[     if (!hit) {
-    #[       debug("    :: NO RESULT, NO DEFAULT ACTION.\n");
-    #[     } else {
+    #[     if (likely(entry != 0)) {
     #{       switch (entry->action.action_id) {
     for action in table.actions:
         action_name = action.action_object.name
         if action_name == 'NoAction':
             continue
         #{         case action_${action_name}:
-        #[           debug("    :: EXECUTING ACTION ${action_name}...\n");
-        if action.action_object.parameters.parameters:
-            #[           action_code_${action_name}(pd, tables, entry->action.${action_name}_params);
-        else:
-            #[           action_code_${action_name}(pd, tables);
+        #[           debug("   :: Executing action $$[action]{action_name}%s...\n", hit ? "" : " (default)");
+        #[           action_code_${action_name}(${SHORT_STDPARAMS_IN}, entry->action.${action_name}_params);
         #}           break;
     #[       }
+    #[     } else {
+    #[       debug("   :: NO RESULT, NO DEFAULT ACTION.\n");
     #}     }
 
     #[     struct apply_result_s apply_result = { hit, hit ? entry->action.action_id : -1 };
@@ -165,7 +173,7 @@ for table in hlir16.tables:
 
 ################################################################################
 
-#{ void reset_headers(${STDPARAMS}) {
+#{ void reset_headers(${SHORT_STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}].pointer = NULL;
@@ -173,7 +181,7 @@ for h in hlir16.header_instances:
         #[ memset(pd->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
 #} }
 
-#{ void init_headers(${STDPARAMS}) {
+#{ void init_headers(${SHORT_STDPARAMS}) {
 for h in hlir16.header_instances:
     if not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}] = (header_descriptor_t)
@@ -196,20 +204,16 @@ for h in hlir16.header_instances:
 
 ################################################################################
 
-#TODO are these keyless tables supported in p4-16?
-
-def keyless_single_action_table(table):
-    if not table.get_attr('key'):
-        return True
+def is_keyless_single_action_table(table):
     return table.key_length_bytes == 0 and len(table.actions) == 2 and table.actions[1].action_object.name.startswith('NoAction')
 
 for table in hlir16.tables:
-    if keyless_single_action_table(table):
+    if is_keyless_single_action_table(table):
         #[ extern void ${table.name}_setdefault(struct ${table.name}_action);
 
 #{ void init_keyless_tables() {
 for table in hlir16.tables:
-    if keyless_single_action_table(table):
+    if is_keyless_single_action_table(table):
         action = table.actions[0].action_object
         #[ struct ${table.name}_action ${table.name}_a;
         #[ ${table.name}_a.action_id = action_${action.name};
@@ -218,9 +222,9 @@ for table in hlir16.tables:
 
 ################################################################################
 
-#{ void init_dataplane(${STDPARAMS}) {
-#[     init_headers(${STDPARAMS_IN});
-#[     reset_headers(${STDPARAMS_IN});
+#{ void init_dataplane(${SHORT_STDPARAMS}) {
+#[     init_headers(${SHORT_STDPARAMS_IN});
+#[     reset_headers(${SHORT_STDPARAMS_IN});
 #[     init_keyless_tables();
 #[     pd->dropped=0;
 #} }
@@ -236,7 +240,8 @@ for hdr in hlir16.header_instances:
         if not fld.preparsed and fld.type.size <= 32:
             #{ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
-            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}, value32)
+            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}, value32);
+            #[     // set_field((fldT[]){{pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}}}, 0, value32, ${fld.type.size});
             #} }
 #} }
 
@@ -263,46 +268,36 @@ class types:
         for v in self.env_vars:
             del type_env[v]
 
-# TODO this is a temporary quick fix for "calculated_field"s
+# declarations for externs
 for m in hlir16.declarations['Method']:
-    # TODO Hacking the hack to support offload annotation
-    if m.name in ['verify_checksum', 'update_checksum', 'verify_checksum_offload', 'update_checksum_offload', 'mark_to_drop']:#These are already implemented in the DPDK HAL
-        continue
     # TODO temporary fix for l3-routing-full, this will be computed later on
     with types({
         "T": "struct uint8_buffer_s",
-        "O": "int",
+        "O": "bitfield_handle_t",
         "HashAlgorithm": "int",
     }):
         t = m.type
         ret_type = format_type(t.returnType)
         args = ", ".join([format_expr(arg) for arg in t.parameters.parameters] + [STDPARAMS])
 
-
-    if m.name == 'digest':
-        # TODO this is a temporary solution, only works for the l2fwd example
-        #[ ${ret_type} ${m.name}(${args}) {
-        #[     // TODO remove, as digest is implemented elsewhere
-        #[ }
-    else:
-        #[ ${ret_type} ${m.name}(${args}) {
-        #[     // TODO proper body
-        #[ }
+        #[ extern ${ret_type} ${m.name}(${args});
 
 for pe in pipeline_elements:
     ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
         
-    if ctl is not None:
-        #[ void control_${pe.type.name}(${STDPARAMS})
-        #{ {
-        #[     debug("entering control ${ctl.name}...\n");
-        #[     uint32_t value32, res32;
-        #[     (void)value32, (void)res32;
-        #[     control_locals_${pe.type.name}_t control_locals_struct;
-        #[     control_locals_${pe.type.name}_t* control_locals = &control_locals_struct;
-        #[     pd->control_locals = (void*) control_locals;
-        #[ ${format_statement_ctl(ctl.body, ctl)}
-        #} }
+    if ctl is None:
+        continue
+
+    #[ void control_${pe.type.name}(${STDPARAMS})
+    #{ {
+    #[     debug("Entering control $$[control]{ctl.name}...\n");
+    #[     uint32_t value32, res32;
+    #[     (void)value32, (void)res32;
+    #[     control_locals_${pe.type.name}_t control_locals_struct;
+    #[     control_locals_${pe.type.name}_t* control_locals = &control_locals_struct;
+    #[     pd->control_locals = (void*) control_locals;
+    #= format_statement_ctl(ctl.body, ctl)
+    #} }
 
 #[ void process_packet(${STDPARAMS})
 #{ {
@@ -323,7 +318,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[ void store_headers_for_emit(${STDPARAMS})
 #{ {
-#[     debug("   :: Preparing %d header instances for storage...\n", pd->emit_hdrinst_count);
+#[     debug("   :: Preparing $${}{%d} header instances for storage...\n", pd->emit_hdrinst_count);
 
 #[     uint8_t* storage = pd->header_tmp_storage;
 #[     pd->emit_headers_length = 0;
@@ -331,46 +326,48 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
 
 #{         if (hdr.pointer == NULL) {
-#[             debug("    : Skipping header   (%${longest_hdr_name_len}s)  : (invalid header)\n", hdr.name);
+#[             debug("    : Skipping header   ($$[header][%]{longest_hdr_name_len}{s})  : (invalid header)\n", hdr.name);
 #[             continue;
 #}         }
 
-#[         dbg_bytes(hdr.pointer, hdr.length, "    : Storing  %02d bytes (%${longest_hdr_name_len}s)  : ", hdr.length, hdr.name);
+#[         dbg_bytes(hdr.pointer, hdr.length, "    : Storing  $${}{%02d} bytes ($$[header][%]{longest_hdr_name_len}{s})  : ", hdr.length, hdr.name);
 
 #[         memcpy(storage, hdr.pointer, hdr.length);
 #[         storage += hdr.length;
 #[         pd->emit_headers_length += hdr.length;
 #}     }
 
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Stored   %02d bytes     $pkt_name_indent: ", pd->emit_headers_length);
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Stored   $${}{%02d} bytes     $pkt_name_indent: ", pd->emit_headers_length);
 #} }
 
 #[ void resize_packet_on_emit(${STDPARAMS})
 #{ {
-#{     if (unlikely(pd->emit_headers_length != pd->parsed_length)) {
-#{         if (likely(pd->emit_headers_length > pd->parsed_length)) {
-#[             int len_change = pd->emit_headers_length - pd->parsed_length;
-#[             debug("   :: Adding   %02d bytes %${longest_hdr_name_len}s   : (header: from %d bytes to %d bytes)\n", len_change, "to packet", pd->parsed_length, pd->emit_headers_length);
-#[             char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, len_change);
-#[             if (new_ptr == NULL) {
-#[                 rte_exit(1, "Could not reserve necessary headroom (%d additional bytes)", len_change);
-#[             }
-#[             pd->data = (packet_data_t*)new_ptr;
-#[         } else {
-#[             int len_change = pd->parsed_length - pd->emit_headers_length;
-#[             debug("   :: Removing %02d bytes %${longest_hdr_name_len}s  : (header: from %d bytes to %d bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
-#[             char* new_ptr = rte_pktmbuf_adj(pd->wrapper, len_change);
-#[             pd->data = (packet_data_t*)new_ptr;
-#}         }
-#[     } else {
-#[         debug("   :: To emit  %02d bytes (no resize)\n", pd->emit_headers_length);
+#{     if (likely(pd->emit_headers_length == pd->parsed_length)) {
+#[         debug("   :: Emitting $${}{%02d} bytes (no resize)\n", pd->emit_headers_length);
+#[         return;
 #}     }
+#[
+#{     if (likely(pd->emit_headers_length > pd->parsed_length)) {
+#[         int len_change = pd->emit_headers_length - pd->parsed_length;
+#[         debug("   :: Adding   $${}{%02d} bytes %${longest_hdr_name_len}{s}   : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "to packet", pd->parsed_length, pd->emit_headers_length);
+#[         char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, len_change);
+#[         if (unlikely(new_ptr == 0)) {
+#[             rte_exit(1, "Could not reserve necessary headroom ($${}{%d} additional bytes)", len_change);
+#[         }
+#[         pd->data = (packet_data_t*)new_ptr;
+#[     } else {
+#[         int len_change = pd->parsed_length - pd->emit_headers_length;
+#[         debug("   :: Removing $${}{%02d} bytes %${longest_hdr_name_len}{s}  : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
+#[         char* new_ptr = rte_pktmbuf_adj(pd->wrapper, len_change);
+#[         pd->data = (packet_data_t*)new_ptr;
+#}     }
+#[     pd->wrapper->pkt_len = pd->emit_headers_length + pd->payload_length;
 #} }
 
 #[ void copy_emit_contents(${STDPARAMS})
 #{ {
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: %02d bytes %${longest_hdr_name_len}s : ", pd->emit_headers_length, "from storage");
-#[     memcpy((struct rte_mbuf*)pd->data, pd->header_tmp_storage, pd->emit_headers_length);
+#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: $${}{%02d} bytes %${longest_hdr_name_len}{s} : ", pd->emit_headers_length, "from storage");
+#[     memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), pd->header_tmp_storage, pd->emit_headers_length);
 #} }
 
 #[ void emit_packet(${STDPARAMS})
@@ -383,34 +380,25 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     }
 #} }
 
-#[ void debug_print_parsed_packet(${STDPARAMS})
-#{ {
-#[ #ifdef P4DPDK_DEBUG
-#[     debug("Parsed packet\n");
-#[     for (int i = 0; i < HEADER_INSTANCE_COUNT; ++i) {
-#[         if (!header_instance_is_metadata[i] && pd->headers[i].pointer != NULL) {
-#[             dbg_bytes(pd->headers[i].pointer, pd->headers[i].length, " :::: Header %${longest_hdr_name_len}s (%02d bytes)    : ",  pd->headers[i].name, pd->headers[i].length);
-#[         }
-#[     }
+#[ static void set_metadata_inport(packet_descriptor_t* pd, uint32_t inport)
+#[ {
+#[     int res32; // needed for the macro
+#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
+#[ }
 
-#[     dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " :::: Payload  %02d bytes  %${longest_hdr_name_len}s   : ", pd->payload_length, " ");
-#[ #endif
-#} }
-
-#[ void handle_packet(${STDPARAMS})
+#[ void handle_packet(${STDPARAMS}, uint32_t portid)
 #{ {
 #[     int value32;
 #[     int res32;
-
-#[     EXTRACT_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, value32)
-#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "HANDLING PACKET (port %" PRIu32 ", %02d bytes)  : ", value32, rte_pktmbuf_pkt_len(pd->wrapper));
-
-#[     reset_headers(${STDPARAMS_IN});
+#[
+#[     reset_headers(${SHORT_STDPARAMS_IN});
+#[     set_metadata_inport(pd, portid);
+#[
+#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port %" PRIu32 ", $${}{%02d} bytes)  : ", EXTRACT_INGRESSPORT(pd), rte_pktmbuf_pkt_len(pd->wrapper));
+#[
 #[     pd->parsed_length = 0;
 #[     parse_packet(${STDPARAMS_IN});
 #[     pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
-#[
-#[     debug_print_parsed_packet(${STDPARAMS_IN});
 #[
 #[     emit_addr = pd->data;
 #[     pd->emit_hdrinst_count = 0;

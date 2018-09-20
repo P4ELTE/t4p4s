@@ -88,12 +88,15 @@ void create_error(int socketid, const char* table_type, const char* table_name)
 void make_table_entry(uint8_t* entry, uint8_t* value, lookup_table_t* t) {
     memcpy(entry, value, t->entry.action_size);
     memset(entry + t->entry.action_size, 0, t->entry.state_size);
-    *entry_validity_ptr(entry, t) = INVALID_TABLE_ENTRY;
+    *entry_validity_ptr(entry, t) = VALID_TABLE_ENTRY;
 }
 
 uint8_t* make_table_entry_on_socket(lookup_table_t* t, uint8_t* value) {
     int length = t->entry.entry_size;
     uint8_t* entry = rte_malloc_socket("uint8_t", sizeof(uint8_t)*length, 0, t->socketid);
+    if (unlikely(entry == NULL)) {
+        create_error(-1, t->type == 0 ? "hash" : t->type == 1 ? "lpm" : "ternary", t->name);
+    }
     make_table_entry(entry, value, t);
     return entry;
 }
@@ -116,6 +119,9 @@ void create_ext_table(lookup_table_t* t, void* rte_table, int socketid)
     ext->rte_table = rte_table;
     ext->size = 0;
     ext->content = rte_malloc_socket("uint8_t*", sizeof(uint8_t*)*t->max_size, 0, socketid);
+    if (unlikely(ext->content == NULL)) {
+        create_error(-1, t->type == 0 ? "hash" : t->type == 1 ? "lpm" : "ternary", t->name);
+    }
     t->table = ext;
 }
 
@@ -123,6 +129,7 @@ void create_table(lookup_table_t* t, int socketid)
 {
     t->socketid = socketid;
     if (t->entry.key_size == 0) return; // we don't create the table if there are no keys (it's a fake table for an element in the pipeline)
+    t->default_val = 0;
 
     switch(t->type)
     {
@@ -136,15 +143,16 @@ void create_table(lookup_table_t* t, int socketid)
             ternary_create(t, socketid);
             break;
     }
-    debug("Created table %s on socket %d.\n", t->name, socketid);
+    debug("    : Created table replica " T4LIT(%s,table) ".\n", t->name);
 }
 
 
 void table_set_default_action(lookup_table_t* t, uint8_t* entry)
 {
-    debug("Table %s@%d default action set: %s\n", t->name, t->socketid, get_entry_action_name(entry));
+    debug("   :: Table " T4LIT(%s,table) "@" T4LIT(%d,socket) " default action set: " T4LIT(%s,action) "\n", t->name, t->socketid, get_entry_action_name(entry));
 
     if (t->default_val) rte_free(t->default_val);
 
     t->default_val = make_table_entry_on_socket(t, entry);
+    *entry_validity_ptr(t->default_val, t) = INVALID_TABLE_ENTRY;
 }

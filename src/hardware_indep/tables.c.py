@@ -33,7 +33,7 @@ for table in hlir16.tables:
 
     #[      .key_size = $ks,
 
-    #[      .entry_size = sizeof(struct ${table.name}_action) + sizeof(local_state_${table.name}_t) + sizeof(bool),
+    #[      .entry_size = sizeof(struct ${table.name}_action) + sizeof(local_state_${table.name}_t) + sizeof(entry_validity_t),
     #[      .action_size   = sizeof(struct ${table.name}_action),
     #[      .state_size    = sizeof(local_state_${table.name}_t),
     #[      .validity_size = sizeof(entry_validity_t),
@@ -43,3 +43,4 @@ for table in hlir16.tables:
     #[  .max_size = 250000,
     #[ },
 #[ };
+

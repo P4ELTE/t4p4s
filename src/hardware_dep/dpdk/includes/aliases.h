@@ -22,8 +22,8 @@ typedef uint8_t packet_data_t;
 #include <rte_spinlock.h>
 typedef rte_spinlock_t lock_t;
 
-#define INVALID_TABLE_ENTRY -42
-#define VALID_TABLE_ENTRY   0xd00ff00d
+#define INVALID_TABLE_ENTRY false
+#define VALID_TABLE_ENTRY   true
 
 #endif // __ALIASES_H_
 
