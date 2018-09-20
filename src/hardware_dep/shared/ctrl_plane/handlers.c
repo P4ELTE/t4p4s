@@ -31,30 +31,28 @@ int handle_p4_msg(char* buffer, int length, p4_msg_callback cb)
 	switch (header->type)
 	{
 		case P4T_SET_DEFAULT_ACTION:
-#ifdef P4DPDK_DEBUG
-			printf("[CTRL]  :::: SET_DEFAULT_ACTION\n");
-#endif
 			rval = handle_p4_set_default_action( netconv_p4_set_default_action((struct p4_set_default_action*)buffer), &ctrl_m);
-#ifdef P4DPDK_DEBUG
-			printf("[CTRL]    :: rval=%d\n", rval);
+#ifdef T4P4S_DEBUG
+			if (rval != 0) {
+				printf("[CTRL]    :: SET_DEFAULT_ACTION rval=%d\n", rval);
+			}
 #endif
 			if (rval<0) return rval;
 			cb(&ctrl_m);
 			break;
 		case P4T_ADD_TABLE_ENTRY:
-#ifdef P4DPDK_DEBUG
-			printf("[CTRL]  :::: ADD_TABLE_ENTRY\n");
-#endif
             rval = handle_p4_add_table_entry(netconv_p4_add_table_entry((struct p4_add_table_entry*)buffer), &ctrl_m);
-#ifdef P4DPDK_DEBUG
-            printf("[CTRL]    :: rval=%d\n", rval);
+#ifdef T4P4S_DEBUG
+			if (rval != 0) {
+				printf("[CTRL]    :: ADD_TABLE_ENTRY rval=%d\n", rval);
+			}
 #endif
             if (rval<0) return rval;
             cb(&ctrl_m);
             break;
 		default:
-#ifdef P4DPDK_DEBUG
-			printf("[CTRL]  :::: Message type is not implemented! type=%d\n", header->type);
+#ifdef T4P4S_DEBUG
+			printf("[CTRL] Warning: skippin message of unknown type %d\n", header->type);
 #endif
 			cb(&ctrl_m);
 			return -100;

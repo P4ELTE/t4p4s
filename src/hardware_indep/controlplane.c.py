@@ -48,7 +48,7 @@ def get_key_byte_width(k):
 
 
 hlir16_tables_with_keys = [t for t in hlir16.tables if hasattr(t, 'key')]
-keyed_table_names = ", ".join([table.name for table in hlir16_tables_with_keys])
+keyed_table_names = ", ".join(["\"T4LIT(" + table.name + ",table)\"" for table in hlir16_tables_with_keys])
 
 
 for table in hlir16_tables_with_keys:
@@ -140,10 +140,16 @@ for table in hlir16_tables_with_keys:
         #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
         #[     action.action_id = action_${action.action_object.name};
+        #[     debug("From controller: add new entry to $$[table]{table.name} with action $$[action]{action.action_object.name}\n");
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
+
+            # TODO printout will be wrong if bitsize is larger than 32 bits
+            size = 8 if p.type.size <= 8 else 16 if p.type.size <= 16 else 32
+            #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type.size}, *(uint${size}_t*)${p.name});
+
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
-        #[     debug("From controller: add new entry to ${table.name} with action ${action.action_object.name}\n");
+
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
             # TODO handle specials properly (isValid etc.)
@@ -159,8 +165,8 @@ for table in hlir16_tables_with_keys:
         #}
         #} } else
 
-    valid_actions = ", ".join([get_action_name_str(a) for a in table.actions])
-    #[ debug("Table add entry: action name mismatch (%s), expected one of ($valid_actions).\n", ctrl_m->action_name);
+    valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
+    #[ debug(" $$[warning]{}{!!!! Table add entry}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 for table in hlir16_tables_with_keys:
@@ -173,12 +179,12 @@ for table in hlir16_tables_with_keys:
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
-        #[     debug("From controller: set default action for ${table.name} with action $action_name_str\n");
+        #[     debug("From controller: set default action for $$[table]{table.name} with action $$[action]{action_name_str}\n");
         #[     ${table.name}_setdefault( action );
         #} } else
 
-    valid_actions = ", ".join([get_action_name_str(a) for a in table.actions])
-    #[ debug("Table setdefault: action name mismatch (%s), expected one of ($valid_actions).\n", ctrl_m->action_name);
+    valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
+    #[ debug(" $$[warning]{}{!!!! Table setdefault}: action name $$[warning]{}{mismatch} ($$[action]{}{%s}), expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 
@@ -188,26 +194,28 @@ for table in hlir16_tables_with_keys:
     #[     ${table.name}_add_table_entry(ctrl_m);
     #[     return;
     #} }
-#[     debug("Table add entry: table name mismatch (%s), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
+#[     debug(" $$[warning]{}{!!!! Table add entry}: table name $$[warning]{}{mismatch} ($$[table]{}{%s}), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
 #} }
 
 
+#[ extern char* action_names[];
+
 #{ void ctrl_setdefault(struct p4_ctrl_msg* ctrl_m) {
+#[ debug("Set default message from control plane for table $$[table]{}{%s}: $$[action]{}{%s}\n", ctrl_m->table_name, ctrl_m->action_name);
 for table in hlir16_tables_with_keys:
     #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_set_default_table_action(ctrl_m);
     #[     return;
     #} }
 
-#[     debug("Table setdefault: table name mismatch (%s), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
+#[     debug(" $$[warning]{}{!!!! Table setdefault}: table name $$[warning]{}{mismatch} ($$[table]{}{%s}), expected one of ($keyed_table_names).\n", ctrl_m->table_name);
 #} }
 
 
 #{ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
 #{     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
 #[          ctrl_add_table_entry(ctrl_m);
-#[     }
-#[     else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
+#[     } else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
 #[         ctrl_setdefault(ctrl_m);
 #}     }
 #} }
@@ -217,7 +225,8 @@ for table in hlir16_tables_with_keys:
 #[ ctrl_plane_backend bg;
 #[ void init_control_plane()
 #[ {
-#[     debug("Creating control plane connection...\n");
+#[ #ifndef T4P4S_NO_CONTROL_PLANE
 #[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
 #[     launch_backend(bg);
+#[ #endif
 #[ }

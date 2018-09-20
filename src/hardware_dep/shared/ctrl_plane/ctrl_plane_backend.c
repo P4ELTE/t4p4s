@@ -120,8 +120,10 @@ void input_processor(void *bg)
 		if (mem_cell==0) continue;
 
 		rval = handle_p4_msg( mem_cell->data, mem_cell->length, bgt->cb );
-#ifdef P4DPDK_DEBUG
-		printf("[CTRL] Handle msg: %d\n", rval);
+#ifdef T4P4S_DEBUG
+		if (rval != 0) {
+			printf("[CTRL]  :::: rval = %d\n", rval);
+		}
 #endif
 
 		detouch_mem_cell( bgt, mem_cell );
@@ -238,8 +240,7 @@ void launch_backend(ctrl_plane_backend bg)
 
         if( connect( bgt->controller_sock, (struct sockaddr *) &(bgt->controller_addr), sizeof(struct sockaddr_in) ) == -1 )
         {
-                fprintf(stdout, "Connecting stream socket\n" );
-                return;
+            return;
         }  
 
 	/* !!!!!!!!!!! Launch the client thread connecting to the controller  */
