@@ -34,13 +34,9 @@ generate_code_files = True
 show_code = False
 cache_dir_name = "build/.cache"
 
-# The names of the applicable beautifier programs.
-c_beautifiers = ["clang-format-3.6", "clang-format-3.7", "clang-format-3.8", ]
-c_beautifier_opts = "-style=llvm"
-
 # Inside the compiler, these variables are considered singleton.
 args = []
-hlir16 = None
+hlir = None
 
 indentation_level = 0
 
@@ -77,8 +73,24 @@ def translate_line_with_insert(file, line_idx, line, indent_str):
     content = re.sub(r'\\', r'\\\\', content)
     # quotes may appear in #[ parts
     content = re.sub(r'"', r'\"', content)
-    # replace ${var} and ${call()} inserts
-    content = re.sub(r'\${([ \t\f\v]*)([^}]+)([ \t\f\v]*)}', r'" + str(\2) + "', content)
+
+    def replacer(m):
+        light = m.group("light")
+        txt1  = m.group('text1') or ''
+        expr  = m.group('expr')
+        txt2  = m.group('text2') or ''
+
+        # no highlighting
+        if m.group("type") == '$':
+            return '{}" + str({}) + "{}'.format(txt1, expr, txt2)
+
+        light_param = "," + light if light not in (None, "") else ""
+        return '\\" T4LIT({}" + str({}) + "{}{}) \\"'.format(txt1, expr, txt2, light_param)
+
+    # replace $$[light][text1]{expr}{text2} inserts, where all parts except {expr} are optional
+    content = re.sub(r'(?P<type>\$\$?)(\[(?P<light>[^\]]+)\])?(\[(?P<text1>[^\]]+)\])?{\s*(?P<expr>[^}]*)\s*}({(?P<text2>[^}]+)})?',
+                     replacer, content)
+
     # replace $var inserts
     content = re.sub(r'\$([a-zA-Z0-9_]*)', r'" + str(\1) + "', content)
     # trim the line
@@ -282,7 +294,7 @@ def generate_code(file, genfile, localvars={}):
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
 
 
-def generate_desugared_src(hlir16):
+def generate_desugared_py():
     """Some Python source files also use the sugared syntax.
     The desugared files are generated here."""
     import glob
@@ -296,9 +308,19 @@ def generate_desugared_src(hlir16):
             write_file(tofile, code)
 
 
-def generate_desugared(hlir16, filename, file_with_path):
+def get_hlir():
+    global hlir
+    if hlir is not None:
+        return hlir
+    hlir = load_hlir()
+    return hlir
+
+
+def generate_desugared_c(filename, filepath):
+    hlir = get_hlir()
+
     genfile = join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.desugared.py', filename))
-    code = generate_code(file_with_path, genfile, {'hlir16': hlir16})
+    code = generate_code(filepath, genfile, {'hlir16': hlir})
 
     outfile = join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
 
@@ -319,46 +341,30 @@ def make_dirs():
         os.makedirs(args['generated_dir'])
         verbose_print("Generating path for generated files: {0}".format(args['generated_dir']))
 
-    if cache_dir_name:
-        if not os.path.isdir(cache_dir_name):
-            os.mkdir(cache_dir_name)
+    if cache_dir_name and not os.path.isdir(cache_dir_name):
+        os.mkdir(cache_dir_name)
 
 
-def is_beautifiable(filename):
-    return filename.endswith(".c") or filename.endswith(".h")
-
-
-def beautify(filename):
-    if not is_beautifiable(filename):
+def file_contains_exact_text(filename, text):
+    """Returns True iff the file exists and it already contains the given text."""
+    if not os.path.isfile(filename):
         return
 
-    for c_beautifier in c_beautifiers:
-        try:
-            call([c_beautifier, filename, "-i", c_beautifier_opts])
-            break
-        except OSError:
-            pass
-
-
-def file_contains_text(filename, text):
-    """Returns True iff the file exists and it already contains the given text."""
-    if os.path.isfile(filename):
-        with open(filename, "r") as infile:
-            intext = infile.read()
-            return text == intext
+    with open(filename, "r") as infile:
+        intext = infile.read()
+        return text == intext
 
     return False
 
 
 def write_file(filename, text):
-    """Writes the given text to the given file with optional beautification."""
+    """Writes the given text to the given file."""
 
-    if not file_contains_text(filename, text):
-        with open(filename, "w") as genfile:
-            genfile.write(text)
+    if file_contains_exact_text(filename, text):
+        return
 
-    if args['beautify']:
-        beautify(filename)
+    with open(filename, "w") as genfile:
+        genfile.write(text)
 
 
 def init_args():
@@ -381,7 +387,7 @@ def init_args():
 
 # TODO also reload if HLIR has changed
 def is_file_fresh(filename):
-    p4time = os.path.getmtime(args['p4_file'])
+    global p4time
     filetime = os.path.getmtime(filename)
     return p4time < filetime
 
@@ -402,8 +408,24 @@ def load_json_from_cache(base_p4_file):
     return json_filepath
 
 
-def load_pickled_hlir16(base_p4_file):
+def get_pickled_hlir_file(base_p4_file):
     if not cache_dir_name:
+        return None
+
+    if not pkgutil.find_loader('dill'):
+        return None
+
+    pickle_filepath = os.path.join(cache_dir_name, base_p4_file + ".pickled")
+    if not os.path.isfile(pickle_filepath):
+        return None
+    if not is_file_fresh(pickle_filepath):
+        return None
+
+    return pickle_filepath
+
+
+def load_pickled_hlir(pickle_filepath):
+    if pickle_filepath is None:
         return None
 
     if not pkgutil.find_loader('dill'):
@@ -415,18 +437,12 @@ def load_pickled_hlir16(base_p4_file):
     # the standard recursion limit of 1000 can be too restrictive in more complex cases
     sys.setrecursionlimit(10000)
 
-    pickle_filepath = os.path.join(cache_dir_name, base_p4_file + ".pickled")
-    if not os.path.isfile(pickle_filepath):
-        return None
-    if not is_file_fresh(pickle_filepath):
-        return None
-
     with open(pickle_filepath, 'r') as inf:
         verbose_print("Found serialized HLIR in %s..." % pickle_filepath)
         return pickle.load(inf)
 
 
-def save_pickled_hlir16(hlir16, base_p4_file):
+def save_pickled_hlir(hlir, base_p4_file):
     if not cache_dir_name:
         return None
 
@@ -440,73 +456,77 @@ def save_pickled_hlir16(hlir16, base_p4_file):
     sys.setrecursionlimit(10000)
 
     with open(os.path.join(cache_dir_name, base_p4_file + ".pickled"), 'w') as outf:
-        pickled_hlir16 = pickle.dumps(hlir16)
-        outf.write(pickled_hlir16)
+        pickled_hlir = pickle.dumps(hlir)
+        outf.write(pickled_hlir)
 
 
-def load_file(filename):
-    verbose_print("Loading file", args['p4_file'])
+def load_p4_file(filename):
+    global hlir
 
-    global hlir16
+    verbose_print("Compiling P4-16 HLIR for %s..." % filename)
 
+    base_p4_file = os.path.basename(args['p4_file'])
+
+    pickle_filepath = get_pickled_hlir_file(base_p4_file)
+    hlir = load_pickled_hlir(pickle_filepath)
+    if hlir is not None:
+        return True
+
+    to_load = load_json_from_cache(base_p4_file) or args['p4_file']
+
+    hlir = load_p4(to_load, args['p4v'], args['p4c_path'], cache_dir_name)
+    success = type(hlir) is not int
+
+    if not success:
+        return False
+
+    verbose_print("Transforming HLIR")
+    transform_hlir16(hlir)
+
+    save_pickled_hlir(hlir, base_p4_file)
+
+    return True
+
+
+def check_file_exists(filename):
+    if os.path.isfile(filename) is False:
+        print("FILE NOT FOUND: %s" % filename, file=sys.stderr)
+        sys.exit(1)
+
+def check_file_extension(filename):
     _, ext = os.path.splitext(filename)
     if ext not in {'.p4', '.p4_14'}:
         print("EXTENSION NOT SUPPORTED: %s" % ext, file=sys.stderr)
         sys.exit(1)
 
 
-    verbose_print("Compiling P4-16 HLIR for %s..." % filename)
-
-    base_p4_file = os.path.basename(args['p4_file'])
-
-    hlir16 = load_pickled_hlir16(base_p4_file)
-
-    if hlir16 is not None:
-        return True
-
-    to_load = load_json_from_cache(base_p4_file) or args['p4_file']
-
-    hlir16 = load_p4(to_load, args['p4v'], args['p4c_path'], cache_dir_name)
-    success = type(hlir16) is not int
-
-    if not success:
-        return False
-
-    verbose_print("Transforming HLIR")
-    transform_hlir16(hlir16)
-
-    save_pickled_hlir16(hlir16, base_p4_file)
-
-    return True
-
 
 def main():
     init_args()
 
+    filename = args['p4_file']
+
+    global p4time
+    p4time = os.path.getmtime(filename)
+
     make_dirs()
 
-    if os.path.isfile(args['p4_file']) is False:
-        print("FILE NOT FOUND: %s" % args['p4_file'], file=sys.stderr)
-        sys.exit(1)
+    check_file_exists(filename)
+    check_file_extension(filename)
 
-    success = load_file(args['p4_file'])
+    success = load_p4_file(filename)
 
     if not success:
         print("P4 compilation failed for file %s" % (os.path.basename(__file__)), file=sys.stderr)
         sys.exit(1)
 
-    for filename in os.listdir(args['compiler_files_dir']):
-        verbose_print("Compiling", filename)
-        file_with_path = join(args['compiler_files_dir'], filename)
+    base = args['compiler_files_dir']
+    exts = [".c.py", ".h.py"]
 
-        if not isfile(file_with_path):
-            continue
-
-        if not file_with_path.endswith(".c.py") and not file_with_path.endswith(".h.py"):
-            continue
-
-        generate_desugared_src(hlir16)
-        generate_desugared(hlir16, filename, file_with_path)
+    for filename in (f for f in os.listdir(base) if isfile(join(base, f)) for ext in exts if f.endswith(ext)):
+        verbose_print("  P4", filename)
+        generate_desugared_py()
+        generate_desugared_c(filename, join(base, filename))
 
     showErrors()
     showWarnings()
