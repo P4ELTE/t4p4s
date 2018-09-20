@@ -54,13 +54,16 @@ for hi in hlir16.header_instances:
 #[ // ---------------------
 
 #[ #define HEADER_INSTANCE_COUNT ${len(hlir16.header_instances)}
-#[ #define HEADER_INSTANCE_TOTAL_LENGTH ${sum([hi.type.type_ref.byte_width for hi in hlir16.header_instances])}
+hdrlens = "+".join([str(hi.type.type_ref.byte_width) for hi in hlir16.header_instances])
+#[ #define HEADER_INSTANCE_TOTAL_LENGTH ($hdrlens)
 
 
-#{ enum header_instance_e {
+#[ extern const char* header_instance_names[HEADER_INSTANCE_COUNT];
+
+#{ typedef enum header_instance_e {
 for hdr in hlir16.header_instances:
     #[   header_instance_${hdr.name},
-#} };
+#} } header_instance_t;
 
 
 #{ static const int header_instance_byte_width[HEADER_INSTANCE_COUNT] = {
@@ -97,15 +100,11 @@ def all_field_instances():
 #[ #define FIELD_INSTANCE_COUNT ${len(all_field_instances())}
 
 
-#[ typedef enum header_instance_e header_instance_t;
-#[ typedef enum field_instance_e field_instance_t;
-
-
-#{ enum field_instance_e {
+#{ typedef enum field_instance_e {
 for hdr in hlir16.header_instances:
     for fld in hdr.type.type_ref.fields:
         #[   field_instance_${hdr.name}_${fld.name},
-#} };
+#} } field_instance_t;
 
 #[ #define FIXED_WIDTH_FIELD -1
 #{ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
@@ -209,6 +208,8 @@ def all_fields():
 
 #[ #define FIELD_COUNT ${len(all_fields())}
 
+#[ extern const char* field_names[FIELD_COUNT];
+
 #[ typedef enum header_e header_t;
 #[ typedef enum field_e field_t;
 
@@ -270,6 +271,18 @@ for error in hlir16.declarations['Type_Error']:
 #[ // HW optimization related infos
 #[ // --------------------
 #[ #define OFFLOAD_CHECKSUM ${1 if []!=[x for x in hlir16.sc_annotations if x.name=='offload'] else 0}
+
+
+#[ // Parser state local vars
+#[ // -----------------------
+
+parser = hlir16.declarations['P4Parser'][0]
+
+#[ typedef struct parser_state_s {
+for loc in parser.parserLocals:
+    #[ uint8_t ${loc.name}[${loc.type.type_ref.byte_width}];
+    #[ uint8_t ${loc.name}_var; // Width of the variable width field
+#[ } parser_state_t;
 
 
 #[ #endif // __HEADER_INFO_H__

@@ -84,8 +84,8 @@ def gen_format_declaration(d, varname_override):
 
     if d.node_type == 'Declaration_Variable':
         if d.type.get_attr('type_ref') is not None and d.type.type_ref.node_type == 'Type_Header':
-            #[ uint8_t ${var_name}[${d.type.type_ref.byte_width}];
-            #[ uint8_t ${var_name}_var = 0;/* Width of the variable width field*/
+            # Data for variable width headers is stored in parser_state_t
+            pass
         elif d.type.node_type == 'Type_Boolean':
             #[ bool ${var_name} = false;
         else:
@@ -212,7 +212,8 @@ def gen_format_statement(stmt):
             assert(dst_width == src.type.size)
             assert(dst_is_vw == (src.type.node_type == 'Type_Varbits'))
 
-            dst_header_id = 'header_instance_{}'.format(dst.expr.member if dst.expr.node_type == 'Member' else dst.expr.header_ref.name)
+            dst_name = dst.expr.member if dst.expr.node_type == 'Member' else dst.expr.header_ref.name
+            dst_header_id = 'header_instance_{}'.format(dst_name)
             dst_field_id = member_to_field_id(dst)
 
             if dst_width < 32:
@@ -224,7 +225,12 @@ def gen_format_statement(stmt):
                 else:
                     #[ $src_buffer = ${format_expr(src)};
 
-                #[ MODIFY_INT32_INT32_AUTO_PACKET(pd, $dst_header_id, $dst_field_id, $src_buffer)
+
+                #[ // MODIFY_INT32_INT32_AUTO_PACKET(pd, $dst_header_id, $dst_field_id, $src_buffer)
+                #[ set_field((fldT[]){{pd, $dst_header_id, $dst_field_id}}, 0, $src_buffer, $dst_width);
+
+                if dst_field_id == 'field_standard_metadata_t_egress_port' and src.node_type == 'PathExpression':
+                    #[ uint16_t egrp = EXTRACT_EGRESSPORT(pd);
             else:
                 if src.node_type == 'Member':
                     src_pointer = 'value_{}'.format(src.id)
@@ -236,10 +242,10 @@ def gen_format_statement(stmt):
                             src_vw_bitwidth = 'pd->headers[header_instance_{}].var_width_field_bitwidth'.format(src.expr.member)
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                     else:
-                        src_extract_params = '{0}, {0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
+                        src_extract_params = 'pstate->{0}, pstate->{0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
                         #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
                         if dst_is_vw:
-                            src_vw_bitwidth = '{}_var'.format(src.expr.ref.name)
+                            src_vw_bitwidth = 'pstate->{}_var'.format(src.expr.ref.name)
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
                     if is_control_local_var(src.ref.name):
@@ -255,8 +261,8 @@ def gen_format_statement(stmt):
 
                 if dst_is_vw:
                     dst_fixed_size = dst.expr.header_ref.type.type_ref.bit_width - dst.field_ref.size
-                    #[ pd->headers[$dst_header_id].length = ($dst_fixed_size + $src_vw_bitwidth)/8;
-                    #[ pd->headers[$dst_header_id].var_width_field_bitwidth = $src_vw_bitwidth;
+                    #[ pd->headers[$dst_header_id].var_width_field_bitwidth = get_var_width_bitwidth(pstate);
+                    #[ pd->headers[$dst_header_id].length = ($dst_fixed_size + pd->headers[$dst_header_id].var_width_field_bitwidth)/8;
 
                 #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, $dst_header_id, $dst_field_id, $src_pointer, $dst_bytewidth)
         else:
@@ -363,12 +369,12 @@ def gen_format_statement(stmt):
                     if m.member == 'isValid':
                         #[ controlLocal_tmp_0 = (pd->headers[header_instance_$hdr_name].pointer != NULL);
                     elif m.member == 'setValid':
-                        #[ debug("Setting header instance $hdr_name as valid\n");
+                        #[ debug("   :: Setting header instance $$[header]{hdr_name} as $$[success]{}{valid}\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = (pd->header_tmp_storage + header_instance_byte_width_summed[header_instance_$hdr_name]);
                         #[ // TODO initialise header instance contents on setValid?
                         #[
                     elif m.member == 'setInvalid':
-                        #[ debug("Setting header instance $hdr_name as invalid\n");
+                        #[ debug("Setting header instance $$[header]{hdr_name} as $$[success]{}{valid}\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = NULL;
                     else:
                         #= gen_methodcall(stmt)
@@ -430,6 +436,10 @@ def groupby(xs, fun):
 
 def group_references(refs):
     for xs in groupby(refs, lambda x1, x2: isinstance(x1, tuple) and isinstance(x2, tuple) and is_subsequent(x1, x2)):
+        if xs == [None]:
+            # TODO investigate this case further
+            continue
+        
         yield (xs[0][0], map(lambda (hdr, fld): fld, xs))
 
 def fldid(h, f):
@@ -448,9 +458,12 @@ def convert_component(component):
         hdr      = component.expr
         fld_name = component.member
         fld      = hdr.type.fields.get(fld_name)
-        return (hdr, fld)
+        return (component.node_type, hdr, fld)
 
-    addError('generating list expression buffer', 'List element (%s) not supported!' % component)
+    if component.node_type == 'Constant':
+        return (component.node_type, component.value, "")
+
+    addWarning('generating list expression buffer', 'Skipping not supported list element %s' % component)
     return None
 
 def listexpression_to_buf(expr):
@@ -460,7 +473,9 @@ def listexpression_to_buf(expr):
 
     s = ""
     o = '0'
-    components = [c if type(c) == tuple else convert_component(c) for c in map(resolve_reference, expr.components)]
+    # TODO add support for component.node_type == 'Constant'
+    components = [('tuple', c[0], c[1]) if type(c) == tuple else convert_component(c) for c in map(resolve_reference, expr.components)]
+    components = [(c[1], c[2]) for c in components if c is not None if c[0] != 'Constant']
     for h, fs in group_references(components):
         w = '+'.join(map(lambda f: width(h, f), fs))
         s += 'memcpy(buffer%s + (%s+7)/8, field_desc(pd, %s).byte_addr, (%s+7)/8);\n' % (expr.id, o, fldid(h, fs[0]), w)
@@ -482,7 +497,7 @@ def gen_method_setInvalid(e):
         return "pd->headers[%s].pointer = NULL" % format_expr(e.method.expr)
 
 def gen_method_apply(e):
-    #[ ${e.method.expr.path.name}_apply(pd, tables)
+    #[ ${e.method.expr.path.name}_apply(pd, tables, pstate)
 
 def gen_method_setValid(e):
     h = e.method.expr.header_ref
@@ -666,7 +681,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 else:
                     addError('formatting a select case', 'Select statement cases of type %s on %s is not supported!'
                              % (case_type, pp_type_16(k.type)))
-            cases.append('if({0}){{parser_state_{1}(pd, buf, tables);}}'.format(' && '.join(conds), format_expr(case.state)))
+            cases.append('if({0}){{parser_state_{1}(pd, buf, tables, pstate);}}'.format(' && '.join(conds), format_expr(case.state)))
         return '\nelse\n'.join(cases)
 
     elif e.node_type == 'PathExpression':
@@ -698,7 +713,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
 
             if e.expr.type.node_type == 'Type_Header':
                 h = e.expr.type
-                return '(GET_INT32_AUTO_BUFFER(' + var + ',' + var + '_var, field_' + h.name + "_" + e.member + '))'
+                return '(GET_INT32_AUTO_BUFFER(pstate->' + var + ',pstate->' + var + '_var, field_' + h.name + "_" + e.member + '))'
             else:
                 return format_expr(e.expr) + '.' + e.member
         else:
@@ -728,9 +743,13 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 method_params = mref.type.parameters
 
             if mref.name == 'digest':
-                fields = ", ".join(["{}/{}".format(c.field_ref.name, c.field_ref.type.size) for c in e.arguments[1].components])
+                #[ #ifdef T4P4S_NO_CONTROL_PLANE
+                #[ #error "Generating digest when T4P4S_NO_CONTROL_PLANE is defined"
+                #[ #endif
 
-                prepend_statement("debug(\"Sending digest to port %d (fields: {})\\n\", {});\n".format(fields, e.arguments[0].value))
+                fields = ", ".join(["\"T4LIT({},field)\"/\"T4LIT({})\"".format(c.field_ref.name, c.field_ref.type.size) for c in e.arguments[1].components])
+
+                prepend_statement("debug(\"    : Sending digest to port \"T4LIT(%d,port)\" (fields: {})\\n\", {});\n".format(fields, e.arguments[0].value))
                 append_statement("sleep_millis(300);")
 
                 id = e.id
@@ -749,10 +768,11 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 # TODO is this part reachable, or does the `digest` case cover every possibility?
 
                 fmt_params = format_method_parameters(e.arguments, method_params)
+                std_params = ["pd", "tables", "pstate"]
                 if "," not in fmt_params:
-                    all_params = "pd, tables"
+                    all_params = ", ".join(std_params)
                 else:
-                    all_params = ", ".join([fmt_params, "pd", "tables"])
+                    all_params = ", ".join([fmt_params] + std_params)
 
                 #[ ${mref.name}($all_params)
 

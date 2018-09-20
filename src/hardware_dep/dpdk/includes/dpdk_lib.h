@@ -45,6 +45,7 @@
 
 #include "backend.h"
 #include "dataplane.h" // lookup_table_t
+#include "parser.h" // parser_state_t
 #include "dpdk_tables.h"
 #include "tables.h"
 #include "ctrl_plane_backend.h"
@@ -71,12 +72,9 @@
 
 #define MAX_JUMBO_PKT_LEN  9600
 
-#define MAX_PKT_BURST     32
-#define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
-
 struct mbuf_table {
 	uint16_t len;
-	struct rte_mbuf *m_table[MAX_PKT_BURST];
+	struct rte_mbuf *m_table[];
 };
 
 #define RTE_TEST_RX_DESC_DEFAULT 128
@@ -89,7 +87,6 @@ struct mbuf_table {
 #define MAX_RX_QUEUE_PER_PORT 128
 
 #define NB_SOCKETS 8
-//#define	BAD_PORT	((uint16_t)-1)
 
 struct lcore_rx_queue {
 	uint8_t port_id;
@@ -105,7 +102,8 @@ struct lcore_params {
 } __rte_cache_aligned;
 
 struct lcore_state {
-    lookup_table_t * tables    [NB_TABLES];
+    lookup_table_t* tables[NB_TABLES];
+    parser_state_t parser_state;
 };
 
 struct socket_state {
