@@ -16,7 +16,6 @@ VPATH += $(CDIR)/../../src/hardware_dep/dpdk/
 VPATH += $(CDIR)/../../src/hardware_dep/dpdk/includes
 VPATH += $(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane
 VPATH += $(CDIR)/../../src/hardware_dep/dpdk/data_plane
-VPATH += $(CDIR)/../../src/examples
 
 # dpdk main
 SRCS-y += main.c

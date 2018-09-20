@@ -18,7 +18,7 @@ CFLAGS += -Wno-unused-function
 CFLAGS += -Wno-unused-but-set-variable
 CFLAGS += -Wno-unused-variable
 CFLAGS += -g
-CFLAGS += -std=gnu99
+CFLAGS += -std=gnu11
 CFLAGS += -I "$(CDIR)/../../hardware_dep/shared/includes"
 
 CFLAGS += -I "$(CDIR)/srcgen"
