@@ -15,6 +15,11 @@
 #define DPDK_PRIMITIVES_H
 
 #include <rte_byteorder.h>
+#include "dataplane.h"
+
+#ifdef T4P4S_DEBUG
+    #include <assert.h>
+#endif
 
 /*******************************************************************************
    Auxiliary
@@ -203,27 +208,70 @@ typedef struct bitfield_handle_s {
 
 // modify
 
-// actions.c.py
 #define MODIFY_BYTEBUF_BYTEBUF_PACKET(pd , h, f, src, srclen) MODIFY_BYTEBUF_BYTEBUF(handle(header_desc_ins(pd , h), f), src, srclen);
 #define MODIFY_BYTEBUF_BYTEBUF_BUFFER(buf, w, f, src, srclen) MODIFY_BYTEBUF_BYTEBUF(handle(header_desc_buf(buf, w), f), src, srclen);
 
-// actions.c.py
 #define MODIFY_INT32_BYTEBUF_PACKET(pd , h, f, src, srclen) MODIFY_INT32_BYTEBUF(handle(header_desc_ins(pd , h), f), src, srclen);
 #define MODIFY_INT32_BYTEBUF_BUFFER(buf, w, f, src, srclen) MODIFY_INT32_BYTEBUF(handle(header_desc_buf(buf, w), f), src, srclen);
 
-// actions.c.py
-// main_loop_*.c
 #define MODIFY_INT32_INT32_BITS_PACKET(pd , h, f, value32) MODIFY_INT32_INT32_BITS(handle(header_desc_ins(pd , h), f), value32);
 #define MODIFY_INT32_INT32_BITS_BUFFER(buf, w, f, value32) MODIFY_INT32_INT32_BITS(handle(header_desc_buf(buf, w), f), value32);
 
-// actions.c.py
-// dataplane.c.py
-// utils/hlir16.py
-#define MODIFY_INT32_INT32_AUTO_PACKET(pd , h, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd , h), f), value32);
 #define MODIFY_INT32_INT32_AUTO_BUFFER(buf, w, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_buf(buf, w), f), value32);
 
-//#define GET_INT32_AUTO(mode, x, y, f) GET_INT32_AUTO(handle((mode == 1 ? header_desc_ins(x, y) : header_desc_buf(x, y)), f))
 
+
+// #define MODIFY_INT32_INT32_AUTO_PACKET(pd , h, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd , h), f), value32);
+
+// TODO simplify all other interface macros, too
+// #define MODIFY_INT32_INT32_AUTO_PACKET(pd , h, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd , h), f), value32);
+static int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32) {
+    int res32;
+    MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd , h), f), value32);
+    return res32;
+}
+
+typedef struct target_fld_s {
+    packet_descriptor_t*   pd;
+    enum header_instance_e hdr;
+    enum field_instance_e  fld;
+} fldT;
+
+typedef struct target_buf_s {
+    uint8_t* buf;
+    int      w;
+    enum field_instance_e  fld;
+} bufT;
+
+static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
+#ifdef T4P4S_DEBUG
+    // exactly one of `f` and `b` have to be non-zero
+    assert((f == 0) != (b == 0));
+#endif
+
+    if (f != 0) {
+        fldT fld = f[0];
+        debug("    : Modifying " T4LIT(%2d) " bit wide field (copying " T4LIT(%d) " %s) " T4LIT(%s,header) "." T4LIT(%s,field) " = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
+              bit_width,
+              bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
+              bit_width <= 8 ? " byte" : "bytes",
+              header_instance_names[fld.hdr],
+              field_names[fld.fld],
+              bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32,
+              (bit_width+3)/4,
+              bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
+
+        int res32;
+        MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
+        return res32;
+    }
+
+    // TODO implement this case, too
+    if (b != 0)   rte_exit(2, "TODO unimplemented portion of set_field");
+
+    // TODO should never happen; exit
+    return -1;
+}
 
 /*******************************************************************************
    Extract - statement
@@ -231,7 +279,6 @@ typedef struct bitfield_handle_s {
 
 #define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
 #define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
-
 
 #endif // DPDK_PRIMITIVES_H
 
