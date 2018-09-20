@@ -1,51 +1,56 @@
 #!/bin/bash
 
-CONFIG_FILE=${CONFIG_FILE-examples.cfg}
+# --------------------------------------------------------------------
+# Set defaults
 
 ERROR_CODE=1
 
-# bold and normal text
-bb="\033[1;31m"
-nn="\033[0m"
+COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
+LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
+EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
 
-print_usage_and_exit() {
-    (>&2 echo "Usage: $0 <options...> <P4 file>")
-    (>&2 echo "- execution options: p4, c, run, launch, dbg (default: launch)")
-    (>&2 echo "- further options:")
-    (>&2 echo "    - v14|v16")
-    (>&2 echo "    - cfg <T4P4S options>")
-    (>&2 echo "    - ealopts <EAL options>")
-    (>&2 echo "    - cmdopts <switch command line options>")
-    (>&2 echo "    - ctrl <controller name>")
-    (>&2 echo "    - ctrcfg <controller config file>")
-    (>&2 echo "    - var <variant name>")
-    (>&2 echo "    - test <test case name>")
-    (>&2 echo "    - silent")
-    (>&2 echo "    - dbg")
-    (>&2 echo "    - dbgpy")
-    (>&2 echo "    - verbose")
+P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
+CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+
+ARCH=${ARCH-dpdk}
+ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
+
+PYTHON=${PYTHON-python}
+
+declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
+ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header off packet parserstate port smem socket status success table warning)
+
+# --------------------------------------------------------------------
+# Helpers
+
+exit_program() {
+    [ "${OPTS[ctr]}" != "" ] && verbosemsg "Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
     exit $ERROR_CODE
 }
 
+print_usage_and_exit() {
+    (>&2 echo -e "Usage: $0 <options...>")
+    (>&2 echo -e "    - see $(cc 0)README.md$nn for details")
+
+    exit_program $ERROR_CODE
+}
+
 verbosemsg() {
-    if [ -n "${T4P4S_VERBOSE+x}" ]; then
-        msg "$@"
-    fi
+    [ "$(optvalue verbose)" != off ] && msg "$@"
+    return 0
 }
 
 msg() {
-    if [ "$T4P4S_SILENT" != 1 ]; then
-        for var in "$@"
-        do
-            echo -e "$var"
-        done
-    fi
+    [ "$(optvalue silent)" != off ] && return
+
+    for msgvar in "$@"; do
+        echo -e "$msgvar"
+    done
 }
 
 errmsg() {
-    for var in "$@"
-    do
-        (>&2 echo -e "$var")
+    for msgvar in "$@"; do
+        (>&2 echo -e "$msgvar")
     done
 }
 
@@ -56,348 +61,480 @@ errmsg_exit() {
 
 exit_on_error() {
     ERROR_CODE=$?
-    if [ "$ERROR_CODE" -ne 0 ]; then
-        errmsg "Error: $1 (error code: $ERROR_CODE)"
-        exit $ERROR_CODE
-    fi
+    [ "$ERROR_CODE" -eq 0 ] && return
+
+    errmsg "Error: $1 (error code: $ERROR_CODE)"
+    exit_program $ERROR_CODE
 }
 
 array_contains() {
-    local n=$#
-    local value=${!n}
-    for ((i=1;i < $#;i++)) {
-        if [ "${!i}" == "${value}" ]; then
-            echo "y"
-            return 0
-        fi
+    local value=$1
+    shift
+
+    for ((i=1;i <= $#;i++)) {
+        [ "${!i}" == "${value}" ] && echo "y" && return
     }
     echo "n"
-    return 1
 }
 
+# Return the first valid colour code in the args, or the neutral colour if no valid colour is found.
+cc() {
+    [ "$(array_contains "${OPTS[bw]}" "on" "terminal")" == y ] && echo "$nn" && return
+
+    while [ $# -gt 0 ]; do
+        [ "${colours[$1]}" != "" ] && echo "${colours[$1]}" && return
+        shift
+    done
+    echo "$nn"
+}
+
+# Set lit terminal text to colour indicated by `$1`.
+set_term_light() {
+    OPTS[light]=$1
+    colours=()
+
+    [ "$1" == "0" ] && nn="" && return
+
+    IFS=',' read -r -a optparts <<< "$1"
+    for i in "${!optparts[@]}"; do 
+        COLOUR=${optparts[$i]}
+        COLOUR=${KNOWN_COLOURS[$COLOUR]-$COLOUR}
+
+        colours[$i]="\033[${COLOUR}m"
+    done
+    nn="\033[0m"
+}
+
+remove_name_markers() {
+    [[ "$1" == \?\?*     ]] && echo "${1#\?\?}" && return
+    [[ "$1" == \?*       ]] && echo "${1#\?}"   && return
+    [[ "$1" == \@*       ]] && echo "${1#\@}"   && return
+    [[ "$1" == \**       ]] && echo "${1#\*}"   && return
+
+    echo "$1"
+}
+
+print_cmd_opts() {
+    IFS=' ' read -r -a cflags <<< "$1"
+
+    NEXT_IS_OPT=0    
+    for cflag in ${cflags[@]}; do
+        [ $NEXT_IS_OPT -eq 1 ] && NEXT_IS_OPT=0 && echo "$(cc 1)${cflag}$nn" && continue
+
+        IFS='=' read -r -a parts <<< "$cflag"
+
+        KNOWN_OPT_FLAGS=(-g --p4v -U --log-level -c -n --config -p)
+
+        [ "$(array_contains "${parts[0]}" "${KNOWN_OPT_FLAGS[@]}")" == y ] && NEXT_IS_OPT=1
+
+        OPTTXT1=${parts[0]}
+        OPTTXT2=""
+        OPTTXT3=""
+        OPTTXT4=""
+
+        [[ "${parts[0]}" == -*  ]]   && OPTTXT1="-"  && OPTTXT3=${parts[0]##-}
+        [[ "${parts[0]}" == -D* ]]   && OPTTXT1="-D" && OPTTXT3=${parts[0]##-D}
+        [[ "${parts[0]}" == --* ]]   && OPTTXT1="--" && OPTTXT3=${parts[0]##--}
+        [[ "${parts[0]}" == *.p4* ]] && OPTTXT1="${parts[0]%/*}/" && OPTTXT2="${parts[0]##*/}" && OPTTXT2="${OPTTXT2%%.p4*}" && OPTTXT4=".${parts[0]##*.}"
+
+        echo "$(cc 0)$OPTTXT1$(cc 1)$OPTTXT2$nn$(cc 2)$OPTTXT3$nn${parts[1]+=$(cc 1)${parts[1]}}$(cc 2 0)$OPTTXT4$nn$nn"
+    done | tr '\n' ' '
+}
+
+print_opts() {
+    declare -A all_opts
+    for k in "${!OPTS[@]}" "${!IGNORE_OPTS[@]}"; do
+        all_opts[$k]=1
+    done
+
+    for optid in ${!all_opts[@]}; do
+        [[ $optid = [A-Z]*_* ]] && continue
+
+        PREFIX="$(cc 0)"
+        [ "${OPTS[$optid]}" == "on" ] && PREFIX="$(cc 2)"
+        [ "${IGNORE_OPTS[$optid]}" == "on" ] && PREFIX="$(cc 3 2)^"
+        [ "${OPTS[$optid]}" != "" -a "${OPTS[$optid]}" != "on" ] && echo "$PREFIX$optid$nn=$(cc 1)${OPTS[$optid]}$nn" && continue
+        echo "$PREFIX$optid$nn"
+    done | sort | tr '\n' ', '
+}
+
+setopt() {
+    [ "${OPTS["$1"]}" == "off" ] && echo -e "Option ${OPTS["$1"]} is set to be ignored" && return
+    OPTS[$1]="$2"
+}
+
+# $1: the option name, $2: the option value, $3: separator
+addopt() {
+    OPTS[$1]="${OPTS[$1]:+${OPTS[$1]}$3}${2}"
+}
+
+optvalue() {
+    [ "${IGNORE_OPTS["$1"]}" != "" ] && echo "off" && return
+    [ "${OPTS[$1]}" == "" ] && echo "off" && return
+    echo "${OPTS[$1]}"
+}
+
+# --------------------------------------------------------------------
+
+# Unmounting /mnt/huge and removing directory
+remove_mnt_huge()
+{
+    grep -s '/mnt/huge' /proc/mounts > /dev/null
+    [ $? -eq 0 ]     && sudo umount /mnt/huge
+    [ -d /mnt/huge ] && sudo rm -R /mnt/huge
+}
+
+# Creating /mnt/huge and mounting as hugetlbfs
+create_mnt_huge()
+{
+    sudo mkdir -p /mnt/huge
+    grep -s '/mnt/huge' /proc/mounts > /dev/null
+    [ $? -ne 0 ] && sudo mount -t hugetlbfs nodev /mnt/huge
+}
+
+allocate_huge_pages() {
+    echo "echo $2 > /sys/kernel/mm/hugepages/hugepages-$1/nr_hugepages" > .echo_tmp
+    sudo sh .echo_tmp
+    rm -f .echo_tmp
+}
+
+# Removing currently reserved hugepages
+create_huge_pages()
+{
+    allocate_huge_pages $1 $2
+    create_mnt_huge
+}
+
+# Removing currently reserved hugepages
+clear_huge_pages()
+{
+    allocate_huge_pages $1 0
+    remove_mnt_huge
+}
+
+reserve_hugepages() {
+    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
+
+    [ $OLD_HUGEPAGES -eq $1 ] && verbosemsg "Using $(cc 0)$OLD_HUGEPAGES$nn hugepages (sufficient, as $(cc 0)$1$nn are needed)" && return
+
+    if [ $OLD_HUGEPAGES -lt $1 ]; then
+        msg "Allocating $(cc 0)$1 hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
+
+        create_huge_pages $HUGEPGSZ $1
+        return
+    fi
+
+    [ "$(optvalue keephuge)" != off ] && return
+
+    msg "Allocating $(cc 0)$1$nn hugepages (clearing $(cc 0)$OLD_HUGEPAGES$nn old hugepages)"
+    clear_huge_pages "$HUGEPGSZ"
+    allocate_huge_pages "$HUGEPGSZ" "$1"
+}
+
+reserve_hugepages2() {
+    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
+    if [ $OLD_HUGEPAGES -lt ${OPTS[hugepages]} ]; then
+        verbosemsg "Reserving $(cc 0)${OPTS[hugepages]} hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
+
+        echo "echo ${OPTS[hugepages]} > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
+        sudo sh .echo_tmp
+        rm -f .echo_tmp
+    else
+        verbosemsg "Using $(cc 0)$OLD_HUGEPAGES hugepages$nn (sufficient, as ${OPTS[hugepages]} are needed)"
+    fi
+}
+
+# /tmp/$1.tmp is a file that has some (generated) contents; $2/$1 may or may not exist
+# Only (over)write $1 if the generated content differs from the existing one
+overwrite_on_difference() {
+    cmp -s "/tmp/$1.tmp" "$2/$1"
+    [ "$?" -ne 0 ] && mv "/tmp/$1.tmp" "$2/$1"
+    rm -f "/tmp/$1.tmp"
+}
+
+# --------------------------------------------------------------------
 # Set defaults
-ARCH=${ARCH-dpdk}
-CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
-PYTHON=${PYTHON-python}
-T4P4S_VARIANT=${T4P4S_VARIANT-std}
-CONTROLLER_OPTS=${CONTROLLER_OPTS-}
+
+declare -A KNOWN_COLOURS
+declare -A OPTS
+declare -A IGNORE_OPTS
+
+colours=()
+nn="\033[0m"
 
 # Check if configuration is valid
-[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && errmsg_exit "Error: \$RTE_SDK not defined"
 [ "${P4C}" == "" ] && errmsg_exit "Error: \$P4C not defined"
+[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && errmsg_exit "Error: \$RTE_SDK not defined"
+
+# --------------------------------------------------------------------
+# Parse opts from files and command line
+
+PYTHON_PARSE_OPT=$(cat <<END
+import re
+import sys
+
+# To facilitate understanding, almost all named patterns of the regex are separated
+patterns = (
+    ("cond",      '!condvar(=!condval)?!condsep'),
+    ("prefix",    '(\^|:|::|%|%%|@)'),
+    ("condvar",   '[a-zA-Z0-9_\-.]+'),
+    ("condval",   '[^\s].*'),
+    ("condsep",   '(\s*->\s*)'),
+    ("letop",     '\+{0,2}='),
+    ("letval",    '[^\s].*'),
+    ("var",       '[a-zA-Z0-9_\-.]+'),
+    ("comment",   '\s*(;.*)?'),
+    )
+
+rexp = '^(!prefix|!cond?)?!var(?P<let>\s*!letop?\s*!letval)?!comment$'
+
+# Assemble the full regex
+for pattern, replacement in patterns:
+    rexp = rexp.replace("!" + pattern, "(?P<{}>{})".format(pattern, replacement))
+
+rexp = re.compile(rexp)
+
+m = re.match(rexp, sys.argv[1])
+
+print 'ok', ('y' if m is not None else 'n')
+for gname in (p[0] for p in patterns):
+    print gname, '' if m is None else m.group(gname) or ''
+END
+)
 
 
-# Read configurations for the examples
-declare -A t4p4s_opt_ids
-declare -A single_variant
-while read -r example variant opt_ids; do
-    if [ "$example" == "" ]; then continue; fi
+OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
 
-    opt="${example}__$variant"
+CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},opts_${ARCH}.cfg}
+declare -A OPTS=([cfgfiles]="$CFGFILES")
 
-    t4p4s_opt_ids[$opt]="$opt_ids"
 
-    if [ "${single_variant[$example]}" != "-" ]; then
-        if [ "${single_variant[$example]}" == "" ]; then
-            single_variant[$example]="$variant"
+while [ "${OPTS[cfgfiles]}" != "" ]; do
+    IFS=',' read -r -a cfgfiles <<< "${OPTS[cfgfiles]}"
+    OPTS[cfgfiles]=""
+
+    for cfgfile in ${cfgfiles[@]}; do
+        declare -a NEWOPTS=()
+
+        # Collect option descriptions either from the command line or a file
+        if [ "$cfgfile" == "!cmdline!" ]; then
+            OPT_ORIGIN="$(cc 0)command line$nn"
+            for opt; do
+                NEWOPTS+=("$opt")
+            done
+        elif [[ $cfgfile =~ !varcfg!* ]]; then
+            OPT_ORIGIN="$(cc 0)variant config file$nn $(cc 1)${cfgfile#!varcfg!}$nn"
+            examplename="${OPTS[example]}@${OPTS[variant]}"
+            [ "${OPTS[variant]}" == "std" ] && examplename="${OPTS[example]}\(@std\)\?"
+
+            IFS=$'\n'
+            while read -r opts; do
+                IFS=' ' read -r -a optparts <<< "$opts"
+
+                for opt in ${optparts[@]}; do
+                    NEWOPTS+=("$opt")
+                done
+            done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$examplename\s" | sed -e "s/^[^ \t]+[ \t]*//g")
         else
-            single_variant[$example]="-"
+            OPT_ORIGIN="$(cc 0)file$nn $(cc 1)${cfgfile}$nn"
+            IFS=$'\n'
+            while read -r opt; do
+                NEWOPTS+=("$opt")
+            done < <(cat "${cfgfile}")
         fi
-    fi
-done < <(grep -v ";" $CONFIG_FILE)
 
+        verbosemsg "Parsing $OPT_ORIGIN"
 
-# Process arguments
-while [ $# -gt 0 ]; do
-    if [[ "$1" == \?\?* ]]; then
-        T4P4S_TEST="${1#\?\?}"
-        T4P4S_VARIANT="test"
-
-        T4P4S_P4=1
-        T4P4S_C=1
-        T4P4S_DBG=1
-        T4P4S_RUN=1
-
-        shift
-
-        continue
-    fi
-
-    if [[ "$1" == \?* ]]; then
-        T4P4S_TEST="${1#\?}"
-        T4P4S_VARIANT="test"
-        shift
-
-        continue
-    fi
-
-    if [[ "$1" == \@* ]]; then
-        T4P4S_VARIANT="${1#\@}"
-        shift
-
-        continue
-    fi
-
-    case "$1" in
-        "v14")          P4_VSN=14
-                        ;;
-        "v16")          P4_VSN=16
-                        ;;
-        "p4")           T4P4S_P4=1
-                        ;;
-        "c")            T4P4S_C=1
-                        ;;
-        "run")          T4P4S_RUN=1
-                        ;;
-        "dbg")          T4P4S_P4=1
-                        T4P4S_C=1
-                        T4P4S_DBG=1
-                        T4P4S_RUN=1
-                        ;;
-        "dbgpy")        T4P4S_P4=1
-                        T4P4S_C=1
-                        T4P4S_DBGPY=1
-                        T4P4S_RUN=1
-                        ;;
-        "launch")       T4P4S_P4=1
-                        T4P4S_C=1
-                        T4P4S_RUN=1
-                        ;;
-        "silent")       T4P4S_SILENT=1
-                        ;;
-        "verbose")      T4P4S_VERBOSE="1"
-                        ;;
-        "ctrl")         shift
-                        T4P4S_CONTROLLER="$1"
-                        ;;
-        "cfg")          shift
-                        OPTIDS="$1"
-                        ;;
-        "execopt")      shift
-                        CMD_OPTS="$1"
-                        ;;
-        "ctrcfg")       shift
-                        CONTROLLER_OPTS="$CONTROLLER_OPTS $1"
-                        ;;
-        "var")          shift
-                        T4P4S_VARIANT="$1"
-                        ;;
-        "test")         shift
-                        T4P4S_TEST="$1"
-                        ;;
-        *)
-            if [ "$T4P4S_EXAMPLE_TYPE" != "" ]; then
-                msg "Example $T4P4S_EXAMPLE ($T4P4S_EXAMPLE_TYPE) already found, $bb$1$nn will override it"
+        # Process the options
+        for opt in ${NEWOPTS[@]}; do
+            if [[ $opt == *.p4* ]] && [ -f "$opt" ]; then
+                setopt example "$(basename ${opt%.*})"
+                setopt source "$opt"
+                continue
             fi
 
-            EXTENSION="${1##*.}"
+            # Split the option into its components along the above regex
+            IFS=' '
+            declare -A groups=() && while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(python -c "$PYTHON_PARSE_OPT" "$opt")
+            [ "${groups[ok]}" == n ] && [[ $opt = *\;* ]] && continue
+            [ "${groups[ok]}" == n ] && echo -e "Cannot parse option $(cc 0)$opt$nn (origin: $OPT_ORIGIN)" && continue
 
-            if [ "$EXTENSION" == "p4" ] || [ "$EXTENSION" == "p4_14" ]; then
-                T4P4S_EXAMPLE_TYPE="p4"
-            elif [ -x "$1" ]; then
-                T4P4S_EXAMPLE_TYPE="executable"
-            # there is exactly one corresponding file to the example name
-            elif [ `find examples/ -type f -name "${1}.p4*" -printf '.' | wc -c` -eq 1 ]; then
-                T4P4S_EXAMPLE_TYPE="example"
+            var="${groups[var]}"
+            value="${groups[letval]:-on}"
+            [ "${groups[neg]}" != "" ] && OPTS[$var]=off && continue
+
+            if [ "${groups[cond]}" != "" ]; then
+                expected_value="${groups[condval]}"
+                [ "$(optvalue "${groups[condvar]}")" == off ] && continue
+                [ "$expected_value" != "" -a "${OPTS[${groups[condvar]}]}" != "$expected_value" ] && continue
             fi
 
-            if [ "$T4P4S_EXAMPLE_TYPE" == "" ]; then
-                errmsg_exit "Cannot determine example configuration for parameter $bb$1$nn"
+            [[ $var == COLOUR_* ]] && KNOWN_COLOURS[${var#COLOUR_}]="$value"
+            [ "$var" == "light" ] && set_term_light "$value" && continue
+
+            [ "$var" == cfgfiles -a ! -f "$value" ] && echo -e "Config file $(cc 0)$value$nn cannot be found" && continue
+
+            if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
+                FIND_COUNT=`find "$P4_SRC_DIR" -type f -name "${var}.p4*" -printf '.' | wc -c`
+                [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn"
+                [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn"
+
+                setopt example "$var"
+                setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
             fi
 
-            T4P4S_EXAMPLE_PAR="$1"
-            verbosemsg "Found $bb$T4P4S_EXAMPLE_PAR$nn ($T4P4S_EXAMPLE_TYPE)"
-            ;;
-    esac
+            [ "${groups[prefix]}" == ":"  ] && setopt example "$var" && continue
+            [ "${groups[prefix]}" == "::" ] && setopt example "$var" && setopt dbg on && continue
+            [ "${groups[prefix]}" == "%"  ] && [ "$value" == "on" ]  && verbosemsg "Test case not specified for example $(cc 0)$var$nn, using $(cc 1)test$nn as default" && value="test"
+            [ "${groups[prefix]}" == "%"  ] && setopt example "$var" && setopt testcase "$value" && setopt variant test && continue
+            [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
+            [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
+            [ "${groups[prefix]}" == "^"  ] && IGNORE_OPTS["$var"]=on && continue
 
-    shift
-done
+            [ "${groups[letop]}" == "+="  ] && addopt "$var" "$value" " " && continue
+            [ "${groups[letop]}" == "++=" ] && addopt "$var" "$value" "\n" && continue
 
-[ "$T4P4S_EXAMPLE_TYPE" == "" ] && errmsg_exit "No example found"
+            setopt "$var" "$value"
+        done
 
-
-# Sanity checks
-[ "$T4P4S_P4" == 1 ] && [ "$T4P4S_EXAMPLE_TYPE" == "executable" ] && errmsg_exit "Executable $T4P4S_EXECUTABLE is already compiled"
-[ "$T4P4S_C"  == 1 ] && [ "$T4P4S_EXAMPLE_TYPE" == "executable" ] && errmsg_exit "Executable $T4P4S_EXECUTABLE is already compiled"
-
-# Default to launch if not specified
-if [ "$T4P4S_P4" != 1 ] && [ "$T4P4S_C" != 1 ] && [ "$T4P4S_RUN" != 1 ]; then
-    T4P4S_P4=1
-    T4P4S_C=1
-    T4P4S_RUN=1
-    verbosemsg "Defaulting to launching ${EXAMPLE_SOURCE}"
-fi
-
-
-if [ "$T4P4S_EXAMPLE_TYPE" == "p4" ]; then
-    EXAMPLE_SOURCE=${T4P4S_EXAMPLE_PAR}
-    T4P4S_EXAMPLE_NAME=$(basename ${EXAMPLE_SOURCE%.*})
-    T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_EXAMPLE_NAME}__${T4P4S_VARIANT}}
-    T4P4S_EXECUTABLE="./build/${T4P4S_CHOICE}/build/${T4P4S_EXAMPLE_NAME}"
-elif [ "$T4P4S_EXAMPLE_TYPE" == "example" ]; then
-    EXAMPLE_SOURCE=`find examples/ -type f -name "${T4P4S_EXAMPLE_PAR}.p4*"`
-    T4P4S_EXAMPLE_NAME="${T4P4S_EXAMPLE_PAR}"
-    T4P4S_CHOICE=${T4P4S_CHOICE-${T4P4S_EXAMPLE_NAME}__${T4P4S_VARIANT}}
-    T4P4S_EXECUTABLE="./build/${T4P4S_CHOICE}/build/${T4P4S_EXAMPLE_NAME}"
-elif [ "$T4P4S_EXAMPLE_TYPE" == "executable" ]; then
-    T4P4S_EXAMPLE_NAME=$(basename "${T4P4S_EXAMPLE_PAR}")
-    T4P4S_EXECUTABLE="${T4P4S_EXAMPLE_PAR}"
-fi
-
-OPTIDS=${OPTIDS-${t4p4s_opt_ids[$T4P4S_CHOICE]}}
-
-# Read options with parameters
-declare -A t4p4s_opts
-for opt in $OPTIDS; do
-    [[ $opt != *"="* ]] && continue
-
-    IFS='=' read -r -a optparts <<< "$opt"
-    t4p4s_opts[${optparts[0]}]="${optparts[1]}"
+        # Steps after processing the command line
+        if [ "$cfgfile" == "!cmdline!" ]; then
+            # The command line must specify an example to run
+            [ "$(optvalue example)" == off ] && errmsg_exit "No example to run"
+            # The variant has to be determined before processing the config files.
+            [ "$(optvalue variant)" == off ] && setopt variant std
+        fi
+    done
 done
 
 
-# Set defaults
-CC_OPTS=""
-CMD_OPTS=""
-EAL_OPTS=""
-CONTROLLER_OPTS=""
+[ "$(optvalue verbose)" == on ] && IGNORE_OPTS[silent]=on
+[ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
 
-TESTDIR="examples"
-TESTFILE="test_${T4P4S_EXAMPLE_NAME}_${T4P4S_TEST}.c"
 
-T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/$T4P4S_CHOICE"}
-T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"./build/$T4P4S_CHOICE/srcgen"}
-T4P4S_GEN_INCLUDE="${T4P4S_SRCGEN_DIR}/gen_include.h"
+[ "$(optvalue variant)" == off ] && [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ] && OPTS[variant]=test && verbosemsg "Variant $(cc 1)@test$nn is chosen because testing is requested"
+[ "${OPTS[variant]}" == "" -o "${OPTS[variant]}" == "-" ] && OPTS[variant]=std && verbosemsg "Variant $(cc 1)@std$nn is automatically chosen"
 
-PYVSN="$($PYTHON -V 2>&1)"
 
-GEN_MAKEFILE="${T4P4S_TARGET_DIR}/Makefile"
-
-HUGEPAGES=${HUGEPAGES-${t4p4s_opts["hugepages"]}}
-P4_VSN=${P4_VSN-${t4p4s_opts["vsn"]}}
-
-[ "${T4P4S_SILENT}" == 1 ] && T4P4S_MAKE_OPTS="$T4P4S_MAKE_OPTS >/dev/null"
-
-if [ -z "${P4_VSN+x}" ]; then
-    P4_VSN=${p4vsn[$T4P4S_CHOICE]}
-    [ "${P4_VSN}" !=  "" ] && verbosemsg "Using P4-${P4_VSN}, the default P4 version for the example ${T4P4S_EXAMPLE_NAME}"
-
-    if [ "${P4_VSN}" == "" ]; then
-        T4P4S_VARIANT="${single_variant[$T4P4S_EXAMPLE_NAME]}"
-        [ $T4P4S_VARIANT ==  "" ] && errmsg_exit "No defaults in example.cfg for ${T4P4S_EXAMPLE_NAME} (variant ${T4P4S_VARIANT}) and none given"
-        [ $T4P4S_VARIANT == "-" ] && errmsg_exit "No defaults in example.cfg for ${T4P4S_EXAMPLE_NAME} (variant ${T4P4S_VARIANT}) and none given"
-
-        verbosemsg "Defaulting to variant ${T4P4S_VARIANT}, the only one in ${CONFIG_FILE} for ${T4P4S_EXAMPLE_NAME}"
+# Determine version by extension if possible
+if [ "${OPTS[vsn]}" == "" ]; then
+    P4_EXT="$(basename "${OPTS[source]}")"
+    P4_EXT=${P4_EXT##*.}
+    if [ "$(array_contains "${P4_EXT##*.}" ${!EXT_TO_VSN[@]})" == n ]; then
+        errmsg_exit "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
     fi
+    OPTS[vsn]="${EXT_TO_VSN["${P4_EXT##*.}"]}"
+    [ "${OPTS[vsn]}" == "" ] && errmsg_exit "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
+    verbosemsg "Determined P4 version to be $(cc 0)${OPTS[vsn]}$nn by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
 fi
 
-if [ -n "${T4P4S_DBGPY+x}" -a -z "${PDB+x}" ]; then
-    PDB=${PDB-ipdb}
+OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
+OPTS[executable]="./build/${OPTS[choice]}/build/${OPTS[example]}"
 
-    verbosemsg "Using $PDB as debugger for $PYVSN"
+T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/${OPTS[choice]}"}
+T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"./build/${OPTS[choice]}/srcgen"}
+T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
+T4P4S_GEN_INCLUDE="gen_include.h"
+GEN_MAKEFILE_DIR="${T4P4S_TARGET_DIR}"
+GEN_MAKEFILE="Makefile"
+
+# By default use all three phases
+if [ "${OPTS[p4]}" != on ] && [ "${OPTS[c]}" != on ] && [ "${OPTS[run]}" != on ]; then
+    OPTS[p4]=on
+    OPTS[c]=on
+    OPTS[run]=on
 fi
-
-
-CONTROLLER_LOG=$(dirname $(dirname ${T4P4S_EXECUTABLE}))/controller.log
-
 
 # Generate directories and files
 mkdir -p $T4P4S_TARGET_DIR
 mkdir -p $T4P4S_SRCGEN_DIR
 
-rm -rf "${T4P4S_GEN_INCLUDE}"
-echo "" >> "${T4P4S_GEN_INCLUDE}.tmp"
 
-cat <<EOT >${GEN_MAKEFILE}
-CDIR := \$(dir \$(lastword \$(MAKEFILE_LIST)))
-APP = ${T4P4S_EXAMPLE_NAME}
-include \$(CDIR)/../../makefiles/${ARCH}_backend_pre.mk
-include \$(CDIR)/../../makefiles/common.mk
-include \$(CDIR)/../../makefiles/hw_independent.mk
-EOT
+[ "$(optvalue silent)" != off ] && addopt makeopts ">/dev/null" " "
 
-ARCH_OPTS_FILE=${ARCH_OPTS_FILE-t4p4s_${ARCH}.cfg}
-# Default parameter sets
-while read -r optid opttype optdata; do
-    [ "$optid" == "" ] && continue
-
-    [ "$opttype" == "ctrl" ] && sudo killall -q "$optid"
-
-    [ $(array_contains ${OPTIDS[@]} "$optid") == "n" ] && continue
-
-    [ "$opttype" == "cmdopts" ] && CMD_OPTS="$CMD_OPTS $optdata"
-    [ "$opttype" == "ealopts" ] && EAL_OPTS="$EAL_OPTS $optdata"
-
-    [ "$opttype" == "source"  ] && echo "SRCS-y += $optdata" >> "${GEN_MAKEFILE}"
-    [ "$opttype" == "header"  ] && echo "#include \"$optdata\"" >> "${T4P4S_GEN_INCLUDE}.tmp"
-
-    [ "$opttype" == "ctrl"    ] && CONTROLLER="$optdata"
-    [ "$opttype" == "ctrcfg"  ] && CONTROLLER_OPTS="$CONTROLLER_OPTS $optdata"
-
-    [ "$opttype" == "cflags"  ] && T4P4S_CFLAGS="$T4P4S_CFLAGS $optdata"
-done < <(grep -v ";" "${ARCH_OPTS_FILE}")
 
 # --------------------------------------------------------------------
 
-reserve_hugepages() {
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
-    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
-    if [ $OLD_HUGEPAGES -lt $1 ]; then
-        verbosemsg "Reserving $bb$1 hugepages$nn (previous size: $bb$OLD_HUGEPAGES$nn)"
-
-        echo "echo $1 > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
-        sudo sh .echo_tmp
-        rm -f .echo_tmp
-    else
-        verbosemsg "Using $bb$OLD_HUGEPAGES hugepages$nn (sufficient, as $1 are needed)"
-    fi
-}
-
-# $1.tmp is a file that has some (generated) contents; $1 may or may not exist
-# Only (over)write $1 if the generated content differs from the existing one
-overwrite_on_difference() {
-    [ ! -f "$1" ] && cp "$1.tmp" "$1"
-    cmp -s "$1.tmp" "$1"
-    [ "$?" -ne 0 ] && mv "$1.tmp" "$1"
-    rm -rf "$1.tmp"
-}
-
-# --------------------------------------------------------------------
+verbosemsg "Options: $(print_opts)"
 
 # Phase 1: P4 to C compilation
-if [ "$T4P4S_P4" == 1 ]; then
-    msg "[${bb}COMPILE  P4-${P4_VSN}$nn] $bb${EXAMPLE_SOURCE}$nn@$bb${T4P4S_VARIANT}$nn"
+if [ "$(optvalue p4)" != off ]; then
+    msg "[$(cc 0)COMPILE  P4-${OPTS[vsn]}$nn] $(cc 0)$(print_cmd_opts ${OPTS[source]})$nn@$(cc 1)${OPTS[variant]}$nn${OPTS[testcase]+, test case $(cc 1)${OPTS[testcase]-(none)}$nn}${OPTS[dbg]+, $(cc 0)debug$nn mode}"
 
-    [ -n "${T4P4S_VERBOSE+x}" ] && export T4P4S_P4_OPTS="${T4P4S_P4_OPTS} -verbose"
-    [ "$PDB" != "" ] && export T4P4S_P4_OPTS="${T4P4S_P4_OPTS} -m $PDB"
+    addopt p4opts "${OPTS[source]}" " "
+    addopt p4opts "--p4v ${OPTS[vsn]}" " "
+    addopt p4opts "-g ${T4P4S_SRCGEN_DIR}" " "
+    [ "$(optvalue verbose)" != off ] && addopt p4opts "-verbose" " "
 
-    $PYTHON src/compiler.py "${EXAMPLE_SOURCE}" --p4v $P4_VSN -g ${T4P4S_SRCGEN_DIR} ${T4P4S_P4_OPTS}
+    verbosemsg "P4 compiler options: $(print_cmd_opts "${OPTS[p4opts]}")"
+
+    IFS=" "
+    $PYTHON -B src/compiler.py ${OPTS[p4opts]}
     exit_on_error "P4 to C compilation failed"
 fi
 
 
 # Phase 2: C compilation
-if [ "$T4P4S_C" == 1 ]; then
-    if [ -n "${T4P4S_TEST+x}" ]; then
-        [ ! -f "$TESTDIR/$TESTFILE" ] && errmsg_exit "Test data file $bb$TESTFILE$nn in $bb$TESTDIR$nn not found"
+if [ "$(optvalue c)" != off ]; then
+    cat <<EOT > "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+#ifndef __GEN_INCLUDE_H_
+#define __GEN_INCLUDE_H_
+EOT
 
-        echo "VPATH += \$(CDIR)/../../$TESTDIR" >> "${GEN_MAKEFILE}"
-        echo "SRCS-y += $TESTFILE" >> "${GEN_MAKEFILE}"
+    for colour in ${ALL_COLOUR_NAMES[@]}; do
+        COLOUR_MACRO=""
+        [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && COLOUR_MACRO="\"${OPTS[${OPTS[T4LIGHT_$colour]}]-${OPTS[T4LIGHT_$colour]}}\"  // ${OPTS[T4LIGHT_$colour]}"
+        [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && [ "$COLOUR_MACRO" == "\"\"" ] && [ "$colour" != "default" ] && COLOUR_MACRO="T4LIGHT_default"
+        echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    done
+
+    IFS=" "
+    for hdr in ${OPTS[include-hdrs]}; do
+        echo "#include \"$hdr\"" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    done
+
+    echo "#endif" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    overwrite_on_difference "${T4P4S_GEN_INCLUDE}" "${T4P4S_GEN_INCLUDE_DIR}"
+
+
+    cat <<EOT >"/tmp/${GEN_MAKEFILE}.tmp"
+CDIR := \$(dir \$(lastword \$(MAKEFILE_LIST)))
+APP = ${OPTS[example]}
+include \$(CDIR)/../../makefiles/${ARCH}_backend_pre.mk
+include \$(CDIR)/../../makefiles/common.mk
+include \$(CDIR)/../../makefiles/hw_independent.mk
+VPATH += $(dirname ${OPTS[source]})
+EXTRA_CFLAGS += ${OPTS[extra-cflags]}
+EOT
+
+    if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
+        TESTDIR="examples"
+        TESTFILE="test-${OPTS[example]##test-}.c"
+        [ ! -f "$TESTDIR/$TESTFILE" ] && errmsg_exit "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
+
+        [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=\"t4p4s_testcase_${OPTS[testcase]}\"" " "
+        echo "VPATH += \$(CDIR)/../../$TESTDIR" >>"/tmp/${GEN_MAKEFILE}.tmp"
+        echo "SRCS-y += $TESTFILE" >>"/tmp/${GEN_MAKEFILE}.tmp"
     fi
 
-    overwrite_on_difference "${T4P4S_GEN_INCLUDE}"
+    IFS=" "
+    for src in ${OPTS[include-srcs]}; do
+        echo "SRCS-y += $src" >> "/tmp/${GEN_MAKEFILE}.tmp"
+    done
 
-    [ -n "${T4P4S_DBG+x}" ] && export T4P4S_CFLAGS="${T4P4S_CFLAGS} -DT4P4S_DEBUG"
-    [ -n "${T4P4S_SILENT+x}" ] && export T4P4S_CFLAGS="${T4P4S_CFLAGS} -DT4P4S_SILENT"
+    echo "CFLAGS += ${OPTS[cflags]}" >> "/tmp/${GEN_MAKEFILE}.tmp"
+    echo "include \$(CDIR)/../../makefiles/${ARCH}_backend_post.mk" >> "/tmp/${GEN_MAKEFILE}.tmp"
 
-    [ "${T4P4S_CFLAGS}" != "" ] && echo "CFLAGS += ${T4P4S_CFLAGS}" >> "${GEN_MAKEFILE}"
-    echo "include \$(CDIR)/../../makefiles/${ARCH}_backend_post.mk" >> "${GEN_MAKEFILE}"
+    overwrite_on_difference "${GEN_MAKEFILE}" "${GEN_MAKEFILE_DIR}"
 
-    msg "[${bb}COMPILE SWITCH$nn]"
-    verbosemsg "Options for C compiler: ${bb}${T4P4S_CFLAGS}${nn}"
+
+    msg "[$(cc 0)COMPILE SWITCH$nn]"
+    verbosemsg "C compiler options: $(cc 0)$(print_cmd_opts "${OPTS[cflags]}")${nn}"
 
     cd ${T4P4S_TARGET_DIR}
-    if [ "${T4P4S_SILENT}" == 1 ]; then
+    if [ "$(optvalue silent)" != off ]; then
         make -j >/dev/null
     else
         make -j
@@ -409,32 +546,44 @@ fi
 
 
 # Phase 3A: Execution (controller)
-if [ "$T4P4S_RUN" == 1 ]; then
-    msg "[${bb}RUN CONTROLLER$nn]"
-
-    msg "Controller     : $bb${CONTROLLER}$nn (default for $T4P4S_EXAMPLE_NAME)"
-    verbosemsg "Controller log : $bb${CONTROLLER_LOG}$nn"
-    verbosemsg "Controller opts: ${CONTROLLER_OPTS}"
-
-    # Step 3A-1: Compile the controller
-    cd $CTRL_PLANE_DIR
-    if [ "${T4P4S_SILENT}" == 1 ]; then
-        make -j $CONTROLLER >/dev/null
+if [ "$(optvalue run)" != off ]; then
+    if [ "$(optvalue ctr)" == off ]; then
+        msg "[$(cc 0)NO  CONTROLLER$nn]"
     else
-        make -j $CONTROLLER
-    fi
-    exit_on_error "Controller compilation failed"
-    cd - >/dev/null
+        CONTROLLER="dpdk_${OPTS[ctr]}_controller"
+        CONTROLLER_LOG=$(dirname $(dirname ${OPTS[executable]}))/controller.log
 
-    # Step 3A-3: Run controller
-    stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $CONTROLLER_OPTS > "${CONTROLLER_LOG}" &
-    sleep 0.05
+        sudo killall -q "$CONTROLLER"
+
+        msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
+
+        verbosemsg "Controller log : $(cc 0)${CONTROLLER_LOG}$nn"
+        verbosemsg "Controller opts: $(print_cmd_opts ${OPTS[ctrcfg]})"
+
+        # Step 3A-1: Compile the controller
+        cd $CTRL_PLANE_DIR
+        if [ "$(optvalue silent)" != off ]; then
+            make -s -j $CONTROLLER >/dev/null
+        else
+            make -s -j $CONTROLLER
+        fi
+        exit_on_error "Controller compilation failed"
+        cd - >/dev/null
+
+        # Step 3A-3: Run controller
+        if [ $(optvalue showctl optv) == y ]; then
+            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+        else
+            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
+        fi
+        sleep 0.05
+    fi
 fi
 
 
 # Phase 3B: Execution (switch)
-if [ "$T4P4S_RUN" == 1 ]; then
-    msg "[${bb}RUN SWITCH$nn]"
+if [ "$(optvalue run)" != off ]; then
+    msg "[$(cc 0)RUN SWITCH$nn] $(cc 1)${OPTS[executable]}$nn"
 
     sudo mkdir -p /mnt/huge
 
@@ -443,18 +592,20 @@ if [ "$T4P4S_RUN" == 1 ]; then
         sudo mount -t hugetlbfs nodev /mnt/huge
     fi
 
-    [ "$HUGEPAGES" != "" ] && reserve_hugepages "$HUGEPAGES"
+    [ "$(optvalue hugepages)" != off ] && reserve_hugepages2 "${OPTS[hugepages]}"
 
-    [ "$ARCH" == "dpdk" ] && EXEC_OPTS="${EAL_OPTS} -- ${CMD_OPTS}"
+    [ "$ARCH" == "dpdk" ] && EXEC_OPTS="${OPTS[ealopts]} -- ${OPTS[cmdopts]}"
 
-    verbosemsg "Option ids : $bb${OPTIDS}$nn"
-    verbosemsg "Options    : $bb${EXEC_OPTS}$nn"
+    verbosemsg "Options    : $(print_cmd_opts "${EXEC_OPTS}")"
 
-    # Run T4P4S program
-    if [ "${T4P4S_SILENT}" == 1 ]; then
-        # TODO: is it possible to ignore the EAL's messages in a better way?
-        sudo -E "${T4P4S_EXECUTABLE}" ${EXEC_OPTS} 2>&1 | egrep -v "^EAL: "
+    if [ "${OPTS[eal]}" == "off" ]; then
+        sudo -E "${OPTS[executable]}" ${EXEC_OPTS} 2>&1 | egrep -v "^EAL: "
+        # note: PIPESTATUS is bash specific
+        ERROR_CODE=${PIPESTATUS[0]}
     else
-        sudo -E "${T4P4S_EXECUTABLE}" ${EXEC_OPTS}
+        sudo -E "${OPTS[executable]}" ${EXEC_OPTS}
+        ERROR_CODE=$?
     fi
 fi
+
+exit_program $ERROR_CODE
