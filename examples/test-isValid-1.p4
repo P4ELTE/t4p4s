@@ -20,8 +20,8 @@ struct metadata {
 struct headers {
     test_dstAddr_t   dstAddr;
     test_srcAddr_t   srcAddr;
-    test_srcAddr_t   srcAddr2;
     test_etherType_t etherType;
+    test_srcAddr_t   srcAddr2;
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
@@ -29,13 +29,14 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         packet.extract(hdr.dstAddr);
         packet.extract(hdr.srcAddr);
         packet.extract(hdr.etherType);
+        packet.extract(hdr.srcAddr2);
         transition accept;
     }
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     action setInvalid_srcAddr() {
-        hdr.srcAddr.setInvalid();
+        hdr.srcAddr2.setInvalid();
     }
 
     table dmac {
