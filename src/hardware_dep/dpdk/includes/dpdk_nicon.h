@@ -16,8 +16,13 @@
 #define __WITH_NIC_H_
 
 
+#include "dpdk_lib.h"
+#include <stdbool.h>
+
 #define T4P4S_BROADCAST_PORT    100
 
+#define MAX_PKT_BURST     32
+#define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 
 #define MAX_PORTS               16
 

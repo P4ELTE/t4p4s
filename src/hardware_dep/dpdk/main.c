@@ -38,6 +38,11 @@
 
 #include "gen_include.h"
 
+#ifdef T4P4S_SUPPRESS_EAL
+    #include <unistd.h>
+    #include <stdio.h>
+#endif
+
 
 // TODO from...
 extern void initialize_args(int argc, char **argv);
@@ -46,51 +51,48 @@ extern int init_lcore_confs();
 extern int init_tables();
 extern int init_memories();
 
+extern int launch_count();
+extern void t4p4s_abnormal_exit(int retval, int idx);
+extern void t4p4s_pre_launch(int idx);
+extern void t4p4s_post_launch(int idx);
+extern void t4p4s_normal_exit();
+
 // TODO from...
 extern void init_control_plane();
 
 // defined in the generated file dataplane.c
-extern void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables);
+extern void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate, uint32_t portid);
 
 // defined separately for each example
 extern bool core_is_working(struct lcore_data* lcdata);
 extern bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx);
 extern void free_packet(packet_descriptor_t* pd);
 extern bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata);
-extern void init_service();
+extern void init_storage();
 extern void main_loop_pre_rx(struct lcore_data* lcdata);
 extern void main_loop_post_rx(struct lcore_data* lcdata);
 extern void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet);
-extern unsigned get_portid(struct lcore_data* lcdata, unsigned queue_idx);
+extern uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx);
 extern void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx);
 extern unsigned get_pkt_count_in_group(struct lcore_data* lcdata);
 extern unsigned get_queue_count(struct lcore_data* lcdata);
-extern void send_packet(packet_descriptor_t* pd, int egress_port, int ingress_port);
+extern void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port);
 extern struct lcore_data init_lcore_data();
 
 //=============================================================================
 
-static void set_metadata_inport(packet_descriptor_t* pd, uint32_t inport)
-{
-    //modify_field_to_const(pd, field_desc(field_instance_standard_metadata_ingress_port), (uint8_t*)&inport, 2);
-    int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
-    //MODIFY_INT32_INT32_BITS(pd, field_instance_standard_metadata_ingress_port, inport); // TODO fix? LAKI
-}
-
-
-void do_single_tx(packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
+void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
     if (unlikely(pd->dropped)) {
-        debug("  :::: DROPPING\n");
+        debug(" :::: Dropping packet\n");
         free_packet(pd);
     } else {
-        debug("  :::: EGRESSING\n");
+        debug(" :::: Egressing packet\n");
 
         int egress_port = EXTRACT_EGRESSPORT(pd);
         int ingress_port = EXTRACT_INGRESSPORT(pd);
 
-        send_packet(pd, egress_port, ingress_port);
+        send_packet(lcdata, pd, egress_port, ingress_port);
     }
 }
 
@@ -99,10 +101,9 @@ void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
     bool got_packet = receive_packet(pd, lcdata, pkt_idx);
 
     if (got_packet) {
-	    set_metadata_inport(pd, get_portid(lcdata, queue_idx));
 	    if (likely(is_packet_handled(pd, lcdata))) {
-	        handle_packet(pd, lcdata->conf->state.tables);
-            do_single_tx(pd, queue_idx, pkt_idx);
+	        handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), get_portid(lcdata, queue_idx));
+            do_single_tx(lcdata, pd, queue_idx, pkt_idx);
         }
     }
 
@@ -122,12 +123,12 @@ void do_rx(struct lcore_data* lcdata, packet_descriptor_t* pd)
     }
 }
 
-void dpdk_main_loop()
+bool dpdk_main_loop()
 {
     struct lcore_data lcdata = init_lcore_data();
     if (!lcdata.is_valid) {
     	debug("lcore data is invalid, exiting\n");
-    	return;
+    	return false;
     }
 
     packet_descriptor_t pd;
@@ -140,20 +141,20 @@ void dpdk_main_loop()
 
         main_loop_post_rx(&lcdata);
     }
+
+    return lcdata.is_valid;
 }
 
 
 static int
 launch_one_lcore(__attribute__((unused)) void *dummy)
 {
-    dpdk_main_loop();
-    return 0;
+    bool success = dpdk_main_loop();
+    return success ? 0 : -1;
 }
 
 int launch_dpdk()
 {
-    init_service();
-
     rte_eal_mp_remote_launch(launch_one_lcore, NULL, CALL_MASTER);
 
     unsigned lcore_id;
@@ -161,20 +162,42 @@ int launch_dpdk()
         if (rte_eal_wait_lcore(lcore_id) < 0)
             return -1;
     }
+
     return 0;
 }
 
 int main(int argc, char** argv)
 {
+    debug("Initializing switch\n");
+
     initialize_args(argc, argv);
     initialize_nic();
-    init_tables();
-    init_memories();
+
     init_lcore_confs();
-    init_control_plane();
 
-    int retval = launch_dpdk();
+    int launch_count2 = launch_count();
+    for (int i = 0; i < launch_count2; ++i) {
+        debug("Initializing execution\n");
 
-    debug("Exiting program.\n");
-    return retval;
+        init_tables();
+        init_storage();
+
+        init_memories();
+        debug("   :: Initializing control plane connection\n");
+        init_control_plane();
+        debug("   :: Initializing storage\n");
+
+        t4p4s_pre_launch(i);
+
+        int retval = launch_dpdk();
+        if (retval < 0) {
+            t4p4s_abnormal_exit(retval, i);
+            return retval;
+        }
+
+        t4p4s_post_launch(i);
+    }
+
+    t4p4s_normal_exit();
+    return 0;
 }

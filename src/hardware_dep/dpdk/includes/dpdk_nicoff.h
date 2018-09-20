@@ -16,13 +16,15 @@
 #define __NO_NIC_H_
 
 #include "test.h"
+#include <stdbool.h>
 
 struct lcore_data {
     struct lcore_conf*  conf;
 
     bool                is_valid;
 
-	unsigned            iteration_idx;
+    unsigned            idx;
+    unsigned            pkt_idx;
 };
 
 

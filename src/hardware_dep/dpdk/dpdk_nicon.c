@@ -14,12 +14,12 @@
 
 #include <rte_ethdev.h>
 
-#include "dpdk_lib.h"
 #include "util.h"
 #include "dpdk_nicon.h"
 
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
+extern void dpdk_init_nic();
 
 // ------------------------------------------------------
 // Locals
@@ -163,7 +163,7 @@ static void dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t
 }
 
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_packet(packet_descriptor_t* pd, int egress_port, int ingress_port)
+void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
 {
     uint32_t lcore_id = rte_lcore_id();
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
@@ -234,7 +234,7 @@ void free_packet(packet_descriptor_t* pd) {
 }
 
 
-void init_service() {
+void init_storage() {
     /* Needed for L2 multicasting - e.g. acting as a hub
         cloning headers and sometimes packet data*/
     header_pool = rte_pktmbuf_pool_create("header_pool", NB_HDR_MBUF, 32,
@@ -260,7 +260,7 @@ void main_loop_post_rx(struct lcore_data* lcdata) {
 void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet) {
 }
 
-unsigned get_portid(struct lcore_data lcdata, unsigned queue_idx) {
+uint32_t get_portid(struct lcore_data lcdata, unsigned queue_idx) {
     return lcdata.conf->hw.rx_queue_list[queue_idx].port_id;
 }
 
@@ -279,4 +279,28 @@ unsigned get_queue_count(struct lcore_data lcdata) {
 
 void initialize_nic() {
     dpdk_init_nic();
+}
+
+int launch_count() {
+    return 1;
+}
+
+void t4p4s_abnormal_exit(int retval, int idx) {
+    debug("Abnormal exit.\n");
+}
+
+void t4p4s_after_launch(int idx) {
+    debug("Execution done.\n");
+}
+
+void t4p4s_normal_exit() {
+    debug("Normal exit.\n");
+}
+
+void t4p4s_pre_launch(int idx) {
+    
+}
+
+void t4p4s_post_launch(int idx) {
+
 }
