@@ -18,48 +18,41 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <rte_common.h>
+#include <pthread.h>
+#include "gen_include.h"
 
-void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
+#define T4COLOR(color)    "\e[" color "m"
 
-
-#ifdef T4P4S_BRIGHT
-#define T4HIGHLIGHT_BOLD         "1"
-#define T4HIGHLIGHT_DEFAULT      "39"
-#define T4HIGHLIGHT_BLACK        "30"
-#define T4HIGHLIGHT_RED          "31"
-#define T4HIGHLIGHT_GREEN        "32"
-#define T4HIGHLIGHT_YELLOW       "33"
-#define T4HIGHLIGHT_BLUE         "34"
-#define T4HIGHLIGHT_MAGENTA      "35"
-#define T4HIGHLIGHT_CYAN         "36"
-#define T4HIGHLIGHT_LIGHTGRAY    "37"
-#define T4HIGHLIGHT_DARKGRAY     "90"
-#define T4HIGHLIGHT_LIGHTRED     "91"
-#define T4HIGHLIGHT_LIGHTGREEN   "92"
-#define T4HIGHLIGHT_LIGHTYELLOW  "93"
-#define T4HIGHLIGHT_LIGHTBLUE    "94"
-#define T4HIGHLIGHT_LIGHTMAGENTA "95"
-#define T4HIGHLIGHT_LIGHTCYAN    "96"
-#define T4HIGHLIGHT_WHITE        "97"
-#define T4ON   "\e[" T4HIGHLIGHT_LIGHTRED "m"
-#define T4OFF   "\e[0m"
-#else
-#define T4ON    
-#define T4OFF   
+#ifndef T4LIGHT_off
+    #define T4LIGHT_off
 #endif
+
+#ifndef T4LIGHT_default
+    #define T4LIT(txt,...)      #txt
+    #define T4LIGHT_default
+#else
+    #define T4LIT(txt,...)      "\e[" T4LIGHT_##__VA_ARGS__ "m" #txt "\e[" T4LIGHT_off "m"
+#endif
+
+#define T4LIGHT_ T4LIGHT_default
 
 
 #ifdef T4P4S_DEBUG
+    extern void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
+    extern pthread_mutex_t dbg_mutex;
+
     #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
-    #define dbg_bytes(bytes, byte_count, M, ...)   \
+    #define dbg_bytes(bytes, byte_count, MSG, ...)   \
         { \
-            debug(M, ##__VA_ARGS__); \
+            pthread_mutex_lock(&dbg_mutex); \
+            debug_printf(MSG T4COLOR(T4LIGHT_bytes), ##__VA_ARGS__); \
             dbg_fprint_bytes(stderr, bytes, byte_count); \
-            fprintf(stderr, "\n"); \
+            fprintf(stderr, T4COLOR(T4LIGHT_off) "\n"); \
+            pthread_mutex_unlock(&dbg_mutex); \
         }
 #else
-    #define dbg_bytes(bytes, byte_count, M, ...)   
+    #define dbg_bytes(bytes, byte_count, MSG, ...)   
 #endif
 
 #endif

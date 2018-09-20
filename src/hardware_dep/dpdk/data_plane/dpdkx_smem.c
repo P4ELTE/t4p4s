@@ -25,65 +25,66 @@
 void apply_direct_smem_rte_atomic32_t(rte_atomic32_t* smem, uint32_t value, char* table_name, char* smem_type_name, char* smem_name) {
     rte_atomic32_add(smem, value);
 
-    debug("Applying %s %s(%d) on table %s: new value is %d\n",
+    debug("    :: Applying " T4LIT(%s) " " T4LIT(%s,smem) "(" T4LIT(%d) ") on table " T4LIT(%s,table) ": new value is " T4LIT(%d) "\n",
           smem_type_name, smem_name, value, table_name, rte_atomic32_read(smem));
 }
 
 
 void extern_counter_count(uint32_t index) {
-    debug("Executing extern_counter_count for counter#%d\n", index);
+    debug("    :: Executing extern_counter_count for " T4LIT(counter#%d,smem) "\n", index);
 }
 
 
 void extern_meter_execute_meter_uint32_t(uint32_t index, uint32_t* result) {
-    debug("Executing extern_meter_execute_meter_uint32_t#%d\n", index);
+    debug("    :: Executing extern_meter_execute_meter_uint32_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_meter_execute_meter_uint16_t(uint32_t index, uint16_t* result) {
-    debug("Executing extern_meter_execute_meter_uint16_t#%d\n", index);
+    debug("    :: Executing extern_meter_execute_meter_uint16_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_meter_execute_meter_uint8_t(uint32_t index, uint8_t* result) {
-    debug("Executing extern_meter_execute_meter_uint8_t#%d\n", index);
+    debug("    :: Executing extern_meter_execute_meter_uint8_t#" T4LIT(%d) "\n", index);
 }
 
 
 void extern_direct_meter_read_uint8_t(uint8_t* result, uint32_t index) {
-    debug("Executing extern_direct_meter_read_uint8_t#%d\n", index);
+    debug("    :: Executing extern_direct_meter_read_uint8_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_direct_meter_read_uint32_t(uint32_t* result, uint32_t index) {
-    debug("Executing extern_direct_meter_read_uint32_t#%d\n", index);
+    debug("    :: Executing extern_direct_meter_read_uint32_t#" T4LIT(%d) "\n", index);
 }
 
 
 
 void extern_register_read_uint8_t(uint8_t* result, uint32_t index) {
-    debug("Executing extern_register_read_uint8_t#%d\n", index);
+    debug("    :: Executing extern_register_read_uint8_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_register_read_uint16_t(uint16_t* result, uint32_t index) {
-    debug("Executing extern_register_read_uint16_t#%d\n", index);
+    debug("    :: Executing extern_register_read_uint16_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_register_read_uint32_t(uint32_t* result, uint32_t index) {
-    debug("Executing extern_register_read_uint32_t#%d\n", index);
+    debug("    :: Executing extern_register_read_uint32_t#" T4LIT(%d) "\n", index);
 }
 
 
 
 void extern_register_write_uint8_t(uint32_t index, uint8_t data) {
-    debug("Executing extern_register_write_uint8_t#%d\n", index);
+    debug("    :: Executing extern_register_write_uint8_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_register_write_uint16_t(uint32_t index, uint16_t data) {
-    debug("Executing extern_register_write_uint16_t#%d\n", index);
+    debug("    :: Executing extern_register_write_uint16_t#" T4LIT(%d) "\n", index);
 }
 
 void extern_register_write_uint32_t(uint32_t index, uint32_t data) {
-    debug("Executing extern_register_write_uint32_t#%d\n", index);
+    debug("    :: Executing extern_register_write_uint32_t#" T4LIT(%d) "\n", index);
 }
 
 
 void init_memories() {
+    debug(" :::: Initializing stateful memories\n");
 }

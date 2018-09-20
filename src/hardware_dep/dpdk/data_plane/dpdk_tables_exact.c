@@ -59,11 +59,13 @@ void exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
 
     extended_table_t* ext = (extended_table_t*)t->table;
     uint32_t index = rte_hash_add_key(ext->rte_table, (void*) key);
+
     if (unlikely(index < 0))
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
+
     ext->content[index%t->max_size] = make_table_entry_on_socket(t, value);
 
-    debug("Added EXACT entry to %s: %02x:%02x:%02x:%02x:%02x:%02x (hash %010x) -> %s\n", t->name, key[0],key[1],key[2],key[3],key[4],key[5], index, get_entry_action_name(value));
+    dbg_bytes(key, t->entry.key_size, "   :: Add " T4LIT(exact) " entry to " T4LIT(%s,table) " (hash " T4LIT(%d) "): " T4LIT(%s,action) " <- ", t->name, index, get_entry_action_name(value));
 }
 
 uint8_t* exact_lookup(lookup_table_t* t, uint8_t* key)

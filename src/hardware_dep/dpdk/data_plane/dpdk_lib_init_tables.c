@@ -22,11 +22,11 @@ void create_tables_on_socket(int socketid)
 {
     if(table_config == NULL) return;
 
-    debug("Initializing tables on socket %d...\n", socketid);
+    debug(" :::: Initializing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("Creating instances for table %s on socket %d (%d copies)\n", t.name, socketid, NB_REPLICA);
+        debug("   :: Creating instances for table " T4LIT(%s,table) " on socket " T4LIT(%d,socket) " (" T4LIT(%d) " copies)\n", t.name, socketid, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             state[socketid].tables[i][j] = malloc(sizeof(lookup_table_t));
             memcpy(state[socketid].tables[i][j], &t, sizeof(lookup_table_t));
@@ -50,7 +50,7 @@ void create_table_on_lcore(unsigned lcore_id)
 
 void init_tables()
 {
-    debug("Initializing stateful memories...\n");
+    debug(" :::: Initializing stateful memories...\n");
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         create_table_on_lcore(lcore_id);
     }

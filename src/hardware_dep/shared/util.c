@@ -12,24 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "backend.h"
 #include "util.h"
 #include <unistd.h>
-#include <pthread.h>
 
-pthread_mutex_t dbg_mutex;
 
-void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
-#ifdef P4DPDK_DEBUG
-    pthread_mutex_lock(&dbg_mutex);
+#ifdef T4P4S_DEBUG
+	#include "backend.h"
+	#include <pthread.h>
 
-    for (int i = 0; i < byte_count; ++i) {
-        fprintf(out_file, i%2 == 0 ? "%02x" : "%02x ", ((uint8_t*)bytes)[i]);
-    }
+	pthread_mutex_t dbg_mutex;
 
-    pthread_mutex_unlock(&dbg_mutex);
+	void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
+	    for (int i = 0; i < byte_count; ++i) {
+	        fprintf(out_file, i%2 == 0 ? "%02x" : "%02x ", ((uint8_t*)bytes)[i]);
+	    }
+	}
 #endif
-}
 
 
 void sleep_millis(int millis) {

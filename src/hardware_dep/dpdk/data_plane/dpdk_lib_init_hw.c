@@ -135,7 +135,7 @@ int init_lcore_rx_queues()
 
 int init_lcore_confs()
 {
-    debug("Configuring lcore structs...\n");
+    debug(" :::: Configuring lcore structs...\n");
 
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         if (rte_lcore_is_enabled(lcore_id) == 0) continue;
