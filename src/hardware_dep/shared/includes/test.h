@@ -15,12 +15,15 @@
 #ifndef __TEST_H_
 #define __TEST_H_
 
+#include <stdint.h>
 
 // ------------------------------------------------------
 // Fake packet data
 
 enum fake_cmd_e {
     FAKE_PKT,
+    // set default action
+    FAKE_SETDEF,
     FAKE_END,
 };
 
@@ -28,21 +31,37 @@ enum fake_cmd_e {
 
 typedef struct fake_cmd_s {
     enum fake_cmd_e action;
-    char*           in[MAX_SECTION_COUNT];
+    void*           ptr;
+    uint32_t        in_port;
+    const char*     in[MAX_SECTION_COUNT];
 
     int             sleep_millis;
 
-    int             out_port;
-    char*           out[MAX_SECTION_COUNT];
+    uint32_t        out_port;
+    const char*     out[MAX_SECTION_COUNT];
 } fake_cmd_t;
+
+// ------------------------------------------------------
+// Test suite
+
+typedef struct testcase_s {
+    const char* name;
+    fake_cmd_t (*steps)[][RTE_MAX_LCORE];
+} testcase_t;
+
+#define TEST_SUITE_END { "", 0 }
+
+#define MAX_TESTCASES 128
+
+#define PAUSE_BETWEEN_TESTCASES_MILLIS 500
 
 // ------------------------------------------------------
 // Fake packet data creation helpers
 
 #define FDATA(...)    { __VA_ARGS__, "" }
 
-#define FSLEEP(time)  {FAKE_PKT, FDATA(""), time, 0, FDATA("")}
-#define FEND          {FAKE_END, FDATA(""),    0, 0, FDATA("")}
+#define FSLEEP(time)  {FAKE_PKT, 0, 0, FDATA(""), time, 0, FDATA("")}
+#define FEND          {FAKE_END, 0, 0, FDATA(""),    0, 0, FDATA("")}
 
 #define ETH(dst, src, ...) FDATA(dst, src, "0800", ##__VA_ARGS__)
 
@@ -52,6 +71,7 @@ typedef struct fake_cmd_s {
 #define ETH04 "000004000000"
 
 #define ETH1A "001234567890"
+#define ETH1B "001234567891"
 
 // random payloads
 
@@ -64,5 +84,7 @@ typedef struct fake_cmd_s {
 #define PAYLOAD12 "a0a0a0a0a0"
 #define PAYLOAD13 "00000000"
 #define PAYLOAD14 "f00ff00f"
+
+#define T4P4S_BROADCAST_PORT 100
 
 #endif
