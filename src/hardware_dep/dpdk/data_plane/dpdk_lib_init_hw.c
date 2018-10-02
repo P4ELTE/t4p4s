@@ -49,12 +49,13 @@ struct rte_eth_conf port_conf = {
         .mq_mode = ETH_MQ_RX_RSS,
         .max_rx_pkt_len = ETHER_MAX_LEN,
         .split_hdr_size = 0,
-        .header_split   = 0, /**< Header Split disabled */
-        .hw_ip_checksum = 1, /**< IP checksum offload enabled */
-        .hw_vlan_filter = 0, /**< VLAN filtering disabled */
-        .jumbo_frame    = 0, /**< Jumbo Frame Support disabled */
-        .hw_strip_crc   = 1, /**< CRC stripped by hardware */
-        .mq_mode = ETH_MQ_RX_RSS,
+        /*
+        .header_split   = 0, // Header Split disabled
+        .hw_ip_checksum = 1, // IP checksum offload enabled
+        .hw_vlan_filter = 0, // VLAN filtering disabled
+        .jumbo_frame    = 0, // Jumbo Frame Support disabled
+        .hw_strip_crc   = 1, // CRC stripped by hardware
+        */
     },
     .rx_adv_conf = {
         .rss_conf = {
@@ -196,9 +197,6 @@ void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
     rte_eth_dev_info_get(portid, &dev_info);
     struct rte_eth_txconf* txconf = &dev_info.default_txconf;
 
-    if (port_conf.rxmode.jumbo_frame)
-        txconf->txq_flags = 0;
-
     int ret = rte_eth_tx_queue_setup(portid, queueid, t4p4s_nb_txd, socketid, txconf);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "rte_eth_tx_queue_setup: err=%d, "
@@ -281,7 +279,7 @@ void dpdk_init_nic()
     if (ret < 0)
             rte_exit(EXIT_FAILURE, "init_lcore_rx_queues failed\n");
 
-    uint8_t nb_ports = rte_eth_dev_count();
+    uint8_t nb_ports = rte_eth_dev_count_avail();
     if (nb_ports > RTE_MAX_ETHPORTS)
         nb_ports = RTE_MAX_ETHPORTS;
 

@@ -173,27 +173,6 @@ static int parse_args(int argc, char **argv)
                 printf("numa is disabled \n");
                 numa_on = 0;
             }
-
-            if (!strncmp(lgopts[option_index].name, CMD_LINE_OPT_ENABLE_JUMBO,
-                sizeof (CMD_LINE_OPT_ENABLE_JUMBO))) {
-                struct option lenopts = {"max-pkt-len", required_argument, 0, 0};
-
-                printf("jumbo frame is enabled - disabling simple TX path\n");
-                port_conf.rxmode.jumbo_frame = 1;
-
-                /* if no max-pkt-len set, use the default value ETHER_MAX_LEN */
-                if (0 == getopt_long(argc, argvopt, "", &lenopts, &option_index)) {
-                    ret = parse_max_pkt_len(optarg);
-                    if ((ret < 64) || (ret > MAX_JUMBO_PKT_LEN)){
-                        printf("invalid packet length\n");
-                        print_usage(prgname);
-                        return -1;
-                    }
-                    port_conf.rxmode.max_rx_pkt_len = ret;
-                }
-                printf("set jumbo frame max packet length to %u\n",
-                        (unsigned int)port_conf.rxmode.max_rx_pkt_len);
-            }
             break;
 
         default:

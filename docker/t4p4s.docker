@@ -1,15 +1,16 @@
-FROM ubuntu:17.04
+FROM ubuntu:18.04
 
 RUN apt-get update && apt-get install -y sudo git wget python python-setuptools autoconf make cmake curl unzip g++ flex bison linux-headers-generic libnuma-dev libtool libgc-dev libgmp-dev libboost-dev libboost-iostreams-dev psmisc python-ply
 
-COPY ../bootstrap-t4p4s.sh /root/bootstrap-t4p4s.sh
+COPY ./bootstrap-t4p4s.sh /root/bootstrap-t4p4s.sh
 RUN chmod +x /root/bootstrap-t4p4s.sh
 
 WORKDIR /root
-ENV PARALLEL_INSTALL 0
-RUN ./bootstrap-t4p4s.sh
+RUN bash ./bootstrap-t4p4s.sh
 
-ENV RTE_SDK /root/dpdk-17.08/
+COPY ./ /root/t4p4s/
+
+ENV RTE_SDK /root/dpdk-18.08/
 ENV P4C /root/p4c
 
 CMD ["/usr/bin/bash"]
