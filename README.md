@@ -169,12 +169,12 @@ Note that for non-testing examples, you will have to setup your network card, an
 As described above, you can run individual test cases.
 To see detailed output about compilation and execution, use the following options.
 
-    `./t4p4s.sh verbose dbg %l2fwd=payload`
+    ./t4p4s.sh verbose dbg %l2fwd=payload
 
 To run all available test cases, execute `./run_all_tests.sh`.
 You can also give it any number of additional options.
 
-    `./run_all_tests.sh verbose dbg`
+    ./run_all_tests.sh verbose dbg
 
 Once all test cases are run, the script prints a summary of successful and failed test cases,
 exits with the error code `0` if all tests ran successfully, and `1` if there were any errors.
@@ -182,12 +182,19 @@ exits with the error code `0` if all tests ran successfully, and `1` if there we
 
 # Using Docker with T<sub>4</sub>P<sub>4</sub>S
 
-The `docker` folder contains Dockerfiles and the script `t4p4s-docker-l2.sh` that illustrates how T<sub>4</sub>P<sub>4</sub>S can be used with Docker.
+You can also run `t4p4s-docker.sh` to run T<sub>4</sub>P<sub>4</sub>S in a Docker container.
 
-- Docker Community Edition has to be configured on your system; see [this guide](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/).
-- Running `t4p4s-docker-l2.sh` sets up two containers called `t4p4s-16` and `t4p4s-16-l2fwd`. Both are usable separately; the second one also runs the L2 switch example (no network card needed).
+- Docker Community Edition has to be configured on your system.
+    - Usually it is available once you install the package `docker.io`.
+    - For more details, see [this guide](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/).
+- Running `t4p4s-docker.sh` sets up two containers called `t4p4s` and `t4p4s-sh`.
+    - Both are usable separately.
+    - The `t4p4s-sh` container also takes all arguments for `t4p4s-docker.sh`.
+        - For example, you can run `./t4p4s-docker.sh verbose dbg %l2fwd=payload`
+        - Currently, the containers are run without a network card configuration.
 - The Docker instances rely on having the same version for `linux-headers` as the host system. See the `FROM` clause in the `t4p4s-16.docker` file.
-- The configuration is based on that of [`docker-dpdk` by Jeremy Eder](https://github.com/jeremyeder/docker-dpdk/), which includes using the host's `hugepages` inside the Docker instances. Make sure you have enough `hugepages` on the host before running the containers.
+- The configuration is based on that of [`docker-dpdk` by Jeremy Eder](https://github.com/jeremyeder/docker-dpdk/), which includes using the host's `hugepages` inside the Docker instances.
+    - Make sure you have enough `hugepages` on the host before running the containers.
 
 
 # Working with the compiler

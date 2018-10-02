@@ -279,7 +279,13 @@ void dpdk_init_nic()
     if (ret < 0)
             rte_exit(EXIT_FAILURE, "init_lcore_rx_queues failed\n");
 
+#if RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
     uint8_t nb_ports = rte_eth_dev_count_avail();
+#else
+    // deprecated since DPDK 18.05
+    uint8_t nb_ports = rte_eth_dev_count();
+#endif
+
     if (nb_ports > RTE_MAX_ETHPORTS)
         nb_ports = RTE_MAX_ETHPORTS;
 

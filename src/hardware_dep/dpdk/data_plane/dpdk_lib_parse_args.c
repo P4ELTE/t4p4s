@@ -26,12 +26,10 @@ static void print_usage(const char *prgname)
 {
     printf ("%s [EAL options] -- -p PORTMASK -P"
         "  [--config (port,queue,lcore)[,(port,queue,lcore]]"
-        "  [--enable-jumbo [--max-pkt-len PKTLEN]]\n"
         "  -p PORTMASK: hexadecimal bitmask of ports to configure\n"
         "  -P : enable promiscuous mode\n"
         "  --config (port,queue,lcore): rx queues configuration\n"
         "  --no-numa: optional, disable numa awareness\n"
-        "  --enable-jumbo: enable jumbo frame"
         " which max packet len is PKTLEN in decimal (64-9600)\n"
         "  --hash-entry-num: specify the hash entry number in hexadecimal to be setup\n",
         prgname);
@@ -119,7 +117,6 @@ static int parse_lcore_params(const char *q_arg)
 
 #define CMD_LINE_OPT_CONFIG "config"
 #define CMD_LINE_OPT_NO_NUMA "no-numa"
-#define CMD_LINE_OPT_ENABLE_JUMBO "enable-jumbo"
 #define CMD_LINE_OPT_HASH_ENTRY_NUM "hash-entry-num"
 
 /* Parse the argument given in the command line of the application */
@@ -132,7 +129,6 @@ static int parse_args(int argc, char **argv)
     static struct option lgopts[] = {
         {CMD_LINE_OPT_CONFIG,         1, 0, 0},
         {CMD_LINE_OPT_NO_NUMA,        0, 0, 0},
-        {CMD_LINE_OPT_ENABLE_JUMBO,   0, 0, 0},
         {CMD_LINE_OPT_HASH_ENTRY_NUM, 1, 0, 0},
         {NULL,                        0, 0, 0}
     };
