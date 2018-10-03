@@ -31,7 +31,7 @@ extern void table_set_default_action(lookup_table_t* t, uint8_t* value);
 struct socket_state state[NB_SOCKETS];
 struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
-uint32_t enabled_port_mask;
+uint16_t enabled_port_mask;
 
 uint16_t            nb_lcore_params;
 struct lcore_params lcore_params[MAX_LCORE_PARAMS];

@@ -24,7 +24,7 @@ extern struct socket_state state[NB_SOCKETS];
 struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
 
-uint32_t enabled_port_mask;
+uint16_t enabled_port_mask;
 
 // NUMA is enabled by default.
 int numa_on = 1;
@@ -280,10 +280,10 @@ void dpdk_init_nic()
             rte_exit(EXIT_FAILURE, "init_lcore_rx_queues failed\n");
 
 #if RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
-    uint8_t nb_ports = rte_eth_dev_count_avail();
+    uint16_t nb_ports = rte_eth_dev_count_avail();
 #else
     // deprecated since DPDK 18.05
-    uint8_t nb_ports = rte_eth_dev_count();
+    uint16_t nb_ports = rte_eth_dev_count();
 #endif
 
     if (nb_ports > RTE_MAX_ETHPORTS)
@@ -294,7 +294,7 @@ void dpdk_init_nic()
 
     uint32_t nb_lcores = rte_lcore_count();
 
-    for (uint8_t portid = 0; portid < nb_ports; portid++) {
+    for (uint16_t portid = 0; portid < nb_ports; portid++) {
         dpdk_init_port(nb_ports, nb_lcores, portid);
     }
 
@@ -305,7 +305,7 @@ void dpdk_init_nic()
     printf("\n");
 
     /* start ports */
-    for (uint8_t portid = 0; portid < nb_ports; portid++) {
+    for (uint16_t portid = 0; portid < nb_ports; portid++) {
         if ((enabled_port_mask & (1 << portid)) == 0) {
                 continue;
         }
