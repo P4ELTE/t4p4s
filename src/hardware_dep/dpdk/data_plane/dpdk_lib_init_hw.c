@@ -24,7 +24,7 @@ extern struct socket_state state[NB_SOCKETS];
 struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
 
-uint16_t enabled_port_mask;
+uint32_t enabled_port_mask;
 
 // NUMA is enabled by default.
 int numa_on = 1;
@@ -49,18 +49,23 @@ struct rte_eth_conf port_conf = {
         .mq_mode = ETH_MQ_RX_RSS,
         .max_rx_pkt_len = ETHER_MAX_LEN,
         .split_hdr_size = 0,
-        /*
+#if RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
+        .offloads = DEV_RX_OFFLOAD_CRC_STRIP | DEV_RX_OFFLOAD_CHECKSUM,
+#else
         .header_split   = 0, // Header Split disabled
         .hw_ip_checksum = 1, // IP checksum offload enabled
         .hw_vlan_filter = 0, // VLAN filtering disabled
         .jumbo_frame    = 0, // Jumbo Frame Support disabled
         .hw_strip_crc   = 1, // CRC stripped by hardware
-        */
+#endif
     },
     .rx_adv_conf = {
         .rss_conf = {
             .rss_key = NULL,
-            .rss_hf = ETH_RSS_IP,
+            .rss_hf = 
+		// 0x38d34,
+		ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX,
+		// ETH_RSS_IP, // 0xa38c
         },
     },
     .txmode = {
@@ -154,11 +159,7 @@ int init_lcore_confs()
 
 void init_mbuf_pool(unsigned lcore_id)
 {
-
-    printf("mpb0\n");
     if (rte_lcore_is_enabled(lcore_id) == 0)   return;
-
-    printf("mpb\n");
 
     int socketid = get_socketid(lcore_id);
 
@@ -181,6 +182,10 @@ void init_mbuf_pool(unsigned lcore_id)
 
 uint32_t max(uint32_t val1, uint32_t val2) {
     return val1 > val2 ? val1 : val2;
+}
+
+uint32_t min(uint32_t val1, uint32_t val2) {
+    return val1 < val2 ? val1 : val2;
 }
 
 void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
@@ -218,7 +223,7 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     fflush(stdout);
 
     uint16_t nb_rx_queue = get_port_n_rx_queues(portid);
-    uint32_t n_tx_queue = max(nb_lcores, MAX_TX_QUEUE_PER_PORT);
+    uint32_t n_tx_queue = min(nb_lcores, MAX_TX_QUEUE_PER_PORT);
 
     printf("Creating queues: nb_rxq=%d nb_txq=%u...\n",
           nb_rx_queue, (unsigned)n_tx_queue );
@@ -280,10 +285,10 @@ void dpdk_init_nic()
             rte_exit(EXIT_FAILURE, "init_lcore_rx_queues failed\n");
 
 #if RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
-    uint16_t nb_ports = rte_eth_dev_count_avail();
+    uint8_t nb_ports = rte_eth_dev_count_avail();
 #else
     // deprecated since DPDK 18.05
-    uint16_t nb_ports = rte_eth_dev_count();
+    uint8_t nb_ports = rte_eth_dev_count();
 #endif
 
     if (nb_ports > RTE_MAX_ETHPORTS)
@@ -294,7 +299,7 @@ void dpdk_init_nic()
 
     uint32_t nb_lcores = rte_lcore_count();
 
-    for (uint16_t portid = 0; portid < nb_ports; portid++) {
+    for (uint8_t portid = 0; portid < nb_ports; portid++) {
         dpdk_init_port(nb_ports, nb_lcores, portid);
     }
 
@@ -305,10 +310,12 @@ void dpdk_init_nic()
     printf("\n");
 
     /* start ports */
-    for (uint16_t portid = 0; portid < nb_ports; portid++) {
+    for (uint8_t portid = 0; portid < nb_ports; portid++) {
         if ((enabled_port_mask & (1 << portid)) == 0) {
                 continue;
         }
+
+        printf("Starting port %d\n", portid);
 
         /* Start device */
         ret = rte_eth_dev_start(portid);
