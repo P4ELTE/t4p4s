@@ -15,6 +15,8 @@
 #ifndef __WITH_NIC_H_
 #define __WITH_NIC_H_
 
+#define T4P4S_NIC_VARIANT on
+
 
 #include "dpdk_lib.h"
 #include <stdbool.h>

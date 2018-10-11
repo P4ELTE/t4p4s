@@ -15,6 +15,8 @@
 #ifndef __NO_NIC_H_
 #define __NO_NIC_H_
 
+#define T4P4S_NIC_VARIANT off
+
 #include "test.h"
 #include <stdbool.h>
 

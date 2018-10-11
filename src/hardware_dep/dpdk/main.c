@@ -38,6 +38,10 @@
 
 #include "gen_include.h"
 
+#ifndef T4P4S_NIC_VARIANT
+#error The NIC variant is undefined
+#endif
+
 #ifdef T4P4S_SUPPRESS_EAL
     #include <unistd.h>
     #include <stdio.h>
