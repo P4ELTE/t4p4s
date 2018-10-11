@@ -139,7 +139,6 @@ for table in hlir16.tables:
         if action:
             #[    table_entry_${table.name}_t resStruct = {
             #[        .action = action_${table.default_action.expression.method.ref.name},
-            #[        .port   = INVALID_PORT,
             #[    };
             #[    table_entry_${table.name}_t* entry = &resStruct;
             #[    bool hit = true;
