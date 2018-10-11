@@ -1,0 +1,5 @@
+FROM t4p4s
+
+WORKDIR /root/t4p4s
+ENTRYPOINT ["./run_all_tests.sh"]
+CMD []
