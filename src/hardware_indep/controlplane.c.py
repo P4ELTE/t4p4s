@@ -144,9 +144,11 @@ for table in hlir16_tables_with_keys:
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
 
-            # TODO printout will be wrong if bitsize is larger than 32 bits
-            size = 8 if p.type.size <= 8 else 16 if p.type.size <= 16 else 32
-            #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type.size}, *(uint${size}_t*)${p.name});
+            if p.type.size <= 32:
+                size = 8 if p.type.size <= 8 else 16 if p.type.size <= 16 else 32
+                #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type.size}, *(uint${size}_t*)${p.name});
+            else:
+                #[ dbg_bytes(${p.name}, (${p.type.size}+7)/8, "   :: $$[field]{p.name} ($${}{%d} bits): ", ${p.type.size});
 
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
 
@@ -166,7 +168,7 @@ for table in hlir16_tables_with_keys:
         #} } else
 
     valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
-    #[ debug(" $$[warning]{}{!!!! Table add entry}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", ctrl_m->action_name);
+    #[ debug(" $$[warning]{}{!!!! Table add entry} on table $$[table]{table.name}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 for table in hlir16_tables_with_keys:
@@ -184,7 +186,7 @@ for table in hlir16_tables_with_keys:
         #} } else
 
     valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
-    #[ debug(" $$[warning]{}{!!!! Table setdefault}: action name $$[warning]{}{mismatch} ($$[action]{}{%s}), expected one of ($valid_actions).\n", ctrl_m->action_name);
+    #[ debug(" $$[warning]{}{!!!! Table setdefault} on table $$[table]{table.name}: action name $$[warning]{}{mismatch} ($$[action]{}{%s}), expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
 
 

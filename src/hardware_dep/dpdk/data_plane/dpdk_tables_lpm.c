@@ -52,7 +52,7 @@ void lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t valu
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
-    debug("LPM: Added 0x%08x / %d (%d)\n", (unsigned)key, depth, value);
+    dbg_bytes((uint8_t*)&key, 4, "    : LPM: Added %d <- (%d bit) ", value, depth);
 }
 
 void lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t value)
@@ -60,7 +60,7 @@ void lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t 
     int ret = rte_lpm6_add(l, key, depth, value);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
-    debug("LPM: Adding route %s / %d (%d)\n", "IPV6", depth, value);
+    dbg_bytes(key, depth, "    : LPM: Added %d <- (%d bit) ", value, depth);
 }
 
 
