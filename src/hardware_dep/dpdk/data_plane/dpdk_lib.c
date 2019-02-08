@@ -90,3 +90,8 @@ uint16_t calculate_csum16(const void* buf, uint16_t length) {
 uint32_t packet_length(packet_descriptor_t* pd) {
     return rte_pktmbuf_pkt_len(pd->wrapper);
 }
+
+
+packet* clone_packet(packet* pd, struct rte_mempool* mempool) {
+    return rte_pktmbuf_clone(pd, mempool);
+}

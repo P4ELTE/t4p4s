@@ -51,7 +51,6 @@
 // TODO from...
 extern void initialize_args(int argc, char **argv);
 extern void initialize_nic();
-extern int init_lcore_confs();
 extern int init_tables();
 extern int init_memories();
 
@@ -80,10 +79,60 @@ extern uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx);
 extern void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx);
 extern unsigned get_pkt_count_in_group(struct lcore_data* lcdata);
 extern unsigned get_queue_count(struct lcore_data* lcdata);
-extern void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port);
+extern void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port);
+extern void send_broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port);
 extern struct lcore_data init_lcore_data();
+extern packet* clone_packet(packet* pd, struct rte_mempool* mempool);
 
 //=============================================================================
+
+extern uint32_t get_port_mask();
+extern uint8_t get_port_count();
+
+void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+{
+    uint8_t nb_ports = get_port_count();
+    uint32_t port_mask = get_port_mask();
+    debug("    : Mask port " T4LIT(%d,port) "\n", nb_ports);
+    debug("    : Mask port " T4LIT(%x,port) "\n", port_mask);
+
+    uint8_t nb_port = 0;
+    for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
+        if (portidx == ingress_port) {
+           continue;
+           debug("    : Skipping broadcast on ingress port " T4LIT(%d,port), ingress_port);
+        }
+
+        bool is_port_disabled = (port_mask & (1 << portidx)) == 0;
+        if (is_port_disabled)   continue;
+
+        debug("    : Broadcasting on port " T4LIT(%d,port) "\n", portidx);
+
+        packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
+        send_single_packet(lcdata, pd, pkt_out, egress_port, ingress_port);
+
+        nb_port++;
+    }
+
+    if (unlikely(nb_port != nb_ports - 1)) {
+        debug(T4LIT(Wrong port count,error) ": " T4LIT(%d) " ports should be present, but only " T4LIT(%d) " found", nb_ports, nb_port);
+    }
+}
+
+/* Enqueue a single packet, and send burst if queue is filled */
+void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+{
+    uint32_t lcore_id = rte_lcore_id();
+    struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
+
+    if (unlikely(egress_port == T4P4S_BROADCAST_PORT)) {
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   :: Broadcasting packet from port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", ingress_port, rte_pktmbuf_pkt_len(mbuf));
+        broadcast_packet(lcdata, pd, egress_port, ingress_port);
+    } else {
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   :: Emitting packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+        send_single_packet(lcdata, pd, pd->wrapper, egress_port, ingress_port);
+    }
+}
 
 void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
@@ -176,8 +225,6 @@ int main(int argc, char** argv)
 
     initialize_args(argc, argv);
     initialize_nic();
-
-    init_lcore_confs();
 
     int launch_count2 = launch_count();
     for (int i = 0; i < launch_count2; ++i) {
