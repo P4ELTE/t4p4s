@@ -17,20 +17,54 @@ from __future__ import print_function
 
 import sys
 import os
+import pkgutil
+
+global filename
+global filepath
+global genfile
+global outfile
+filename = "?"
+filepath = "?"
+genfile = "?"
+outfile = "?"
 
 errors = []
 
 warnings = []
 
 def addError(where, msg):
+    rootcwd = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
     import traceback
     import itertools
     sb  = traceback.extract_stack()
     res = list(itertools.dropwhile(lambda (mod, line, fun, code): mod == 'src/compiler.py', sb))
+    lineno = res[0][1]
+    res = [(genfile, lineno, res[0][2], res[0][3])] + res[1:-1]
+
+    try:
+        with open(genfile) as f:
+            lines = f.readlines()
+            origlineno = int(lines[lineno+1].split(" ")[-1])
+
+            with open(filepath) as f:
+                origlines = f.readlines()
+                res = [(filepath, origlineno, "...", origlines[origlineno].strip())] + res
+    except:
+        pass
+
+    res = [("." + path[len(rootcwd):] if path.startswith(rootcwd) else path, line, module, errmsg) for (path, line, module, errmsg) in res]
 
     global errors
-    msg = "Error while {}: {}\n".format(where, msg)
-    errors += [msg] + traceback.format_list(res)
+    msg = "Error while {}: {}".format(where, msg)
+
+    if pkgutil.find_loader('backtrace'):
+        # uses the backtrace module to prettify output
+        import backtrace
+        btrace = backtrace._Hook(res, align=True)
+        errors += [msg] + ["    " + msg for msg in btrace.generate_backtrace(backtrace.STYLES)]
+    else:
+        errors += [msg] + traceback.format_list(res)
 
 
 def addWarning(where, msg):

@@ -18,6 +18,7 @@ from __future__ import print_function
 import argparse
 from hlir16.hlir16 import *
 from utils.misc import *
+import utils.misc
 from transform_hlir16 import *
 
 from subprocess import call
@@ -249,12 +250,16 @@ def sugar(file, line):
                 sugar_filename = re.sub("([.]sugar)?[.]py", "", sugar_filename)
                 new_line += " # {}@{}".format(sugar_filename, idx)
 
+        # won't mark empty lines and continued lines
+        if new_line.strip() != "" and new_line.strip()[-1] != '\\':
+            new_line += " ## " + file + " " + str(idx)
+
         new_lines.append(new_line)
 
     if indentation_level != 0:
         addError("Compiler", "Non-zero indentation level ({}) at end of file: {}".format(indentation_level, file))
 
-    return '\n'.join(new_lines)
+    return '\n'.join(new_lines) + "\n"
 
 
 def generate_code(file, genfile, localvars={}):
@@ -285,10 +290,11 @@ def generate_code(file, genfile, localvars={}):
                 addError("{}:{}:{}".format(genfile, exc.lineno, exc.offset), exc.msg)
             else:
                 # TODO better error output
-                # addError("{}:{}".format(genfile, tb.tb_frame.f_lineno), exc.message)
                 print("Error: cannot compile file {}".format(genfile), file=sys.stderr)
-                print("Exception: {}".format(str(exc)), file=sys.stderr)
-                traceback.print_exc(file=sys.stderr)
+                if not pkgutil.find_loader('backtrace'):
+                    print("Exception: {}".format(str(exc)), file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
+
                 raise
 
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
@@ -319,11 +325,15 @@ def get_hlir():
 def generate_desugared_c(filename, filepath):
     hlir = get_hlir()
 
-    genfile = join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.desugared.py', filename))
-    code = generate_code(filepath, genfile, {'hlir16': hlir})
-
+    genfile = join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.gen.py', filename))
     outfile = join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
 
+    utils.misc.filename = filename
+    utils.misc.filepath = filepath
+    utils.misc.genfile = genfile
+    utils.misc.outfile = outfile
+
+    code = generate_code(filepath, genfile, {'hlir16': hlir})
     write_file(outfile, code)
 
 
@@ -335,11 +345,11 @@ def make_dirs():
 
     if not os.path.isdir(args['desugared_path']):
         os.makedirs(args['desugared_path'])
-        verbose_print("Generating path for desugared compiler files: {0}".format(args['desugared_path']))
+        verbose_print(" GEN {0} (desugared compiler files)".format(args['desugared_path']))
 
     if not os.path.isdir(args['generated_dir']):
         os.makedirs(args['generated_dir'])
-        verbose_print("Generating path for generated files: {0}".format(args['generated_dir']))
+        verbose_print(" GEN {0} (generated files)".format(args['generated_dir']))
 
     if cache_dir_name and not os.path.isdir(cache_dir_name):
         os.mkdir(cache_dir_name)
@@ -376,7 +386,7 @@ def init_args():
     parser.add_argument('-p', '--p4c_path', help='P4C path', required=False)
     parser.add_argument('-c', '--compiler_files_dir', help='Source directory of the compiler\'s files', required=False, default=join("src", "hardware_indep"))
     parser.add_argument('-g', '--generated_dir', help='Output directory for hardware independent files', required=True)
-    parser.add_argument('-desugared_path', help='Output directory for the compiler\'s files', required=False, default=join("build", "util", "desugared_compiler"))
+    parser.add_argument('-desugared_path', help='Output directory for the compiler\'s files', required=False, default=join("build", "util", "gen"))
     parser.add_argument('-desugar_info', help='Markings in the generated source code', required=False, choices=["comment", "pragma", "none"], default="comment")
     parser.add_argument('-verbose', help='Verbosity', required=False, default=False, action='store_const', const=True)
     parser.add_argument('-beautify', help='Beautification', required=False, default=False, action='store_const', const=True)
@@ -404,7 +414,7 @@ def load_json_from_cache(base_p4_file):
     if not is_file_fresh(json_filepath):
         return None
 
-    verbose_print("Using cached JSON file %s..." % json_filename)
+    verbose_print("JSON %s (cached)" % json_filename)
     return json_filepath
 
 
@@ -463,8 +473,6 @@ def save_pickled_hlir(hlir, base_p4_file):
 def load_p4_file(filename):
     global hlir
 
-    verbose_print("Compiling P4-16 HLIR for %s..." % filename)
-
     base_p4_file = os.path.basename(args['p4_file'])
 
     pickle_filepath = get_pickled_hlir_file(base_p4_file)
@@ -480,7 +488,7 @@ def load_p4_file(filename):
     if not success:
         return False
 
-    verbose_print("Transforming HLIR")
+    verbose_print("HLIR " + filename)
     transform_hlir16(hlir)
 
     save_pickled_hlir(hlir, base_p4_file)
@@ -500,8 +508,25 @@ def check_file_extension(filename):
         sys.exit(1)
 
 
+def setup_backtrace():
+    """If the backtrace module is installed, use it to print better tracebacks."""
+    if not pkgutil.find_loader('backtrace'):
+        return
+
+    import backtrace
+
+    backtrace.hook(
+        reverse=True,
+        align=True,
+        strip_path=True,
+        enable_on_envvar_only=False,
+        on_tty=False,
+        conservative=False,
+        styles={})
+
 
 def main():
+    setup_backtrace()
     init_args()
 
     filename = args['p4_file']
