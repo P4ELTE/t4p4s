@@ -237,7 +237,7 @@ void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descrip
         ++section_idx;
     }
 
-    sprintf(msgptr, "");
+    msgptr[0] = 0;
     debug(" " T4LIT(!!!!,error) " " T4LIT(%d) " wrong bytes found: %s\n", wrong_byte_count, msg);
 }
 
