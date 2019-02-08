@@ -20,26 +20,26 @@
 #include <string.h>
 
 #ifdef T4P4S_DEBUG
-	#define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-	#define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
+    #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+    #define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
 
-	#define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) "] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-	#define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
+    #define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) "] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+    #define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
 
-	#include <pthread.h>
-	pthread_mutex_t dbg_mutex;
+    #include <pthread.h>
+    pthread_mutex_t dbg_mutex;
 
-	#define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
+    #define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
 
-	#define debug(M, ...) \
-	    { \
-		    pthread_mutex_lock(&dbg_mutex); \
-			debug_printf(M, ##__VA_ARGS__); \
-		    pthread_mutex_unlock(&dbg_mutex); \
-		}
+    #define debug(M, ...) \
+        { \
+            pthread_mutex_lock(&dbg_mutex); \
+            debug_printf(M, ##__VA_ARGS__); \
+            pthread_mutex_unlock(&dbg_mutex); \
+        }
 
 #else
-	#define debug(M, ...)
+    #define debug(M, ...)
 #endif
 
 typedef struct packet_descriptor_s packet_descriptor_t;
@@ -49,8 +49,8 @@ typedef struct field_reference_s   field_reference_t;
 
 
 struct uint8_buffer_s {
-	   int      buffer_size;
-	   uint8_t* buffer;
+       int      buffer_size;
+       uint8_t* buffer;
 };
 
 //=============================================================================
