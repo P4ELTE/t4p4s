@@ -18,17 +18,19 @@
 #include "util.h"
 #include "dpdk_nicoff.h"
 
+extern int get_socketid(unsigned lcore_id);
+
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 extern void sleep_millis(int millis);
+extern void dpdk_init_nic();
 
+extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 // ------------------------------------------------------
 // Exports
 
 uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
-
-struct rte_mempool* mempools[RTE_MAX_LCORE];
 
 // ------------------------------------------------------
 // Test cases
@@ -46,7 +48,7 @@ testcase_t* current_test_case;
         current_test_case = t4p4s_test_suite + idx;
 
         debug("------------------------------------------------\n");
-        debug("Executing test case " T4LIT(%s) "\n", current_test_case->name);
+        debug("Executing test case " T4LIT(%s,testcase) "\n", current_test_case->name);
     }
 
     // A testcase_t with a null pointer as `steps` terminates the suite.
@@ -126,7 +128,7 @@ struct rte_mbuf* fake_packet(struct lcore_data* lcdata, const char* texts[MAX_SE
 
     debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
 
-    struct rte_mbuf* p  = rte_pktmbuf_alloc(mempools[rte_lcore_id()]);
+    struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
     uint8_t*         p2 = (uint8_t*)rte_pktmbuf_prepend(p, byte_count);
     while (strlen(*texts) > 0) {
         uint8_t* dst = p2;
@@ -173,11 +175,11 @@ bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descript
     return true;
 }
 
-void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+int get_wrong_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+    int wrong_byte_count = 0;
+
     int byte_idx = 0;
     int section_idx = 0;
-    bool is_ok = true;
-
     const char** texts = cmd.out;
     while (strlen(*texts) > 0) {
         for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
@@ -186,10 +188,7 @@ void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_des
 
             uint8_t actual_byte = pd->data[byte_idx];
             if (expected_byte != actual_byte) {
-                debug(" " T4LIT(!!!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": byte #" T4LIT(%2d,error) " (#" T4LIT(%2zd) " in section #" T4LIT(%d) ") is " T4LIT(%02x,error) ", but expected to be " T4LIT(%02x,expected) "\n",
-                      lcdata->pkt_idx + 1, rte_lcore_id(),
-                      byte_idx, i, section_idx + 1, actual_byte, expected_byte);
-                is_ok = false;
+                ++wrong_byte_count;
             }
 
             ++byte_idx;
@@ -199,7 +198,54 @@ void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_des
         ++section_idx;
     }
 
-    if (!is_ok) {
+    return wrong_byte_count;
+}
+
+#define MSG_MAX_LEN 4096
+
+void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd, int wrong_byte_count) {
+    char msg[MSG_MAX_LEN];
+    char* msgptr = msg;
+
+    int byte_idx = 0;
+    int section_idx = 0;
+    const char** texts = cmd.out;
+    while (strlen(*texts) > 0) {
+        sprintf(msgptr, "[");
+        msgptr += 1;
+
+        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
+            uint8_t expected_byte;
+            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
+
+            uint8_t actual_byte = pd->data[byte_idx];
+            int written_bytes;
+            if (expected_byte != actual_byte) {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,error), actual_byte);
+            } else {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,expected), actual_byte);
+            }
+            msgptr += written_bytes;
+
+            ++byte_idx;
+        }
+
+        sprintf(msgptr, "]");
+        msgptr += 1;
+
+        ++texts;
+        ++section_idx;
+    }
+
+    sprintf(msgptr, "");
+    debug(" " T4LIT(!!!!,error) " " T4LIT(%d) " wrong bytes found: %s\n", wrong_byte_count, msg);
+}
+
+void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+    int wrong_byte_count = get_wrong_byte_count(lcdata, cmd, pd);
+
+    if (wrong_byte_count != 0) {
+        print_wrong_bytes(lcdata, cmd, pd, wrong_byte_count);
         lcdata->is_valid = false;
         abort_on_strict();
     }
@@ -297,22 +343,26 @@ unsigned get_queue_count(struct lcore_data* lcdata) {
     return 1;
 }
 
-void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port) {
-    struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
+void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone) {
+    struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
     dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf),
-              "Emitting " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) " on " T4LIT(%s,port) "port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ",
-              lcdata->pkt_idx + 1, rte_lcore_id(), egress_port == T4P4S_BROADCAST_PORT ? "broadcast " : "",
+              "Emitting " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) " on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ",
+              lcdata->pkt_idx + 1, rte_lcore_id(),
               egress_port, rte_pktmbuf_pkt_len(mbuf));
 
     check_sent_packet(lcdata, pd, egress_port, ingress_port);
 }
 
+bool storage_already_inited = false;
+
 void init_storage() {
+    if (storage_already_inited)    return;
+
     char str[15];
-    for (int i = 0; i < RTE_MAX_LCORE; ++i) {
-        sprintf(str, "testpool_%d", i);
-        mempools[i] = rte_mempool_create(str, (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
-    }
+    sprintf(str, "testpool");
+    pktmbuf_pool[0] = rte_mempool_create(str, (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
+
+    storage_already_inited = true;
 }
 
 struct lcore_data init_lcore_data() {
@@ -321,11 +371,12 @@ struct lcore_data init_lcore_data() {
         .is_valid = true,
         .idx      = 0,
         .pkt_idx  = 0,
+        .mempool  = pktmbuf_pool[0],
     };
 }
 
 void initialize_nic() {
-    // nothing to do    
+    dpdk_init_nic();
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
@@ -350,4 +401,15 @@ void t4p4s_normal_exit() {
 
 void t4p4s_post_launch(int idx) {
 
+}
+
+
+// TODO make this parameterizable
+uint32_t get_port_mask() {
+    return 0xF;
+}
+
+// TODO make this parameterizable
+uint8_t get_port_count() {
+    return __builtin_popcount(get_port_mask());
 }

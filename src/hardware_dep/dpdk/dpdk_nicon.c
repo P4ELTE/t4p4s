@@ -17,13 +17,17 @@
 #include "util.h"
 #include "dpdk_nicon.h"
 
+extern int get_socketid(unsigned lcore_id);
+
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 extern void dpdk_init_nic();
+extern uint8_t get_nb_ports();
 
 // ------------------------------------------------------
 // Locals
 
 struct rte_mempool *header_pool, *clone_pool;
+extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 struct rte_mbuf* deparse_mbuf;
 
@@ -48,7 +52,7 @@ void tx_burst_queue_drain(struct lcore_data* lcdata) {
 
     uint64_t diff_tsc = cur_tsc - lcdata->prev_tsc;
     if (unlikely(diff_tsc > lcdata->drain_tsc)) {
-        for (unsigned portid = 0; portid < RTE_MAX_ETHPORTS; portid++) {
+        for (unsigned portid = 0; portid < get_nb_ports(); portid++) {
             if (lcdata->conf->hw.tx_mbufs[portid].len == 0)
                 continue;
 
@@ -135,47 +139,13 @@ static void dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore
     conf->hw.tx_mbufs[port].len = queue_length;
 }
 
-static void dpdk_bcast_packet(struct rte_mbuf *m, uint8_t ingress_port, uint32_t lcore_id)
-{
-    uint32_t port_num = 2; // TODO: update
-
-    debug("Broadcast - ingress port:%d/%d\n", ingress_port, port_num);
-
-    /* Mark all packet's segments as referenced port_num times */
-//        rte_pktmbuf_refcnt_update(m, (uint16_t)port_num);
-
-    for (uint8_t port = 0; port<port_num; port++) {
-        /* Prepare output packet and send it out. */
-        if (port != ingress_port) {
-		    struct rte_mbuf *mc;
-            if ((mc = mcast_out_pkt(m, 1)) != NULL) {
-                dpdk_send_packet(mc, port, lcore_id);
-            }
-        }
-    }
-
-    /*
-     * If we making clone packets, then, for the last destination port,
-     * we can overwrite input packet's metadata.
-     */
-     rte_pktmbuf_free(m);
-}
-
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone)
 {
     uint32_t lcore_id = rte_lcore_id();
-    struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
+    struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
 
-    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "Emitting packet on port %d (%d bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
-
-    if (unlikely(egress_port == T4P4S_BROADCAST_PORT)) {
-        debug("    :: broadcasting packet from port %d (lcore %d)\n", ingress_port, lcore_id);
-        dpdk_bcast_packet(mbuf, ingress_port, lcore_id);
-    } else {
-        debug("    :: sending packet on port %d (lcore %d)\n", egress_port, lcore_id);
-        dpdk_send_packet(mbuf, egress_port, lcore_id);
-    }
+    dpdk_send_packet(mbuf, egress_port, lcore_id);
 }
 
 // ------------------------------------------------------
@@ -194,6 +164,7 @@ struct lcore_data init_lcore_data() {
         .prev_tsc  = 0,
 
         .conf     = &lcore_conf[rte_lcore_id()],
+        .mempool  = pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id()),
 
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
@@ -302,4 +273,14 @@ void t4p4s_pre_launch(int idx) {
 
 void t4p4s_post_launch(int idx) {
 
+}
+
+extern uint32_t enabled_port_mask;
+uint32_t get_port_mask() {
+    return enabled_port_mask;
+}
+
+extern uint8_t get_nb_ports();
+uint8_t get_port_count() {
+    return get_nb_ports();
 }
