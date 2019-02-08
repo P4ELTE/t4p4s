@@ -21,6 +21,8 @@
 
 #define MAX_IPS 60000
 
+extern int usleep(__useconds_t usec);
+
 controller c;
 
 void fill_macfwd_table(uint8_t mac[6])
@@ -33,7 +35,7 @@ void fill_macfwd_table(uint8_t mac[6])
 
         h = create_p4_header(buffer, 0, 2048);
         te = create_p4_add_table_entry(buffer,0,2048);
-        strcpy(te->table_name, "macfwd");
+        strcpy(te->table_name, "macfwd_0");
 
         exact = add_p4_field_match_exact(te, 2048);
         strcpy(exact->header.name, "ethernet.dstAddr");
@@ -65,7 +67,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4],uint8_t prefix, uint32_t nhgrp)
 	printf("ipv4_lpm\n");
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
-    strcpy(te->table_name, "ipv4_lpm");
+    strcpy(te->table_name, "ipv4_lpm_0");
 
     lpm = add_p4_field_match_lpm(te, 2048);
     strcpy(lpm->header.name, "ipv4.dstAddr");
@@ -106,7 +108,7 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
 
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
-    strcpy(te->table_name, "nexthops");
+    strcpy(te->table_name, "nexthops_0");
 
     exact = add_p4_field_match_exact(te, 2048);
     strcpy(exact->header.name, "routing_metadata.nhgroup");
@@ -155,7 +157,7 @@ void set_default_action_macfwd()
         h = create_p4_header(buffer, 0, sizeof(buffer));
 
         sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "macfwd");
+        strcpy(sda->table_name, "macfwd_0");
 
         a = &(sda->action);
         strcpy(a->description.name, "_drop");
@@ -179,7 +181,7 @@ void set_default_action_nexthops()
         h = create_p4_header(buffer, 0, sizeof(buffer));
 
         sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "nexthops");
+        strcpy(sda->table_name, "nexthops_0");
 
         a = &(sda->action);
         strcpy(a->description.name, "_drop");
@@ -203,7 +205,7 @@ void set_default_action_ipv4_lpm()
         h = create_p4_header(buffer, 0, sizeof(buffer));
 
         sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "ipv4_lpm");
+        strcpy(sda->table_name, "ipv4_lpm_0");
 
         a = &(sda->action);
         strcpy(a->description.name, "_drop");
@@ -255,7 +257,7 @@ int read_config_from_file(char *filename) {
                 line_index++;
                 printf("Sor: %d.",line_index);
                 if (line[0]=='M') {
-                    if (7 == sscanf(line, "%c %x:%x:%x:%x:%x:%x%c",
+                    if (7 == sscanf(line, "%c %hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
                                 &dummy, &dmac[0], &dmac[1], &dmac[2],
                                 &dmac[3], &dmac[4], &dmac[5]) )
                     {
@@ -268,7 +270,7 @@ int read_config_from_file(char *filename) {
                     }
                 }
                 else if (line[0]=='E') {
-                    if (7 == sscanf(line, "%c %d.%d.%d.%d %d %d%c",
+                    if (7 == sscanf(line, "%c %hhd.%hhd.%hhd.%hhd %hhd %d",
                                 &dummy, &ip[0], &ip[1], &ip[2],
                                 &ip[3], &prefix, &nhgrp) )
                     {
@@ -282,14 +284,13 @@ int read_config_from_file(char *filename) {
                 }
                 else if (line[0]=='N') {
                     char dummy2;
-                    if (15 == sscanf(line, "%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c",
+                    if (15 == sscanf(line, "%c %d %hhd %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
                                 &dummy2, &nhgrp, &port, &smac[0], &smac[1], &smac[2],
                                 &smac[3], &smac[4], &smac[5],&dmac[0], &dmac[1], &dmac[2],
                                 &dmac[3], &dmac[4], &dmac[5]) )
                     {
-                        printf(line);
-                        printf("\n");
-                        printf("%c %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x%c",dummy, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5],dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
+                        printf("%s\n", line);
+                        printf("%c %d %d %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx",dummy, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5],dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
                         fill_nexthops_table(nhgrp, port, smac, dmac);
                     }
                     else {

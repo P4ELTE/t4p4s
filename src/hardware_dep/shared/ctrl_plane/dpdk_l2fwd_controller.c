@@ -34,7 +34,7 @@ void fill_smac_table(uint8_t port, uint8_t mac[6])
 
         h = create_p4_header(buffer, 0, 2048);
         te = create_p4_add_table_entry(buffer,0,2048);
-        strcpy(te->table_name, "smac");
+        strcpy(te->table_name, "smac_0");
 
         exact = add_p4_field_match_exact(te, 2048);
         strcpy(exact->header.name, "ethernet.srcAddr");
@@ -63,7 +63,7 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
 
         h = create_p4_header(buffer, 0, 2048);
         te = create_p4_add_table_entry(buffer,0,2048);
-        strcpy(te->table_name, "dmac");
+        strcpy(te->table_name, "dmac_0");
 
         exact = add_p4_field_match_exact(te, 2048);
         strcpy(exact->header.name, "ethernet.dstAddr");
@@ -188,7 +188,7 @@ void set_default_action_smac()
         h = create_p4_header(buffer, 0, sizeof(buffer));
 
         sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "smac");
+        strcpy(sda->table_name, "smac_0");
 
         a = &(sda->action);
         strcpy(a->description.name, "mac_learn");
@@ -212,7 +212,7 @@ void set_default_action_dmac()
         h = create_p4_header(buffer, 0, sizeof(buffer));
 
         sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "dmac");
+        strcpy(sda->table_name, "dmac_0");
 
         a = &(sda->action);
         strcpy(a->description.name, "bcast");
