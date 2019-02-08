@@ -234,7 +234,7 @@ static int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_i
 typedef struct target_fld_s {
     packet_descriptor_t*   pd;
     enum header_instance_e hdr;
-    enum field_instance_e  fld;
+    enum field_e           fld;
 } fldT;
 
 typedef struct target_buf_s {

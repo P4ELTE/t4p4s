@@ -16,6 +16,13 @@ from utils.misc import addWarning, addError
 
 ################################################################################
 
+SHORT_STDPARAMS = "packet_descriptor_t* pd, lookup_table_t** tables"
+SHORT_STDPARAMS_IN = "pd, tables"
+STDPARAMS = SHORT_STDPARAMS + ", parser_state_t* pstate"
+STDPARAMS_IN = SHORT_STDPARAMS_IN + ", pstate"
+
+################################################################################
+
 type_env = {}
 
 def gen_format_type(t, resolve_names = True):
@@ -74,7 +81,7 @@ def gen_format_method_parameters(args, method_params):
     res_params = []
     for (par,tpar) in zip(args, method_params.parameters):
         if hasattr(par, 'field_ref'):
-            res_params.append('handle(header_desc_ins(pd, {}), {})'.format(par.expr.header_ref.id, par.field_ref.id))
+            res_params.append('handle(header_desc_ins(pd, {}), {})'.format(par.expr.header_ref.id, par.expression.field_ref.id))
         else:
             res_params.append(format_expr(par))
     #[ ${', '.join(res_params)}
@@ -204,6 +211,10 @@ def gen_format_statement(stmt):
         if hasattr(dst, 'field_ref'):
             def member_to_field_id(member):
                 return 'field_{}_{}'.format(member.expr.type.name, member.member)
+                # if not hasattr(member.expr, 'header_ref'):
+                #     return 'field_instance_{}_{}'.format(member.expr.ref.name, member.member)
+
+                # return 'field_instance_{}_{}'.format(member.expr.header_ref.name, member.member)
             #TODO: handle preparsed fields, width assignment for vw fields and assignment to buffer instead header fields
             dst_width = dst.type.size
             dst_is_vw = dst.type.node_type == 'Type_Varbits'
@@ -261,6 +272,8 @@ def gen_format_statement(stmt):
 
                 if dst_is_vw:
                     dst_fixed_size = dst.expr.header_ref.type.type_ref.bit_width - dst.field_ref.size
+                    # dst_fixed_size = dst.expr.header_ref.type.type_ref.bit_width - dst.expression.field_ref.size
+
                     #[ pd->headers[$dst_header_id].var_width_field_bitwidth = get_var_width_bitwidth(pstate);
                     #[ pd->headers[$dst_header_id].length = ($dst_fixed_size + pd->headers[$dst_header_id].var_width_field_bitwidth)/8;
 
@@ -308,8 +321,8 @@ def gen_format_statement(stmt):
                     #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.name}_${f.member}).byte_addr;
                     #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.name}_${f.member}).bitwidth;
                 else:
-                    #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).byte_addr;
-                    #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.member}_${f.field_ref.name}).bitwidth;
+                    #[ fields.field_offsets[$idx] = (uint8_t*) field_desc(pd, field_instance_${f.expr.member}_${f.expression.field_ref.name}).byte_addr;
+                    #[ fields.field_widths[$idx]  =            field_desc(pd, field_instance_${f.expr.member}_${f.expression.field_ref.name}).bitwidth;
             #[ generate_digest(bg,"${digest_name}",0,&fields);
             #[ sleep_millis(DIGEST_SLEEP_MILLIS);
         else:
@@ -319,9 +332,14 @@ def gen_format_statement(stmt):
 
                 if is_emit(m) or is_emit(m.expr):
                     arg = stmt.methodCall.arguments[0]
-                    hdr = arg.member
+                    hdr = arg.expression.member
+                    hdr_type = arg.expression.type
 
-                    #[ // TODO warn if emitted header instance is not .isValid
+                    hdr_name = arg.expression.header_ref.name
+
+                    #[ if (pd->headers[header_instance_${hdr_name}].pointer == NULL) {
+                    #[     debug(" " T4LIT(!!!!,warning) " " T4LIT(${hdr},header) " is to be emitted, but " T4LIT(is not valid,warning) "\n");
+                    #[ }
 
                     #[ // TODO don't always set this to true
                     #[ pd->is_emit_reordering = true;
@@ -355,13 +373,16 @@ def gen_format_statement(stmt):
 
                         return t
 
-                    type_param_names = (t.name for t in stmt.methodCall.method.type.typeParameters.parameters)
+                    type_param_names = [t.name for t in stmt.methodCall.method.type.typeParameters.parameters]
                     type_params = dict(zip(type_param_names, stmt.methodCall.typeArguments))
 
-                    pars = (par for et, mn, ps in externs if (et, mn) == (extern_type, m.member) for par in ps)
-                    types = (m.type.parameters.parameters[par].type for par in pars)
+                    pars = [par for et, mn, ps in externs if (et, mn) == (extern_type, m.member) for par in ps]
+                    types = [m.type.parameters.parameters[par].type for par in pars]
                     type_args = "".join(["_" + format_type(resolve_type(t, type_params)) for t in types])
+                    # TODO generate these properly
+                    type_params_str = ""
 
+                    prepend_statement("void extern_{}_{}{}({}); // prepending\n".format(type.name, m.member, type_args, type_params_str));
                     #[ extern_${type.name}_${m.member}${type_args}($args);
                 else:
                     hdr_name = m.expr.member
@@ -374,7 +395,7 @@ def gen_format_statement(stmt):
                         #[ // TODO initialise header instance contents on setValid?
                         #[
                     elif m.member == 'setInvalid':
-                        #[ debug("Setting header instance $$[header]{hdr_name} as $$[success]{}{valid}\n");
+                        #[ debug("    : Setting header instance $$[header]{hdr_name} as $$[success]{}{invalid}\n");
                         #[ pd->headers[header_instance_$hdr_name].pointer = NULL;
                     else:
                         #= gen_methodcall(stmt)
@@ -497,7 +518,7 @@ def gen_method_setInvalid(e):
         return "pd->headers[%s].pointer = NULL" % format_expr(e.method.expr)
 
 def gen_method_apply(e):
-    #[ ${e.method.expr.path.name}_apply(pd, tables, pstate)
+    #[ ${e.method.expr.path.name}_apply(STDPARAMS_IN)
 
 def gen_method_setValid(e):
     h = e.method.expr.header_ref
@@ -704,8 +725,10 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                     prepend_statement("EXTRACT_BYTEBUF_PACKET(pd, {}, {}, {});\n".format(str(e.expr.header_ref.id), str(e.field_ref.id), var_name))
 
                     return var_name
-                
-                return '(GET_INT32_AUTO_PACKET(pd, ' + str(e.expr.header_ref.id) + ', ' + str(e.field_ref.id) + '))'
+
+                # TODO this looks like it should be the proper result
+                # return 'handle(header_desc_ins(pd, {}), {})'.format(e.expr.header_ref.id, e.field_ref.id)
+                return '(GET_INT32_AUTO_PACKET(pd, {}, {}))'.format(e.expr.header_ref.id, e.field_ref.id)
         elif hasattr(e, 'header_ref'):
             return e.header_ref.id
         elif e.expr.node_type == 'PathExpression':
@@ -747,39 +770,39 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 #[ #error "Generating digest when T4P4S_NO_CONTROL_PLANE is defined"
                 #[ #endif
 
-                fields = ", ".join(["\"T4LIT({},field)\"/\"T4LIT({})\"".format(c.field_ref.name, c.field_ref.type.size) for c in e.arguments[1].components])
+                fields = ", ".join(["\"T4LIT({},field)\"/\"T4LIT({})\"".format(c.expression.field_ref.name, c.expression.field_ref.type.size) for c in e.arguments[1].expression.components])
 
-                prepend_statement("debug(\"    : Sending digest to port \"T4LIT(%d,port)\" (fields: {})\\n\", {});\n".format(fields, e.arguments[0].value))
+                prepend_statement("debug(\"    : Sending digest to port \"T4LIT(%d,port)\" (fields: {})\\n\", {});\n".format(fields, e.arguments[0].expression.value))
                 append_statement("sleep_millis(300);")
 
                 id = e.id
                 name = e.typeArguments['Type_Name'][0].path.name
-                receiver = e.arguments[0].value
+                receiver = e.arguments[0].expression.value
                 
                 prepend_statement('ctrl_plane_digest digest{} = create_digest(bg, "{}");\n'.format(id, name));
-                for fld in e.arguments[1].components:
-                    bitsize = fld.type.size
+                for fld in e.arguments[1].expression.components:
+                    bitsize = fld.expression.type.size
 
                     prepend_statement('add_digest_field(digest{}, field_desc(pd, field_instance_{}_{}).byte_addr, {});\n'.format(
-                                      id, fld.expr.header_ref.name, fld.field_ref.name, bitsize));
+                                      id, fld.expression.expr.header_ref.name, fld.expression.field_ref.name, bitsize));
 
                 #[ send_digest(bg, digest$id, $receiver)
             else:
-                # TODO is this part reachable, or does the `digest` case cover every possibility?
-
                 fmt_params = format_method_parameters(e.arguments, method_params)
-                std_params = ["pd", "tables", "pstate"]
                 if "," not in fmt_params:
-                    all_params = ", ".join(std_params)
+                    all_params = ", ".join(["STDPARAMS_IN"])
                 else:
-                    all_params = ", ".join([fmt_params] + std_params)
+                    all_params = ", ".join([fmt_params, "STDPARAMS_IN"])
 
                 #[ ${mref.name}($all_params)
 
        # elif e.arguments.is_vec() and e.arguments.vec != []:
        #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
-            return format_expr(e.method) + '(pd, tables)'
+            prepend_statement("extern void {}(SHORT_STDPARAMS);\n".format(e.method.path.name))
+            return format_expr(e.method) + '(SHORT_STDPARAMS_IN)'
+    elif e.node_type == 'Argument':
+        return format_expr(e.expression)
     else:
         addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
 
