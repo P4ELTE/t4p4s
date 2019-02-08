@@ -12,21 +12,22 @@ Find out more [about the P4 language](https://p4.org/).
 
 ### Preparation
 
-To start working with the compiler, do the following.
+To start working with the compiler, simply download `bootstrap-t4p4s.sh` and run it.
 
-1. Download `bootstrap-t4p4s.sh` and run it.
-    - You don't need to download any other files from this repository. The script prepares all necessary tools in the current directory including T<sub>4</sub>P<sub>4</sub>S.
-    - It will ask for your root password in the beginning.
-    - It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
-    - By default, it runs downloads in parallel. You can force it to work sequentially with `PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh`.
+- You don't need to download any other files from this repository. The script prepares all necessary tools in the current directory including T<sub>4</sub>P<sub>4</sub>S.
+- It will ask for root permission upon execution.
+- It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+- By default, it runs downloads in parallel. You can force it to work sequentially with `PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh`.
+- The script installs the newest versions of DPDK and P4C.
     - You can select a DPDK version: `DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh` or `DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh`.
-    - If you want to download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
-        - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
-1. Before execution, setup your environment.
-    - The variable `P4C` must point to the directory of [`p4c`](https://github.com/p4lang/p4c).
-    - The variable `RTE_SDK` must point to the directory of the [`DPDK` installation](http://dpdk.org/).
-    - Both tools are downloaded by `bootstrap-t4p4s.sh` into separate directories.
-1. Keep in mind that not all P4 programs will properly compile and run.
+- The script creates a `t4p4s_environment_variables.sh` file and makes your `~/.profile` run it.
+    - This way, the necessary environment variables will be available both immediately and on your next login.
+
+If you want to download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+
+- When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
+
+Note: not all P4 programs will compile and run properly.
    In particular, `typedef`s are not supported currently.
 
 
@@ -79,7 +80,8 @@ The format of option definitions is the following.
     | ::myexample             | example=**myexample** dbg                                               |
     | %myexample=mytestcase   | example=**myexample** variant=test testcase=**mytestcase**              |
     | %myexample              | example=**myexample** variant=test testcase=test                        |
-    | %%myexample             | example=**myexample** variant=test suite dbg                            |
+    | %%myexample=mytestcase  | example=**myexample** variant=test verbose dbg testcase=**mytestcase**  |
+    | %%myexample             | example=**myexample** variant=test verbose dbg suite                    |
 
 
 ### Execution
@@ -94,6 +96,16 @@ The `t4p4s.sh` script uses settings from three configuration files.
     - Everything apart from the _example_ is considered an option on the command line.
 
 The script returns an exit code of `0` if the execution was successful, and a non-zero value otherwise.
+
+The script creates `build/<example-name>`.
+
+- Under it, the directories `build`, `srcgen` and `Makefile` contain compilation artifacts, including the created switch executable.
+- Log output is stored in `log`.
+    - `controller.log` is the log output from the most recent controller execution.
+    - For each execution, two log files are created.
+        - The one with the simple `.txt` extension is a regular textual log.
+        - The one with the `lit.txt` extension contains ANSI colour codes. Invoking `cat` on it, or using an appropriate viewer like [SublimeANSI](https://github.com/aziz/SublimeANSI) will show coloured output.
+        - The logs of the most recent script execution are also available as `last.txt` and `last.lit.txt`.
 
 
 ### Examples
@@ -137,6 +149,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd noeal`
     - No output at all (both terminal and switch) except for errors
         `./t4p4s.sh :l2fwd silent`
+    - If the switch fails, runs it again in the debugger (by default, `gdb`)
+        `./t4p4s.sh :l2fwd autodbg`
 1. Variants, testing
     - Specify a variant, a set of configuration options
         `./t4p4s.sh :l2fwd @test`
@@ -169,10 +183,10 @@ Note that for non-testing examples, you will have to setup your network card, an
 As described above, you can run individual test cases.
 To see detailed output about compilation and execution, use the following options.
 
-    ./t4p4s.sh verbose dbg %l2fwd=payload
+    ./t4p4s.sh %%l2fwd=payload
 
 To run all available test cases, execute `./run_all_tests.sh`.
-You can also give it any number of additional options.
+You can also give this script any number of additional options.
 
     ./run_all_tests.sh verbose dbg
 
@@ -224,16 +238,18 @@ hlir16.paths_to(1234567)
 The result will look something like this.
 
 ~~~
-  * .declarations['Type_Header'][0]
-  * .declarations['Type_Struct'][4].fields
-  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
-  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
-  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-  * .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
-  * .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
-  * .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
+  = .declarations['Type_Header'][0]
+  < .declarations['Type_Struct'][4].fields
+  ∈ .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
+  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
+  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
+  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
+  < .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
+  < .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
 ...........
 ~~~
+
+The first character indicates if the searched content is a perfect match (`=`), a prefix (`<`) or an infix (`∈`) of the result of the path.
 
 You can copy-paste a line of the result, and inspect the element there.
 
