@@ -29,12 +29,16 @@ Overriding defaults.
 
 - By default, the script runs downloads in parallel. You can force it to work sequentially.
 
-    PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh
+    PARALLEL_INSTALL=0 . ./bootstrap-t4p4s.sh
 
 - The script installs the newest versions of DPDK and P4C unless overridden by the user.
     
-    DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh
-    DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh
+    DPDK_VERSION=16.11 . ./bootstrap-t4p4s.sh
+    DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 . ./bootstrap-t4p4s.sh
+
+- The script will use `clang` by default if it is installed. Using another target like `gcc` is possible, too.
+
+    RTE_TARGET=x86_64-native-linuxapp-gcc . ./bootstrap-t4p4s.sh
 
 To download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
 
