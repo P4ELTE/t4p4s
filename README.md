@@ -12,23 +12,35 @@ Find out more [about the P4 language](https://p4.org/).
 
 ### Preparation
 
-To start working with the compiler, simply download `bootstrap-t4p4s.sh` and run it.
+To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it with the following command. It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
 
-- You don't need to download any other files from this repository. The script prepares all necessary tools in the current directory including T<sub>4</sub>P<sub>4</sub>S.
-- It will ask for root permission upon execution.
-- It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
-- By default, it runs downloads in parallel. You can force it to work sequentially with `PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh`.
-- The script installs the newest versions of DPDK and P4C.
-    - You can select a DPDK version: `DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh` or `DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh`.
-- The script creates a `t4p4s_environment_variables.sh` file and makes your `~/.profile` run it.
-    - This way, the necessary environment variables will be available both immediately and on your next login.
+    . ./bootstrap-t4p4s.sh
 
-If you want to download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+The script installs all necessary software including T<sub>4</sub>P<sub>4</sub>S itself, and sets up environment variables.
+
+- Note: without the `.` at the beginning of the line, the environment variables will not be usable immediately.
+    - In that case, you can either start a new terminal, or run `. ./t4p4s_environment_variables.sh`
+
+Overriding defaults.
+
+- To increase efficiency, the script runs jobs on all cores on the system in parallel. Should you experience any problems (for example, your system may run out of memory), you can override the number of jobs.
+
+    MAX_MAKE_JOBS=4 . ./bootstrap-t4p4s.sh
+
+- By default, the script runs downloads in parallel. You can force it to work sequentially.
+
+    PARALLEL_INSTALL=0 ./bootstrap-t4p4s.sh
+
+- The script installs the newest versions of DPDK and P4C unless overridden by the user.
+    
+    DPDK_VERSION=16.11 ./bootstrap-t4p4s.sh
+    DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 ./bootstrap-t4p4s.sh
+
+To download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
 
 - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
 
-Note: not all P4 programs will compile and run properly.
-   In particular, `typedef`s are not supported currently.
+Note: at this stage, not all P4 programs will compile and run properly. In particular, `typedef`s are not supported currently.
 
 
 ### Options
@@ -238,14 +250,14 @@ hlir16.paths_to(1234567)
 The result will look something like this.
 
 ~~~
-  = .declarations['Type_Header'][0]
-  < .declarations['Type_Struct'][4].fields
-  ∈ .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
-  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
-  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-  < .declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
-  < .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
-  < .declarations['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
+  = .objects['Type_Header'][0]
+  < .objects['Type_Struct'][4].fields
+  ∈ .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
+  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
+  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
+  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
+  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
+  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
 ...........
 ~~~
 
@@ -254,7 +266,7 @@ The first character indicates if the searched content is a perfect match (`=`), 
 You can copy-paste a line of the result, and inspect the element there.
 
 ~~~
-ipdb> hlir16.declarations['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
+ipdb> hlir16.objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
 ethernet_t<Type_Header>[annotations, declid, fields, name]
 ~~~
 
@@ -297,13 +309,13 @@ Some of the more important attributes are the following.
 
 ~~~
 hl[TAB].d[TAB]        # expands to...
-hlir16.declarations   # these are the top-level declarations in the program
+hlir16.objects   # these are the top-level objects in the program
 
-ds = hlir16.declarations
+ds = hlir16.objects
 ds.is_vec()           # True
 ds[0]                 # indexes the vector; the first declaration in the program
 ds.b[TAB]             # expands to...
-ds.by_type('Type_Struct')   # gives you all 'Type_Struct' declarations
+ds.by_type('Type_Struct')   # gives you all 'Type_Struct' objects
 ds.by_type('Struct')        # shortcut; many things are called 'Type_...'
 ds.get('name')        # all elems in the vector with the name 'name'
 ds.get('ipv4_t', 'Type_Header')   # the same, limited to the given type

@@ -1,11 +1,14 @@
 
+# Highlight colours
+cc="\033[1;33m"     # yellow
+nn="\033[0m"
+
+MAX_MAKE_JOBS=${MAX_MAKE_JOBS-`nproc --all`}
+
+echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
 echo Requesting root access...
 sudo echo -n ""
 echo Root access granted, starting...
-
-# Highlight colours
-cc="\033[1;31m"
-nn="\033[0m"
 
 # Set sensible defaults
 export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
@@ -13,10 +16,10 @@ export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-`git ls-remote --tags https://github.co
 
 which clang >/dev/null
 if [ $? -eq 0 ]; then
-    [[ "$RTE_TARGET" == "" ]] && echo DPDK will be compiled using ${cc}clang$nn
+    [[ "$RTE_TARGET" == "" ]] && echo -e "DPDK will be compiled using ${cc}clang$nn"
     export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-clang}
 else
-    [[ "$RTE_TARGET" == "" ]] && echo DPDK will be compiled using ${cc}gcc$nn
+    [[ "$RTE_TARGET" == "" ]] && echo -e "DPDK will be compiled using ${cc}gcc$nn"
     export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
 fi
 
@@ -43,7 +46,7 @@ DPDK_VSN="${vsn[1]}"
 DPDK_FILEVSN="$DPDK_VSN"
 [ "${vsn[0]}" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.${vsn[0]}"
 
-echo Using DPDK version $cc${DPDK_VSN}$nn
+echo -e "Using DPDK version $cc${DPDK_VSN}$nn"
 
 
 echo
@@ -93,8 +96,8 @@ cd ..
 cd protobuf
 ./autogen.sh
 ./configure
-make -j `nproc --all`
-sudo make install -j `nproc --all`
+make -j ${MAX_MAKE_JOBS}
+sudo make install -j ${MAX_MAKE_JOBS}
 sudo ldconfig
 cd ..
 
@@ -108,8 +111,8 @@ cd p4c
 ./bootstrap.sh
 cd build
 cmake ..
-make -j `nproc --all`
-sudo make install -j `nproc --all`
+make -j ${MAX_MAKE_JOBS}
+sudo make install -j ${MAX_MAKE_JOBS}
 cd ../..
 
 
@@ -127,11 +130,14 @@ chmod +x `pwd`/t4p4s_environment_variables.sh
 . `pwd`/t4p4s_environment_variables.sh
 
 echo Environment variable config is done
-echo Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn
+echo -e "Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn"
 
-[[ $(grep "a" ~/.profile) ]] && \
-    echo >> ~/.profile && \
-    echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile && \
-    echo Environment variable config is ${cc}enabled on login$nn: your ~/.profile will run `pwd`/t4p4s_environment_variables.sh
+if [[ $(grep "t4p4s_environment_variables.sh" ~/.profile) ]]; then
+    echo "Your ${cc}~/.profile$nn is ${cc}not modified$nn, as it already calls t4p4s_environment_variables.sh"
+else
+    echo >> ~/.profile
+    echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile
+    echo -e "Environment variable config is ${cc}enabled on login$nn: your ${cc}~/.profile$nn will run `pwd`/t4p4s_environment_variables.sh"
+fi
 
 cd t4p4s
