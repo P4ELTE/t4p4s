@@ -26,7 +26,10 @@ from hlir16.utils_hlir16 import *
 #{ typedef struct parsed_fields_s {
 
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
+        if hasattr(fld, 'expression'):
+            fld = fld.expression
+
         if not fld.preparsed and fld.type.size <= 32:
             #[ uint32_t field_instance_${hdr.name}_${fld.name};
             #[ uint8_t attr_field_instance_${hdr.name}_${fld.name};
@@ -72,7 +75,8 @@ for hdr in hlir16.header_instances:
 #} };
 
 
-#{ static const int header_instance_byte_width_summed[HEADER_INSTANCE_COUNT] = {
+#{ static const int header_instance_byte_width_summed[HEADER_INSTANCE_COUNT+1] = {
+#[     0,
 byte_widths = []
 for hdr in hlir16.header_instances:
     byte_widths += [str(hdr.type.type_ref.byte_width)]
@@ -90,7 +94,7 @@ for hdr in hlir16.header_instances:
 
 # TODO move to hlir16.py/set_additional_attrs?
 def all_field_instances():
-    return [fld for hdr in hlir16.header_instances for fld in hdr.type.type_ref.fields]
+    return [fld for hdr in hlir16.header_instances for fld in hdr.type.type_ref.valid_fields]
 
 
 #[ // Field instance infos
@@ -102,7 +106,7 @@ def all_field_instances():
 
 #{ typedef enum field_instance_e {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         #[   field_instance_${hdr.name}_${fld.name},
 #} } field_instance_t;
 
@@ -110,7 +114,7 @@ for hdr in hlir16.header_instances:
 #{ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
     field_id_pattern = 'field_instance_{}_{}'
-    #[   ${reduce((lambda x, f: field_id_pattern.format(hdr.name, f.name) if hasattr(f, 'is_vw') and f.is_vw else x), hdr.type.type_ref.fields, 'FIXED_WIDTH_FIELD')}, // header_instance_${hdr.name}
+    #[   ${reduce((lambda x, f: field_id_pattern.format(hdr.name, f.name) if hasattr(f, 'is_vw') and f.is_vw else x), hdr.type.type_ref.valid_fields, 'FIXED_WIDTH_FIELD')}, // header_instance_${hdr.name}
 #} };
 
 
@@ -120,7 +124,7 @@ def get_real_type(typenode):
 
 #{ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         fldtype = get_real_type(fld.type)
         #[   ${fldtype.size}, // field_instance_${hdr.name}_${fld.name}
 #} };
@@ -128,7 +132,7 @@ for hdr in hlir16.header_instances:
 
 #{ static const int field_instance_bit_offset[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         #[   (${fld.offset} % 8), // field_instance_${hdr.name}_${fld.name}
 #} };
 
@@ -137,7 +141,7 @@ for hdr in hlir16.header_instances:
 
 #{ static const int field_instance_byte_offset_hdr[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         #[   (${fld.offset} / 8), // field_instance_${hdr.name}_${fld.name}
 #} };
 
@@ -151,7 +155,7 @@ for hdr in hlir16.header_instances:
 
 #{ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         fldtype = get_real_type(fld.type)
         #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_instance_${hdr.name}_${fld.name},
 #} };
@@ -159,7 +163,7 @@ for hdr in hlir16.header_instances:
 
 #{ static const header_instance_t field_instance_header[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances:
-    for fld in hdr.type.type_ref.fields:
+    for fld in hdr.type.type_ref.valid_fields:
         #[   header_instance_${hdr.name}, // field_instance_${hdr.name}_${fld.name}
 #} };
 
@@ -204,7 +208,7 @@ for hdr in hlir16.header_types:
 
 
 def all_fields():
-    return [fld for hdr in hlir16.header_types for fld in hdr.fields]
+    return [fld for hdr in hlir16.header_types for fld in hdr.valid_fields]
 
 #[ #define FIELD_COUNT ${len(all_fields())}
 
@@ -215,26 +219,26 @@ def all_fields():
 
 #{ enum field_e {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         #[   field_${hdr.name}_${fld.name},
 #} };
 
 #{ static const int field_bit_width[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         fldtype = get_real_type(fld.type)
         #[ ${fldtype.size}, // field_${hdr.name}_${fld.name}
 #} };
 
 #{ static const int field_bit_offset[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         #[   (${fld.offset} % 8), // field_${hdr.name}_${fld.name}
 #} };
 
 #{ static const int field_byte_offset_hdr[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         #[   (${fld.offset} / 8), // field_${hdr.name}_${fld.name}
 #} };
 
@@ -244,27 +248,27 @@ for hdr in hlir16.header_types:
 
 #{ static const int field_mask[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         fldtype = get_real_type(fld.type)
         #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_${hdr.name}_${fld.name},
 #} };
 
 #{ static const header_t field_header[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.fields:
+    for fld in hdr.valid_fields:
         #[   header_${hdr.name}, // field_${hdr.name}_${fld.name}
 #} };
 
 #{ static const int header_var_width_field[HEADER_COUNT] = {
 for hdr in hlir16.header_types:
-    #[   ${reduce((lambda x, f: f.id if hasattr(f, 'is_vw') and f.is_vw else x), hdr.fields, 'FIXED_WIDTH_FIELD')}, // ${hdr.name}
+    #[   ${reduce((lambda x, f: f.id if hasattr(f, 'is_vw') and f.is_vw else x), hdr.valid_fields, 'FIXED_WIDTH_FIELD')}, // ${hdr.name}
 #} };
 
 
-for enum in hlir16.declarations['Type_Enum']:
+for enum in hlir16.objects['Type_Enum']:
     #[ enum ${enum.c_name} { ${', '.join([m.c_name for m in enum.members])} };
 
-for error in hlir16.declarations['Type_Error']:
+for error in hlir16.objects['Type_Error']:
     #[ enum ${error.c_name} { ${', '.join([m.c_name for m in error.members])} };
 
 #[
@@ -276,7 +280,7 @@ for error in hlir16.declarations['Type_Error']:
 #[ // Parser state local vars
 #[ // -----------------------
 
-parser = hlir16.declarations['P4Parser'][0]
+parser = hlir16.objects['P4Parser'][0]
 
 #[ typedef struct parser_state_s {
 for loc in parser.parserLocals:

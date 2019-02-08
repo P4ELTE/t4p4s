@@ -26,8 +26,10 @@ def smem_components(smem, smem_type):
     if smem_type == 'reg':
         return [{"type": base_type, "name": smem.name}]
 
+    member = [s.expression for s in smem.arguments if s.expression.node_type == 'Member'][0]
+
     # TODO set these in hlir16_attrs
-    smem.packets_or_bytes = smem.arguments['Member'][0].member
+    smem.packets_or_bytes = member.member
     smem.smem_for = {
         "packets": smem.packets_or_bytes in ("packets", "packets_and_bytes"),
         "bytes":   smem.packets_or_bytes in (  "bytes", "packets_and_bytes"),
@@ -68,18 +70,18 @@ def gen_make_smem_code(smem, smem_size, smem_type, locked = False):
 
 #{ typedef struct global_state_s {
 for t, meter in hlir16.meters:
-    size = meter.arguments[0].value
+    size = meter.arguments[0].expression.value
 
     #= gen_make_smem_code(meter, size, 'direct_meter', True)
 
 for t, counter in hlir16.counters:
-    size = counter.arguments[0].value
+    size = counter.arguments[0].expression.value
 
     #= gen_make_smem_code(counter, size, 'direct_counter', True)
 
 for t, reg in hlir16.registers:
     # result_type_bitsize = reg.type.arguments[0].size
-    size = reg.arguments[0].value
+    size = reg.arguments[0].expression.value
 
     #= gen_make_smem_code(reg, size, 'reg', True)
 

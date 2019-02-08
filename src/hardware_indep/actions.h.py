@@ -41,9 +41,9 @@ def resolve_typeref(hlir16, f):
     # resolving type reference
     if f.type.node_type == 'Type_Name':
         tref = f.type.type_ref
-        return hlir16.declarations.get(tref.name)
-    else:
-        return f
+        return hlir16.objects.get(tref.name)
+
+    return f
 
 for table in hlir16.tables:
     for action in table.actions:
@@ -83,12 +83,12 @@ for table in hlir16.tables:
 
 # TODO: The controls shouldn't be accessed through an instance declaration parameter
 for pe in get_main(hlir16).arguments:
-    ctl = hlir16.declarations.get(pe.type.name, 'P4Control')
+    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
 
     if ctl is not None:
-        #[ typedef struct control_locals_${pe.type.name}_s {
+        #[ typedef struct control_locals_${pe.expression.type.name}_s {
         for local_var_decl in ctl.controlLocals['Declaration_Variable']:
             #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
-        #[ } control_locals_${pe.type.name}_t;
+        #[ } control_locals_${pe.expression.type.name}_t;
 
 #[ #endif

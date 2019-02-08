@@ -39,13 +39,14 @@ def apply_annotations(postfix, extra_args, x):
 def search_for_annotations(x):
     available_optimization_annotations = ['offload']
 
-    if (x.node_type == "BlockStatement") :
+    if x.node_type == "BlockStatement":
         name_list = [annot.name for annot in x.annotations.annotations.vec if annot.name in available_optimization_annotations]
         arg_list = []
-        for annot in x.annotations.annotations.vec :
-            if annot.name in available_optimization_annotations : arg_list += annot.expr
-        if ([] != name_list) :
-	    x.components = map(lambda x : apply_annotations('_'.join(name_list), arg_list, x), x.components)
+        for annot in x.annotations.annotations.vec:
+            if annot.name in available_optimization_annotations:
+              arg_list += annot.expr
+        if [] != name_list:
+	          x.components = map(lambda x : apply_annotations('_'.join(name_list), arg_list, x), x.components)
     return x
 
 def transform_hlir16(hlir16):
@@ -53,6 +54,6 @@ def transform_hlir16(hlir16):
     pipeline_elements = main.arguments 
 	
     for pe in pipeline_elements:
-        c = hlir16.declarations.get(pe.type.name, 'P4Control')
+        c = hlir16.objects.get(pe.expression.type.name, 'P4Control')
         if c is not None:
             c.body.components = map(search_for_annotations, c.body.components)
