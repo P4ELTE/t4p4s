@@ -53,7 +53,7 @@ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
 
 void create_error_text(int socketid, const char* errno_txt, const char* table_type, const char* table_name, const char* error_text)
 {
-    rte_exit(EXIT_FAILURE, "DPDK (errno=%s): Unable to create %s table %s on socket %d: %s\n", errno_txt, table_type, table_name, socketid, error_text);
+    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(%s,error) "): Unable to create %s table " T4LIT(%s,table) " on socket " T4LIT(%d,socket) ": %s\n", errno_txt, table_type, table_name, socketid, error_text);
 }
 
 void create_error(int socketid, const char* table_type, const char* table_name)
@@ -128,8 +128,8 @@ void create_ext_table(lookup_table_t* t, void* rte_table, int socketid)
 void create_table(lookup_table_t* t, int socketid)
 {
     t->socketid = socketid;
-    if (t->entry.key_size == 0) return; // we don't create the table if there are no keys (it's a fake table for an element in the pipeline)
     t->default_val = 0;
+    if (t->entry.key_size == 0) return; // we don't create the table if there are no keys (it's a fake table for an element in the pipeline)
 
     switch(t->type)
     {
