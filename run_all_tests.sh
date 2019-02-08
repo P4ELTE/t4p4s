@@ -4,15 +4,16 @@ declare -A exitcode
 success_count=0
 failure_count=0
 
-for file in `ls examples/test-*.c`; do
-    p4file="${file##examples/test-}"
+for file in `ls examples/test/test-*.c`; do
+    p4file="${file##examples/test/test-}"
     p4file="${p4file%%.c}"
 
     found=0
-    for p4base in "${file##examples/test-}" "${file##examples/}"; do
+    for p4base in "${file##examples/test/test-}" "${file##examples/test/}"; do
         p4file="${p4base%%.c}"
         for ext in ".p4" ".p4_14"; do
             [ -f "examples/$p4file$ext" ] && found=1 && break 2
+            [ -f "examples/test/$p4file$ext" ] && found=1 && break 2
         done
     done
 
@@ -22,6 +23,7 @@ for file in `ls examples/test-*.c`; do
         tested="%${p4file}=${testcase}"
         [ "$testcase" == "test" ] && tested="%${p4file}"
 
+        echo Running test: ./t4p4s.sh $tested $*
         ./t4p4s.sh $tested $*
         exitcode["$tested"]="$?"
         [ ${exitcode["$tested"]} -eq 0 ] && ((++success_count))
@@ -42,7 +44,7 @@ done | sort
 
 for test in ${!exitcode[@]}; do
     [ ${exitcode[$test]} -eq 0 ] && continue
-    echo "    - $test --> ${exitcode[$test]}"
+    echo "    - $test --> error code ${exitcode[$test]}"
     resultcode=1
 done | sort
 
