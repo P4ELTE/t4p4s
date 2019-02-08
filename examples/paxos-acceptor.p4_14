@@ -1,9 +1,8 @@
 #define ENABLE_PAXOS 1
-#include "includes/headers.p4"
-#include "includes/parser.p4"
-#include "includes/paxos_headers.p4"
-#include "includes/paxos_parser.p4"
-#include "igmp.p4"
+#include "include/std_headers.p4_14"
+#include "include/paxos_headers.p4_14"
+#include "include/paxos_parser.p4_14"
+#include "paxos-igmp.p4_14"
 
 #define PAXOS_1A 0 
 #define PAXOS_1B 1 
