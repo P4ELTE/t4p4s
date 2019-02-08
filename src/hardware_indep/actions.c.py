@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.codegen import format_declaration, format_statement_ctl
+from utils.codegen import format_declaration, format_statement_ctl, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
 import math
 
 
@@ -20,6 +20,7 @@ import math
 #[ #include "actions.h"
 #[ #include <unistd.h>
 #[ #include "util.h"
+#[ #include "util_packet.h"
 
 #[ extern ctrl_plane_backend bg;
 
