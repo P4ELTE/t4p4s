@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "include/std_headers.p4"
+#include "../include/std_headers.p4"
 
 
 register<bit<32>>(32w100) debug;

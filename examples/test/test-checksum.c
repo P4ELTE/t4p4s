@@ -42,11 +42,11 @@
 #define PAYLOAD04   "1a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4"
 
 
-extern void ipv4_fib_lpm_setdefault(struct ipv4_fib_lpm_action action);
+extern void ipv4_fib_lpm_0_setdefault(struct ipv4_fib_lpm_0_action action);
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_SETDEF, ipv4_fib_lpm_setdefault, 0, {"on_miss"}, 0, 0, {""} },
+        {FAKE_SETDEF, ipv4_fib_lpm_0_setdefault, 0, {"on_miss"}, 0, 0, {""} },
 
         FSLEEP(200),
         {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01), 200,  0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01)},

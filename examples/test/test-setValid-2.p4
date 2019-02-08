@@ -12,34 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "include/std_headers.p4"
+#include "../include/std_headers.p4"
 
 struct metadata {
 }
 
 struct headers {
     test_dstAddr_t   dstAddr;
-    test_srcAddr_t   srcAddr;
+    test_srcAddr_t   srcAddrIn;
+    test_srcAddr_t   srcAddrAdded;
     test_etherType_t etherType;
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     state start {
         packet.extract(hdr.dstAddr);
-        packet.extract(hdr.srcAddr);
+        packet.extract(hdr.srcAddrIn);
         packet.extract(hdr.etherType);
         transition accept;
     }
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    action setInvalid_srcAddr() {
-        hdr.srcAddr.setInvalid();
+    action setValid_srcAddrAdded() {
+        hdr.srcAddrAdded.setValid();
+        hdr.srcAddrAdded.srcAddr = hdr.srcAddrIn.srcAddr;
     }
 
     table dmac {
         actions = {
-            setInvalid_srcAddr;
+            setValid_srcAddrAdded;
         }
 
         key = {
@@ -56,7 +58,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 control DeparserImpl(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.dstAddr);
-        packet.emit(hdr.srcAddr);
+        packet.emit(hdr.srcAddrIn);
+        packet.emit(hdr.srcAddrAdded);
         packet.emit(hdr.etherType);
     }
 }

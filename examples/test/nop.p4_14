@@ -1,0 +1,52 @@
+header_type ethernet_t {
+    fields {
+        dstAddr : 48;
+        srcAddr : 48;
+        etherType : 16;
+    }
+}
+
+header ethernet_t ethernet;
+
+parser start {
+    return parse_ethernet;
+}
+
+parser parse_ethernet {
+    extract(ethernet);
+    return ingress;
+}
+
+action mac_learn() {
+}
+
+action bcast() {
+}
+
+action _nop() {
+}
+
+action forward() {
+}
+
+table smac {
+    reads {
+    }
+    actions {_nop;}
+    size : 512;
+}
+
+table dmac {
+    reads {
+    }
+    actions {bcast;forward;mac_learn;}
+    size : 512;
+}
+
+control ingress {
+    apply(smac);
+    apply(dmac);
+}
+
+control egress {
+}

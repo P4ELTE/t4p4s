@@ -3,7 +3,7 @@
 
 #include "test.h"
 
-fake_cmd_t fake_commands[][RTE_MAX_LCORE] = {
+fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
         FSLEEP(200),
         {FAKE_PKT, 0, 0, ETH(ETH1A, ETH01), 200, 18, ETH(ETH01, ETH1A)},
@@ -22,4 +22,9 @@ fake_cmd_t fake_commands[][RTE_MAX_LCORE] = {
 
         FEND,
     },
+};
+
+testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
+    { "test",           &t4p4s_testcase_test },
+    TEST_SUITE_END,
 };

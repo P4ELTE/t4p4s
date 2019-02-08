@@ -99,6 +99,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
     @name(".parse_ipv4") state parse_ipv4 {
         packet.extract(tmp_hdr);
+        // TODO the part of the expression before "-160" seems to evaluate to 0
         packet.extract(tmp_hdr_0, (bit<32>)((bit<32>)tmp_hdr.ihl * 32w4 * 8 - 160));
         hdr.ipv4.setValid();
         hdr.ipv4.version = tmp_hdr.version;
