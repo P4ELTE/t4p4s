@@ -1,24 +1,52 @@
+
+echo Requesting root access...
+sudo echo -n ""
+echo Root access granted, starting...
+
+# Highlight colours
+cc="\033[1;31m"
+nn="\033[0m"
+
 # Set sensible defaults
 export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
-export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-v3.4.1}
-export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
+export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-`git ls-remote --tags https://github.com/google/protobuf | tail -1 | cut -f3 -d'/'`}
+
+which clang >/dev/null
+if [ $? -eq 0 ]; then
+    [[ "$RTE_TARGET" == "" ]] && echo DPDK will be compiled using ${cc}clang$nn
+    export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-clang}
+else
+    [[ "$RTE_TARGET" == "" ]] && echo DPDK will be compiled using ${cc}gcc$nn
+    export RTE_TARGET=${RTE_TARGET-x86_64-native-linuxapp-gcc}
+fi
 
 # Note: recent versions of P4C introduced changes currently incompatible with T4P4S
-P4C_COMMIT=80f8970b5ec8e57c4a3611da343461b5b0a8dda3
+# P4C_COMMIT=${P4C_COMMIT-80f8970b5ec8e57c4a3611da343461b5b0a8dda3}
 
-vsns=(18.08 18.05.1 18.02 17.11.2 17.08 17.05.2 17.02.1 16.11.3 16.07.2)
-for vsn in ${vsns[*]};
-do
-    shortvsn=`echo $vsn | sed -e 's/\([0-9]*[.][0-9]*\).*/\1/g'`
-    if [ "$DPDK_VSN" == $vsn -o "$DPDK_VSN" == $shortvsn ]; then
-        export DPDK_FILEVSN=$vsn
-        break
-    fi
-done
+echo Determining newest DPDK version...
 
-export DPDK_FILEVSN=${DPDK_FILEVSN-${vsns[0]}}
-shortvsn=`echo $vsn | sed -e 's/\([0-9]*[.][0-9]*\).*/\1/g'`
-export DPDK_VSN=${DPDK_VSN-$shortvsn}
+# Get the most recent DPDK version
+vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
+    | grep ".tar.xz" \
+    | sed -e "s/^[^>]*>dpdk-\([0-9.]*\)\.tar\.xz[^0-9]*\([0-9]\{2\}\)-\([a-zA-Z]\{3\}\)-\([0-9]\{4\}\) \([0-9]\{2\}\):\([0-9]\{2\}\).*$/\4 \3 \2 \5 \6 \1/g" \
+    | sed -e "s/ \([0-9]\{2\}\)[.]\([0-9]\{2\}\)$/ \1.\2.-1/g" \
+    | tr '.' ' ' \
+    | sort -k6,6n -k7,7n -k8,8n -k1,1 -k2,2M -k3,3 -k4,4 -k5,5 \
+    | tac \
+    | cut -d" " -f 6- \
+    | sed -e "s/^\([0-9\-]*\) \([0-9\-]*\) \([0-9\-]*\)$/\3 \1.\2/g" \
+    | uniq -f1 \
+    | head -1`
+
+vsn=($vsn)
+DPDK_VSN="${vsn[1]}"
+DPDK_FILEVSN="$DPDK_VSN"
+[ "${vsn[0]}" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.${vsn[0]}"
+
+echo Using DPDK version $cc${DPDK_VSN}$nn
+
+
+echo
 
 # Download libraries
 sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev curl &
@@ -34,6 +62,7 @@ WAITPROC_PROTOBUF="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
 
 git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
+# [ "$P4C_COMMIT" == "" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git submodule update --init --recursive &
 WAITPROC_P4C="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
 
@@ -64,8 +93,8 @@ cd ..
 cd protobuf
 ./autogen.sh
 ./configure
-make -j 4
-sudo make install -j 4
+make -j `nproc --all`
+sudo make install -j `nproc --all`
 sudo ldconfig
 cd ..
 
@@ -79,18 +108,30 @@ cd p4c
 ./bootstrap.sh
 cd build
 cmake ..
-make -j 4
-sudo make install -j 4
+make -j `nproc --all`
+sudo make install -j `nproc --all`
 cd ../..
 
 
 # Enter t4p4s directory
 [ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_T4P4S"
 
+cat <<EOF >./t4p4s_environment_variables.sh
+export DPDK_VSN=${DPDK_VSN}
+export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
+export RTE_TARGET=${RTE_TARGET}
+export P4C=`pwd`/p4c
+EOF
+
+chmod +x `pwd`/t4p4s_environment_variables.sh
+. `pwd`/t4p4s_environment_variables.sh
+
+echo Environment variable config is done
+echo Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn
+
+[[ $(grep "a" ~/.profile) ]] && \
+    echo >> ~/.profile && \
+    echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile && \
+    echo Environment variable config is ${cc}enabled on login$nn: your ~/.profile will run `pwd`/t4p4s_environment_variables.sh
+
 cd t4p4s
-
-
-# Print environment variables
-echo "DPDK_VSN=${DPDK_VSN}"
-echo "RTE_SDK=${RTE_SDK}"
-echo "P4C=${P4C}"
