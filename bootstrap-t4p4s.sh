@@ -133,7 +133,7 @@ echo Environment variable config is done
 echo -e "Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn"
 
 if [[ $(grep "t4p4s_environment_variables.sh" ~/.profile) ]]; then
-    echo "Your ${cc}~/.profile$nn is ${cc}not modified$nn, as it already calls t4p4s_environment_variables.sh"
+    echo -e "Your ${cc}~/.profile$nn is ${cc}not modified$nn, as it already calls t4p4s_environment_variables.sh"
 else
     echo >> ~/.profile
     echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile
