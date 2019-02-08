@@ -13,9 +13,17 @@
 # limitations under the License.
 
 CFLAGS += -O3
+CFLAGS += -fdiagnostics-color
 CFLAGS += -Wall 
 CFLAGS += -Wno-unused-function
+# TODO clang has a different name for this
+ifneq ($(CC),clang)
 CFLAGS += -Wno-unused-but-set-variable
+endif
+
+# TODO this is for valgrind, do not use as a regular option
+# CFLAGS+=-mno-rdrnd
+
 CFLAGS += -Wno-unused-variable
 CFLAGS += -g
 CFLAGS += -std=gnu11
