@@ -16,14 +16,16 @@ ARCH=${ARCH-dpdk}
 ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
 
 PYTHON=${PYTHON-python}
+DEBUGGER=${DEBUGGER-gdb}
 
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header off packet parserstate port smem socket status success table warning)
+ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype off packet parserstate port smem socket status success table testcase warning)
 
 # --------------------------------------------------------------------
 # Helpers
 
 exit_program() {
+    echo -e "$nn"
     [ "${OPTS[ctr]}" != "" ] && verbosemsg "Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
     exit $ERROR_CODE
 }
@@ -242,7 +244,7 @@ reserve_hugepages2() {
         sudo sh .echo_tmp
         rm -f .echo_tmp
     else
-        verbosemsg "Using $(cc 0)$OLD_HUGEPAGES hugepages$nn (sufficient, as ${OPTS[hugepages]} are needed)"
+        verbosemsg "Using $(cc 0)$OLD_HUGEPAGES hugepages$nn (sufficient, as $(cc 0)${OPTS[hugepages]}$nn are needed)"
     fi
 }
 
@@ -304,6 +306,15 @@ for gname in (p[0] for p in patterns):
 END
 )
 
+
+candidates() {
+    if [ $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l) -gt 0 ]; then
+        echo
+        find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
+    else
+        echo "(no candidates found)"
+    fi
+}
 
 OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
 
@@ -379,7 +390,7 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
                 FIND_COUNT=`find "$P4_SRC_DIR" -type f -name "${var}.p4*" -printf '.' | wc -c`
                 [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn"
-                [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn"
+                [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
 
                 setopt example "$var"
                 setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
@@ -389,7 +400,8 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             [ "${groups[prefix]}" == "::" ] && setopt example "$var" && setopt dbg on && continue
             [ "${groups[prefix]}" == "%"  ] && [ "$value" == "on" ]  && verbosemsg "Test case not specified for example $(cc 0)$var$nn, using $(cc 1)test$nn as default" && value="test"
             [ "${groups[prefix]}" == "%"  ] && setopt example "$var" && setopt testcase "$value" && setopt variant test && continue
-            [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
+            [ "${groups[prefix]}" == "%%" ] && [ "$value" == "on" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
+            [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt testcase "$value" && setopt dbg on && setopt variant test && continue
             [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
             [ "${groups[prefix]}" == "^"  ] && IGNORE_OPTS["$var"]=on && continue
 
@@ -440,6 +452,8 @@ T4P4S_GEN_INCLUDE="gen_include.h"
 GEN_MAKEFILE_DIR="${T4P4S_TARGET_DIR}"
 GEN_MAKEFILE="Makefile"
 
+T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(dirname $(dirname ${OPTS[executable]}))/log}
+
 # By default use all three phases
 if [ "${OPTS[p4]}" != on ] && [ "${OPTS[c]}" != on ] && [ "${OPTS[run]}" != on ]; then
     OPTS[p4]=on
@@ -458,6 +472,13 @@ mkdir -p $T4P4S_SRCGEN_DIR
 # --------------------------------------------------------------------
 
 verbosemsg "Options: $(print_opts)"
+
+# Phase 0: If a phase with root access is needed, ask for it now
+if [ "$(optvalue run)" != off ]; then
+    verbosemsg "Requesting root access..."
+    sudo echo -n ""
+    verbosemsg "Root access granted, starting..."
+fi
 
 # Phase 1: P4 to C compilation
 if [ "$(optvalue p4)" != off ]; then
@@ -511,12 +532,14 @@ EOT
 
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
         TESTDIR="examples"
-        TESTFILE="test-${OPTS[example]##test-}.c"
-        [ ! -f "$TESTDIR/$TESTFILE" ] && errmsg_exit "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
+        if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
+            errmsg_exit "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
+        fi
+        TESTFILE=$(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c")
 
         [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=\"t4p4s_testcase_${OPTS[testcase]}\"" " "
-        echo "VPATH += \$(CDIR)/../../$TESTDIR" >>"/tmp/${GEN_MAKEFILE}.tmp"
-        echo "SRCS-y += $TESTFILE" >>"/tmp/${GEN_MAKEFILE}.tmp"
+        echo "VPATH += \$(CDIR)/../../`dirname $TESTFILE`" >>"/tmp/${GEN_MAKEFILE}.tmp"
+        echo "SRCS-y += `basename $TESTFILE`" >>"/tmp/${GEN_MAKEFILE}.tmp"
     fi
 
     IFS=" "
@@ -545,13 +568,14 @@ EOT
 fi
 
 
-# Phase 3A: Execution (controller)
 if [ "$(optvalue run)" != off ]; then
     if [ "$(optvalue ctr)" == off ]; then
         msg "[$(cc 0)NO  CONTROLLER$nn]"
     else
+        mkdir -p ${T4P4S_LOG_DIR}
+
         CONTROLLER="dpdk_${OPTS[ctr]}_controller"
-        CONTROLLER_LOG=$(dirname $(dirname ${OPTS[executable]}))/controller.log
+        CONTROLLER_LOG=${T4P4S_LOG_DIR}/controller.log
 
         sudo killall -q "$CONTROLLER"
 
@@ -598,13 +622,39 @@ if [ "$(optvalue run)" != off ]; then
 
     verbosemsg "Options    : $(print_cmd_opts "${EXEC_OPTS}")"
 
+    mkdir -p ${T4P4S_LOG_DIR}
+    echo "Executed at $(date +"%Y%m%d %H:%M:%S")" >${T4P4S_LOG_DIR}/last.txt
+    echo >>${T4P4S_LOG_DIR}/last.txt
     if [ "${OPTS[eal]}" == "off" ]; then
-        sudo -E "${OPTS[executable]}" ${EXEC_OPTS} 2>&1 | egrep -v "^EAL: "
+        sudo -E "${OPTS[executable]}" ${EXEC_OPTS} 2>&1 | egrep -v "^EAL: " \
+            |& tee >( tee -a ${T4P4S_LOG_DIR}/last.lit.txt | sed 's/\x1B\[[0-9;]*[JKmsu]//g' >> ${T4P4S_LOG_DIR}/last.txt ) \
+            |& tee >( tee ${T4P4S_LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_${OPTS[choice]}.lit.txt | sed 's/\x1B\[[0-9;]*[JKmsu]//g' > ${T4P4S_LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_${OPTS[choice]}.txt )
         # note: PIPESTATUS is bash specific
         ERROR_CODE=${PIPESTATUS[0]}
     else
-        sudo -E "${OPTS[executable]}" ${EXEC_OPTS}
-        ERROR_CODE=$?
+        sudo -E "${OPTS[executable]}" ${EXEC_OPTS} \
+            |& tee >( tee -a ${T4P4S_LOG_DIR}/last.lit.txt | sed 's/\x1B\[[0-9;]*[JKmsu]//g' >> ${T4P4S_LOG_DIR}/last.txt ) \
+            |& tee >( tee ${T4P4S_LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_${OPTS[choice]}.lit.txt | sed 's/\x1B\[[0-9;]*[JKmsu]//g' > ${T4P4S_LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_${OPTS[choice]}.txt )
+        ERROR_CODE=${PIPESTATUS[0]}
+    fi
+
+    command -v errno >&2>/dev/null
+    ERRNO_EXISTS=$?
+    [ $ERRNO_EXISTS -eq 0 ] && [ $ERROR_CODE -eq 0 ] && ERR_CODE_MSG="($(cc 0)`errno $ERROR_CODE`$nn)"
+    [ $ERRNO_EXISTS -eq 0 ] && [ $ERROR_CODE -ne 0 ] && ERR_CODE_MSG="($(cc 3 2 1)`errno $ERROR_CODE`$nn)"
+
+    [ $ERROR_CODE -eq 139 ] && ERR_CODE_MSG="($(cc 3 2 1)Segmentation fault$nn)"
+    [ $ERROR_CODE -eq 255 ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
+
+    [ $ERROR_CODE -eq 0 ] && msg "${nn}T4P4S switch exited $(cc 0)normally$nn"
+    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
+    [ $ERROR_CODE -ne 0 ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
+
+    DBGWAIT=3
+    if [ $ERROR_CODE -ne 0 ] && [ "$(optvalue autodbg)" != off ]; then
+        msg "Running $(cc 1)debugger $DEBUGGER$nn in $(cc 0)$DBGWAIT$nn seconds"
+        sleep $DBGWAIT
+        sudo -E ${DEBUGGER} -q -ex run --args "${OPTS[executable]}" ${EXEC_OPTS}
     fi
 fi
 
