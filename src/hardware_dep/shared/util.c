@@ -17,16 +17,27 @@
 
 
 #ifdef T4P4S_DEBUG
-	#include "backend.h"
-	#include <pthread.h>
+    #include "backend.h"
+    #include <pthread.h>
 
-	pthread_mutex_t dbg_mutex;
+    pthread_mutex_t dbg_mutex;
 
-	void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
-	    for (int i = 0; i < byte_count; ++i) {
-	        fprintf(out_file, i%2 == 0 ? "%02x" : "%02x ", ((uint8_t*)bytes)[i]);
-	    }
-	}
+    void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count) {
+        int reasonable_upper_limit = 160;
+        if (byte_count <= 0)    return;
+
+        if (byte_count > reasonable_upper_limit) {
+            fprintf(out_file, "(%d bytes, showing first %d) ", byte_count, reasonable_upper_limit);
+        }
+
+        for (int i = 0; i < (byte_count <= reasonable_upper_limit ? byte_count : reasonable_upper_limit); ++i) {
+            fprintf(out_file, i%2 == 0 ? "%02x" : "%02x ", ((uint8_t*)bytes)[i]);
+        }
+
+        if (byte_count > reasonable_upper_limit) {
+            fprintf(out_file, "...");
+        }
+    }
 #endif
 
 
