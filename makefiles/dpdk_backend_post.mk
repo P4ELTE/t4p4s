@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-VPATH += $(CDIR)/../../src/hardware_dep/dpdk/
-VPATH += $(CDIR)/../../src/hardware_dep/dpdk/includes
-VPATH += $(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane
-VPATH += $(CDIR)/../../src/hardware_dep/dpdk/data_plane
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/includes)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/data_plane)
 
 # dpdk main
 SRCS-y += main.c
@@ -33,8 +33,8 @@ SRCS-y += dpdk_lib.c
 SRCS-y += dpdk_tables.c
 SRCS-y += ternary_naive.c
 
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/includes"
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane"
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/dpdk/data_plane"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/includes)"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/ctrl_plane)"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/data_plane)"
 
 include $(RTE_SDK)/mk/rte.extapp.mk

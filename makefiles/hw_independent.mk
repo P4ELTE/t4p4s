@@ -15,10 +15,10 @@
 # the directories of the source files
 VPATH += $(CDIR)
 
-VPATH += $(CDIR)/../../src/hardware_dep/shared/includes
-VPATH += $(CDIR)/../../src/hardware_dep/shared/ctrl_plane
-VPATH += $(CDIR)/../../src/hardware_dep/shared/data_plane
-VPATH += $(CDIR)/../../src/hardware_dep/shared/
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/shared/includes)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/shared/ctrl_plane)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/shared/data_plane)
+VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/shared/)
 
 # the names of the source files
 SRCS-y += dataplane.c
@@ -27,8 +27,8 @@ SRCS-y += parser.c
 SRCS-y += actions.c
 SRCS-y += controlplane.c
 
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/shared/includes"
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/shared/ctrl_plane"
-CFLAGS += -I "$(CDIR)/../../src/hardware_dep/shared/data_plane"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/shared/includes)"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/shared/ctrl_plane)"
+CFLAGS += -I "$(realpath -sm $(CDIR)/../../src/hardware_dep/shared/data_plane)"
 
 CFLAGS += -I "$(CDIR)"
