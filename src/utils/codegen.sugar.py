@@ -180,7 +180,7 @@ def generate_var_name(var_name_part = "var", var_id = None):
 
 ################################################################################
 
-def int_to_big_endian_byte_array_with_length(value, width):
+def int_to_big_endian_byte_array_with_length(value, width, base=10):
     array = []
     while value > 0:
         array.append(int(value % 256))
@@ -188,7 +188,7 @@ def int_to_big_endian_byte_array_with_length(value, width):
     array.reverse()
     array_len = len(array)
     padded_array = [0 for i in range(width-array_len)] + array[array_len-min(array_len, width) : array_len]
-    return '{' + ', '.join([str(x) for x in padded_array]) + '}'
+    return '{' + ', '.join([print_with_base(x, base) for x in padded_array]) + '}'
 
 
 def bit_bounding_unit(t):
@@ -265,7 +265,7 @@ def gen_format_statement(stmt):
                         src_pointer = 'parameters.{}'.format(src.ref.name)
                 elif src.node_type == 'Constant':
                     src_pointer = 'value_{}'.format(src.id)
-                    #[ uint8_t $src_pointer[$dst_bytewidth] = ${int_to_big_endian_byte_array_with_length(src.value, dst_bytewidth)};
+                    #[ uint8_t $src_pointer[$dst_bytewidth] = ${int_to_big_endian_byte_array_with_length(src.value, dst_bytewidth, src.base)};
                 else:
                     src_pointer = 'NOT_SUPPORTED'
                     addError('formatting statement', 'Unhandled right hand side in assignment statement: {}'.format(src))
@@ -540,6 +540,14 @@ def gen_method_setValid(e):
     #[     .var_width_field_bitwidth = 0,
     #[ };
 
+def print_with_base(number, base):
+    if base == 16:
+        return "0x{0:x}".format(number)
+    if base == 2:
+        return "0b{0:b}".format(number)
+
+    return "{}".format(number)
+
 def gen_format_expr(e, format_as_value=True, expand_parameters=False):
     simple_binary_ops = {'Div':'/', 'Mod':'%',                                 #Binary arithmetic operators
                          'Grt':'>', 'Geq':'>=', 'Lss':'<', 'Leq':'<=',         #Binary comparison operators
@@ -573,7 +581,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 return var_name
             else:
                 # 4294967136 versus (uint32_t)4294967136
-                return '(' + format_type(e.type) + ')' + str(e.value)
+                return "({}){}".format(format_type(e.type), print_with_base(e.value, e.base))
         else:
             return str(e.value)
     elif e.node_type == 'BoolLiteral':
