@@ -49,7 +49,6 @@ void create_table_on_lcore(unsigned lcore_id)
     // TODO is it necessary to store the table in two places?
     for (int i = 0; i < NB_TABLES; i++) {
         struct lcore_conf* qconf = &lcore_conf[lcore_id];
-        debug("dbg tblprint %p %p\n", qconf->state.tables[i], state[socketid].tables[i][0]);
         qconf->state.tables[i] = state[socketid].tables[i][0];
     }
 }
