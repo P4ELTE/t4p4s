@@ -72,9 +72,11 @@
 
 #define MAX_JUMBO_PKT_LEN  9600
 
+#define MBUF_TABLE_SIZE 32
+
 struct mbuf_table {
 	uint16_t len;
-	struct rte_mbuf *m_table[];
+	struct rte_mbuf *m_table[MBUF_TABLE_SIZE];
 };
 
 #define RTE_TEST_RX_DESC_DEFAULT 128
