@@ -42,7 +42,7 @@ vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
     | head -1`
 
 vsn=($vsn)
-DPDK_VSN="${vsn[1]}"
+DPDK_VSN="${DPDK_VSN-vsn[1]}"
 DPDK_FILEVSN="$DPDK_VSN"
 [ "${vsn[0]}" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.${vsn[0]}"
 
@@ -56,20 +56,20 @@ sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-de
 WAITPROC_APTGET="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_APTGET"
 
-wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz &
+[ ! -d "dpdk-${DPDK_VSN}" ] && wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz &
 WAITPROC_DPDK="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_DPDK"
 
-git clone --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
+[ ! -d "protobuf" ] && git clone --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
 WAITPROC_PROTOBUF="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
 
-git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
+[ ! -d "p4c" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
 # [ "$P4C_COMMIT" == "" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git submodule update --init --recursive &
 WAITPROC_P4C="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
 
-[ -d t4p4s ] || git clone --recursive https://github.com/P4ELTE/t4p4s &
+[ ! -d t4p4s ] && git clone --recursive https://github.com/P4ELTE/t4p4s &
 WAITPROC_T4P4S="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_T4P4S"
 

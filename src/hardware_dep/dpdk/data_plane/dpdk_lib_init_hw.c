@@ -293,7 +293,7 @@ void dpdk_init_nic()
 
     reset_mbuf_pools();
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        if (rte_lcore_is_enabled(lcore_id) == 0)   return;
+        if (rte_lcore_is_enabled(lcore_id) == 0)   continue;
 
         int socketid = get_socketid(lcore_id);
         init_mbuf_pool(socketid);
