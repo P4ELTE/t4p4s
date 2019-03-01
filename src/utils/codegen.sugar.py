@@ -202,12 +202,47 @@ def bit_bounding_unit(t):
         return 32
     return "bytebuf"
 
+def is_atomic_block(blckstmt):
+    try:
+        for annot in blckstmt.annotations.annotations.vec:
+            if annot.name == "atomic":
+               return True
+    except:
+        return False
+    return False
+
+def extern_format_parameter(expr, par):
+    # prepend_statement( "{} {} {} {} {}".format(par.direction, expr, expr.json_data, par, par.json_data))
+    if (par.direction=="in") or (expr.node_type!="Member"):
+        prefix=""
+        if par.direction!="in": # TODO: check outher possibilities
+            prefix="&"
+        return prefix + format_expr(expr, format_as_value=True,  expand_parameters=True)
+    def member_to_field_id(member):
+        return 'field_{}_{}'.format(member.expr.type.name, member.member)
+    expr_width = expr.type.size;
+    if expr_width<=32:
+        expr_unit = bit_bounding_unit(expr.type)
+        prepend_statement( "uint{}_t value_{};".format(expr_unit, expr.id) )
+        if par.direction=="inout":
+            prepend_statement( "value_{} = {};".format(expr.id, format_expr(expr)) )
+        append_statement( "set_field((fldT[]){{{{pd, header_instance_{0},{1} }}}}, 0, value_{2}, {3});".format(expr.expr.member, member_to_field_id(expr), expr.id, expr_width) )
+        return "&value_{}".format(expr.id)
+    else:
+        prepend_statement( "uint8_t value_{}[{}];".format(expr.id, (int)(expr_width+7)/8) )
+        if par.direction=="inout":
+            prepend_statement( "EXTRACT_BYTEBUF_PACKET(pd, header_instance_{}, {}, value_{});".format(expr.expr.member, member_to_field_id(expr), expr.id))
+        append_statement( "MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, header_instance_{0}, {1}, value_{2}, {3});".format(expr.expr.member, member_to_field_id(expr), expr.id, expr_width) )
+        return "value_{}".format(expr.id)
+
+
+
 # TODO add all the special cases from the previous content of actions.c.py
 def gen_format_statement(stmt):
+    global enclosing_control
     if stmt.node_type == 'AssignmentStatement':
         dst = stmt.left
         src = stmt.right
-
         if hasattr(dst, 'field_ref'):
             def member_to_field_id(member):
                 return 'field_{}_{}'.format(member.expr.type.name, member.member)
@@ -287,8 +322,13 @@ def gen_format_statement(stmt):
                 #[ ${format_expr(dst)} = ${format_expr(src)};
 
     elif stmt.node_type == 'BlockStatement':
+        is_atomic = is_atomic_block(stmt)
+        if is_atomic:
+           #[ LOCK(&${enclosing_control.type.name}_lock)
         for c in stmt.components:
             #= format_statement(c)
+        if is_atomic:
+           #[ UNLOCK(&${enclosing_control.type.name}_lock)
     elif stmt.node_type == 'IfStatement':
         t = format_statement(stmt.ifTrue) if hasattr(stmt, 'ifTrue') else ';'
         f = format_statement(stmt.ifFalse) if hasattr(stmt, 'ifFalse') else ';'
@@ -349,8 +389,9 @@ def gen_format_statement(stmt):
                     #[ ${gen_method_apply(stmt.methodCall)};
                 elif m.expr.get_attr('member') is None:
                     type = m.expr.type.substituted if m.expr.type.node_type == "Type_SpecializedCanonical" else m.expr.type
-
-                    args = ", ".join([format_expr(arg, expand_parameters=True) for arg in stmt.methodCall.arguments])
+                    parameters = stmt.methodCall.method.type.parameters.parameters
+                    args = ", ".join([extern_format_parameter(arg.expression, par) for (arg, par) in zip(stmt.methodCall.arguments,parameters)])
+                    mname = "global_smem." + m.expr.path.name
 
                     # the indexes of the parameters which originate from a type parameter
                     # TODO generalize and move to hlir16_attrs
@@ -382,8 +423,8 @@ def gen_format_statement(stmt):
                     # TODO generate these properly
                     type_params_str = ""
 
-                    prepend_statement("void extern_{}_{}{}({}); // prepending\n".format(type.name, m.member, type_args, type_params_str));
-                    #[ extern_${type.name}_${m.member}${type_args}($args);
+                    #prepend_statement("void extern_{}_{}{}({}); // prepending\n".format(type.name, m.member, type_args, type_params_str));
+                    #[ extern_${type.name}_${m.member}${type_args}(${mname},$args);
                 else:
                     hdr_name = m.expr.member
 
@@ -715,7 +756,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
     elif e.node_type == 'Member':
         if hasattr(e, 'field_ref'):
             if format_as_value == False:
-                return fldid2(e.expr.header_ref, e.field_ref)
+                return fldid(e.expr.header_ref, e.field_ref) # originally it was fldid2
             else:
                 if e.type.size > 32:
                     var_name = generate_var_name("hdr", str(e.expr.header_ref.id) + "__" + str(e.field_ref.id))
