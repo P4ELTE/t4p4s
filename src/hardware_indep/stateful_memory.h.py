@@ -16,12 +16,21 @@ from utils.codegen import format_expr, format_statement, statement_buffer_value,
 
 
 # In v1model, all software memory cells are represented as 32 bit integers
-def smem_repr_type(smem, smem_type):
-    return "rte_atomic32_t"
+def smem_repr_type(smem, smem_type, bit_width=32, is_signed=False):
+    if is_signed:
+        tname = "int"
+    else:
+        tname = "uint"
+
+    for w in [8,16,32,64]:
+        if bit_width <= w:
+            return "reg_" + tname + str(w) + "_t"
+
+    return "NOT_SUPPORTED"
 
 
-def smem_components(smem, smem_type):
-    base_type = smem_repr_type(smem, smem_type)
+def smem_components(smem, smem_type, bit_width=32, is_signed=False):
+    base_type = smem_repr_type(smem, smem_type, bit_width, is_signed)
 
     if smem_type == 'reg':
         return [{"type": base_type, "name": smem.name}]
@@ -49,10 +58,10 @@ def smem_components(smem, smem_type):
     return pbs[smem.packets_or_bytes]
 
 
-def gen_make_smem_code(smem, smem_size, smem_type, locked = False):
+def gen_make_smem_code(smem, smem_size, smem_type, locked = False, bit_width = 32, is_signed = False):
     # TODO set these in hlir16_attrs
     smem.smem_type  = smem_type
-    smem.components = smem_components(smem, smem_type)
+    smem.components = smem_components(smem, smem_type, bit_width, is_signed)
 
 
     for c in smem.components:
@@ -65,8 +74,35 @@ def gen_make_smem_code(smem, smem_size, smem_type, locked = False):
 #[ #define __STATEFUL_MEMORY_H_
 
 #[ #include "aliases.h"
-#[ #include <rte_atomic.h>
+#[ #include "dpdk_reg.h"
 
+# // atomic vars
+
+#for tbase in ["int","uint"]:
+#    for bwidth in [8,16,32,64]:
+#        #{ typedef struct reg_${tbase}${bwidth}_s {
+#        #[    volatile ${tbase}${bwidth}_t value;
+#        #} } reg_${tbase}${bwidth}_t;
+
+#for tbase in ["int","uint"]:
+#    for bwidth in [8,16,32,64]:
+#        #[ void extern_register_write_${tbase}${bwidth}_t(reg_${tbase}${bwidth}_t* reg, uint32_t idx, ${tbase}${bwidth}_t value);
+#        #[ void extern_register_read_${tbase}${bwidth}_t(reg_${tbase}${bwidth}_t* reg, uint32_t idx, ${tbase}${bwidth}_t* value);
+#        #[ void init_register_${tbase}${bwidth}_t(reg_${tbase}${bwidth}_t* reg, uint32_t size);
+
+
+#        #[    reg[idx].value = value;
+#        #} }
+#        #{ void extern_register_read_${tbase}${bwidth}_t(reg_${tbase}${bwidth}_t* reg, uint32_t idx, ${tbase}${bwidth}_t* value) {
+#        #[    *value =  reg[idx].value;
+#        #} }
+#        #{ void init_register_${tbase}${bwidth}_t(reg_${tbase}${bwidth}_t* reg, uint32_t size)  {
+#        #[    for (uint32_t i=0;i<size;++i) reg[i].value = 0;
+#        #} }
+
+
+
+# #[ // end
 
 #{ typedef struct global_state_s {
 for t, meter in hlir16.meters:
@@ -82,11 +118,19 @@ for t, counter in hlir16.counters:
 for t, reg in hlir16.registers:
     # result_type_bitsize = reg.type.arguments[0].size
     size = reg.arguments[0].expression.value
+    # str(dir(reg))
+    # str(reg.json_data)
+    # str(reg.type.arguments[0])
+    bit_width = reg.type.arguments[0].size
+    is_signed = reg.type.arguments[0].isSigned
+    # str(reg.type.arguments[0].isSigned)
+    # str(reg.arguments[0].expression.value)
 
-    #= gen_make_smem_code(reg, size, 'reg', True)
+    #= gen_make_smem_code(reg, size, 'reg', True, bit_width, is_signed)
 
 #} } global_state_t;
 
+#[ static global_state_t global_smem;
 
 for table in hlir16.tables:
     #{ typedef struct local_state_${table.name}_s {
@@ -97,5 +141,9 @@ for table in hlir16.tables:
         #= gen_make_smem_code(meter, 1, 'meter')
 
     #} } local_state_${table.name}_t;
+
+#[ static lock_t ingress_lock;
+#[ static lock_t egress_lock;
+
 
 #[ #endif
