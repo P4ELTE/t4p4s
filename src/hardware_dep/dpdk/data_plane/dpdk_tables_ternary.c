@@ -35,3 +35,10 @@ uint8_t* ternary_lookup(lookup_table_t* t, uint8_t* key)
     uint8_t* ret = naive_ternary_lookup(t->table, key);
     return ret == NULL ? t->default_val : ret;
 }
+
+void ternary_flush(lookup_table_t* t)
+{
+    if (t->entry.key_size == 0) return; // nothing must have been added
+
+    naive_ternary_flush(t->table);
+}

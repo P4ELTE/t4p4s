@@ -65,3 +65,13 @@ naive_ternary_lookup(ternary_table* t, uint8_t* key)
     return match ? res->value : NULL;
 }
 
+void
+naive_ternary_flush(ternary_table* t)
+{
+    int i;
+    for(i = t->size - 1; i >= 0; i--)
+    {
+        free(t->entries[i]);
+        t->size--;
+    }
+}

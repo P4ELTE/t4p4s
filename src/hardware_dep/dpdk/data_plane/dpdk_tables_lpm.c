@@ -135,3 +135,18 @@ uint8_t* lpm_lookup(lookup_table_t* t, uint8_t* key)
     }
     return NULL;
 }
+
+
+void lpm_flush(lookup_table_t* t)
+{
+    extended_table_t* ext = (extended_table_t*)t->table;
+    rte_free(ext->content[ext->size]);
+    if (t->entry.key_size <= 4)
+    {
+        rte_lpm_delete_all(ext->rte_table);
+    }
+    else if (t->entry.key_size <= 16)
+    {
+        rte_lpm6_delete_all(ext->rte_table);
+    }
+}

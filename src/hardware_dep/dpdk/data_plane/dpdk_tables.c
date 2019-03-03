@@ -146,6 +146,24 @@ void create_table(lookup_table_t* t, int socketid)
     debug("    : Created table replica " T4LIT(%s,table) ".\n", t->name);
 }
 
+void flush_table(lookup_table_t* t)
+{
+    if (t->entry.key_size == 0) return; // must be a fake table
+
+    switch(t->type)
+    {
+        case LOOKUP_EXACT:
+            exact_flush(t);
+            break;
+        case LOOKUP_LPM:
+            lpm_flush(t);
+            break;
+        case LOOKUP_TERNARY:
+            ternary_flush(t);
+            break;
+    }
+    debug("    : Flushed table replica " T4LIT(%s,table) ".\n", t->name);
+}
 
 void table_set_default_action(lookup_table_t* t, uint8_t* entry)
 {

@@ -54,6 +54,8 @@ extern void initialize_nic();
 extern int init_tables();
 extern int init_memories();
 
+extern int flush_tables();
+
 extern int launch_count();
 extern void t4p4s_abnormal_exit(int retval, int idx);
 extern void t4p4s_pre_launch(int idx);
@@ -247,6 +249,8 @@ int main(int argc, char** argv)
         }
 
         t4p4s_post_launch(i);
+
+        flush_tables();
     }
 
     t4p4s_normal_exit();
