@@ -20,7 +20,7 @@ int handle_p4_msg(char* buffer, int length, p4_msg_callback cb)
 {
 	struct p4_header* header;
 	struct p4_ctrl_msg ctrl_m;
-	int rval;
+	int rval = 0;
 
 	if (length<sizeof(struct p4_header)) return -1;
 
@@ -41,15 +41,20 @@ int handle_p4_msg(char* buffer, int length, p4_msg_callback cb)
 			cb(&ctrl_m);
 			break;
 		case P4T_ADD_TABLE_ENTRY:
-            rval = handle_p4_add_table_entry(netconv_p4_add_table_entry((struct p4_add_table_entry*)buffer), &ctrl_m);
+			rval = handle_p4_add_table_entry(netconv_p4_add_table_entry((struct p4_add_table_entry*)buffer), &ctrl_m);
 #ifdef T4P4S_DEBUG
 			if (rval != 0) {
 				printf("[CTRL]    :: ADD_TABLE_ENTRY rval=%d\n", rval);
 			}
 #endif
-            if (rval<0) return rval;
-            cb(&ctrl_m);
-            break;
+			if (rval<0) return rval;
+			cb(&ctrl_m);
+			break;
+		case P4T_CTRL_INITIALIZED:
+			/* no need to inspect trailing bytes if any so just ignore it */
+			rval = handle_p4_ctrl_initialized(header, &ctrl_m);
+			cb(&ctrl_m);
+			break;
 		default:
 #ifdef T4P4S_DEBUG
 			printf("[CTRL] Warning: skippin message of unknown type %d\n", header->type);
@@ -58,6 +63,13 @@ int handle_p4_msg(char* buffer, int length, p4_msg_callback cb)
 			return -100;
 	}
 
+	return 0;
+}
+
+int handle_p4_ctrl_initialized(struct p4_header* header, struct p4_ctrl_msg* ctrl_m)
+{
+	ctrl_m->type = header->type;
+	ctrl_m->xid = header->xid;
 	return 0;
 }
 

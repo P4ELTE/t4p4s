@@ -30,5 +30,6 @@ void stop_backend(ctrl_plane_backend bg);
 ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name);
 ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t length);
 
+volatile int ctrl_is_initialized;
 
 #endif

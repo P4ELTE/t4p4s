@@ -214,11 +214,20 @@ for table in hlir16_tables_with_keys:
 #} }
 
 
+#[ extern volatile int ctrl_is_initialized;
+#{ void ctrl_initialized() {
+#[     debug("Control plane fully initialized.\n");
+#[     ctrl_is_initialized = 1;
+#} }
+
+
 #{ void recv_from_controller(struct p4_ctrl_msg* ctrl_m) {
 #{     if (ctrl_m->type == P4T_ADD_TABLE_ENTRY) {
 #[          ctrl_add_table_entry(ctrl_m);
 #[     } else if (ctrl_m->type == P4T_SET_DEFAULT_ACTION) {
 #[         ctrl_setdefault(ctrl_m);
+#[     } else if (ctrl_m->type == P4T_CTRL_INITIALIZED) {
+#[         ctrl_initialized();
 #}     }
 #} }
 
