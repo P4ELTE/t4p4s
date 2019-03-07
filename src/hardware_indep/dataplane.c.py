@@ -123,7 +123,7 @@ for table in hlir16.tables:
         #[               ${table.key_length_bytes} == 0 ? "$$[bytes]{}{(empty key)}" : "");
 
         #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
-        #[     bool hit = entry != NULL && entry->is_entry_valid == INVALID_TABLE_ENTRY;
+        #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
 
         #[     debug("   :: Lookup $$[success]{}{%s}: $${}{%s}%s\n",
         #[               hit ? "hit" : "miss",
