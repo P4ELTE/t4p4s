@@ -59,6 +59,9 @@ int read_p4_msg(int sock, char* buffer, int length)
 	if (msglen>length)
 		return -100;
 
+	if (msglen == sizeof(struct p4_header))
+		return msglen;
+
 	if ((rval=read_fix(sock, buffer + sizeof(struct p4_header), msglen-sizeof(struct p4_header)))<=0)
 		return rval;
 	return msglen;

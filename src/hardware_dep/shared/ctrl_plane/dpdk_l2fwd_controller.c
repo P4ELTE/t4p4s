@@ -22,6 +22,19 @@
 
 controller c;
 
+void notify_controller_initialized()
+{
+        char buffer[sizeof(struct p4_header)];
+        struct p4_header* h;
+
+        h = create_p4_header(buffer, 0, sizeof(struct p4_header));
+        h->type = P4T_CTRL_INITIALIZED;
+
+        netconv_p4_header(h);
+
+        send_p4_msg(c, buffer, sizeof(struct p4_header));
+}
+
 void fill_smac_table(uint8_t port, uint8_t mac[6])
 {
         char buffer[2048];
@@ -281,6 +294,7 @@ void init() {
                 fill_smac_table(portmap[i], macs[i]);
         }
 
+        notify_controller_initialized();
 }
 
 

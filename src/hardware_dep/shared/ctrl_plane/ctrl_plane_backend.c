@@ -237,6 +237,7 @@ ctrl_plane_backend create_backend(int num_of_threads, int queue_size, char* cont
 void launch_backend(ctrl_plane_backend bg)
 {
 	backend_t *bgt = (backend_t*) bg;
+	ctrl_is_initialized = 0;
 
         if( connect( bgt->controller_sock, (struct sockaddr *) &(bgt->controller_addr), sizeof(struct sockaddr_in) ) == -1 )
         {
@@ -250,6 +251,9 @@ void launch_backend(ctrl_plane_backend bg)
         dispatch(bgt->tpool, input_processor, (void*)bgt);
 					sleep(1);
         dispatch(bgt->tpool, output_processor, (void*)bgt);
+
+        while (!ctrl_is_initialized)
+            sleep(1);
 }
 
 void stop_backend(ctrl_plane_backend bg)

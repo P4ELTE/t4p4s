@@ -36,6 +36,7 @@ enum p4_type {
 	P4T_ECHO_REQUEST = 2,
 	P4T_ECHO_REPLY = 3,
 	P4T_SUCCESS = 4,
+	P4T_CTRL_INITIALIZED = 5,
 
 	/* Switch informations */	
 	P4T_GET_TABLE_DEFINITIONS = 100,

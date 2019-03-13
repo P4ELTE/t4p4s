@@ -34,6 +34,7 @@ struct p4_ctrl_msg {
 typedef void (*p4_msg_callback)(struct p4_ctrl_msg*);
 
 int handle_p4_msg(char* buffer, int length, p4_msg_callback cb);
+int handle_p4_ctrl_initialized(struct p4_header* header, struct p4_ctrl_msg* ctrl_m);
 int handle_p4_set_default_action(struct p4_set_default_action* m, struct p4_ctrl_msg* ctrl_m);
 int handle_p4_add_table_entry(struct p4_add_table_entry* m, struct p4_ctrl_msg* ctrl_m);
 
