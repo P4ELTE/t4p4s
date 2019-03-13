@@ -17,6 +17,7 @@
 
 
 extern void create_table(lookup_table_t* t, int socketid);
+extern void flush_table(lookup_table_t* t);
 
 void create_tables_on_socket(int socketid)
 {
@@ -58,5 +59,37 @@ void init_tables()
     debug(" :::: Initializing stateful memories...\n");
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         create_table_on_lcore(lcore_id);
+    }
+}
+
+void flush_tables_on_socket(int socketid)
+{
+    debug(" :::: Flushing tables on socket " T4LIT(%d,socket) "...\n", socketid);
+    for (int i = 0; i < NB_TABLES; i++) {
+        lookup_table_t t = table_config[i];
+
+        debug("   :: Flushing instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
+        for (int j = 0; j < NB_REPLICA; j++) {
+            flush_table(state[socketid].tables[i][j]);
+        }
+
+        state[socketid].active_replica[i] = 0;
+    }
+}
+
+void flush_table_on_lcore(unsigned lcore_id)
+{
+    if (rte_lcore_is_enabled(lcore_id) == 0) return;
+
+    int socketid = get_socketid(lcore_id);
+    if (state[socketid].tables[0][0] == NULL) return;
+    flush_tables_on_socket(socketid);
+}
+
+void flush_tables()
+{
+    debug(" :::: Flushing stateful memories...\n");
+    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        flush_table_on_lcore(lcore_id);
     }
 }

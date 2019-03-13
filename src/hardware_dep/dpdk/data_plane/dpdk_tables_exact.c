@@ -68,10 +68,32 @@ void exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
     dbg_bytes(key, t->entry.key_size, "   :: Add " T4LIT(exact) " entry to " T4LIT(%s,table) " (hash " T4LIT(%d) "): " T4LIT(%s,action) " <- ", t->name, index, get_entry_action_name(value));
 }
 
+void exact_delete(lookup_table_t* t, uint8_t* key)
+{
+    if (t->entry.key_size == 0) return; // nothing must have been added
+
+    extended_table_t* ext = (extended_table_t*)t->table;
+    int32_t ret = rte_hash_lookup(ext->rte_table, key);
+    if (ret >= 0)
+        rte_free(ext->content[ret%t->max_size]);
+}
+
 uint8_t* exact_lookup(lookup_table_t* t, uint8_t* key)
 {
     if(unlikely(t->entry.key_size == 0)) return t->default_val;
     extended_table_t* ext = (extended_table_t*)t->table;
     int ret = rte_hash_lookup(ext->rte_table, key);
     return (ret < 0)? t->default_val : ext->content[ret%t->max_size];
+}
+
+void exact_flush(lookup_table_t* t)
+{
+    void *data, *next_key;
+    uint32_t iter = 0;
+
+    extended_table_t* ext = (extended_table_t*)t->table;
+    rte_hash_reset(ext->rte_table);
+    while (rte_hash_iterate(ext->rte_table, (const void**)&next_key, &data, &iter) >= 0) {
+        exact_delete(ext->rte_table, next_key);
+    }
 }
