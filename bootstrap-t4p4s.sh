@@ -13,7 +13,7 @@ echo Root access granted, starting...
 
 # Set sensible defaults
 export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
-export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-`git ls-remote --tags https://github.com/google/protobuf | tail -1 | cut -f3 -d'/'`}
+export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-$(git ls-remote --tags https://github.com/google/protobuf | tail -1 | cut -f3 -d'/')}
 
 which clang >/dev/null
 if [ $? -eq 0 ]; then
@@ -51,89 +51,70 @@ echo -e "Using DPDK version $cc${DPDK_VSN}$nn"
 echo
 
 # Download libraries
-sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev curl &
-WAITPROC_APTGET="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_APTGET"
+echo ========== DOWNLOADING DEPENDENCIES ==========
+sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev curl
 
-[ ! -d "dpdk-${DPDK_VSN}" ] && wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz &
-WAITPROC_DPDK="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_DPDK"
+echo ========== DOWNLOADING DPDK ==========
+wget http://fast.dpdk.org/rel/dpdk-$DPDK_FILEVSN.tar.xz && tar xJf dpdk-$DPDK_FILEVSN.tar.xz && rm dpdk-$DPDK_FILEVSN.tar.xz
 
-[ ! -d "protobuf" ] && git clone --depth=1 --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
-WAITPROC_PROTOBUF="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
+echo ========== CLONING PROTOBUF ==========
+git clone --depth=1 --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf
 
-[ ! -d "p4c" ] && git clone --depth=1 --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
-# [ "$P4C_COMMIT" == "" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git submodule update --init --recursive &
+echo ========== CLONING P4C ==========
+git clone --depth=1 --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive
+# git clone --recursive https://github.com/p4lang/p4c && cd p4c && git submodule update --init --recursive
 
-WAITPROC_P4C="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
+echo ========== CLONING T4P4S ==========
+git clone --depth=1 --recursive https://github.com/P4ELTE/t4p4s
 
-[ ! -d t4p4s ] && git clone --depth=1 --recursive https://github.com/P4ELTE/t4p4s &
-WAITPROC_T4P4S="$!"
-[ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_T4P4S"
-
-
-# Wait for apt-get to finish
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_APTGET"
-
-
-# Setup DPDK
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_DPDK"
-
-export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
+export RTE_SDK=$PWD/$(ls -d dpdk*$DPDK_FILEVSN*/)
 
 cd "$RTE_SDK"
-make install DESTDIR="${RTE_TARGET}" T="${RTE_TARGET}" -j4
+echo ========== DOING DPDK ==========
+make install DESTDIR="${RTE_TARGET}" T="${RTE_TARGET}" -j${MAX_MAKE_JOBS}
 cd ..
 
-
 # Setup protobuf
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_PROTOBUF"
-
+echo ========== DOING PROTOBUF ==========
 cd protobuf
 ./autogen.sh
 ./configure
-make -j ${MAX_MAKE_JOBS}
-sudo make install -j ${MAX_MAKE_JOBS}
+make -j${MAX_MAKE_JOBS}
+sudo make install
 sudo ldconfig
 cd ..
 
 
 # Setup p4c
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_P4C"
+export P4C=$PWD/p4c
 
-export P4C=`pwd`/p4c
-
+echo ========== DOING P4C ==========
 cd p4c
 ./bootstrap.sh
 cd build
 cmake ..
-make -j ${MAX_MAKE_JOBS}
-sudo make install -j ${MAX_MAKE_JOBS}
+make -j${MAX_MAKE_JOBS}
+sudo make install
 cd ../..
 
-
 # Enter t4p4s directory
-[ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_T4P4S"
-
 cat <<EOF >./t4p4s_environment_variables.sh
-export DPDK_VSN=${DPDK_VSN}
-export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
-export RTE_TARGET=${RTE_TARGET}
-export P4C=`pwd`/p4c
+export DPDK_VSN=$DPDK_VSN
+export RTE_SDK=$RTE_SDK
+export RTE_TARGET=$RTE_TARGET
+export P4C=$PWD/p4c
 EOF
 
-chmod +x `pwd`/t4p4s_environment_variables.sh
-. `pwd`/t4p4s_environment_variables.sh
+chmod +x $PWD/t4p4s_environment_variables.sh
+. $PWD/t4p4s_environment_variables.sh
 
 echo Environment variable config is done
-echo -e "Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn"
+echo -e "Environment variable config is saved in ${cc}$PWD/t4p4s_environment_variables.sh$nn"
 
 if [[ $(grep "t4p4s_environment_variables.sh" ~/.profile) ]]; then
     echo -e "Your ${cc}~/.profile$nn is ${cc}not modified$nn, as it already calls t4p4s_environment_variables.sh"
 else
     echo >> ~/.profile
-    echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile
-    echo -e "Environment variable config is ${cc}enabled on login$nn: your ${cc}~/.profile$nn will run `pwd`/t4p4s_environment_variables.sh"
+    echo ". $PWD/t4p4s_environment_variables.sh" >> ~/.profile
+    echo -e "Environment variable config is ${cc}enabled on login$nn: your ${cc}~/.profile$nn will run $PWD/t4p4s_environment_variables.sh"
 fi
