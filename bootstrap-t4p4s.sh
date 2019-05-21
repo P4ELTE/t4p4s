@@ -67,11 +67,14 @@ git clone --depth=1 --recursive https://github.com/p4lang/p4c && cd p4c && git c
 echo ========== CLONING T4P4S ==========
 git clone --depth=1 --recursive https://github.com/P4ELTE/t4p4s
 
+echo "export RTE_SDK=$PWD/$(ls -d dpdk*$DPDK_FILEVSN*/)"
 export RTE_SDK=$PWD/$(ls -d dpdk*$DPDK_FILEVSN*/)
 
 cd "$RTE_SDK"
 echo ========== DOING DPDK ==========
-make install DESTDIR="${RTE_TARGET}" T="${RTE_TARGET}" -j${MAX_MAKE_JOBS}
+make defconfig
+make -j${MAX_MAKE_JOBS}
+make install DESTDIR="${RTE_TARGET}" T="${RTE_TARGET}"
 cd ..
 
 # Setup protobuf
