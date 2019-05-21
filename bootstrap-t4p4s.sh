@@ -1,3 +1,4 @@
+#!/bin/bash
 
 # Highlight colours
 cc="\033[1;33m"     # yellow
@@ -41,7 +42,6 @@ vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
     | uniq -f1 \
     | head -1`
 
-vsn=($vsn)
 DPDK_VSN=$(echo $vsn | cut -d ' ' -f 2)
 DPDK_FILEVSN="$DPDK_VSN"
 [ "$(echo $vsn | cut -d ' ' -f 1)" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.$(echo $vsn | cut -d ' ' -f 1)"
