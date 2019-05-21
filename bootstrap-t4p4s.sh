@@ -59,24 +59,23 @@ WAITPROC_APTGET="$!"
 WAITPROC_DPDK="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_DPDK"
 
-[ ! -d "protobuf" ] && git clone --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
+[ ! -d "protobuf" ] && git clone --depth=1 --recursive -b "${PROTOBUF_BRANCH}" https://github.com/google/protobuf &
 WAITPROC_PROTOBUF="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_PROTOBUF"
 
-[ ! -d "p4c" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
+[ ! -d "p4c" ] && git clone --depth=1 --recursive https://github.com/p4lang/p4c && cd p4c && git checkout $P4C_COMMIT && git submodule update --init --recursive &
 # [ "$P4C_COMMIT" == "" ] && git clone --recursive https://github.com/p4lang/p4c && cd p4c && git submodule update --init --recursive &
+
 WAITPROC_P4C="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_P4C"
 
-[ ! -d t4p4s ] && git clone --recursive https://github.com/P4ELTE/t4p4s &
+[ ! -d t4p4s ] && git clone --depth=1 --recursive https://github.com/P4ELTE/t4p4s &
 WAITPROC_T4P4S="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_T4P4S"
 
 
 # Wait for apt-get to finish
 [ $PARALLEL_INSTALL -ne 1 ] || wait "$WAITPROC_APTGET"
-
-
 
 
 # Setup DPDK
