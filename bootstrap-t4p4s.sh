@@ -137,5 +137,3 @@ else
     echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile
     echo -e "Environment variable config is ${cc}enabled on login$nn: your ${cc}~/.profile$nn will run `pwd`/t4p4s_environment_variables.sh"
 fi
-
-cd t4p4s
