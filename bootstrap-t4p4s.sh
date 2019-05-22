@@ -42,7 +42,7 @@ vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
     | head -1`
 
 vsn=($vsn)
-DPDK_VSN="${DPDK_VSN-vsn[1]}"
+DPDK_VSN="${DPDK_VSN-${vsn[1]}}"
 DPDK_FILEVSN="$DPDK_VSN"
 [ "${vsn[0]}" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.${vsn[0]}"
 
