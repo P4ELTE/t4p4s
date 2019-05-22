@@ -3,6 +3,18 @@
 cc="\033[1;33m"     # yellow
 nn="\033[0m"
 
+APPROX_INSTALL_MB="2500"
+FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
+
+if [ "$SKIP_CHECK" != "1" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
+    echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
+    echo -e "You seem to have $cc$FREE_MB MB$nn of free space on the current drive"
+    echo -e "To force installation, run ${cc}SKIP_CHECK=1 $0$nn"
+    exit
+else
+    echo -e "Installation will use approximately $cc$APPROX_INSTALL_MB MB$nn of space"
+fi
+
 MAX_MAKE_JOBS=${MAX_MAKE_JOBS-`nproc --all`}
 
 echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
