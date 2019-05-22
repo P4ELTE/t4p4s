@@ -10,6 +10,11 @@ echo Requesting root access...
 sudo echo -n ""
 echo Root access granted, starting...
 
+if [ ! `which curl` ] || [ ! `which git` ]; then
+    echo -e "Installing ${cc}curl$nn and ${cc}git$nn"
+    sudo apt-get -y install curl git
+fi
+
 # Set sensible defaults
 export PARALLEL_INSTALL=${PARALLEL_INSTALL-1}
 export PROTOBUF_BRANCH=${PROTOBUF_BRANCH-`git ls-remote --tags https://github.com/google/protobuf | tail -1 | cut -f3 -d'/'`}
@@ -52,7 +57,7 @@ echo -e "Using DPDK version $cc${DPDK_VSN}$nn"
 echo
 
 # Download libraries
-sudo apt-get update && sudo apt-get -y install g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev curl &
+sudo apt-get update && sudo apt-get -y install g++ automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev pkg-config python python-scapy python-ipaddr tcpdump cmake python-setuptools libprotobuf-dev libnuma-dev &
 WAITPROC_APTGET="$!"
 [ $PARALLEL_INSTALL -ne 0 ] || wait "$WAITPROC_APTGET"
 
