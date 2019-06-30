@@ -17,8 +17,9 @@ from hlir16.p4node import P4Node, deep_copy, get_fresh_node_id
 from hlir16.hlir16_attrs import get_main
 
 def apply_annotations(postfix, extra_args, x):
-    if (x.methodCall.method.node_type=="PathExpression") :
-        new_decl = deep_copy(x.methodCall.method.ref)
+    if x.methodCall.method.node_type == "PathExpression":
+        on_error = lambda node_id: addError('transforming hlir16', 'Recursion found during deep-copy on node {}'.format(node_id))
+        new_decl = deep_copy(x.methodCall.method.ref, on_error)
         new_decl.name += "_" + postfix
         extra_args_types = [ P4Node({'id' : get_fresh_node_id(),
                                    'node_type' : 'Parameter',
@@ -36,6 +37,7 @@ def apply_annotations(postfix, extra_args, x):
         del x.methodCall.arguments.vec[:2]
     return x
 
+
 def search_for_annotations(x):
     available_optimization_annotations = ['offload', 'atomic']
 
@@ -48,6 +50,7 @@ def search_for_annotations(x):
         if [] != name_list:
 	          x.components = map(lambda x : apply_annotations('_'.join(name_list), arg_list, x), x.components)
     return x
+
 
 def transform_hlir16(hlir16):
     main = get_main(hlir16)
