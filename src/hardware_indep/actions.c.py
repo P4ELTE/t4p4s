@@ -13,8 +13,6 @@
 # limitations under the License.
 from utils.misc import addError, addWarning 
 from utils.codegen import format_declaration, format_statement_ctl, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
-import math
-
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
@@ -25,6 +23,8 @@ import math
 #[ extern ctrl_plane_backend bg;
 
 #[ extern void sleep_millis(int millis);
+
+#[ struct all_metadatas_t all_metadatas;
 
 # TODO do not duplicate code
 def unique_stable(items):

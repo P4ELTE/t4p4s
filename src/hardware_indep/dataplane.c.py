@@ -103,11 +103,12 @@ for table in hlir16.tables:
 ################################################################################
 # Table application
 
-for smem in table.meters + table.counters:
-    for comp in smem.components:
-        type = comp['type']
-        name  = comp['name']
-        #[ void apply_direct_smem_$type(rte_atomic32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name);
+for table in hlir16.tables:
+    for smem in table.meters + table.counters:
+        for comp in smem.components:
+            type = comp['type']
+            name  = comp['name']
+            #[ void apply_direct_smem_$type(rte_atomic32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name);
 
 
 for table in hlir16.tables:
@@ -179,7 +180,7 @@ for table in hlir16.tables:
 
 #{ void reset_headers(SHORT_STDPARAMS) {
 for h in hlir16.header_instances:
-    if not h.type.type_ref.is_metadata:
+    if hasattr(h.type, 'type_ref') and not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}].pointer = NULL;
     else:
         #[ memset(pd->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
@@ -187,7 +188,7 @@ for h in hlir16.header_instances:
 
 #{ void init_headers(SHORT_STDPARAMS) {
 for h in hlir16.header_instances:
-    if not h.type.type_ref.is_metadata:
+    if hasattr(h.type, 'type_ref') and not h.type.type_ref.is_metadata:
         #[ pd->headers[${h.id}] = (header_descriptor_t)
         #{ {
         #[     .type = ${h.id},
@@ -237,6 +238,9 @@ for table in hlir16.tables:
 #[     uint32_t value32, res32;
 #[     (void)value32, (void)res32;
 for hdr in hlir16.header_instances:
+    if not hasattr(hdr.type, 'type_ref'):
+        continue
+
     #[ 
     #[ // updating header instance ${hdr.name}
 
@@ -315,7 +319,7 @@ for pe in pipeline_elements:
 
 ################################################################################
 
-metadata_names = {hi.name for hi in hlir16.header_instances if hi.type.type_ref.is_metadata}
+metadata_names = {hi.name for hi in hlir16.header_instances if hasattr(hi.type, 'type_ref') if hi.type.type_ref.is_metadata}
 longest_hdr_name_len = max({len(h.name) for h in hlir16.header_instances if h.name not in metadata_names})
 
 pkt_name_indent = " " * longest_hdr_name_len

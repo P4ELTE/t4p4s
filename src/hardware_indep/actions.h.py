@@ -19,6 +19,7 @@ from hlir16.hlir16_attrs import get_main
 #[ #define __ACTIONS_H__
 
 #[ #include "dataplane.h"
+#[ #include "common.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
@@ -45,18 +46,26 @@ def resolve_typeref(hlir16, f):
 
     return f
 
-for table in hlir16.tables:
-    for action in table.actions:
-        # if len(action.action_object.parameters) == 0:
-        #     continue
 
-        #{ struct action_${action.action_object.name}_params {
-        for param in action.action_object.parameters.parameters:
+for ctl in hlir16.controls:
+    for act in ctl.actions:
+        #{ struct action_${act.name}_params {
+        for param in act.parameters.parameters:
             param = resolve_typeref(hlir16, param)
             
             #[ FIELD(${param.name}, ${param.type.size});
+
         #[ FIELD(DUMMY_FIELD, 0);
         #} };
+
+#{ struct all_metadatas_t {
+for metainst in hlir16.metadata_insts:
+    if hasattr(metainst.type, 'type_ref'):
+        metatype = metainst.type.type_ref
+        #[ struct ${metatype.name} meta_${metatype.name};
+    else:
+        #[ ${format_type(metainst.type)} metafield_${metainst.name};
+#} };
 
 for table in hlir16.tables:
     #{ struct ${table.name}_action {
@@ -82,13 +91,12 @@ for table in hlir16.tables:
 
 
 # TODO: The controls shouldn't be accessed through an instance declaration parameter
-for pe in get_main(hlir16).arguments:
-    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
-
-    if ctl is not None:
-        #[ typedef struct control_locals_${pe.expression.type.name}_s {
-        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-            #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
-        #[ } control_locals_${pe.expression.type.name}_t;
+for ctl in hlir16.objects['P4Control']:
+    #{ typedef struct control_locals_${ctl.name}_s {
+    for local_var_decl in ctl.controlLocals['Declaration_Variable']:
+        #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
+    for local_var_decl in ctl.controlLocals['Declaration_Instance']:
+        #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
+    #} } control_locals_${ctl.name}_t;
 
 #[ #endif
