@@ -487,6 +487,7 @@ if [ "$(optvalue p4)" != off ]; then
     addopt p4opts "${OPTS[source]}" " "
     addopt p4opts "--p4v ${OPTS[vsn]}" " "
     addopt p4opts "-g ${T4P4S_SRCGEN_DIR}" " "
+    # addopt p4opts "-desugar_info none" " "
     [ "$(optvalue verbose)" != off ] && addopt p4opts "-verbose" " "
 
     verbosemsg "P4 compiler options: $(print_cmd_opts "${OPTS[p4opts]}")"
