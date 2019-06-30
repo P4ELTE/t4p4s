@@ -12,11 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "dpdkx_v1model.h"
+#include "dpdk_model_v1model.h"
 #include "util_packet.h"
 
 #include <rte_ip.h>
 
+
+int extract_egress_port(packet_descriptor_t* pd) {
+    return GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_egress_port);
+}
+
+int extract_ingress_port(packet_descriptor_t* pd) {
+    return GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port);
+}
+
+void set_metadata_inport(packet_descriptor_t* pd, uint32_t inport)
+{
+    int res32; // needed for the macro
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
+}
 
 void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, SHORT_STDPARAMS) {
     debug(" :::: Called extern " T4LIT(verify_checksum,extern) "\n");

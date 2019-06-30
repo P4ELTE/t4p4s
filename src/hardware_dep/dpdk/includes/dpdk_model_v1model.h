@@ -32,4 +32,6 @@ void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_Has
 
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables);
 
+void set_metadata_inport(packet_descriptor_t* pd, uint32_t inport);
+
 #endif // __DPDK_V1MODEL_EXTERN_H_
