@@ -277,8 +277,8 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
    Extract - statement
 *******************************************************************************/
 
-#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
-#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
+int extract_egress_port(packet_descriptor_t* pd);
+int extract_ingress_port(packet_descriptor_t* pd);
 
 #endif // DPDK_PRIMITIVES_H
 

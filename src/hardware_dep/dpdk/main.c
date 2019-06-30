@@ -144,8 +144,8 @@ void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
     } else {
         debug(" :::: Egressing packet\n");
 
-        int egress_port = EXTRACT_EGRESSPORT(pd);
-        int ingress_port = EXTRACT_INGRESSPORT(pd);
+        int egress_port = extract_egress_port(pd);
+        int ingress_port = extract_ingress_port(pd);
 
         send_packet(lcdata, pd, egress_port, ingress_port);
     }
