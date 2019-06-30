@@ -107,10 +107,6 @@ for s in parser.states:
                 elif hasattr(c.methodCall.method.expr, 'header_ref'):
                     hdrinst = c.methodCall.method.expr.header_ref
                 else:
-                    if not hasattr(c.methodCall.arguments[0].expression, 'member'):
-                        import ipdb
-                        ipdb.set_trace()
-                        
                     hdrinst_name = c.methodCall.arguments[0].expression.member
                     hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
 
