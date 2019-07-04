@@ -111,6 +111,7 @@ control ingress(inout headers hdr,
     action forward(bit<48> dmac_val, bit<48> smac_val, PortId_t port) {
         hdr.ethernet.dstAddr = dmac_val;
         ostd.egress_port = port;
+        istd.ingress_port = port;
         hdr.ethernet.srcAddr = smac_val;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 8w1;
     }
