@@ -17,8 +17,7 @@
 
 #define T4P4S_NIC_VARIANT on
 
-
-#include "dpdk_lib.h"
+#include "aliases.h"
 #include <stdbool.h>
 
 #define T4P4S_BROADCAST_PORT    100
