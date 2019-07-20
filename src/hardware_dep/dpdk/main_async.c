@@ -14,6 +14,7 @@
 
 #include "dpdk_lib.h"
 #include "gen_include.h"
+#include "dpdkx_crypto.h"
 
 // -----------------------------------------------------------------------------
 // GLOBALS
@@ -95,12 +96,15 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
 static void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_type, void* context)
 {
+    unsigned encryption_offset = 0;//14; // TODO
+
     struct async_op *op;
     rte_mempool_get(async_pool, (void**)&op);
     op->op = op_type;
     op->data = pd->wrapper;
 
     int packet_length = op->data->pkt_len;
+    int encrypted_length = packet_length - encryption_offset;
     int extra_length = 0;
     debug_mbuf(op->data, "enqueueing for async");
 
@@ -113,6 +117,11 @@ static void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type
     rte_pktmbuf_prepend(op->data, sizeof(int));
     *(rte_pktmbuf_mtod(op->data, int*)) = packet_length;
     extra_length += sizeof(int);
+
+    op->offset = extra_length + encryption_offset;
+
+    // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
+    if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, 16-encrypted_length%16);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
 
@@ -186,6 +195,8 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
 
 ucontext_t* cs[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct async_op *async_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
 {
@@ -205,8 +216,27 @@ void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
         n = rte_ring_dequeue_burst(lcdata->conf->async_queue, (void**)async_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
         if(n > 0)
         {
+            if (rte_crypto_op_bulk_alloc(lcdata->conf->crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], n) == 0)
+                rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
+            for(i = 0; i < n; i++)
+                async_op_to_crypto_op(async_ops[lcore_id][i], enqueued_ops[lcore_id][i]);
             rte_mempool_put_bulk(async_pool, (void**)async_ops[lcore_id], n);
+            lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
         }
+    }
+
+    if(lcdata->conf->pending_crypto > 0)
+    {
+        n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+        for (i = 0; i < n; i++)
+        {
+            if (dequeued_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
+                rte_exit(EXIT_FAILURE, "Some operations were not processed correctly");
+            else
+                resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
+        }
+        rte_mempool_put_bulk(lcdata->conf->crypto_pool, (void **)dequeued_ops[lcore_id], n);
+        lcdata->conf->pending_crypto -= n;
     }
 }
 

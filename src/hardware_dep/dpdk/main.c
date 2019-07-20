@@ -85,6 +85,10 @@ extern void send_broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t
 extern struct lcore_data init_lcore_data();
 extern packet* clone_packet(packet* pd, struct rte_mempool* mempool);
 
+// -----------------------------------------------------------------------------
+
+#include "dpdkx_crypto.c"
+
 //=============================================================================
 
 extern uint32_t get_port_mask();

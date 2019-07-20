@@ -137,8 +137,10 @@ struct lcore_conf {
     struct lcore_hardware_conf hw;
     struct lcore_state         state;
     struct rte_mempool*        mempool;
+    struct rte_mempool*        crypto_pool;
     ucontext_t                 main_loop_context;
     struct rte_ring*           async_queue;
+    unsigned                   pending_crypto;
 } __rte_cache_aligned;
 
 //-----------------------------------------------------------------------------

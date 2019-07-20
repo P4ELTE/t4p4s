@@ -17,6 +17,7 @@
 #include "dpdk_lib.h"
 #include "util.h"
 #include "dpdk_nicoff.h"
+#include "dpdkx_crypto.h"
 
 // -----------------------------------------------------------------------------
 
@@ -275,7 +276,7 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
 // TODO
 
 bool core_is_working(struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0;
+    return get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0 || lcdata->conf->pending_crypto > 0;
 }
 
 bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
@@ -374,6 +375,7 @@ struct lcore_data init_lcore_data() {
         .pkt_idx  = 0,
     };
     data.conf->mempool  = pktmbuf_pool[0];
+    data.conf->crypto_pool = crypto_pool;
 
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
@@ -384,6 +386,7 @@ struct lcore_data init_lcore_data() {
 
 void initialize_nic() {
     dpdk_init_nic();
+    init_crypto_devices();
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {

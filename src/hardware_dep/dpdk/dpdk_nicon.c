@@ -16,6 +16,7 @@
 
 #include "util.h"
 #include "dpdk_nicon.h"
+#include "dpdkx_crypto.h"
 
 extern int get_socketid(unsigned lcore_id);
 
@@ -45,6 +46,11 @@ static inline void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
             rte_pktmbuf_free(m_table[ret]);
         } while (++ret < n);
     }
+
+/*
+    TODO set the prev_tsc even if the burst was sent due to full tx queue!
+    lcdata->prev_tsc = rte_rdtsc();
+*/
 }
 
 void tx_burst_queue_drain(struct lcore_data* lcdata) {
@@ -168,6 +174,7 @@ struct lcore_data init_lcore_data() {
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
     lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
+    lcdata.conf->crypto_pool = crypto_pool;
 
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
@@ -253,6 +260,7 @@ unsigned get_queue_count(struct lcore_data* lcdata) {
 
 void initialize_nic() {
     dpdk_init_nic();
+    init_crypto_devices();
 }
 
 int launch_count() {
