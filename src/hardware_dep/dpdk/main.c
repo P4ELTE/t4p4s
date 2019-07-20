@@ -150,14 +150,34 @@ void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd)
     }
 }
 
+void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id)
+{
+    handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), port_id);
+    do_single_tx(lcdata, pd);
+    if(pd->context != NULL)
+    {
+        debug(T4LIT(Context for packet %p terminating... swapping back to main context...,warning) "\n", pd->context);
+        rte_ring_enqueue(context_buffer, pd->context);
+    }
+}
+
+// defined in main_async.c
+void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned pkt_idx, uint32_t port_id, void (*handler_function)(void));
+void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
+
 void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
     bool got_packet = fetch_packet(pd, lcdata, pkt_idx);
+    void (*handler_function)(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id) = do_handle_packet;
 
     if (got_packet) {
-	    if (likely(is_packet_handled(pd, lcdata))) {
-	        handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), get_portid(lcdata, queue_idx));
-            do_single_tx(lcdata, pd);
+        if (likely(is_packet_handled(pd, lcdata))) {
+#ifdef ASYNC_EXTERNS_ENABLED
+            if(PACKET_REQUIRES_CONTEXT(pd))
+                async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
+            else
+#endif
+                handler_function(lcdata, pd, get_portid(lcdata, queue_idx));
         }
     }
 
@@ -186,12 +206,19 @@ bool dpdk_main_loop()
     packet_descriptor_t pd;
     init_dataplane(&pd, lcdata.conf->state.tables);
 
+    extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
+    getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
+
     while (core_is_working(&lcdata)) {
         main_loop_pre_rx(&lcdata);
 
         do_rx(&lcdata, &pd);
 
         main_loop_post_rx(&lcdata);
+
+#ifdef ASYNC_EXTERNS_ENABLED
+        main_loop_async(&lcdata, &pd);
+#endif
     }
 
     return lcdata.is_valid;

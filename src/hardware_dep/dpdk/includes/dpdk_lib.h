@@ -123,12 +123,48 @@ struct lcore_hardware_conf {
     struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];
 };
 
+#include <ucontext.h>
+#include <signal.h>
+
+// SIGSTKSZ is typically 8192
+#ifdef T4P4S_DEBUG
+#define CONTEXT_STACKSIZE SIGSTKSZ*2
+#else
+#define CONTEXT_STACKSIZE SIGSTKSZ
+#endif
+
 struct lcore_conf {
     struct lcore_hardware_conf hw;
     struct lcore_state         state;
     struct rte_mempool*        mempool;
+    ucontext_t                 main_loop_context;
+    struct rte_ring*           async_queue;
 } __rte_cache_aligned;
 
+//-----------------------------------------------------------------------------
+// Async
+
+#define ASYNC_EXTERNS_ENABLED
+#define PACKET_REQUIRES_CONTEXT(pd) true
+
+// Shall we move these to backend.h?
+
+#define CRYPTO_BURST_SIZE 2
+
+enum async_op_type {
+    ASYNC_OP_ENCRYPT,
+    ASYNC_OP_DECRYPT,
+};
+
+struct async_op {
+    struct rte_mbuf* data;
+    int offset;
+    enum async_op_type op;
+};
+
+extern struct rte_mempool *context_pool;
+extern struct rte_mempool *async_pool;
+extern struct rte_ring *context_buffer;
 
 //=============================================================================
 // Timings

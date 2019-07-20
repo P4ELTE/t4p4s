@@ -18,6 +18,8 @@
 #include "util.h"
 #include "dpdk_nicoff.h"
 
+// -----------------------------------------------------------------------------
+
 extern int get_socketid(unsigned lcore_id);
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
@@ -273,7 +275,7 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
 // TODO
 
 bool core_is_working(struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action != FAKE_END;
+    return get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0;
 }
 
 bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
@@ -349,18 +351,18 @@ void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, pack
               lcdata->pkt_idx + 1, rte_lcore_id(),
               egress_port, rte_pktmbuf_pkt_len(mbuf));
 
-    check_sent_packet(lcdata, pd, egress_port, ingress_port);
+    //check_sent_packet(lcdata, pd, egress_port, ingress_port);
 }
 
 bool storage_already_inited = false;
 
+// defined in main_async.c
+void async_init_storage();
+
 void init_storage() {
-    if (storage_already_inited)    return;
-
-    char str[15];
-    sprintf(str, "testpool");
-    pktmbuf_pool[0] = rte_mempool_create(str, (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
-
+    if (storage_already_inited) return;
+    pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
+    async_init_storage();
     storage_already_inited = true;
 }
 
@@ -372,6 +374,11 @@ struct lcore_data init_lcore_data() {
         .pkt_idx  = 0,
     };
     data.conf->mempool  = pktmbuf_pool[0];
+
+    char str[15];
+    sprintf(str, "async_queue_%d", rte_lcore_id());
+    data.conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
+
     return data;
 }
 

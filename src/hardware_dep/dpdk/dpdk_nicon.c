@@ -167,7 +167,11 @@ struct lcore_data init_lcore_data() {
 
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
-    lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id()),
+    lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
+
+    char str[15];
+    sprintf(str, "async_queue_%d", rte_lcore_id());
+    lcdata.conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
 
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());
@@ -203,6 +207,8 @@ void free_packet(packet_descriptor_t* pd) {
     rte_pktmbuf_free((struct rte_mbuf*)pd->data);
 }
 
+// defined in main_async.c
+void async_init_storage();
 
 void init_storage() {
     /* Needed for L2 multicasting - e.g. acting as a hub
@@ -218,6 +224,8 @@ void init_storage() {
 
     if (clone_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot init clone mbuf pool\n");
+
+    async_init_storage();
 }
 
 void main_loop_pre_rx(struct lcore_data* lcdata) {

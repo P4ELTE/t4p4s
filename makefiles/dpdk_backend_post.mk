@@ -19,6 +19,7 @@ VPATH += $(realpath -sm $(CDIR)/../../src/hardware_dep/dpdk/data_plane)
 
 # dpdk main
 SRCS-y += main.c
+SRCS-y += main_async.c
 
 # control plane related sources
 SRCS-y += ctrl_plane_backend.c
