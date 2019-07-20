@@ -27,8 +27,6 @@ struct lcore_data {
 
     unsigned            idx;
     unsigned            pkt_idx;
-
-    struct rte_mempool* mempool;
 };
 
 

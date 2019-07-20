@@ -110,7 +110,7 @@ void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int eg
 
         debug("    : Broadcasting on port " T4LIT(%d,port) "\n", portidx);
 
-        packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
+        packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->conf->mempool) : pd->wrapper;
         send_single_packet(lcdata, pd, pkt_out, egress_port, ingress_port);
 
         nb_port++;

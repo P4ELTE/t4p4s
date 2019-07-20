@@ -126,6 +126,7 @@ struct lcore_hardware_conf {
 struct lcore_conf {
     struct lcore_hardware_conf hw;
     struct lcore_state         state;
+    struct rte_mempool*        mempool;
 } __rte_cache_aligned;
 
 

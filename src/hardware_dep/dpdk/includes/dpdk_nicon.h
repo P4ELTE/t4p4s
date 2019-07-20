@@ -51,8 +51,6 @@ struct lcore_data {
     unsigned            nb_rx;
 
     bool                is_valid;
-
-    struct rte_mempool* mempool;
 };
 
 

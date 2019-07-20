@@ -366,13 +366,14 @@ void init_storage() {
 }
 
 struct lcore_data init_lcore_data() {
-    return (struct lcore_data) {
+    struct lcore_data data = (struct lcore_data) {
         .conf     = &lcore_conf[rte_lcore_id()],
         .is_valid = true,
         .idx      = 0,
         .pkt_idx  = 0,
-        .mempool  = pktmbuf_pool[0],
     };
+    data.conf->mempool  = pktmbuf_pool[0];
+    return data;
 }
 
 void initialize_nic() {
