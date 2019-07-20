@@ -276,7 +276,7 @@ bool core_is_working(struct lcore_data* lcdata) {
     return get_cmd(lcdata).action != FAKE_END;
 }
 
-bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
+bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
     fake_cmd_t cmd = get_cmd(lcdata);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
@@ -331,12 +331,11 @@ uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx) {
     return get_cmd(lcdata).in_port;
 }
 
-void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx) {
-
-}
-
-unsigned get_pkt_count_in_group(struct lcore_data* lcdata) {
-    return 1;
+unsigned do_rx_burst(struct lcore_data* lcdata, unsigned queue_idx) {
+    if(get_cmd(lcdata).action == FAKE_PKT)
+        return 1;
+    else
+        return 0;
 }
 
 unsigned get_queue_count(struct lcore_data* lcdata) {

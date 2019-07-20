@@ -14,7 +14,6 @@
 
 #include <rte_ethdev.h>
 
-#include "dpdk_lib.h"
 #include "util.h"
 #include "dpdk_nicon.h"
 
@@ -191,7 +190,7 @@ bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata) {
     return true;
 }
 
-bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
+bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
     packet* p = lcdata->pkts_burst[pkt_idx];
     rte_prefetch0(rte_pktmbuf_mtod(p, void *));
     pd->data = rte_pktmbuf_mtod(p, uint8_t *);
@@ -235,13 +234,9 @@ uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx) {
     return lcdata->conf->hw.rx_queue_list[queue_idx].port_id;
 }
 
-void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx) {
+unsigned do_rx_burst(struct lcore_data* lcdata, unsigned queue_idx) {
     uint8_t queue_id = lcdata->conf->hw.rx_queue_list[queue_idx].queue_id;
-    lcdata->nb_rx = rte_eth_rx_burst((uint8_t) get_portid(lcdata, queue_idx), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
-}
-
-unsigned get_pkt_count_in_group(struct lcore_data* lcdata) {
-    return lcdata->nb_rx;
+    return rte_eth_rx_burst((uint8_t) get_portid(lcdata, queue_idx), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
 }
 
 unsigned get_queue_count(struct lcore_data* lcdata) {
