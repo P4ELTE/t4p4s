@@ -84,7 +84,7 @@ static uint8_t setup_device(const char *crypto_name, uint8_t socket_id)
     snprintf(args, sizeof(args), "socket_id=%d", socket_id);
     ret = rte_vdev_init(crypto_name, args);
     if (ret != 0)
-        rte_exit(EXIT_FAILURE, "Cannot create virtual device");
+        rte_exit(EXIT_FAILURE, "Cannot create crypto device " T4LIT(%s,error), crypto_name);
     uint8_t cdev_id = rte_cryptodev_get_dev_id(crypto_name);
     return cdev_id;
 }
