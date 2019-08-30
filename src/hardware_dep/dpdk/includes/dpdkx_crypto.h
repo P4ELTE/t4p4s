@@ -44,7 +44,9 @@
 // -----------------------------------------------------------------------------
 // Interface
 
-extern uint8_t cdev_id;
+#define CRYPTO_DEVICE_AVAILABLE (cdev_id != -1)
+
+extern int cdev_id;
 extern struct rte_cryptodev_sym_session *session_encrypt;
 extern struct rte_cryptodev_sym_session *session_decrypt;
 extern struct rte_mempool *crypto_pool;

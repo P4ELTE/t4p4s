@@ -211,32 +211,35 @@ void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
         rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
     }
 
-    if(rte_ring_count(lcdata->conf->async_queue) >= CRYPTO_BURST_SIZE)
+    if(CRYPTO_DEVICE_AVAILABLE)
     {
-        n = rte_ring_dequeue_burst(lcdata->conf->async_queue, (void**)async_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
-        if(n > 0)
+        if(rte_ring_count(lcdata->conf->async_queue) >= CRYPTO_BURST_SIZE)
         {
-            if (rte_crypto_op_bulk_alloc(lcdata->conf->crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], n) == 0)
-                rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
-            for(i = 0; i < n; i++)
-                async_op_to_crypto_op(async_ops[lcore_id][i], enqueued_ops[lcore_id][i]);
-            rte_mempool_put_bulk(async_pool, (void**)async_ops[lcore_id], n);
-            lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
+            n = rte_ring_dequeue_burst(lcdata->conf->async_queue, (void**)async_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
+            if(n > 0)
+            {
+                if (rte_crypto_op_bulk_alloc(lcdata->conf->crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], n) == 0)
+                    rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
+                for(i = 0; i < n; i++)
+                    async_op_to_crypto_op(async_ops[lcore_id][i], enqueued_ops[lcore_id][i]);
+                rte_mempool_put_bulk(async_pool, (void**)async_ops[lcore_id], n);
+                lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
+            }
         }
-    }
 
-    if(lcdata->conf->pending_crypto > 0)
-    {
-        n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
-        for (i = 0; i < n; i++)
+        if(lcdata->conf->pending_crypto > 0)
         {
-            if (dequeued_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
-                rte_exit(EXIT_FAILURE, "Some operations were not processed correctly");
-            else
-                resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
+            n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+            for (i = 0; i < n; i++)
+            {
+                if (dequeued_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS)
+                    rte_exit(EXIT_FAILURE, "Some operations were not processed correctly");
+                else
+                    resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
+            }
+            rte_mempool_put_bulk(lcdata->conf->crypto_pool, (void **)dequeued_ops[lcore_id], n);
+            lcdata->conf->pending_crypto -= n;
         }
-        rte_mempool_put_bulk(lcdata->conf->crypto_pool, (void **)dequeued_ops[lcore_id], n);
-        lcdata->conf->pending_crypto -= n;
     }
 }
 

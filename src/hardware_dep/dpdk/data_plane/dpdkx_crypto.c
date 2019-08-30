@@ -27,7 +27,7 @@ int rte_vdev_init(const char *name, const char *args);
 struct rte_mempool *session_pool, *session_priv_pool;
 struct rte_mempool *crypto_pool;
 
-uint8_t cdev_id;
+int cdev_id;
 
 struct rte_cryptodev_sym_session *session_encrypt;
 struct rte_cryptodev_sym_session *session_decrypt;
@@ -43,7 +43,7 @@ static void setup_session(struct rte_cryptodev_sym_session **session, struct rte
     if (*session == NULL) rte_exit(EXIT_FAILURE, "Session could not be created\n");
 }
 
-static void init_session(uint8_t cdev_id, struct rte_cryptodev_sym_session *session, struct rte_crypto_sym_xform *xform, struct rte_mempool *session_priv_pool)
+static void init_session(int cdev_id, struct rte_cryptodev_sym_session *session, struct rte_crypto_sym_xform *xform, struct rte_mempool *session_priv_pool)
 {
     if (rte_cryptodev_sym_session_init(cdev_id, session, xform, session_priv_pool) < 0)
         rte_exit(EXIT_FAILURE, "Session could not be initialized for the crypto device\n");
@@ -77,19 +77,18 @@ static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
     if (crypto_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create crypto op pool\n");
 }
 
-static uint8_t setup_device(const char *crypto_name, uint8_t socket_id)
+static int setup_device(const char *crypto_name, uint8_t socket_id)
 {
     int ret;
     char args[128];
     snprintf(args, sizeof(args), "socket_id=%d", socket_id);
     ret = rte_vdev_init(crypto_name, args);
     if (ret != 0)
-        rte_exit(EXIT_FAILURE, "Cannot create crypto device " T4LIT(%s,error), crypto_name);
-    uint8_t cdev_id = rte_cryptodev_get_dev_id(crypto_name);
-    return cdev_id;
+        debug("Cannot create crypto device " T4LIT(%s,error) "\n", crypto_name);
+    return rte_cryptodev_get_dev_id(crypto_name);
 }
 
-static void configure_device(uint8_t cdev_id, struct rte_cryptodev_config *conf, struct rte_cryptodev_qp_conf *qp_conf, uint8_t socket_id)
+static void configure_device(int cdev_id, struct rte_cryptodev_config *conf, struct rte_cryptodev_qp_conf *qp_conf, uint8_t socket_id)
 {
     if (rte_cryptodev_configure(cdev_id, conf) < 0)
         rte_exit(EXIT_FAILURE, "Failed to configure cryptodev %u", cdev_id);
@@ -109,21 +108,28 @@ void init_crypto_devices()
     unsigned int session_size;
     uint8_t socket_id = rte_socket_id();
     cdev_id = setup_device("crypto_openssl0", socket_id);
-    session_size = rte_cryptodev_sym_get_private_session_size(cdev_id);
-    crypto_init_storage(session_size, socket_id);
-    struct rte_cryptodev_config conf = {
-        .nb_queue_pairs = 8,
-        .socket_id = socket_id
-    };
-    struct rte_cryptodev_qp_conf qp_conf = {
-        .nb_descriptors = 2048,
-        .mp_session = session_pool,
-        .mp_session_private = session_priv_pool
-    };
-    configure_device(cdev_id, &conf, &qp_conf, socket_id);
-    setup_sessions();
-    srand(time(NULL));
-    for(int i = 0; i < 16; i++) iv[i] = rand();
+    if(CRYPTO_DEVICE_AVAILABLE)
+    {
+        session_size = rte_cryptodev_sym_get_private_session_size(cdev_id);
+        crypto_init_storage(session_size, socket_id);
+        struct rte_cryptodev_config conf = {
+            .nb_queue_pairs = 8,
+            .socket_id = socket_id
+        };
+        struct rte_cryptodev_qp_conf qp_conf = {
+            .nb_descriptors = 2048,
+            .mp_session = session_pool,
+            .mp_session_private = session_priv_pool
+        };
+        configure_device(cdev_id, &conf, &qp_conf, socket_id);
+        setup_sessions();
+        srand(time(NULL));
+        for(int i = 0; i < 16; i++) iv[i] = rand();
+    }
+    else
+    {
+        debug(T4LIT(Failed to setup crypto devices. Crypto operations are not available.,warning) "\n");
+    }
 }
 
 void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *crypto_op)
