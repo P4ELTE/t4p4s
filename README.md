@@ -99,6 +99,23 @@ The format of option definitions is the following.
     | %%myexample=mytestcase  | example=**myexample** variant=test verbose dbg testcase=**mytestcase**  |
     | %%myexample             | example=**myexample** variant=test verbose dbg suite                    |
 
+### Crypto devices for cryptography operations
+
+It is hardcoded in the current prototype to create an OpenSSL-based virtual crypto device in DPDK in order to support encryption and decryption extern functions. The PMD for this virtual device is not compiled in DPDK by default.
+
+To enable the OpenSSL crypto PMD, edit **dpdk-19.02/config/common_base** by changing
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=n
+~~~
+
+to
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=y
+~~~
+
+and do a rebuild on DPDK.
 
 ### Execution
 
