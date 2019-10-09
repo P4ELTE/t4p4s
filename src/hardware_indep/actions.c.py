@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from utils.misc import addError, addWarning 
-from utils.codegen import format_declaration, format_statement_ctl, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
+from utils.codegen import format_declaration, format_statement, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
 
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
@@ -48,7 +48,7 @@ for ctl in hlir16.controls:
         #{ void action_code_${act.name}(${', '.join(fun_params)}) {
         #[     uint32_t value32, res32, mask32;
         #[     (void)value32; (void)res32; (void)mask32;
-        #[     control_locals_${ctl.name}_t* control_locals = (control_locals_${ctl.name}_t*) pd->control_locals;
+        #[     control_locals_${ctl.name}_t* local_vars = (control_locals_${ctl.name}_t*) pd->control_locals;
 
         for stmt in act.body.components:
             global pre_statement_buffer
@@ -56,7 +56,7 @@ for ctl in hlir16.controls:
             pre_statement_buffer = ""
             post_statement_buffer = ""
 
-            code = format_statement_ctl(stmt, ctl)
+            code = format_statement(stmt, ctl)
             if pre_statement_buffer != "":
                 #= pre_statement_buffer
                 pre_statement_buffer = ""

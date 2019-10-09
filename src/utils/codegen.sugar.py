@@ -25,7 +25,7 @@ STDPARAMS_IN = SHORT_STDPARAMS_IN + ", pstate"
 
 type_env = {}
 
-def gen_format_type(t, resolve_names = True):
+def gen_format_type(t, resolve_names = True, use_array = False):
     if t.node_type == 'Type_Specialized':
         param_count = len(t.baseType.type_ref.typeParameters.parameters)
         if param_count != 1:
@@ -48,10 +48,10 @@ def gen_format_type(t, resolve_names = True):
             res += '16_t'
         elif t.size <= 32:
             res += '32_t'
+        elif use_array:
+            res += '8_t [{}]'.format((t.size+7)/8)
         else:
-            # TODO is making it an array always OK?
             res += '8_t*'
-            # name = "bit" if t.isSigned else "int"
         return res
     elif t.node_type == 'Type_Name':
         if t.type_ref.node_type in {'Type_Enum', 'Type_Error'}:
@@ -111,10 +111,11 @@ def gen_format_declaration(d, varname_override):
             t = gen_format_type(d.type, False)
             #[ $t ${var_name};
     elif d.node_type == 'Declaration_Instance':
-        t = gen_format_type(d.type, False)
-        #[ struct $t ${var_name};
+        t = gen_format_type(d.type, False) + "_t"
+        #[ extern void ${t}_init(${t}*);
+        #[ $t ${var_name};
         #[ ${t}_init(&${var_name});
-    elif d.node_type == 'P4Table' or d.node_type == 'P4Action':
+    elif d.node_type in ['P4Table', 'P4Action']:
         #[ /* nothing */
 
         #for m in d.type.type_ref.methods:
@@ -166,7 +167,12 @@ def statement_buffer_value():
 def is_control_local_var(var_name):
     global enclosing_control
 
-    return enclosing_control is not None and [] != [cl for cl in enclosing_control.controlLocals if cl.name == var_name]
+    def get_locals(node):
+        if node.node_type == 'P4Parser':  return node.parserLocals
+        if node.node_type == 'P4Control': return node.controlLocals
+        return []
+
+    return enclosing_control is not None and [] != [cl for cl in get_locals(enclosing_control) if cl.name == var_name]
 
 
 var_name_counter = 0
@@ -282,7 +288,8 @@ def gen_format_statement(stmt):
                 if src.node_type == 'Member':
                     #[ $src_buffer = ${format_expr(src)};
                 elif src.node_type == 'PathExpression':
-                    #[ memcpy(&$src_buffer, parameters.${src.ref.name}, $dst_bytewidth);
+                    refbase = "local_vars->" if is_control_local_var(src.ref.name) else 'parameters.'
+                    #[ memcpy(&$src_buffer, $refbase${src.ref.name}, $dst_bytewidth);
                 else:
                     #[ $src_buffer = ${format_expr(src)};
 
@@ -309,10 +316,8 @@ def gen_format_statement(stmt):
                             src_vw_bitwidth = 'pstate->{}_var'.format(src.expr.ref.name)
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
-                    if is_control_local_var(src.ref.name):
-                        src_pointer = "control_locals->" + src.ref.name
-                    else:
-                        src_pointer = 'parameters.{}'.format(src.ref.name)
+                    refbase = "local_vars->" if is_control_local_var(src.ref.name) else 'parameters.'
+                    src_pointer = '{}{}'.format(refbase, src.ref.name)
                 elif src.node_type == 'Constant':
                     src_pointer = 'value_{}'.format(src.id)
                     #[ uint8_t $src_pointer[$dst_bytewidth] = ${int_to_big_endian_byte_array_with_length(src.value, dst_bytewidth, src.base)};
@@ -333,6 +338,23 @@ def gen_format_statement(stmt):
                 #[ // TODO make it work properly for non-byte-aligned headers
                 #[ memcpy(pd->headers[header_instance_${dst.member}].pointer, pd->headers[header_instance_${src.member}].pointer, header_instance_byte_width[header_instance_${src.member}]);
                 #[ dbg_bytes(pd->headers[header_instance_${dst.member}].pointer, header_instance_byte_width[header_instance_${src.member}], "Copied %02d bytes from header_instance_${src.member} to header_instance_${dst.member}: ", header_instance_byte_width[header_instance_${src.member}]);
+            elif dst.type.node_type == 'Type_Bits':
+                # TODO refine the condition to find out whether to use an assignment or memcpy
+                requires_memcpy = src.type.size > 32
+                is_assignable = src.type.size in [8, 32]
+
+                if src.type.node_type == 'Type_Bits' and not requires_memcpy:
+                    if is_assignable:
+                        #[ ${format_expr(dst)} = ${format_expr(src, expand_parameters=True)};
+                        # TODO debug printout for assignment
+                    else:
+                        tmpvar = generate_var_name()
+                        #[ ${format_type(dst.type)} $tmpvar = ${format_expr(src, expand_parameters=True)};
+                        #[ memcpy(&(${format_expr(dst)}), &$tmpvar, sizeof(${format_type(dst.type)}));
+                        # TODO debug printout
+                else:
+                    #[ memcpy(&(${format_expr(dst)}), &(${format_expr(src, expand_parameters=True)}), ${dst.type.size});
+                    #[ dbg_bytes(&(${format_expr(src, expand_parameters=True)}), ${dst.type.size}, "Copied " T4LIT(%02d) " bytes from ${format_expr(src, expand_parameters=True)} to ${format_expr(dst)}: ", ${dst.type.size});
             else:
                 #[ ${format_expr(dst)} = ${format_expr(src, expand_parameters=True)};
 
@@ -410,7 +432,7 @@ def gen_format_statement(stmt):
                     method_args = zip(stmt.methodCall.arguments, parameters)
 
                     # TODO is this condition OK?
-                    mprefix = "control_locals->" if m.expr.ref.node_type == 'Declaration_Instance' else "global_smem."
+                    mprefix = "local_vars->" if m.expr.ref.node_type == 'Declaration_Instance' else "global_smem."
                     mname = mprefix + m.expr.path.name
                     mparname = mname
 
@@ -418,7 +440,16 @@ def gen_format_statement(stmt):
                         (expr, par) = method_args[0]
                         method_args = method_args[1:]
 
-                        #[ $mname = ${extern_format_parameter(expr, par)};
+                        if hasattr(expr.expression, 'name'):
+                            paramtype = "struct " + expr.expression.name
+                        elif expr.expression.node_type == 'Constant':
+                            paramtype = format_type(expr.expression.type)
+                        else:
+                            paramtype = "debug_type_TODO"
+
+                        tmpvar = generate_var_name()
+                        #[ $paramtype $tmpvar = ${extern_format_parameter(expr, par)};
+                        #[ memcpy(&($mname), &$tmpvar, sizeof($paramtype));
                         mparname = "&({})".format(mname)
 
                     # the indexes of the parameters which originate from a type parameter
@@ -454,7 +485,7 @@ def gen_format_statement(stmt):
                     param_args = [extern_format_parameter(arg.expression, par) for (arg, par) in method_args]
                     all_args = ", ".join([arg for arg in [mparname] + param_args])
 
-                    #prepend_statement("void extern_{}_{}{}({}); // prepending\n".format(type.name, m.member, type_args, type_params_str));
+                    prepend_statement("void extern_{}_{}{}({}); // prepending\n".format(type.name, m.member, type_args, type_params_str));
                     #[ extern_${type.name}_${m.member}${type_args}(${all_args});
                 else:
                     hdr_name = m.expr.member
@@ -536,10 +567,8 @@ def group_references(refs):
         yield (xs[0][0], map(lambda (hdr, fld): fld, xs))
 
 def fldid(h, f):
-    if h.node_type == 'PathExpression':
-        return 'field_instance_' + h.ref.name + '_' + f.name
-    else:
-        return 'field_instance_' + h.name + '_' + f.name
+    inst_type_name = h.ref.name if h.node_type == 'PathExpression' else h.name
+    return 'field_instance_{}_{}'.format(inst_type_name, f.name)
 def fldid2(h, f): return h.id + ',' +  f.id
 
 
@@ -786,8 +815,8 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
         return '\nelse\n'.join(cases)
 
     elif e.node_type == 'PathExpression':
-        if e.ref.node_type == 'Declaration_Variable' and is_control_local_var(e.ref.name):
-            return "control_locals->" + e.ref.name
+        if is_control_local_var(e.ref.name):
+            return "local_vars->" + e.ref.name
         if expand_parameters and not e.path.absolute:
             return "parameters." + e.ref.name
         return e.ref.name
@@ -827,7 +856,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
                 h = e.expr.type
                 return '(GET_INT32_AUTO_BUFFER(pstate->{},pstate->{}_var, field_{}_{}))'.format(var, var, h.name, e.member)
             else:
-                return format_expr(e.expr) + '.' + e.member
+                #[ ${format_expr(e.expr)}.${e.member}
         else:
             if e.type.node_type in {'Type_Enum', 'Type_Error'}:
                 return e.type.members.get(e.member).c_name
@@ -888,32 +917,23 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
        # elif e.arguments.is_vec() and e.arguments.vec != []:
        #     addWarning("formatting an expression", "MethodCallExpression with arguments is not properly implemented yet.")
         else:
-            prepend_statement("extern void {}(SHORT_STDPARAMS);\n".format(e.method.path.name))
-            return format_expr(e.method) + '(SHORT_STDPARAMS_IN)'
+            if hasattr(e.method, 'expr') and e.method.expr.type.node_type == 'Type_Extern':
+                funname = "{}_t_{}".format(e.method.expr.type.name, e.method.member)
+                extern_inst = format_expr(e.method.expr)
+                extern_type = format_type(e.method.expr.type.methods.get(e.method.member, 'Method').type.returnType)
+                prepend_statement("extern {} {}({}_t);\n".format(extern_type, funname, e.method.expr.type.name))
+                #[ $funname($extern_inst)
+            else:
+                funname = format_expr(e.method)
+                prepend_statement("extern void {}(SHORT_STDPARAMS);\n".format(funname))
+                #[ $funname(SHORT_STDPARAMS_IN)
     elif e.node_type == 'Argument':
         return format_expr(e.expression)
     elif e.node_type == 'StructInitializerExpression':
-        component_varnames = [generate_var_name("structfield") for v in e.components]
-
         #[ (${gen_format_type(e.type)}) {
-        for cvarname, component in zip(component_varnames, e.components):
+        for component in e.components:
             #[     .${component.name} = ${gen_format_expr(component.expression)},
         #[ }
-
-
-        # varname = generate_var_name("structinit")
-
-        # component_varnames = [generate_var_name("structfield") for v in e.components]
-
-        # for cvarname, component in zip(component_varnames, e.components):
-        #     prepend_statement("{0} {1} = ({0})({2});".format(gen_format_type(component.expression.type), cvarname, gen_format_expr(component.expression)))
-
-        # prepend_statement("{} {} = {{".format(gen_format_type(e.type), varname))
-        # for cvarname, component in zip(component_varnames, e.components):
-        #     prepend_statement("    .{} = {},".format(component.name, cvarname))
-        # prepend_statement("};\n")
-
-        # return varname
     else:
         addError("formatting an expression", "Expression of type %s is not supported yet!" % e.node_type)
 
@@ -929,6 +949,17 @@ def format_type(t, resolve_names = True):
     with SugarStyle("inline_comment"):
         return gen_format_type(t, resolve_names)
 
+# TODO use the variable_name argument in all cases where a variable declaration is created
+def format_type(t, variable_name = None, resolve_names = True):
+    global file_sugar_style
+    with SugarStyle("inline_comment"):
+        result = gen_format_type(t, resolve_names, variable_name is not None)
+        if variable_name is None:
+            return result
+        else:
+            split = result.split(" ")
+            return "{} {}{}".format(split[0], variable_name, split[1] if len(split) > 1 else '')
+
 def format_method_parameters(ps, mt):
     global file_sugar_style
     with SugarStyle("inline_comment"):
@@ -939,7 +970,11 @@ def format_expr(e, format_as_value=True, expand_parameters=False):
     with SugarStyle("inline_comment"):
         return gen_format_expr(e, format_as_value, expand_parameters)
 
-def format_statement(stmt):
+def format_statement(stmt, ctl=None):
+    global enclosing_control
+    if ctl is not None:
+        enclosing_control = ctl
+
     global pre_statement_buffer
     global post_statement_buffer
     pre_statement_buffer = ""
@@ -952,12 +987,6 @@ def format_statement(stmt):
     post_statement_buffer_ret = post_statement_buffer
     post_statement_buffer = ""
     return pre_statement_buffer_ret + ret + post_statement_buffer_ret
-
-def format_statement_ctl(stmt, ctl):
-    global enclosing_control
-    enclosing_control = ctl
-
-    return format_statement(stmt)
 
 
 def format_type_mask(t):
