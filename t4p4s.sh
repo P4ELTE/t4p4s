@@ -24,6 +24,15 @@ ALL_COLOUR_NAMES=(action bytes control core default error expected extern field 
 # --------------------------------------------------------------------
 # Helpers
 
+function ctrl_c_handler() {
+    (>&2 echo -e "\nInterrupted, exiting...")
+    ERROR_CODE=254
+    exit_program
+}
+
+trap 'ctrl_c_handler' INT
+
+
 exit_program() {
     echo -e "$nn"
     [ "${OPTS[ctr]}" != "" ] && verbosemsg "Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
@@ -34,7 +43,7 @@ print_usage_and_exit() {
     (>&2 echo -e "Usage: $0 <options...>")
     (>&2 echo -e "    - see $(cc 0)README.md$nn for details")
 
-    exit_program $ERROR_CODE
+    exit_program
 }
 
 verbosemsg() {
@@ -66,7 +75,7 @@ exit_on_error() {
     [ "$ERROR_CODE" -eq 0 ] && return
 
     errmsg "Error: $1 (error code: $ERROR_CODE)"
-    exit_program $ERROR_CODE
+    exit_program
 }
 
 array_contains() {
@@ -307,8 +316,17 @@ END
 )
 
 
+candidate_count() {
+    simple_count=$(find "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
+    if [ $simple_count -eq 1 ]; then
+        echo 1
+    else
+        echo $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l)
+    fi
+}
+
 candidates() {
-    if [ $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l) -gt 0 ]; then
+    if [ $(candidate_count $1) -gt 0 ]; then
         echo
         find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
     else
@@ -388,8 +406,8 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             [ "$var" == cfgfiles -a ! -f "$value" ] && echo -e "Config file $(cc 0)$value$nn cannot be found" && continue
 
             if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
-                FIND_COUNT=`find "$P4_SRC_DIR" -type f -name "${var}.p4*" -printf '.' | wc -c`
-                [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn"
+                FIND_COUNT=$(candidate_count "${var}")
+                [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
                 [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
 
                 setopt example "$var"
@@ -659,4 +677,4 @@ if [ "$(optvalue run)" != off ]; then
     fi
 fi
 
-exit_program $ERROR_CODE
+exit_program
