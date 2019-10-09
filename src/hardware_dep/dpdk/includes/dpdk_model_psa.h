@@ -39,4 +39,6 @@ void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_PSA
 
 void mark_to_drop(packet_descriptor_t* pd, lookup_table_t** tables);
 
+void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
+
 #endif // __DPDK_PSA_EXTERN_H_
