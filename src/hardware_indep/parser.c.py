@@ -17,6 +17,7 @@ from utils.codegen import format_expr, format_statement, statement_buffer_value,
 
 
 #[ #include "dpdk_lib.h"
+#[ #include "util_packet.h"
 
 #[ extern int get_var_width_bitwidth();
 
@@ -79,65 +80,72 @@ def gen_extract_header_2(hdrinst, hdrtype, w):
 
 ################################################################################
 
+# TODO more than one parser can be present
 parser = hlir16.objects['P4Parser'][0]
 
+
+#{ void init_parser_state(parser_state_t* pstate) {
 for l in parser.parserLocals:
-    #[ ${format_declaration(l)}
+    if l.node_type == 'Declaration_Instance':
+        #[ ${l.type.type_ref.name}_t_init(pstate->${l.name});
+#} }
 
 for s in parser.states:
     #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate);
 
 for s in parser.states:
-    if s.node_type != 'ParserState': continue
-
     #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate) {
     #[     uint32_t value32; (void)value32;
     #[     uint32_t res32; (void)res32;
+    #[     parser_state_t* local_vars = pstate;
     #[     debug(" :::: Parser state $$[parserstate]{s.name}\n");
 
     for c in s.components:
-        if hasattr(c, 'call'):
-            if c.call == 'extract_header':
-                hdrtype = c.header.type_ref if hasattr(c.header, 'type_ref') else c.header
+        if not hasattr(c, 'call'):
+            #[ ${format_statement(c, parser)}
+            continue
 
-                # TODO find a more universal way to get to the header instance
-                if hasattr(c.methodCall.arguments[0].expression, 'path'):
-                    hdrinst_name = c.methodCall.arguments['Argument'][0].expression.path.name
-                    hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
-                elif hasattr(c.methodCall.method.expr, 'header_ref'):
-                    hdrinst = c.methodCall.method.expr.header_ref
-                else:
-                    hdrinst_name = c.methodCall.arguments[0].expression.member
-                    hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
+        if c.call != 'extract_header':
+            continue
 
-                # TODO there should be no "secondary" hdrtype node
-                if not hasattr(hdrtype, 'bit_width'):
-                    hdrtype = hlir16.header_types.get(hdrtype.name, 'Type_Header')
-                    
-                bitwidth = hdrtype.bit_width if not c.is_vw else header_bit_width(hdrtype)
+        hdrtype = c.header.type_ref if hasattr(c.header, 'type_ref') else c.header
 
-                if not c.is_tmp:
-                    if not c.is_vw:
-                        #[ ${gen_extract_header(hdrinst, hdrtype)}
-                    else:
-                        #[ ${gen_extract_header_2(hdrinst, hdrtype, c.width)}
-                    #[ dbg_bytes(pd->headers[${hdrinst.id}].pointer, pd->headers[${hdrinst.id}].length,
-                    #[           "   :: Extracted header $$[header]{hdrinst.name} ($${(bitwidth+7)/8}{ bytes}): ");
-                else:
-                    if not c.is_vw:
-                        #[ ${gen_extract_header_tmp(hdrinst)}
-                        #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrinst.type.byte_width},
-                        #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrinst.type.byte_width} bytes): ");
-
-                    else:
-                        #[ ${gen_extract_header_tmp_2(hdrinst, hdrtype, c.width)}
-                        hdr_width = header_bit_width(hdrtype)
-                        var_width = format_expr(c.width)
-                        #[ dbg_bytes(pstate->${hdrinst.ref.name}, (($hdr_width + $var_width)+7)/8,
-                        #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
-                        #[           $var_width, (($hdr_width + $var_width)+7)/8);
+        # TODO find a more universal way to get to the header instance
+        if hasattr(c.methodCall.arguments[0].expression, 'path'):
+            hdrinst_name = c.methodCall.arguments['Argument'][0].expression.path.name
+            hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
+        elif hasattr(c.methodCall.method.expr, 'header_ref'):
+            hdrinst = c.methodCall.method.expr.header_ref
         else:
-            #[ ${format_statement(c)}
+            hdrinst_name = c.methodCall.arguments[0].expression.member
+            hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
+
+        # TODO there should be no "secondary" hdrtype node
+        if not hasattr(hdrtype, 'bit_width'):
+            hdrtype = hlir16.header_types.get(hdrtype.name, 'Type_Header')
+            
+        bitwidth = hdrtype.bit_width if not c.is_vw else header_bit_width(hdrtype)
+
+        if not c.is_tmp:
+            if not c.is_vw:
+                #[ ${gen_extract_header(hdrinst, hdrtype)}
+            else:
+                #[ ${gen_extract_header_2(hdrinst, hdrtype, c.width)}
+            #[ dbg_bytes(pd->headers[${hdrinst.id}].pointer, pd->headers[${hdrinst.id}].length,
+            #[           "   :: Extracted header $$[header]{hdrinst.name} ($${(bitwidth+7)/8}{ bytes}): ");
+        else:
+            if not c.is_vw:
+                #[ ${gen_extract_header_tmp(hdrinst)}
+                #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrinst.type.byte_width},
+                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrinst.type.byte_width} bytes): ");
+
+            else:
+                #[ ${gen_extract_header_tmp_2(hdrinst, hdrtype, c.width)}
+                hdr_width = header_bit_width(hdrtype)
+                var_width = format_expr(c.width)
+                #[ dbg_bytes(pstate->${hdrinst.ref.name}, (($hdr_width + $var_width)+7)/8,
+                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
+                #[           $var_width, (($hdr_width + $var_width)+7)/8);
 
     if not hasattr(s, 'selectExpression'):
         if s.name == 'accept':
