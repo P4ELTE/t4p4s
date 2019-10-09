@@ -14,7 +14,6 @@
 #!/usr/bin/env python
 
 from hlir16.p4node import P4Node, deep_copy, get_fresh_node_id
-from hlir16.hlir16_attrs import get_main
 
 def apply_annotations(postfix, extra_args, x):
     if x.methodCall.method.node_type == "PathExpression":
@@ -53,8 +52,7 @@ def search_for_annotations(x):
 
 
 def transform_hlir16(hlir16):
-    main = get_main(hlir16)
-    pipeline_elements = main.arguments 
+    pipeline_elements = hlir16.p4_main.arguments
 	
     for pe in pipeline_elements:
         c = hlir16.objects.get(pe.expression.type.name, 'P4Control')
