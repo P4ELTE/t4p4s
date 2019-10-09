@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from utils.codegen import format_type
-from hlir16.hlir16_attrs import get_main
 
 #[ #ifndef __ACTIONS_H__
 #[ #define __ACTIONS_H__
@@ -39,21 +38,19 @@ for table in hlir16.tables:
 # TODO remove this; instead:
 # TODO in set_additional_attrs, replace all type references with the referenced types
 def resolve_typeref(hlir16, f):
-    # resolving type reference
     if f.type.node_type == 'Type_Name':
         tref = f.type.type_ref
-        return hlir16.objects.get(tref.name)
+        return hlir16.objects.get(tref.name).type('type_ref')
 
-    return f
+    return f.type
 
 
 for ctl in hlir16.controls:
     for act in ctl.actions:
         #{ struct action_${act.name}_params {
         for param in act.parameters.parameters:
-            param = resolve_typeref(hlir16, param)
-            
-            #[ FIELD(${param.name}, ${param.type.size});
+            paramtype = resolve_typeref(hlir16, param)
+            #[ FIELD(${param.name}, ${paramtype.size});
 
         #[ FIELD(DUMMY_FIELD, 0);
         #} };
@@ -64,7 +61,11 @@ for metainst in hlir16.metadata_insts:
         metatype = metainst.type.type_ref
         #[ struct ${metatype.name} meta_${metatype.name};
     else:
-        #[ ${format_type(metainst.type)} metafield_${metainst.name};
+        # note: in the case of an array type,
+        #       the array brackets have to go after the variable name
+        varname = "metafield_" + metainst.name
+        formatted = format_type(metainst.type, varname)
+        #[ $formatted;
 #} };
 
 for table in hlir16.tables:
@@ -93,10 +94,11 @@ for table in hlir16.tables:
 # TODO: The controls shouldn't be accessed through an instance declaration parameter
 for ctl in hlir16.objects['P4Control']:
     #{ typedef struct control_locals_${ctl.name}_s {
-    for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-        #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
-    for local_var_decl in ctl.controlLocals['Declaration_Instance']:
-        #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
+    for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
+        if local_var_decl.type.node_type == 'Type_Name':
+            #[ ${format_type(local_var_decl.type, resolve_names = False)}_t ${local_var_decl.name};
+        else:
+            #[ ${format_type(local_var_decl.type, resolve_names = False)} ${local_var_decl.name};
     #} } control_locals_${ctl.name}_t;
 
 #[ #endif

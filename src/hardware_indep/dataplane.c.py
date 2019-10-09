@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_declaration, format_statement_ctl, format_expr, format_type, type_env, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
+from utils.codegen import format_declaration, format_statement, format_expr, format_type, type_env, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
 from utils.misc import addError, addWarning
-from hlir16.hlir16_attrs import get_main
 
 #[ #include <stdlib.h>
 #[ #include <string.h>
@@ -33,7 +32,8 @@ from hlir16.hlir16_attrs import get_main
 #[ extern char* action_names[];
 
 #[ extern void parse_packet(STDPARAMS);
-#[ extern void increase_counter (int counterid, int index);
+#[ extern void increase_counter(int counterid, int index);
+#[ extern void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
 
 # note: 0 is for the special case where there are no tables
 max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')] + [0])
@@ -41,9 +41,8 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'k
 
 ################################################################################
 
-main = get_main(hlir16)
-packet_name = main.type.baseType.type_ref.name
-pipeline_elements = main.arguments
+packet_name = hlir16.p4_main.type.baseType.type_ref.name
+pipeline_elements = hlir16.p4_main.arguments
 
 #{ struct apply_result_s {
 #[     bool hit;
@@ -301,10 +300,10 @@ for pe in pipeline_elements:
     #[     debug("Entering control $$[control]{ctl.name}...\n");
     #[     uint32_t value32, res32;
     #[     (void)value32, (void)res32;
-    #[     control_locals_${pe.expression.type.name}_t control_locals_struct;
-    #[     control_locals_${pe.expression.type.name}_t* control_locals = &control_locals_struct;
-    #[     pd->control_locals = (void*) control_locals;
-    #= format_statement_ctl(ctl.body, ctl)
+    #[     control_locals_${pe.expression.type.name}_t local_vars_struct;
+    #[     control_locals_${pe.expression.type.name}_t* local_vars = &local_vars_struct;
+    #[     pd->control_locals = (void*) local_vars;
+    #= format_statement(ctl.body, ctl)
     #} }
 
 #[ void process_packet(STDPARAMS)
@@ -388,21 +387,15 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     }
 #} }
 
-#[ static void set_metadata_inport(packet_descriptor_t* pd, uint32_t inport)
-#[ {
-#[     int res32; // needed for the macro
-#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
-#[ }
-
 #[ void handle_packet(STDPARAMS, uint32_t portid)
 #{ {
 #[     int value32;
 #[     int res32;
 #[
 #[     reset_headers(SHORT_STDPARAMS_IN);
-#[     set_metadata_inport(pd, portid);
+#[     set_handle_packet_metadata(pd, portid);
 #[
-#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port %" PRIu32 ", $${}{%02d} bytes)  : ", EXTRACT_INGRESSPORT(pd), rte_pktmbuf_pkt_len(pd->wrapper));
+#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port %" PRIu32 ", $${}{%02d} bytes)  : ", extract_ingress_port(pd), rte_pktmbuf_pkt_len(pd->wrapper));
 #[
 #[     pd->parsed_length = 0;
 #[     parse_packet(${STDPARAMS_IN});
