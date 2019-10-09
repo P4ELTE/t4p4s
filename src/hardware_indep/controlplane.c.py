@@ -144,13 +144,13 @@ for table in hlir16_tables_with_keys:
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
 
-            if p.type.size <= 32:
-                size = 8 if p.type.size <= 8 else 16 if p.type.size <= 16 else 32
-                #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type.size}, *(uint${size}_t*)${p.name});
+            if p.type('type_ref').size <= 32:
+                size = 8 if p.type('type_ref').size <= 8 else 16 if p.type('type_ref').size <= 16 else 32
+                #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type('type_ref').size}, *(uint${size}_t*)${p.name});
             else:
-                #[ dbg_bytes(${p.name}, (${p.type.size}+7)/8, "   :: $$[field]{p.name} ($${}{%d} bits): ", ${p.type.size});
+                #[ dbg_bytes(${p.name}, (${p.type('type_ref').size}+7)/8, "   :: $$[field]{p.name} ($${}{%d} bits): ", ${p.type('type_ref').size});
 
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type('type_ref').size+7)/8});
 
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
@@ -180,7 +180,7 @@ for table in hlir16_tables_with_keys:
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type('type_ref').size+7)/8});
         #[     debug("From controller: set default action for $$[table]{table.name} with action $$[action]{action_name_str}\n");
         #[     ${table.name}_setdefault( action );
         #} } else
