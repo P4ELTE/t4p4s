@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CFLAGS += -DCMAKE_C_COMPILER_LAUNCHER="ccache"
+
 CFLAGS += -O3
 CFLAGS += -fdiagnostics-color
 CFLAGS += -Wall 
