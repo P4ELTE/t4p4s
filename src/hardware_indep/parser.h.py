@@ -18,9 +18,13 @@ from hlir16.utils_hlir16 import *
 #[ #define __HEADER_INFO_H__
 
 #[ #include <byteswap.h>
+#[ #include <stdbool.h>
 
 #[ // TODO add documentation
-#[ #define MODIFIED 1
+#[ #define MODIFIED true
+
+# TODO put this in a proper header
+#[ typedef struct {} InternetChecksum_t;
 
 
 #{ typedef struct parsed_fields_s {
@@ -302,7 +306,7 @@ for error in hlir16.objects['Type_Error']:
 #[
 #[ // HW optimization related infos
 #[ // --------------------
-#[ #define OFFLOAD_CHECKSUM ${1 if []!=[x for x in hlir16.sc_annotations if x.name=='offload'] else 0}
+#[ #define OFFLOAD_CHECKSUM ${'true' if []!=[x for x in hlir16.sc_annotations if x.name=='offload'] else 'false'}
 
 
 #[ // Parser state local vars
@@ -310,11 +314,17 @@ for error in hlir16.objects['Type_Error']:
 
 parser = hlir16.objects['P4Parser'][0]
 
-#[ typedef struct parser_state_s {
+#{ typedef struct parser_state_s {
 for loc in parser.parserLocals:
-    #[ uint8_t ${loc.name}[${loc.type.type_ref.byte_width}];
+    if hasattr(loc.type, 'type_ref'):
+        if loc.type.type_ref.node_type == 'Type_Extern':
+            #[ ${loc.type.type_ref.name}_t ${loc.name};
+        else:
+            #[ uint8_t ${loc.name}[${loc.type.type_ref.byte_width}];
+    else:
+        #[ uint8_t ${loc.name}[(${loc.type.size}+7)/8];
     #[ uint8_t ${loc.name}_var; // Width of the variable width field
-#[ } parser_state_t;
+#} } parser_state_t;
 
 
 #[ #endif // __HEADER_INFO_H__
