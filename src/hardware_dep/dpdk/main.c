@@ -85,6 +85,7 @@ extern void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* p
 extern void send_broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port);
 extern struct lcore_data init_lcore_data();
 extern packet* clone_packet(packet* pd, struct rte_mempool* mempool);
+extern void init_parser_state(parser_state_t*);
 
 //=============================================================================
 
@@ -157,7 +158,8 @@ void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
 
     if (got_packet) {
 	    if (likely(is_packet_handled(pd, lcdata))) {
-	        handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), get_portid(lcdata, queue_idx));
+	        init_parser_state(&(lcdata->conf->state.parser_state));
+            handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), get_portid(lcdata, queue_idx));
             do_single_tx(lcdata, pd, queue_idx, pkt_idx);
         }
     }
