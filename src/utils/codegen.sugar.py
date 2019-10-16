@@ -310,11 +310,22 @@ def gen_format_statement(stmt):
                             src_vw_bitwidth = 'pd->headers[header_instance_{}].var_width_field_bitwidth'.format(src.expr.member)
                             dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                     else:
-                        src_extract_params = 'pstate->{0}, pstate->{0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
-                        #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
-                        if dst_is_vw:
-                            src_vw_bitwidth = 'pstate->{}_var'.format(src.expr.ref.name)
-                            dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
+                        #print("!!!!")
+                        #print(src.node_type)
+                        #print(src.expr.ref.type.path.name)
+                        #print(src.json_data)
+                        #print(src.member)
+                        #print(src.expr.ref.name)
+                        if src.expr.ref.name == "meta":
+				#print("META")
+                                cmd_meta = 'memcpy({1}, &all_metadatas.metafield_{0}, sizeof({1}));'.format(src.member, src_pointer)
+                                #[ $cmd_meta
+                        else:
+                                src_extract_params = 'pstate->{0}, pstate->{0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
+                                #[ EXTRACT_BYTEBUF_BUFFER($src_extract_params)
+                                if dst_is_vw:
+                                      src_vw_bitwidth = 'pstate->{}_var'.format(src.expr.ref.name)
+                                      dst_bytewidth = '({}/8)'.format(src_vw_bitwidth)
                 elif src.node_type == 'PathExpression':
                     refbase = "local_vars->" if is_control_local_var(src.ref.name) else 'parameters.'
                     src_pointer = '{}{}'.format(refbase, src.ref.name)
