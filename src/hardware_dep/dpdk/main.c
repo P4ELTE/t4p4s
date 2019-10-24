@@ -158,11 +158,13 @@ void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32
 {
     handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), port_id);
     do_single_tx(lcdata, pd);
-    if(pd->context != NULL)
-    {
-        debug(T4LIT(Context for packet %p terminating... swapping back to main context...,warning) "\n", pd->context);
-        rte_ring_enqueue(context_buffer, pd->context);
-    }
+    #ifdef ASYNC_EXTERNS_ENABLED
+        if(pd->context != NULL)
+        {
+            debug(T4LIT(Context for packet %p terminating... swapping back to main context...,warning) "\n", pd->context);
+            rte_ring_enqueue(context_buffer, pd->context);
+        }
+    #endif
 }
 
 // defined in main_async.c
@@ -210,8 +212,10 @@ bool dpdk_main_loop()
     packet_descriptor_t pd;
     init_dataplane(&pd, lcdata.conf->state.tables);
 
+#ifdef ASYNC_EXTERNS_ENABLED
     extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
     getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
+#endif
 
     while (core_is_working(&lcdata)) {
         main_loop_pre_rx(&lcdata);
