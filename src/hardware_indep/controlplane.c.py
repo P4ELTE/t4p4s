@@ -29,6 +29,7 @@ def match_type_order(t):
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
 
+#[ extern struct all_metadatas_t all_metadatas;
 
 for table in hlir16.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
@@ -70,8 +71,11 @@ for table in hlir16_tables_with_keys:
 
     #}     struct ${table.name}_action action)
     #{ {
-
-    #[     uint8_t key[${table.key_length_bytes}];
+    
+    if table.key_length_bytes==0 and table.key.keyElements[0].header_name=='meta':  # TODO: Check this part!!!
+         #[     uint8_t key[sizeof(all_metadatas.metafield_${table.key.keyElements[0].field_name})];
+    else:
+         #[     uint8_t key[${table.key_length_bytes}];
 
     byte_idx = 0
     for k in sorted((k for k in table.key.keyElements if k.get_attr('match_type') is not None), key = lambda k: match_type_order(k.match_type)):

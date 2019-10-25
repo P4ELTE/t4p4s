@@ -18,11 +18,15 @@ from utils.misc import addError, addWarning
 #[ #include "tables.h"
 #[ #include "stateful_memory.h"
 #[
+#[ extern struct all_metadatas_t all_metadatas;
 
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir16.tables:
     tmt = table.match_type if hasattr(table, 'key') else "none"
     ks  = table.key_length_bytes if hasattr(table, 'key') else 0
+    if ks==0 and table.key.keyElements[0].header_name=='meta': # TODO: check if it is consistent...
+        ks = "sizeof(all_metadatas.metafield_%s)" % table.key.keyElements[0].field_name
+        
     #[ {
     #[  .name= "${table.name}",
     #[  .id = TABLE_${table.name},
