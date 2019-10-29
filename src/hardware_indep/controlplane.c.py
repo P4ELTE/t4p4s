@@ -58,10 +58,15 @@ for table in hlir16_tables_with_keys:
     for k in table.key.keyElements:
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            continue
+            if k.header_name!='meta':
+                continue
 
-        byte_width = get_key_byte_width(k)
-        #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
+        if k.header_name=='meta':
+            byte_width = 'sizeof(all_metadatas.metafield_%s)' % k.field_name
+            #[ uint8_t field_instance_${k.header_name}_${k.field_name}[$byte_width], 
+        else:
+            byte_width = get_key_byte_width(k)
+            #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
         
         # TODO have keys' and tables' match_type the same case (currently: LPM vs lpm)
         if k.match_type == "ternary":
@@ -81,11 +86,16 @@ for table in hlir16_tables_with_keys:
     for k in sorted((k for k in table.key.keyElements if k.get_attr('match_type') is not None), key = lambda k: match_type_order(k.match_type)):
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            continue
-
-        byte_width = get_key_byte_width(k)
-        #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
-        byte_idx += byte_width
+            if k.header_name!='meta':
+                continue
+        if k.header_name=='meta':
+            byte_width = 'sizeof(all_metadatas.metafield_%s)' % k.field_name
+            #[ memcpy(key+$byte_idx, field_instance_${k.header_name}_${k.field_name}, $byte_width);
+            byte_idx += 1 # Metafield size???
+        else:
+            byte_width = get_key_byte_width(k)
+            #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
+            byte_idx += byte_width 
 
     if table.match_type == "LPM":
         #[ uint8_t prefix_length = 0;
@@ -126,10 +136,14 @@ for table in hlir16_tables_with_keys:
     for i, k in enumerate(table.key.keyElements):
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            continue
+            if k.header_name!='meta':
+                continue
 
         if k.match_type == "exact":
-            #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
+            if k.header_name=='meta':
+                #[ uint8_t* field_instance_${k.header_name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
+            else:
+                #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
         if k.match_type == "lpm":
             #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
             #[ uint16_t field_instance_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
@@ -160,9 +174,12 @@ for table in hlir16_tables_with_keys:
         for i, k in enumerate(table.key.keyElements):
             # TODO handle specials properly (isValid etc.)
             if k.get_attr('header') is None:
-                continue
-
-            #[ field_instance_${k.header.name}_${k.field_name},
+                if k.header_name!='meta':
+                    continue
+            if k.header_name == 'meta':
+                #[ field_instance_${k.header_name}_${k.field_name},
+            else:
+                #[ field_instance_${k.header.name}_${k.field_name},
             if k.match_type == "lpm":
                 #[ field_instance_${k.header.name}_${k.field_name}_prefix_length,
             if k.match_type == "ternary":

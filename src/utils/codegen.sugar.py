@@ -829,7 +829,8 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
         if is_control_local_var(e.ref.name):
             return "local_vars->" + e.ref.name
         if expand_parameters and not e.path.absolute:
-            return "parameters." + e.ref.name
+            t = gen_format_type(e.ref.type, False)
+            return "*(%s*) parameters.%s" % (t, e.ref.name)
         return e.ref.name
 
     elif e.node_type == 'Member':

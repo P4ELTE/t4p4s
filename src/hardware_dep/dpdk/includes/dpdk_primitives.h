@@ -251,7 +251,7 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
 
     if (f != 0) {
         fldT fld = f[0];
-        debug("    : Modifying " T4LIT(%2d) " bit wide field (copying " T4LIT(%d) " %s) " T4LIT(%s,header) "." T4LIT(%s,field) " = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
+/*        debug("    : Modifying " T4LIT(%2d) " bit wide field (copying " T4LIT(%d) " %s) " T4LIT(%s,header) "." T4LIT(%s,field) " = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
               bit_width,
               bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
               bit_width <= 8 ? " byte" : "bytes",
@@ -260,7 +260,7 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32,
               (bit_width+3)/4,
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
-
+*/
         int res32;
         MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
         return res32;
