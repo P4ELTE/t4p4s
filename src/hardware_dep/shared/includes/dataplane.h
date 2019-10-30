@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include "aliases.h"
 #include "parser.h"
+#include "actions.h"
 
 enum lookup_t {
     LOOKUP_none,
@@ -126,7 +127,7 @@ typedef struct packet_descriptor_s {
     parsed_fields_t     fields;
     packet*             wrapper;
     uint8_t             dropped;
-
+    struct all_metadatas_t all_metadatas;
     int emit_hdrinst_count;
     int emit_headers_length;
     int parsed_length;

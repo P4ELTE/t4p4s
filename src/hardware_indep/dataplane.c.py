@@ -35,7 +35,7 @@ from utils.misc import addError, addWarning
 #[ extern void increase_counter(int counterid, int index);
 #[ extern void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
 
-#[ extern struct all_metadatas_t all_metadatas;
+#[ //extern struct all_metadatas_t all_metadatas;
 
 # note: 0 is for the special case where there are no tables
 max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')] + [0])
@@ -84,7 +84,7 @@ for table in hlir16.tables:
         if f.get_attr('width') is None:
             # TODO find out why this is missing and fix it
             if f.header_name=='meta': # TODO: Check if meta can be used in all cases...
-                #[ memcpy( key, &all_metadatas.metafield_${f.field_name}, sizeof(all_metadatas.metafield_${f.field_name}) );
+                #[ memcpy( key, &pd->all_metadatas.metafield_${f.field_name}, sizeof(pd->all_metadatas.metafield_${f.field_name}) );
             continue
         if f.width <= 32:
             #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.type_ref.name}_${f.field_name}, *(uint32_t*)key)
@@ -120,7 +120,7 @@ for table in hlir16.tables:
     #{ {
     if hasattr(table, 'key'):
         if table.key_length_bytes==0 and table.key.keyElements[0].header_name=="meta": # TODO: Check if it is general enough...
-            #[     uint8_t* key[sizeof(all_metadatas.metafield_${table.key.keyElements[0].field_name})];
+            #[     uint8_t* key[sizeof(pd->all_metadatas.metafield_${table.key.keyElements[0].field_name})];
         else:
             #[     uint8_t* key[${table.key_length_bytes}];
         #[     table_${table.name}_key(pd, (uint8_t*)key);

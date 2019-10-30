@@ -24,7 +24,7 @@ from utils.codegen import format_declaration, format_statement, SHORT_STDPARAMS,
 
 #[ extern void sleep_millis(int millis);
 
-#[ struct all_metadatas_t all_metadatas;
+#[ //struct all_metadatas_t all_metadatas;
 
 # TODO do not duplicate code
 def unique_stable(items):

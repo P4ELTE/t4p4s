@@ -17,8 +17,12 @@ from utils.codegen import format_type
 #[ #ifndef __ACTIONS_H__
 #[ #define __ACTIONS_H__
 
-#[ #include "dataplane.h"
+#[ //#include "dataplane.h"
 #[ #include "common.h"
+
+#[ typedef struct packet_descriptor_s packet_descriptor_t;
+#[ typedef struct lookup_table_s lookup_table_t;
+
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 

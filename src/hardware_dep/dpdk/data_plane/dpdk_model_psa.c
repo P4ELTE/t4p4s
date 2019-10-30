@@ -17,7 +17,7 @@
 #include <rte_ip.h>
 #include "actions.h"
 
-extern struct all_metadatas_t all_metadatas;
+//extern struct all_metadatas_t all_metadatas;
 
 void InternetChecksum_t_init() {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_init,extern) "\n");
@@ -38,11 +38,11 @@ void InternetChecksum_t_get() {
 
 
 int extract_egress_port(packet_descriptor_t* pd) {
-    return all_metadatas.meta_psa_egress_deparser_input_metadata_t.egress_port;
+    return pd->all_metadatas.meta_psa_egress_deparser_input_metadata_t.egress_port;
 }
 
 int extract_ingress_port(packet_descriptor_t* pd) {
-    return all_metadatas.meta_psa_ingress_input_metadata_t.ingress_port;
+    return pd->all_metadatas.meta_psa_ingress_input_metadata_t.ingress_port;
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)

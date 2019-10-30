@@ -24,12 +24,14 @@ def match_type_order(t):
 #[ #include "actions.h"
 #[ #include "tables.h"
 
+#[ #define member_size(type, member) sizeof(((type *)0)->member)
+
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
 #[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
 
-#[ extern struct all_metadatas_t all_metadatas;
+#[ //extern struct all_metadatas_t all_metadatas;
 
 for table in hlir16.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
@@ -62,7 +64,7 @@ for table in hlir16_tables_with_keys:
                 continue
 
         if k.header_name=='meta':
-            byte_width = 'sizeof(all_metadatas.metafield_%s)' % k.field_name
+            byte_width = 'member_size(struct all_metadatas_t, metafield_%s)' % k.field_name
             #[ uint8_t field_instance_${k.header_name}_${k.field_name}[$byte_width], 
         else:
             byte_width = get_key_byte_width(k)
@@ -78,7 +80,7 @@ for table in hlir16_tables_with_keys:
     #{ {
     
     if table.key_length_bytes==0 and table.key.keyElements[0].header_name=='meta':  # TODO: Check this part!!!
-         #[     uint8_t key[sizeof(all_metadatas.metafield_${table.key.keyElements[0].field_name})];
+         #[     uint8_t key[member_size(struct all_metadatas_t, metafield_${table.key.keyElements[0].field_name})];
     else:
          #[     uint8_t key[${table.key_length_bytes}];
 
@@ -89,7 +91,7 @@ for table in hlir16_tables_with_keys:
             if k.header_name!='meta':
                 continue
         if k.header_name=='meta':
-            byte_width = 'sizeof(all_metadatas.metafield_%s)' % k.field_name
+            byte_width = 'member_size(struct all_metadatas_t, metafield_%s)' % k.field_name
             #[ memcpy(key+$byte_idx, field_instance_${k.header_name}_${k.field_name}, $byte_width);
             byte_idx += 1 # Metafield size???
         else:

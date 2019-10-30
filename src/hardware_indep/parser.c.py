@@ -21,7 +21,7 @@ from utils.codegen import format_expr, format_statement, statement_buffer_value,
 #[ #include "actions.h"
 
 #[ extern int get_var_width_bitwidth();
-#[ extern struct all_metadatas_t all_metadatas;
+#[ //extern struct all_metadatas_t all_metadatas;
 def header_bit_width(hdrtype):
     return sum([f.size if not f.is_vw else 0 for f in hdrtype.valid_fields])
 

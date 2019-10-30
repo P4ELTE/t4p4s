@@ -318,7 +318,7 @@ def gen_format_statement(stmt):
                         #print(src.expr.ref.name)
                         if src.expr.ref.name == "meta":
 				#print("META")
-                                cmd_meta = 'memcpy({1}, &all_metadatas.metafield_{0}, sizeof({1}));'.format(src.member, src_pointer)
+                                cmd_meta = 'memcpy({1}, &pd->all_metadatas.metafield_{0}, sizeof({1}));'.format(src.member, src_pointer)
                                 #[ $cmd_meta
                         else:
                                 src_extract_params = 'pstate->{0}, pstate->{0}_var, {1}, {2}'.format(src.expr.ref.name, member_to_field_id(src), src_pointer)
@@ -838,7 +838,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
         metadata_type_names = [u'psa_ingress_parser_input_metadata_t', u'psa_egress_parser_input_metadata_t', u'psa_ingress_input_metadata_t', u'psa_ingress_output_metadata_t', u'psa_egress_input_metadata_t', u'psa_egress_deparser_input_metadata_t', u'psa_egress_output_metadata_t']
 
         if hasattr(e.expr.type, 'name') and e.expr.type.name in metadata_type_names:
-            return "all_metadatas.meta_{}.{}".format(e.expr.type.name, e.member)
+            return "pd->all_metadatas.meta_{}.{}".format(e.expr.type.name, e.member)
         if hasattr(e, 'field_ref'):
             if format_as_value == False:
                 return fldid(e.expr.header_ref, e.field_ref) # originally it was fldid2
@@ -859,7 +859,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
             # TODO do both individual meta fields and metadata instance fields
             if e.header_ref.name == 'metadata':
                 # return "all_metadatas.metafield_{}.{}".format(e.header_ref.name, e.member)
-                return "all_metadatas.metafield_{}".format(e.member)
+                return "pd->all_metadatas.metafield_{}".format(e.member)
             return e.header_ref.id
         elif e.expr.node_type == 'PathExpression':
             var = e.expr.ref.name
