@@ -30,6 +30,7 @@ void async_init_storage();
 void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned pkt_idx, uint32_t port_id, void (*handler_function)(void));
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
+void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 
 // -----------------------------------------------------------------------------
 // DEBUG
@@ -94,37 +95,42 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
     debug("Swapped back to main context.\n");
 }
 
-static void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_type, void* context)
-{
+void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum async_op_type op_type, void* context){
     unsigned encryption_offset = 0;//14; // TODO
 
-    struct async_op *op;
-    rte_mempool_get(async_pool, (void**)&op);
+    rte_mempool_get(async_pool, (void**)op_out);
+    struct async_op *op = *op_out;
     op->op = op_type;
     op->data = pd->wrapper;
 
     int packet_length = op->data->pkt_len;
     int encrypted_length = packet_length - encryption_offset;
     int extra_length = 0;
-    debug_mbuf(op->data, "enqueueing for async");
+    debug_mbuf(op->data, "Prepared for encryption");
 
     // Adding extra content to the mbuf
+    if(context != NULL){
+        rte_pktmbuf_prepend(op->data, sizeof(void*));
+        *(rte_pktmbuf_mtod(op->data, void**)) = context;
+        extra_length += sizeof(void*);
 
-    rte_pktmbuf_prepend(op->data, sizeof(void*));
-    *(rte_pktmbuf_mtod(op->data, void**)) = context;
-    extra_length += sizeof(void*);
 
-    rte_pktmbuf_prepend(op->data, sizeof(int));
-    *(rte_pktmbuf_mtod(op->data, int*)) = packet_length;
-    extra_length += sizeof(int);
-
+        rte_pktmbuf_prepend(op->data, sizeof(int));
+        *(rte_pktmbuf_mtod(op->data, int*)) = packet_length;
+        extra_length += sizeof(int);
+    }
     op->offset = extra_length + encryption_offset;
-
+    debug("encr_len%d %d\n",encrypted_length,packet_length)
     // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
     if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, 16-encrypted_length%16);
+}
+
+void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_type, void* context)
+{
+    struct async_op *op;
+    create_crypto_op(&op,pd,op_type,context);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
-
     debug_mbuf(op->data, "enqueued for async");
 }
 
@@ -198,11 +204,27 @@ struct async_op *async_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
+
+#include <unistd.h>
+
+void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
+    unsigned lcore_id = rte_lcore_id();
+
+    create_crypto_op(async_ops[lcore_id],pd,op,NULL);
+    if (rte_crypto_op_bulk_alloc(lcore_conf[lcore_id].crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC,
+                                 enqueued_ops[lcore_id], 1) == 0)
+        rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
+    async_op_to_crypto_op(async_ops[lcore_id][0], enqueued_ops[lcore_id][0]);
+    rte_mempool_put_bulk(async_pool, (void **) async_ops[lcore_id], 1);
+    rte_cryptodev_enqueue_burst(cdev_id, lcore_id,enqueued_ops[lcore_id], 1);
+    rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+    rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
+}
+
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
 {
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
-
     if(rte_ring_count(context_buffer) > CRYPTO_BURST_SIZE)
     {
         n = rte_ring_dequeue_burst(context_buffer, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
