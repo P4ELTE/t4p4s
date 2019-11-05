@@ -73,8 +73,8 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
     // Extracting extra content from the mbuf
 
-    int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
-    rte_pktmbuf_adj(mbuf, sizeof(int));
+    int packet_length = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
+    rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
 
     void* context = *(rte_pktmbuf_mtod(mbuf, void**));
     rte_pktmbuf_adj(mbuf, sizeof(void*));
@@ -103,7 +103,7 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     op->op = op_type;
     op->data = pd->wrapper;
 
-    int packet_length = op->data->pkt_len;
+    uint32_t packet_length = op->data->pkt_len;
     int encrypted_length = packet_length - encryption_offset;
     int extra_length = 0;
     debug_mbuf(op->data, "Prepared for encryption");
@@ -113,12 +113,12 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
         rte_pktmbuf_prepend(op->data, sizeof(void*));
         *(rte_pktmbuf_mtod(op->data, void**)) = context;
         extra_length += sizeof(void*);
-
-
-        rte_pktmbuf_prepend(op->data, sizeof(int));
-        *(rte_pktmbuf_mtod(op->data, int*)) = packet_length;
-        extra_length += sizeof(int);
     }
+
+    rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
+    *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
+    extra_length += sizeof(int);
+
     op->offset = extra_length + encryption_offset;
     debug("encr_len%d %d\n",encrypted_length,packet_length)
     // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
@@ -208,7 +208,7 @@ struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 #include <unistd.h>
 
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
-    unsigned lcore_id = rte_lcore_id();
+    unsigned int lcore_id = rte_lcore_id();
 
     create_crypto_op(async_ops[lcore_id],pd,op,NULL);
     if (rte_crypto_op_bulk_alloc(lcore_conf[lcore_id].crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC,
@@ -218,7 +218,15 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
     rte_mempool_put_bulk(async_pool, (void **) async_ops[lcore_id], 1);
     rte_cryptodev_enqueue_burst(cdev_id, lcore_id,enqueued_ops[lcore_id], 1);
     rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+    struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
+    uint32_t packet_length = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
+    rte_pktmbuf_adj(mbuf, sizeof(int));
+    pd->wrapper = mbuf;
+    pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+    pd->wrapper->pkt_len = packet_length;
+
     rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
+
 }
 
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
