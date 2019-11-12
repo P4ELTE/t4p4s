@@ -210,6 +210,9 @@ struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
     unsigned int lcore_id = rte_lcore_id();
 
+    control_DeparserImpl(pd, 0, 0);
+    emit_packet(pd, 0, 0);
+
     create_crypto_op(async_ops[lcore_id],pd,op,NULL);
     if (rte_crypto_op_bulk_alloc(lcore_conf[lcore_id].crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC,
                                  enqueued_ops[lcore_id], 1) == 0)
@@ -227,6 +230,8 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
 
     rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
 
+    reset_pd(pd);
+    parse_packet(pd, 0, 0);
 }
 
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
