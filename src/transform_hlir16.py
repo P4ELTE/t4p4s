@@ -37,7 +37,7 @@ def apply_annotations(postfix, extra_args, x):
     return x
 
 def search_for_annotations(x):
-    available_optimization_annotations = ['offload', 'atomic']
+    available_optimization_annotations = ['offload', 'atomic', 'async']
 
     if x.node_type == "BlockStatement":
         name_list = [annot.name for annot in x.annotations.annotations.vec if annot.name in available_optimization_annotations]

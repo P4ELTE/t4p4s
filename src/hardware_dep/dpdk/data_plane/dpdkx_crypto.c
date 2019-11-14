@@ -157,24 +157,24 @@ void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *cryp
 // defined in main_async.c
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
 
-void async_encrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void encrypt_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     do_async_op(pd, ASYNC_OP_ENCRYPT);
 }
 
-void async_decrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void decrypt_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     do_async_op(pd, ASYNC_OP_DECRYPT);
 }
 
 // defined in main_async.c
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
-void blocking_sync_encrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void encrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
 }
 
-void blocking_sync_decrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void decrypt(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
 }
