@@ -146,8 +146,17 @@ struct lcore_conf {
 //-----------------------------------------------------------------------------
 // Async
 
-//#define ASYNC_EXTERNS_ENABLED
-#define PACKET_REQUIRES_CONTEXT(pd) false
+#define ASYNC_MODE_OFF -1
+#define ASYNC_MODE_CONTEXT 1
+
+#define ASYNC_MODE ASYNC_MODE_CONTEXT
+
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+	#define PACKET_REQUIRES_ASYNC(pd) true
+#else
+	#define PACKET_REQUIRES_ASYNC(pd) false
+#endif
+
 
 // Shall we move these to backend.h?
 

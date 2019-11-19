@@ -123,6 +123,9 @@ typedef struct header_descriptor_s {
 typedef struct packet_descriptor_s {
     void *context;
 
+    uint32_t port_id;
+
+
     packet_data_t*      data;
     header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
     parsed_fields_t     fields;

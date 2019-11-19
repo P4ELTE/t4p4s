@@ -75,30 +75,43 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
     int packet_length = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
     rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        void* context = *(rte_pktmbuf_mtod(mbuf, void**));
+        rte_pktmbuf_adj(mbuf, sizeof(void*));
 
-    void* context = *(rte_pktmbuf_mtod(mbuf, void**));
-    rte_pktmbuf_adj(mbuf, sizeof(void*));
+        // Resetting the pd
+        init_headers(pd, 0);
+        reset_headers(pd, 0);
+        reset_pd(pd);
+    #elif ASYNC_MODE == ASYNC_MODE_PD
+        int async_pds_id = *(rte_pktmbuf_mtod(mbuf, int*));
+        rte_pktmbuf_adj(mbuf, sizeof(int));
+        *pd = async_pds[async_pds_id];
+    #endif
 
-    // Resetting the pd
-
-    init_headers(pd, 0);
-    reset_headers(pd, 0);
-    reset_pd(pd);
     pd->wrapper = mbuf;
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 
     pd->wrapper->pkt_len = packet_length;
-    pd->context = context;
 
-    DBG_CONTEXT_SWAP_TO_PACKET(context)
-    swapcontext(&lcdata->conf->main_loop_context, context);
-    debug("Swapped back to main context.\n");
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        pd->context = context;
+
+        DBG_CONTEXT_SWAP_TO_PACKET(context)
+        swapcontext(&lcdata->conf->main_loop_context, context);
+        debug("Swapped back to main context.\n");
+    #endif
 }
 
-void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum async_op_type op_type, void* context){
+
+void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum async_op_type op_type, void* extraInformationForAsyncHandling){
     unsigned encryption_offset = 0;//14; // TODO
 
-    rte_mempool_get(async_pool, (void**)op_out);
+    int ret = rte_mempool_get(async_pool, (void**)op_out);
+    if(ret < 0){
+        rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
+        //TODO: it should be a packet drop, not total fail
+    }
     struct async_op *op = *op_out;
     op->op = op_type;
     op->data = pd->wrapper;
@@ -108,12 +121,12 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     int extra_length = 0;
     debug_mbuf(op->data, "Prepared for encryption");
 
-    // Adding extra content to the mbuf
-    if(context != NULL){
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        void* context = extraInformationForAsyncHandling;
         rte_pktmbuf_prepend(op->data, sizeof(void*));
         *(rte_pktmbuf_mtod(op->data, void**)) = context;
         extra_length += sizeof(void*);
-    }
+    #endif
 
     rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
     *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
@@ -125,10 +138,10 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, 16-encrypted_length%16);
 }
 
-void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_type, void* context)
+void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_type, void* extraInformationForAsyncHandling)
 {
     struct async_op *op;
-    create_crypto_op(&op,pd,op_type,context);
+    create_crypto_op(&op,pd,op_type,extraInformationForAsyncHandling);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
     debug_mbuf(op->data, "enqueued for async");
@@ -141,7 +154,7 @@ void async_init_storage()
 {
     context_pool = rte_mempool_create("context_pool", (unsigned)1023, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
-    async_pool = rte_mempool_create("async_pool", (unsigned)1023, sizeof(struct async_op), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    async_pool = rte_mempool_create("async_pool", (unsigned)1024*1024-1, sizeof(struct async_op), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (async_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create async op pool\n");
     context_buffer = rte_ring_create("context_ring", (unsigned)32*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
 }
@@ -166,44 +179,55 @@ void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uns
 
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
 {
-    if(pd->context == NULL) return;
+    void* extraInformationForAsyncHandling = NULL;
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(pd->context == NULL) return;
 
-    void* context = pd->context;
+        extraInformationForAsyncHandling = pd->context;
 
-    // saving standard metadata into context
-    int metadata_length = pd->headers[header_instance_standard_metadata].length;
-    uint8_t standard_metadata[metadata_length];
-    memcpy(standard_metadata,
-           pd->headers[header_instance_standard_metadata].pointer,
-           metadata_length);
+        // saving standard metadata into context
+        int metadata_length = pd->headers[header_instance_standard_metadata].length;
+        uint8_t standard_metadata[metadata_length];
+        memcpy(standard_metadata,
+               pd->headers[header_instance_standard_metadata].pointer,
+               metadata_length);
+    #endif
 
     // deparse
     control_DeparserImpl(pd, 0, 0);
     emit_packet(pd, 0, 0);
 
     // enqueue mbuf to async operation buffer
-    enqueue_packet_for_async(pd, op, context);
+    enqueue_packet_for_async(pd, op, extraInformationForAsyncHandling);
 
-    // suspend processing of packet and go back to the main context
-    DBG_CONTEXT_SWAP_TO_MAIN
-    swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
-    debug("Swapped back to packet context %p.\n", context);
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        void* context = extraInformationForAsyncHandling;
+        // suspend processing of packet and go back to the main context
+        DBG_CONTEXT_SWAP_TO_MAIN
+        swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
+        debug("Swapped back to packet context %p.\n", context);
+    #endif
+
 
     // parse
     reset_pd(pd);
     parse_packet(pd, 0, 0);
 
-    // restoring standard metadata from context
-    memcpy(pd->headers[header_instance_standard_metadata].pointer,
-           standard_metadata,
-           metadata_length);
-}
 
-ucontext_t* cs[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        // restoring standard metadata from context
+        memcpy(pd->headers[header_instance_standard_metadata].pointer,
+               standard_metadata,
+               metadata_length);
+    #endif
+}
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+    ucontext_t* cs[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+#endif
+
 struct async_op *async_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-
 
 #include <unistd.h>
 
@@ -238,13 +262,15 @@ void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
 {
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
-    if(rte_ring_count(context_buffer) > CRYPTO_BURST_SIZE)
-    {
-        n = rte_ring_dequeue_burst(context_buffer, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
-        for(i = 0; i < n; i++)
-            debug(T4LIT(Packet context %p is being freed up.,warning) "\n", cs[lcore_id][i]);
-        rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
-    }
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(rte_ring_count(context_buffer) > CRYPTO_BURST_SIZE)
+        {
+            n = rte_ring_dequeue_burst(context_buffer, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
+            for(i = 0; i < n; i++)
+                debug(T4LIT(Packet context %p is being freed up.,warning) "\n", cs[lcore_id][i]);
+            rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
+        }
+    #endif
 
     if(CRYPTO_DEVICE_AVAILABLE)
     {
