@@ -83,10 +83,6 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         init_headers(pd, 0);
         reset_headers(pd, 0);
         reset_pd(pd);
-    #elif ASYNC_MODE == ASYNC_MODE_PD
-        int async_pds_id = *(rte_pktmbuf_mtod(mbuf, int*));
-        rte_pktmbuf_adj(mbuf, sizeof(int));
-        *pd = async_pds[async_pds_id];
     #endif
 
     pd->wrapper = mbuf;
