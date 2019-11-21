@@ -19,6 +19,8 @@
 int rte_vdev_init(const char *name, const char *args);
 #ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
 #include <rte_cryptodev_scheduler.h>
+#include <dataplane.h>
+
 #endif
 
 // -----------------------------------------------------------------------------

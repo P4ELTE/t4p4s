@@ -14,6 +14,7 @@
 
 #include <rte_ethdev.h>
 
+#include "dpdk_lib.h"
 #include "util.h"
 #include "dpdk_nicon.h"
 #include "dpdkx_crypto.h"
