@@ -49,17 +49,30 @@ static void init_session(int cdev_id, struct rte_cryptodev_sym_session *session,
         rte_exit(EXIT_FAILURE, "Session could not be initialized for the crypto device\n");
 }
 
+#define CRYPTO_MODE_OPENSSL 1
+#define CRYPTO_MODE_NULL 2
+
+#define CRYPTO_MODE CRYPTO_MODE_OPENSSL
+
 static void setup_sessions()
 {
     uint8_t cipher_key[16] = {0};
 
     struct rte_crypto_sym_xform cipher_xform_encrypt = DEFAULT_XFORM;
-    cipher_xform_encrypt.cipher.op = RTE_CRYPTO_CIPHER_OP_ENCRYPT;
-    cipher_xform_encrypt.cipher.key.data = cipher_key;
+    #if CRYPTO_MODE == CRYPTO_MODE_OPENSSL
+        cipher_xform_encrypt.cipher.op = RTE_CRYPTO_CIPHER_OP_ENCRYPT;
+        cipher_xform_encrypt.cipher.key.data = cipher_key;
+    #elif CRYPTO_MODE == CRYPTO_MODE_NULL
+        cipher_xform_encrypt.cipher.algo = RTE_CRYPTO_CIPHER_NULL;
+    #endif
 
     struct rte_crypto_sym_xform cipher_xform_decrypt = DEFAULT_XFORM;
-    cipher_xform_decrypt.cipher.op = RTE_CRYPTO_CIPHER_OP_DECRYPT;
-    cipher_xform_decrypt.cipher.key.data = cipher_key;
+    #if CRYPTO_MODE == CRYPTO_MODE_OPENSSL
+        cipher_xform_decrypt.cipher.op = RTE_CRYPTO_CIPHER_OP_DECRYPT;
+        cipher_xform_decrypt.cipher.key.data = cipher_key;
+    #elif CRYPTO_MODE == CRYPTO_MODE_NULL
+        cipher_xform_decrypt.cipher.algo = RTE_CRYPTO_CIPHER_NULL;
+    #endif
 
     setup_session(&session_encrypt, session_pool);
     setup_session(&session_decrypt, session_pool);
@@ -107,7 +120,13 @@ void init_crypto_devices()
 {
     unsigned int session_size;
     uint8_t socket_id = rte_socket_id();
-    cdev_id = setup_device("crypto_openssl0", socket_id);
+
+    #if CRYPTO_MODE == CRYPTO_MODE_OPENSSL
+        cdev_id = setup_device("crypto_openssl0", socket_id);
+    #elif CRYPTO_MODE == CRYPTO_MODE_NULL
+        cdev_id = setup_device("crypto_null", socket_id);
+    #endif
+
     if(CRYPTO_DEVICE_AVAILABLE)
     {
         session_size = rte_cryptodev_sym_get_private_session_size(cdev_id);
