@@ -58,7 +58,8 @@
     }
 
 #else
-    #define dbg_bytes(bytes, byte_count, MSG, ...)   
+    #define dbg_bytes(bytes, byte_count, MSG, ...)
+    #define debug_mbuf(mbuf,message)
 #endif
 
 #endif
