@@ -180,12 +180,20 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
 
 void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    do_async_op(pd, ASYNC_OP_ENCRYPT);
+    if(pd->context != NULL){
+        do_async_op(pd, ASYNC_OP_ENCRYPT);
+    }else{
+        debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
+    }
 }
 
 void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    do_async_op(pd, ASYNC_OP_DECRYPT);
+    if(pd->context != NULL) {
+        do_async_op(pd, ASYNC_OP_DECRYPT);
+    }else{
+        debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
+    }
 }
 
 // defined in main_async.c
