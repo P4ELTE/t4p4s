@@ -104,8 +104,8 @@ void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int eg
     uint8_t nb_port = 0;
     for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
         if (portidx == ingress_port) {
+            debug("    : Skipping broadcast on ingress port " T4LIT(%d,port), ingress_port);
            continue;
-           debug("    : Skipping broadcast on ingress port " T4LIT(%d,port), ingress_port);
         }
 
         bool is_port_disabled = (port_mask & (1 << portidx)) == 0;
@@ -156,7 +156,9 @@ void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd)
 
 void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id)
 {
+    debug_mbuf(pd->wrapper,"Arrived message to do_handle_packet");
     handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), port_id);
+
     do_single_tx(lcdata, pd);
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL)

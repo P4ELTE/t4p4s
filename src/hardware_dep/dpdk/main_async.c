@@ -37,11 +37,6 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 
 #define DBG_CONTEXT_SWAP_TO_MAIN        debug(T4LIT(Swapping to main context...,warning) "\n");
 #define DBG_CONTEXT_SWAP_TO_PACKET(ctx) debug(T4LIT(Swapping to packet context (%p)...,warning) "\n", ctx);
-static void debug_mbuf(struct rte_mbuf *mbuf, char* message)
-{
-    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf),
-      "\n--------------------------------\n" T4LIT(%s, port) " (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf));
-}
 
 // -----------------------------------------------------------------------------
 // EXTERNS
@@ -69,7 +64,7 @@ static void reset_pd(packet_descriptor_t *pd)
 
 static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcdata, packet_descriptor_t *pd)
 {
-    debug_mbuf(mbuf, "after async");
+    debug_mbuf(mbuf, "Data after async function: ");
 
     // Extracting extra content from the mbuf
 
@@ -115,7 +110,7 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     uint32_t packet_length = op->data->pkt_len;
     int encrypted_length = packet_length - encryption_offset;
     int extra_length = 0;
-    debug_mbuf(op->data, "Before preparing for encryption");
+    debug_mbuf(op->data, "Packet: ");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(extraInformationForAsyncHandling != NULL){
@@ -130,7 +125,7 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
     extra_length += sizeof(int);
 
-    debug_mbuf(op->data, "Prepared for encryption");
+    debug_mbuf(op->data, "Prepared for encryption (added extra informations):");
 
     op->offset = extra_length + encryption_offset;
     debug("encr_len%d %d\n",encrypted_length,packet_length)
@@ -144,7 +139,7 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_typ
     create_crypto_op(&op,pd,op_type,extraInformationForAsyncHandling);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
-    debug_mbuf(op->data, "enqueued for async");
+    debug_mbuf(op->data, "Enqueued for async");
 }
 
 // -----------------------------------------------------------------------------
@@ -247,12 +242,12 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
     rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], 1);
     struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
     int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
-    debug("-----------------------PACKET_LENGTH-%d\n",packet_length);
+
     rte_pktmbuf_adj(mbuf, sizeof(int));
     pd->wrapper = mbuf;
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
     pd->wrapper->pkt_len = packet_length;
-    debug_mbuf(mbuf, "Result of async\n");
+    debug_mbuf(mbuf, "Result of encryption\n");
 
     rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
 

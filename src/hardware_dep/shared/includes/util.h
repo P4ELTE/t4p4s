@@ -51,6 +51,12 @@
             fprintf(stderr, T4COLOR(T4LIGHT_off) "\n"); \
             pthread_mutex_unlock(&dbg_mutex); \
         }
+    #define debug_mbuf(mbuf,message) \
+    { \
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), \
+        "\n--------------------------------\n" T4LIT(%s, port) " (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf)); \
+    }
+
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)   
 #endif
