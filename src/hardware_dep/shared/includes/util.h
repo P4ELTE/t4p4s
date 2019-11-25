@@ -62,4 +62,5 @@
     #define debug_mbuf(mbuf,message)
 #endif
 
-#endif
+
+#endif //End of __UTIL_H_ guard

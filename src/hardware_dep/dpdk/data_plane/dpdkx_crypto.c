@@ -180,30 +180,55 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
 
 void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    if(pd->context != NULL){
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(pd->context != NULL){
+            do_async_op(pd, ASYNC_OP_ENCRYPT);
+        }else{
+            debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
+        }
+    #else
         do_async_op(pd, ASYNC_OP_ENCRYPT);
-    }else{
-        debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
-    }
+    #endif
 }
 
 void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    if(pd->context != NULL) {
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(pd->context != NULL) {
+            do_async_op(pd, ASYNC_OP_DECRYPT);
+        }else{
+            debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
+        }
+    #else
         do_async_op(pd, ASYNC_OP_DECRYPT);
-    }else{
-        debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
-    }
+    #endif
 }
+
+#ifdef DEBUG__CRYPTO_EVERY_N
+    int run_blocking_encryption_counter = 0;
+#endif
 
 // defined in main_async.c
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        if(run_blocking_encryption_counter == 0){
+            do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+        }
+    #else
+        do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+    #endif
 }
 
 void do_decryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
-    do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        if(run_blocking_encryption_counter == 0) {
+            do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
+        }
+        run_blocking_encryption_counter = (run_blocking_encryption_counter + 1) % DEBUG__CRYPTO_EVERY_N; // 10%
+    #else
+        do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
+    #endif
 }

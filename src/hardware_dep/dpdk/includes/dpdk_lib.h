@@ -151,16 +151,28 @@ struct lcore_conf {
 
 #define ASYNC_MODE ASYNC_MODE_CONTEXT
 
+//#define DEBUG__CRYPTO_EVERY_N 2
+//#define DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET 5
+
+
+
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-	#define PACKET_REQUIRES_ASYNC(pd) true
+	#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
+		#define PACKET_REQUIRES_ASYNC(pd) (packet_required_counter = (packet_required_counter + 1) % DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET) == 0
+    #else
+		#define PACKET_REQUIRES_ASYNC(pd) true
+    #endif
+
+	#define CRYPTO_BURST_SIZE 64
 #else
 	#define PACKET_REQUIRES_ASYNC(pd) false
+	#define CRYPTO_BURST_SIZE 1
 #endif
+
 
 
 // Shall we move these to backend.h?
 
-#define CRYPTO_BURST_SIZE 2
 
 enum async_op_type {
     ASYNC_OP_ENCRYPT,

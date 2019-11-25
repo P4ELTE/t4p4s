@@ -62,7 +62,7 @@ extern void t4p4s_pre_launch(int idx);
 extern void t4p4s_post_launch(int idx);
 extern void t4p4s_normal_exit();
 
-// TODO from...
+// defined in the generated file controlplane.c
 extern void init_control_plane();
 
 // defined in the generated file dataplane.c
@@ -173,6 +173,9 @@ void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32
 void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned pkt_idx, uint32_t port_id, void (*handler_function)(void));
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
 
+#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
+    int packet_required_counter = -1;
+#endif
 void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
     bool got_packet = fetch_packet(pd, lcdata, pkt_idx);
@@ -189,7 +192,6 @@ void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
                 handler_function(lcdata, pd, get_portid(lcdata, queue_idx));
         }
     }
-
     main_loop_post_single_rx(lcdata, got_packet);
 }
 
