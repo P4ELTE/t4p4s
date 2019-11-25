@@ -178,6 +178,7 @@ void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
 #endif
 void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
+    pd->context = NULL;
     bool got_packet = fetch_packet(pd, lcdata, pkt_idx);
 
     if (got_packet) {
