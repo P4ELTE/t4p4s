@@ -5,21 +5,15 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        FSLEEP(200),
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH01), 200, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH02), 200, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH01, ETH1A),   0, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH02, ETH1A),   0, 18, ETH(ETH01, ETH1A)},
-
+        FSLEEP(INIT_WAIT_CONTROLPLANE_LONG_MILLIS),
+        UNKNOWN_PKT(LPM_ETH1, LPM_ETH2, "000000000000000000000000" LPM1_TOP16B "0102" LPM2_TOP16B "0304"),
+        // LEARNED_PKT(0, "dddddddd0000", LPM1 "0037"),
+        // LEARNED_PKT(3, "dddddddd0000", LPM1 "00ab"),
+        // LEARNED_PKT(9, "dddddddd0000", LPM1 "00ff"),
         FEND,
     },
 
     {
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH03), 200, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH04), 200, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH03, ETH1A),   0, 18, ETH(ETH01, ETH1A)},
-        {FAKE_PKT, 0, 0, ETH(ETH04, ETH1A),   0, 18, ETH(ETH01, ETH1A)},
-
         FEND,
     },
 };
