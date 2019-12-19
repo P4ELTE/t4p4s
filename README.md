@@ -240,9 +240,17 @@ import ipdb; ipdb.set_trace()
 
 A convenient place to start an investigation is at the end of `set_additional_attrs` in `hlir16_attrs.py`.
 
-You can search for all occurrences of a string/integer/etc.
-Typically you would start at the topmost node (called `hlir16`),
-but any node can be used as a starting point.
+### Search by content
+
+The root node of the representation is called `hlir16`.
+Starting at this node or any other one, you can search for all occurrences of a string/integer/etc. using the `%` operator.
+
+~~~
+hlir16 % 'ethernet'
+hlir16 % 1234567
+~~~
+
+The `%` operator is an abbreviated form; you can also use the function `paths_to`.
 
 ~~~
 hl[TAB]
@@ -288,6 +296,23 @@ hlir16.paths_to('intrinsic_metadata', match='full')
 ~~~
 
 
+### Pretty printing nodes
+
+The most convenient way to pretty print a node is to use the postfix "heart operator".
+
+~~~
+hlir16 <3
+~~~
+
+This, in fact, is a call to the "less than" operator.
+This operator uses the `json_repr` function internally, and turns it into a nice, YAML based output.
+
+~~~
+hlir16 < 3
+hlir16 < 4
+~~~
+
+
 ## Attributes
 
 The nodes get their attributes in the following ways.
@@ -327,6 +352,28 @@ ds.get('ipv4_t', 'Type_Header')   # the same, limited to the given type
 any_node.name         # most nodes (but not all) have names
 any_node.xdir()       # names of the node's non-common attributes
 ~~~
+
+## Special attribute operators
+
+When traversing several attributes like `node.type.type_ref.size`, sometimes a part of the chain is optional; in certain cases, `node.type.size` will contain the appropriate value, that is, `type_ref` is not present at `node.type` and should not be in the chain.
+
+- Writing `node.type._type_ref.size` will get the proper attribute value.
+    - Note the underscore prefix in `_type_ref`.
+    - This attribute chain will first get `node.type`. Let's call this node `node2`.
+    - Starting from `node2`, `type_ref` is traversed if it is present. If `node2` doesn't have the `type_ref` attribute, `node.type._type_ref` evaluates to `node2` itself.
+    - Going on from the reached node, the `size` attribute is traversed.
+- For this to work, we assume that no attribute begins with an underscore.
+
+In some cases, an attribute chain cannot be continued if an attribute is missing. For example, `e.expr.header_ref.type.type_ref.is_metadata` may only be meaningful if `header_ref` is present under `e.expr`.
+
+- Writing `e.expr('header_ref.type.type_ref.is_metadata')` will get the proper attribute value.
+    - The call operator will return an invalid `P4Node` object if the chain in its string argument cannot be fully traversed.
+    - The invalid node is falsy. For example, you may use it as `if not e.expr('header_ref.type.type_ref.is_metadata'):`.
+    - The invalid node contains some attributes about where the chain was broken, the last valid node reached in the chain etc.
+- It is also possible to write `e.expr('header_ref.type.type_ref.is_metadata', lambda ismeta: not ismeta)`.
+    - Here, the expression evaluates to the value returned by the lambda, which is invoked on the node reached at the end of the chain.
+    - If the chain is broken, the invalid `P4Node` object is returned as before.
+
 
 ## Special markers
 
