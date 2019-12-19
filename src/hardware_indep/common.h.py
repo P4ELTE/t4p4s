@@ -4,7 +4,6 @@
 from hlir16.utils_hlir16 import *
 from utils.codegen import format_type
 
-
 #[ #ifndef __COMMON_H__
 #[ #define __COMMON_H__
 
@@ -16,9 +15,9 @@ for struct in hlir16.objects['Type_Struct']:
     if not struct.name.endswith('_t'):
         continue
 
-    #{ struct ${struct.name} {
+    #{ typedef struct {
     for field in struct.fields:
         #[ ${format_type(field.type)} ${field.name};
-    #} };
+    #} } ${struct.name};
 
 #[ #endif // __COMMON_H__
