@@ -41,7 +41,7 @@ struct lcore_params lcore_params[MAX_LCORE_PARAMS];
 
 struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
-struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
+rte_eth_addr_t ports_eth_addr[RTE_MAX_ETHPORT_COUNT];
 
 //=============================================================================
 // Getters

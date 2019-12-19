@@ -21,11 +21,11 @@ extern void flush_table(lookup_table_t* t);
 
 void create_tables_on_socket(int socketid)
 {
-    debug(" :::: Initializing tables on socket " T4LIT(%d,socket) "...\n", socketid);
+    debug("   :: Initializing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("   :: Creating instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
+        debug("    : Creating instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             state[socketid].tables[i][j] = malloc(sizeof(lookup_table_t));
             memcpy(state[socketid].tables[i][j], &t, sizeof(lookup_table_t));
@@ -56,7 +56,7 @@ void create_table_on_lcore(unsigned lcore_id)
 
 void init_tables()
 {
-    debug(" :::: Initializing stateful memories...\n");
+    debug(" :::: Initializing tables on all cores\n");
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         create_table_on_lcore(lcore_id);
     }
@@ -64,11 +64,9 @@ void init_tables()
 
 void flush_tables_on_socket(int socketid)
 {
-    debug(" :::: Flushing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("   :: Flushing instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             flush_table(state[socketid].tables[i][j]);
         }
@@ -88,7 +86,7 @@ void flush_table_on_lcore(unsigned lcore_id)
 
 void flush_tables()
 {
-    debug(" :::: Flushing stateful memories...\n");
+    debug("Flushing tables on all cores\n");
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         flush_table_on_lcore(lcore_id);
     }

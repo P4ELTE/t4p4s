@@ -52,7 +52,6 @@ void lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t valu
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
-    dbg_bytes((uint8_t*)&key, 4, "    : " T4LIT(LPM) ": Added " T4LIT(%d) " <- (" T4LIT(%d) " bit) ", value, depth);
 }
 
 void lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t value)
@@ -60,7 +59,6 @@ void lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t 
     int ret = rte_lpm6_add(l, key, depth, value);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
-    dbg_bytes(key, depth, "    : " T4LIT(LPM) ": Added " T4LIT(%d) " <- (" T4LIT(%d) " bit) ", value, depth);
 }
 
 
