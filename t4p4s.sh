@@ -19,7 +19,7 @@ PYTHON=${PYTHON-python}
 DEBUGGER=${DEBUGGER-gdb}
 
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype off packet parserstate port smem socket status success table testcase warning)
+ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
 
 # --------------------------------------------------------------------
 # Helpers
@@ -35,15 +35,9 @@ trap 'ctrl_c_handler' INT
 
 exit_program() {
     echo -e "$nn"
-    [ "${OPTS[ctr]}" != "" ] && verbosemsg "Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+    [ "${OPTS[ctr]}" != "" ] && verbosemsg "(Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn)" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+    [ "$1" != "" ] && errmsg "$(cc 3)Error$nn: $*"
     exit $ERROR_CODE
-}
-
-print_usage_and_exit() {
-    (>&2 echo -e "Usage: $0 <options...>")
-    (>&2 echo -e "    - see $(cc 0)README.md$nn for details")
-
-    exit_program
 }
 
 verbosemsg() {
@@ -65,17 +59,11 @@ errmsg() {
     done
 }
 
-errmsg_exit() {
-    errmsg "Error: $*"
-    print_usage_and_exit
-}
-
 exit_on_error() {
     ERROR_CODE=$?
     [ "$ERROR_CODE" -eq 0 ] && return
 
-    errmsg "Error: $1 (error code: $ERROR_CODE)"
-    exit_program
+    exit_program "$1 (error code: $(cc 3)$ERROR_CODE$nn)"
 }
 
 array_contains() {
@@ -276,8 +264,8 @@ colours=()
 nn="\033[0m"
 
 # Check if configuration is valid
-[ "${P4C}" == "" ] && errmsg_exit "Error: \$P4C not defined"
-[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && errmsg_exit "Error: \$RTE_SDK not defined"
+[ "${P4C}" == "" ] && exit_program "\$P4C not defined"
+[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
 
 # --------------------------------------------------------------------
 # Parse opts from files and command line
@@ -407,8 +395,8 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
 
             if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
                 FIND_COUNT=$(candidate_count "${var}")
-                [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
-                [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+                [ $FIND_COUNT -gt 1 ] && exit_program "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+                [ $FIND_COUNT -eq 0 ] && exit_program "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
 
                 setopt example "$var"
                 setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
@@ -432,7 +420,7 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
         # Steps after processing the command line
         if [ "$cfgfile" == "!cmdline!" ]; then
             # The command line must specify an example to run
-            [ "$(optvalue example)" == off ] && errmsg_exit "No example to run"
+            [ "$(optvalue example)" == off ] && exit_program "No example to run"
             # The variant has to be determined before processing the config files.
             [ "$(optvalue variant)" == off ] && setopt variant std
         fi
@@ -453,10 +441,10 @@ if [ "${OPTS[vsn]}" == "" ]; then
     P4_EXT="$(basename "${OPTS[source]}")"
     P4_EXT=${P4_EXT##*.}
     if [ "$(array_contains "${P4_EXT##*.}" ${!EXT_TO_VSN[@]})" == n ]; then
-        errmsg_exit "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+        exit_program "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
     fi
     OPTS[vsn]="${EXT_TO_VSN["${P4_EXT##*.}"]}"
-    [ "${OPTS[vsn]}" == "" ] && errmsg_exit "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
+    [ "${OPTS[vsn]}" == "" ] && exit_program "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
     verbosemsg "Determined P4 version to be $(cc 0)${OPTS[vsn]}$nn by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
 fi
 
@@ -491,7 +479,13 @@ mkdir -p $T4P4S_SRCGEN_DIR
 
 verbosemsg "Options: $(print_opts)"
 
-# Phase 0: If a phase with root access is needed, ask for it now
+# Phase 0a: Check for required programs
+if [ "$(optvalue c)" != off -a ! -f "$P4C/build/p4test" ]; then
+    exit_program "cannot find P4C compiler at $(cc 1)\$P4C/build/p4test$nn"
+fi
+
+
+# Phase 0b: If a phase with root access is needed, ask for it now
 if [ "$(optvalue run)" != off ]; then
     verbosemsg "Requesting root access..."
     sudo echo -n ""
@@ -552,7 +546,7 @@ EOT
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
         TESTDIR="examples"
         if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
-            errmsg_exit "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
+            exit_program "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
         fi
         TESTFILE=$(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c")
 
@@ -669,10 +663,14 @@ if [ "$(optvalue run)" != off ]; then
     [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
     [ $ERROR_CODE -ne 0 ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
 
-    DBGWAIT=3
+    DBGWAIT=1
     if [ $ERROR_CODE -ne 0 ] && [ "$(optvalue autodbg)" != off ]; then
+        [ "${OPTS[ctr]}" != "" ] && verbosemsg "Restarting controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+        (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &)
+
         msg "Running $(cc 1)debugger $DEBUGGER$nn in $(cc 0)$DBGWAIT$nn seconds"
         sleep $DBGWAIT
+        print "${OPTS[executable]}"
         sudo -E ${DEBUGGER} -q -ex run --args "${OPTS[executable]}" ${EXEC_OPTS}
     fi
 fi
