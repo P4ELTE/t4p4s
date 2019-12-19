@@ -16,55 +16,55 @@
 
 //=============================================================================
 // Registers
-typedef struct reg_int8_s { // stateful_memory@82
-    volatile int8_t value; // stateful_memory@83
-} reg_int8_t; // stateful_memory@84
-typedef struct reg_int16_s { // stateful_memory@82
-    volatile int16_t value; // stateful_memory@83
-} reg_int16_t; // stateful_memory@84
-typedef struct reg_int32_s { // stateful_memory@82
-    volatile int32_t value; // stateful_memory@83
-} reg_int32_t; // stateful_memory@84
-typedef struct reg_int64_s { // stateful_memory@82
-    volatile int64_t value; // stateful_memory@83
-} reg_int64_t; // stateful_memory@84
-typedef struct reg_uint8_s { // stateful_memory@82
-    volatile uint8_t value; // stateful_memory@83
-} reg_uint8_t; // stateful_memory@84
-typedef struct reg_uint16_s { // stateful_memory@82
-    volatile uint16_t value; // stateful_memory@83
-} reg_uint16_t; // stateful_memory@84
-typedef struct reg_uint32_s { // stateful_memory@82
-    volatile uint32_t value; // stateful_memory@83
-} reg_uint32_t; // stateful_memory@84
-typedef struct reg_uint64_s { // stateful_memory@82
-    volatile uint64_t value; // stateful_memory@83
-} reg_uint64_t; // stateful_memory@84
+typedef struct {
+    volatile int8_t value;
+} register_int8_t;
+typedef struct {
+    volatile int16_t value;
+} register_int16_t;
+typedef struct {
+    volatile int32_t value;
+} register_int32_t;
+typedef struct {
+    volatile int64_t value;
+} register_int64_t;
+typedef struct {
+    volatile uint8_t value;
+} register_uint8_t;
+typedef struct {
+    volatile uint16_t value;
+} register_uint16_t;
+typedef struct {
+    volatile uint32_t value;
+} register_uint32_t;
+typedef struct {
+    volatile uint64_t value;
+} register_uint64_t;
 
-void extern_register_write_int8_t(reg_int8_t* reg, uint32_t idx, int8_t value); // stateful_memory@89
-void extern_register_read_int8_t(reg_int8_t* reg, int8_t* value, uint32_t idx); // stateful_memory@90
-void init_register_int8_t(reg_int8_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_int16_t(reg_int16_t* reg, uint32_t idx, int16_t value); // stateful_memory@89
-void extern_register_read_int16_t(reg_int16_t* reg, int16_t* value, uint32_t idx); // stateful_memory@90
-void init_register_int16_t(reg_int16_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_int32_t(reg_int32_t* reg, uint32_t idx, int32_t value); // stateful_memory@89
-void extern_register_read_int32_t(reg_int32_t* reg, int32_t* value, uint32_t idx); // stateful_memory@90
-void init_register_int32_t(reg_int32_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_int64_t(reg_int64_t* reg, uint32_t idx, int64_t value); // stateful_memory@89
-void extern_register_read_int64_t(reg_int64_t* reg, int64_t* value, uint32_t idx); // stateful_memory@90
-void init_register_int64_t(reg_int64_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_uint8_t(reg_uint8_t* reg, uint32_t idx, uint8_t value); // stateful_memory@89
-void extern_register_read_uint8_t(reg_uint8_t* reg, uint8_t* value, uint32_t idx); // stateful_memory@90
-void init_register_uint8_t(reg_uint8_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_uint16_t(reg_uint16_t* reg, uint32_t idx, uint16_t value); // stateful_memory@89
-void extern_register_read_uint16_t(reg_uint16_t* reg, uint16_t* value, uint32_t idx); // stateful_memory@90
-void init_register_uint16_t(reg_uint16_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_uint32_t(reg_uint32_t* reg, uint32_t idx, uint32_t value); // stateful_memory@89
-void extern_register_read_uint32_t(reg_uint32_t* reg, uint32_t* value, uint32_t idx); // stateful_memory@90
-void init_register_uint32_t(reg_uint32_t* reg, uint32_t size); // stateful_memory@91
-void extern_register_write_uint64_t(reg_uint64_t* reg, uint32_t idx, uint64_t value); // stateful_memory@89
-void extern_register_read_uint64_t(reg_uint64_t* reg, uint64_t* value, uint32_t idx); // stateful_memory@90
-void init_register_uint64_t(reg_uint64_t* reg, uint32_t size); // stateful_memory@91
+void extern_register_write_int8_t(register_int8_t* reg, uint32_t idx, int8_t value);
+void extern_register_read_int8_t(register_int8_t* reg, int8_t* value, uint32_t idx);
+void init_register_int8_t(register_int8_t* reg, uint32_t size);
+void extern_register_write_int16_t(register_int16_t* reg, uint32_t idx, int16_t value);
+void extern_register_read_int16_t(register_int16_t* reg, int16_t* value, uint32_t idx);
+void init_register_int16_t(register_int16_t* reg, uint32_t size);
+void extern_register_write_int32_t(register_int32_t* reg, uint32_t idx, int32_t value);
+void extern_register_read_int32_t(register_int32_t* reg, int32_t* value, uint32_t idx);
+void init_register_int32_t(register_int32_t* reg, uint32_t size);
+void extern_register_write_int64_t(register_int64_t* reg, uint32_t idx, int64_t value);
+void extern_register_read_int64_t(register_int64_t* reg, int64_t* value, uint32_t idx);
+void init_register_int64_t(register_int64_t* reg, uint32_t size);
+void extern_register_write_uint8_t(register_uint8_t* reg, uint32_t idx, uint8_t value);
+void extern_register_read_uint8_t(register_uint8_t* reg, uint8_t* value, uint32_t idx);
+void init_register_uint8_t(register_uint8_t* reg, uint32_t size);
+void extern_register_write_uint16_t(register_uint16_t* reg, uint32_t idx, uint16_t value);
+void extern_register_read_uint16_t(register_uint16_t* reg, uint16_t* value, uint32_t idx);
+void init_register_uint16_t(register_uint16_t* reg, uint32_t size);
+void extern_register_write_uint32_t(register_uint32_t* reg, uint32_t idx, uint32_t value);
+void extern_register_read_uint32_t(register_uint32_t* reg, uint32_t* value, uint32_t idx);
+void init_register_uint32_t(register_uint32_t* reg, uint32_t size);
+void extern_register_write_uint64_t(register_uint64_t* reg, uint32_t idx, uint64_t value);
+void extern_register_read_uint64_t(register_uint64_t* reg, uint64_t* value, uint32_t idx);
+void init_register_uint64_t(register_uint64_t* reg, uint32_t size);
 
 #define register_read_PARAM1(par) &par
 #define register_read_PARAM2(par) par

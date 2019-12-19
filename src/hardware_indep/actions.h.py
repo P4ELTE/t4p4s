@@ -17,12 +17,11 @@ from utils.codegen import format_type
 #[ #ifndef __ACTIONS_H__
 #[ #define __ACTIONS_H__
 
-#[ //#include "dataplane.h"
+#[ #include "dataplane.h"
 #[ #include "common.h"
 
-#[ typedef struct packet_descriptor_s packet_descriptor_t;
-#[ typedef struct lookup_table_s lookup_table_t;
-
+# TODO this should not be here in the indep section
+#[ #include "dpdk_reg.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
@@ -51,26 +50,26 @@ def resolve_typeref(hlir16, f):
 
 for ctl in hlir16.controls:
     for act in ctl.actions:
-        #{ struct action_${act.name}_params {
+        #{ typedef struct {
         for param in act.parameters.parameters:
             paramtype = resolve_typeref(hlir16, param)
             #[ FIELD(${param.name}, ${paramtype.size});
 
         #[ FIELD(DUMMY_FIELD, 0);
-        #} };
+        #} } action_${act.name}_params_t;
 
-#{ struct all_metadatas_t {
+#{ typedef struct {
 for metainst in hlir16.metadata_insts:
     if hasattr(metainst.type, 'type_ref'):
-        metatype = metainst.type.type_ref
-        #[ struct ${metatype.name} meta_${metatype.name};
+        for fld in metainst.type.type_ref.fields:
+            vardecl = format_type(fld.type, "field_{}_{}".format(metainst.type.type_ref.name, fld.name))
+            #[ $vardecl; // ${metainst.type.type_ref.name}, ${fld.name}
     else:
         # note: in the case of an array type,
         #       the array brackets have to go after the variable name
         varname = "metafield_" + metainst.name
-        formatted = format_type(metainst.type, varname)
-        #[ $formatted;
-#} };
+        #[ ${format_type(metainst.type, varname)};
+#} } all_metadatas_t;
 
 for table in hlir16.tables:
     #{ struct ${table.name}_action {
@@ -80,7 +79,7 @@ for table in hlir16.tables:
         # TODO what if the action is not a method call?
         # TODO what if there are more actions?
         action_method_name = action.expression.method.ref.name
-        #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
+        #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
     #} };
 
@@ -92,17 +91,21 @@ for table in hlir16.tables:
         aname = action.action_object.name
         mname = action.expression.method.ref.name
 
-        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
+        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, action_${mname}_params_t);
 
 
-# TODO: The controls shouldn't be accessed through an instance declaration parameter
-for ctl in hlir16.objects['P4Control']:
+for ctl in hlir16.controls:
     #{ typedef struct control_locals_${ctl.name}_s {
     for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
         if local_var_decl.type.node_type == 'Type_Name':
             #[ ${format_type(local_var_decl.type, resolve_names = False)}_t ${local_var_decl.name};
         else:
             #[ ${format_type(local_var_decl.type, resolve_names = False)} ${local_var_decl.name};
+
+    # TODO is there a more appropriate way to store registers?
+    for reg in hlir16.registers:
+        #[ ${format_type(reg.type, resolve_names = False)} ${reg.name};
+
     #} } control_locals_${ctl.name}_t;
 
 #[ #endif
