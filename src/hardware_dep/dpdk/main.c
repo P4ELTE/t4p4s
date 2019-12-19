@@ -60,7 +60,7 @@ extern int launch_count();
 extern void t4p4s_abnormal_exit(int retval, int idx);
 extern void t4p4s_pre_launch(int idx);
 extern void t4p4s_post_launch(int idx);
-extern void t4p4s_normal_exit();
+extern int t4p4s_normal_exit();
 
 // TODO from...
 extern void init_control_plane();
@@ -92,24 +92,40 @@ extern void init_parser_state(parser_state_t*);
 extern uint32_t get_port_mask();
 extern uint8_t get_port_count();
 
-void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
-{
+void get_broadcast_port_msg(char result[256], int ingress_port) {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
-    debug("    : Mask port " T4LIT(%d,port) "\n", nb_ports);
-    debug("    : Mask port " T4LIT(%x,port) "\n", port_mask);
 
-    uint8_t nb_port = 0;
-    for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
+    char* result_ptr = result;
+    bool is_first_printed_port = true;
+    for (uint8_t portidx = 0; portidx < RTE_MAX_ETHPORTS; ++portidx) {
         if (portidx == ingress_port) {
            continue;
-           debug("    : Skipping broadcast on ingress port " T4LIT(%d,port), ingress_port);
         }
 
         bool is_port_disabled = (port_mask & (1 << portidx)) == 0;
         if (is_port_disabled)   continue;
 
-        debug("    : Broadcasting on port " T4LIT(%d,port) "\n", portidx);
+        int printed_bytes = sprintf(result_ptr, "%s" T4LIT(%d,port), is_first_printed_port ? "" : ", ", portidx);
+        result_ptr += printed_bytes;
+        is_first_printed_port = false;
+    }
+}
+
+
+void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+{
+    uint8_t nb_ports = get_port_count();
+    uint32_t port_mask = get_port_mask();
+
+    uint8_t nb_port = 0;
+    for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
+        if (portidx == ingress_port) {
+           continue;
+        }
+
+        bool is_port_disabled = (port_mask & (1 << portidx)) == 0;
+        if (is_port_disabled)   continue;
 
         packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
         send_single_packet(lcdata, pd, pkt_out, egress_port, ingress_port);
@@ -118,7 +134,7 @@ void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int eg
     }
 
     if (unlikely(nb_port != nb_ports - 1)) {
-        debug(T4LIT(Wrong port count,error) ": " T4LIT(%d) " ports should be present, but only " T4LIT(%d) " found", nb_ports, nb_port);
+        debug(" " T4LIT(!!!!,error) " " T4LIT(Wrong port count,error) ": " T4LIT(%d) " ports should be present, but only " T4LIT(%d) " found\n", nb_ports, nb_port);
     }
 }
 
@@ -129,21 +145,25 @@ void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
 
     if (unlikely(egress_port == T4P4S_BROADCAST_PORT)) {
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   :: Broadcasting packet from port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", ingress_port, rte_pktmbuf_pkt_len(mbuf));
+        #ifdef T4P4S_DEBUG
+            char ports_msg[256];
+            get_broadcast_port_msg(ports_msg, ingress_port);
+            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%d) " bytes): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
+        #endif
         broadcast_packet(lcdata, pd, egress_port, ingress_port);
     } else {
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   :: Emitting packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
         send_single_packet(lcdata, pd, pd->wrapper, egress_port, ingress_port);
     }
 }
 
 void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
-    if (unlikely(pd->dropped)) {
-        debug(" :::: Dropping packet\n");
+    if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop))) {
+        debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
         free_packet(pd);
     } else {
-        debug(" :::: Egressing packet\n");
+        debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Egressing,outgoing) " packet\n");
 
         int egress_port = extract_egress_port(pd);
         int ingress_port = extract_ingress_port(pd);
@@ -238,9 +258,9 @@ int main(int argc, char** argv)
         init_storage();
 
         init_memories();
-        debug("   :: Initializing control plane connection\n");
+        debug(" " T4LIT(::::,incoming) " Initializing control plane connection\n");
         init_control_plane();
-        debug("   :: Initializing storage\n");
+        debug(" :::: Initializing storage\n");
 
         t4p4s_pre_launch(i);
 
@@ -255,6 +275,5 @@ int main(int argc, char** argv)
         flush_tables();
     }
 
-    t4p4s_normal_exit();
-    return 0;
+    return t4p4s_normal_exit();
 }

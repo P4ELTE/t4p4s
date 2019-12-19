@@ -150,7 +150,7 @@ void abort_on_strict() {
 
 void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_port) {
     if (cmd.out_port != egress_port) {
-        debug(" " T4LIT(!!!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d,expected) ", got " T4LIT(%d,error) "\n",
+        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d,expected) ", got " T4LIT(%d,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
               cmd.out_port, egress_port);
         lcdata->is_valid = false;
@@ -164,7 +164,7 @@ bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descript
     int expected_byte_count = total_fake_byte_count(cmd.out);
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
     if (expected_byte_count != actual_byte_count) {
-        debug(" " T4LIT(!!!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
+        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
               expected_byte_count, actual_byte_count);
 
@@ -238,7 +238,48 @@ void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descrip
     }
 
     msgptr[0] = 0;
-    debug(" " T4LIT(!!!!,error) " " T4LIT(%d) " wrong bytes found: %s\n", wrong_byte_count, msg);
+    debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", msg);
+}
+
+void print_expected_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd, int wrong_byte_count) {
+    char msg[MSG_MAX_LEN];
+    char* msgptr = msg;
+
+    int byte_idx = 0;
+    int section_idx = 0;
+    const char** texts = cmd.out;
+    while (strlen(*texts) > 0) {
+        sprintf(msgptr, "[");
+        msgptr += 1;
+
+        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
+            uint8_t expected_byte;
+            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
+
+            uint8_t actual_byte = pd->data[byte_idx];
+            int written_bytes;
+            if (expected_byte != actual_byte) {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,success), expected_byte);
+            } else {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,expected), expected_byte);
+            }
+            msgptr += written_bytes;
+
+            ++byte_idx;
+        }
+
+        sprintf(msgptr, "]");
+        msgptr += 1;
+
+        ++texts;
+        ++section_idx;
+    }
+
+    msgptr[0] = 0;
+    char tmpmsg[MSG_MAX_LEN];
+    char* tmpmsgptr = tmpmsg;
+    sprintf(tmpmsgptr, "%d", wrong_byte_count);
+    debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(tmpmsgptr), "", msg);
 }
 
 void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
@@ -246,10 +287,15 @@ void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_des
 
     if (wrong_byte_count != 0) {
         print_wrong_bytes(lcdata, cmd, pd, wrong_byte_count);
+        print_expected_bytes(lcdata, cmd, pd, wrong_byte_count);
         lcdata->is_valid = false;
         abort_on_strict();
     }
 }
+
+#ifdef T4P4S_DEBUG
+bool encountered_error = false;
+#endif
 
 void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port) {
     fake_cmd_t cmd = get_cmd(lcdata);
@@ -262,9 +308,10 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
 
 #ifdef T4P4S_DEBUG
     if (lcdata->is_valid) {
-        debug( " :::: " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        debug( "   :: " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
     } else {
-        debug( " " T4LIT(!!!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        encountered_error = true;
     }
 #endif
 }
@@ -345,11 +392,6 @@ unsigned get_queue_count(struct lcore_data* lcdata) {
 
 void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
-    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf),
-              "Emitting " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) " on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ",
-              lcdata->pkt_idx + 1, rte_lcore_id(),
-              egress_port, rte_pktmbuf_pkt_len(mbuf));
-
     check_sent_packet(lcdata, pd, egress_port, ingress_port);
 }
 
@@ -395,8 +437,16 @@ void t4p4s_after_launch(int idx) {
     }
 }
 
-void t4p4s_normal_exit() {
+int t4p4s_normal_exit() {
+#ifdef T4P4S_DEBUG
+    if (encountered_error) {
+        debug(T4LIT(Normal exit but errors in processing packets,error) "\n");
+        return 3;
+    }
+#endif
+
     debug(T4LIT(Normal exit.,success) "\n");
+    return 0;
 }
 
 void t4p4s_post_launch(int idx) {
