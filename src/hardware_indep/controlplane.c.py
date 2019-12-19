@@ -20,18 +20,17 @@ def match_type_order(t):
     }
     return match_types[t]
 
+#[ #include <unistd.h>
+
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
 #[ #include "tables.h"
-
-#[ #define member_size(type, member) sizeof(((type *)0)->member)
 
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
 #[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
 
-#[ //extern struct all_metadatas_t all_metadatas;
 
 for table in hlir16.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
@@ -46,8 +45,15 @@ def get_key_byte_width(k):
     # for special functions like isValid
     if k.get_attr('header') is None:
         return 0
-        
-    return (k.width+7)/8 if not k.header.type.type_ref.is_vw else 0
+    
+    if k.header.type._type_ref('is_vw', False):
+        return 0
+
+    if hasattr(k, 'width'):
+        return (k.width+7)/8
+
+    # reaching this point, k can only come from metadata
+    return (k.header.type.size+7)/8
 
 
 hlir16_tables_with_keys = [t for t in hlir16.tables if hasattr(t, 'key')]
@@ -60,15 +66,10 @@ for table in hlir16_tables_with_keys:
     for k in table.key.keyElements:
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            if k.header_name!='meta':
-                continue
+            continue
 
-        if k.header_name=='meta':
-            byte_width = 'member_size(struct all_metadatas_t, metafield_%s)' % k.field_name
-            #[ uint8_t field_instance_${k.header_name}_${k.field_name}[$byte_width], 
-        else:
-            byte_width = get_key_byte_width(k)
-            #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
+        byte_width = get_key_byte_width(k)
+        #[ uint8_t field_instance_${k.header.name}_${k.field_name}[$byte_width],
         
         # TODO have keys' and tables' match_type the same case (currently: LPM vs lpm)
         if k.match_type == "ternary":
@@ -78,26 +79,18 @@ for table in hlir16_tables_with_keys:
 
     #}     struct ${table.name}_action action)
     #{ {
-    
-    if table.key_length_bytes==0 and table.key.keyElements[0].header_name=='meta':  # TODO: Check this part!!!
-         #[     uint8_t key[member_size(struct all_metadatas_t, metafield_${table.key.keyElements[0].field_name})];
-    else:
-         #[     uint8_t key[${table.key_length_bytes}];
+
+    #[     uint8_t key[${table.key_length_bytes}];
 
     byte_idx = 0
     for k in sorted((k for k in table.key.keyElements if k.get_attr('match_type') is not None), key = lambda k: match_type_order(k.match_type)):
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            if k.header_name!='meta':
-                continue
-        if k.header_name=='meta':
-            byte_width = 'member_size(struct all_metadatas_t, metafield_%s)' % k.field_name
-            #[ memcpy(key+$byte_idx, field_instance_${k.header_name}_${k.field_name}, $byte_width);
-            byte_idx += 1 # Metafield size???
-        else:
-            byte_width = get_key_byte_width(k)
-            #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
-            byte_idx += byte_width 
+            continue
+
+        byte_width = get_key_byte_width(k)
+        #[ memcpy(key+$byte_idx, field_instance_${k.header.name}_${k.field_name}, $byte_width);
+        byte_idx += byte_width
 
     if table.match_type == "LPM":
         #[ uint8_t prefix_length = 0;
@@ -138,14 +131,10 @@ for table in hlir16_tables_with_keys:
     for i, k in enumerate(table.key.keyElements):
         # TODO should properly handle specials (isValid etc.)
         if k.get_attr('header') is None:
-            if k.header_name!='meta':
-                continue
+            continue
 
         if k.match_type == "exact":
-            if k.header_name=='meta':
-                #[ uint8_t* field_instance_${k.header_name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
-            else:
-                #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
         if k.match_type == "lpm":
             #[ uint8_t* field_instance_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
             #[ uint16_t field_instance_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
@@ -160,34 +149,31 @@ for table in hlir16_tables_with_keys:
         #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
         #[     action.action_id = action_${action.action_object.name};
-        #[     debug("From controller: add new entry to $$[table]{table.name} with action $$[action]{action.action_object.name}\n");
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-
-            if p.type('type_ref').size <= 32:
-                size = 8 if p.type('type_ref').size <= 8 else 16 if p.type('type_ref').size <= 16 else 32
-                #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type('type_ref').size}, *(uint${size}_t*)${p.name});
-            else:
-                #[ dbg_bytes(${p.name}, (${p.type('type_ref').size}+7)/8, "   :: $$[field]{p.name} ($${}{%d} bits): ", ${p.type('type_ref').size});
-
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type('type_ref').size+7)/8});
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type._type_ref.size+7)/8});
 
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
             # TODO handle specials properly (isValid etc.)
             if k.get_attr('header') is None:
-                if k.header_name!='meta':
-                    continue
-            if k.header_name == 'meta':
-                #[ field_instance_${k.header_name}_${k.field_name},
-            else:
-                #[ field_instance_${k.header.name}_${k.field_name},
+                continue
+
+            #[ field_instance_${k.header.name}_${k.field_name},
             if k.match_type == "lpm":
                 #[ field_instance_${k.header.name}_${k.field_name}_prefix_length,
             if k.match_type == "ternary":
                 #[ 0 /* TODO dstPort_mask */,
         #[     action);
         #}
+
+        for j, p in enumerate(action.action_object.parameters.parameters):
+            if p.type._type_ref.size <= 32:
+                size = 8 if p.type._type_ref.size <= 8 else 16 if p.type._type_ref.size <= 16 else 32
+                #[ debug("        : $$[field]{p.name}/$${}{%d} = $$[bytes]{}{%d}\n", ${p.type._type_ref.size}, *(uint${size}_t*)${p.name});
+            else:
+                #[ dbg_bytes(${p.name}, (${p.type._type_ref.size}+7)/8, "        : $$[field]{p.name}/$${}{%d} = ", ${p.type._type_ref.size});
+
         #} } else
 
     valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
@@ -203,8 +189,8 @@ for table in hlir16_tables_with_keys:
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type('type_ref').size+7)/8});
-        #[     debug("From controller: set default action for $$[table]{table.name} with action $$[action]{action_name_str}\n");
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type._type_ref.size+7)/8});
+        #[     debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.name}: $$[action]{action_name_str}\n");
         #[     ${table.name}_setdefault( action );
         #} } else
 
@@ -226,7 +212,6 @@ for table in hlir16_tables_with_keys:
 #[ extern char* action_names[];
 
 #{ void ctrl_setdefault(struct p4_ctrl_msg* ctrl_m) {
-#[ debug("Set default message from control plane for table $$[table]{}{%s}: $$[action]{}{%s}\n", ctrl_m->table_name, ctrl_m->action_name);
 for table in hlir16_tables_with_keys:
     #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_set_default_table_action(ctrl_m);
@@ -239,7 +224,7 @@ for table in hlir16_tables_with_keys:
 
 #[ extern volatile int ctrl_is_initialized;
 #{ void ctrl_initialized() {
-#[     debug("Control plane fully initialized.\n");
+#[     debug("   " T4LIT(::,incoming) " Control plane fully initialized\n");
 #[     ctrl_is_initialized = 1;
 #} }
 

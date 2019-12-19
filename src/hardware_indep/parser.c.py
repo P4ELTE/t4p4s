@@ -18,12 +18,11 @@ from utils.codegen import format_expr, format_statement, statement_buffer_value,
 
 #[ #include "dpdk_lib.h"
 #[ #include "util_packet.h"
-#[ #include "actions.h"
 
 #[ extern int get_var_width_bitwidth();
-#[ //extern struct all_metadatas_t all_metadatas;
+
 def header_bit_width(hdrtype):
-    return sum([f.size if not f.is_vw else 0 for f in hdrtype.valid_fields])
+    return sum([f.size if not f.is_vw else 0 for f in hdrtype.fields])
 
 def gen_extract_header_tmp(h):
     #[ memcpy(pstate->${h.ref.name}, buf, ${h.type.byte_width});
@@ -51,7 +50,7 @@ def gen_extract_header(hdrinst, hdrtype):
     #[ pd->headers[${hdrinst.id}].length = ${hdrtype.byte_width};
     #[ pd->parsed_length += ${hdrtype.byte_width};
     #[ buf += pd->headers[${hdrinst.id}].length;
-    for f in hdrtype.valid_fields:
+    for f in hdrtype.fields:
         # TODO get rid of "f.get_attr('preparsed') is not None"
         # TODO (f must always have a preparsed attribute)
         if f.get_attr('preparsed') is not None and f.preparsed and f.size <= 32:
@@ -65,9 +64,8 @@ def gen_extract_header_2(hdrinst, hdrtype, w):
         return
 
     x = header_bit_width(hdrtype)
-    w = format_expr(w)
 
-    #[ uint32_t hdrlen = ((${w}+${x})/8);
+    #[ uint32_t hdrlen = ((${format_expr(w)}+${x})/8);
 
     #[ if ((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len)
     #[     ; // packet_too_short // TODO optimize this
@@ -153,18 +151,17 @@ for s in parser.states:
             #[ debug("   :: Packet is $$[success]{}{accepted}\n");
         if s.name == 'reject':
             #[ debug("   :: Packet is $$[success]{}{dropped}\n");
-            #[ pd->dropped = 1;
+            #[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, true);
     else:
         b = s.selectExpression
-        if b.node_type == 'PathExpression':
-            x = "parser_state_" + format_expr(b) + "(pd, buf, tables, pstate);"
-        if b.node_type == 'SelectExpression':
-            x = format_expr(b)
-
+        bexpr = format_expr(b)
         prebuf, postbuf = statement_buffer_value()
 
         #[ $prebuf
-        #[ $x
+        if b.node_type == 'PathExpression':
+            #[ parser_state_$bexpr(pd, buf, tables, pstate);
+        elif b.node_type == 'SelectExpression':
+            #= bexpr
         #[ $postbuf
     #[ }
 
@@ -180,7 +177,7 @@ for hdr in hlir16.header_instances:
 
 #{ const char* field_names[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
-    for fld in hdr.valid_fields:
+    for fld in hdr.fields:
         #[ "${fld.name}", // field_instance_${hdr.name}_${fld.name}
 #} };
 

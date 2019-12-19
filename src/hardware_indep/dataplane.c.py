@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_declaration, format_statement, format_expr, format_type, type_env, SHORT_STDPARAMS, SHORT_STDPARAMS_IN, STDPARAMS, STDPARAMS_IN
+from utils.codegen import format_declaration, format_statement, format_expr, format_type, type_env
 from utils.misc import addError, addWarning
 
 #[ #include <stdlib.h>
@@ -34,8 +34,6 @@ from utils.misc import addError, addWarning
 #[ extern void parse_packet(STDPARAMS);
 #[ extern void increase_counter(int counterid, int index);
 #[ extern void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
-
-#[ //extern struct all_metadatas_t all_metadatas;
 
 # note: 0 is for the special case where there are no tables
 max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')] + [0])
@@ -82,19 +80,23 @@ for table in hlir16.tables:
     #TODO field masks
     for f in sortedfields:
         if f.get_attr('width') is None:
-            # TODO find out why this is missing and fix it
-            if f.header_name=='meta': # TODO: Check if meta can be used in all cases...
-                #[ memcpy( key, &pd->all_metadatas.metafield_${f.field_name}, sizeof(pd->all_metadatas.metafield_${f.field_name}) );
+            addError('Computing key for table', 'the width attribute of field {} is missing'.format(f.name))
             continue
+
+        if f.header_name == 'meta':
+            href, fref = "header_instance_{}".format(f.header_ref.name), "field_{}_{}".format(f.header_ref.type.type_ref.name, f.field_name)
+        else:
+            href, fref = "header_instance_{}".format(f.header.name), "field_{}_{}".format(f.header.type.type_ref.name, f.field_name)
+
         if f.width <= 32:
-            #[ EXTRACT_INT32_BITS_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.type_ref.name}_${f.field_name}, *(uint32_t*)key)
+            #[ EXTRACT_INT32_BITS_PACKET(pd, $href, $fref, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
         elif f.width > 32 and f.width % 8 == 0:
             byte_width = (f.width+7)/8
-            #[ EXTRACT_BYTEBUF_PACKET(pd, header_instance_${f.header.name}, field_${f.header.type.type_ref.name}_${f.field_name}, key)
+            #[ EXTRACT_BYTEBUF_PACKET(pd, $href, $fref, key)
             #[ key += ${byte_width};
         else:
-            add_error("table key calculation", "Unsupported field %s ignored." % f.id)
+            addWarning("table key calculation", "Skipping unsupported field {} ({} bits): it is over 32 bits long and not byte aligned".format(f.id, f.width))
 
     if table.match_type == "LPM":
         #[ key -= ${table.key_length_bytes};
@@ -119,22 +121,20 @@ for table in hlir16.tables:
     #[ struct apply_result_s ${table.name}_apply(STDPARAMS)
     #{ {
     if hasattr(table, 'key'):
-        if table.key_length_bytes==0 and table.key.keyElements[0].header_name=="meta": # TODO: Check if it is general enough...
-            #[     uint8_t* key[sizeof(pd->all_metadatas.metafield_${table.key.keyElements[0].field_name})];
-        else:
-            #[     uint8_t* key[${table.key_length_bytes}];
+        #[     uint8_t* key[${table.key_length_bytes}];
         #[     table_${table.name}_key(pd, (uint8_t*)key);
 
         #[     dbg_bytes(key, table_config[TABLE_${table.name}].entry.key_size,
-        #[               " :::: Lookup on table $$[table]{table.name} for %s",
+        #[               " " T4LIT(????,table) " Table lookup $$[table]{table.name}/" T4LIT(${table.match_type}) "/" T4LIT(%d) ": %s",
+        #[               ${table.key_length_bytes},
         #[               ${table.key_length_bytes} == 0 ? "$$[bytes]{}{(empty key)}" : "");
 
         #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${lookupfun[table.match_type]}(tables[TABLE_${table.name}], (uint8_t*)key);
         #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
 
-        #[     debug("   :: Lookup $$[success]{}{%s}: $${}{%s}%s\n",
+        #[     debug("   " T4LIT(??,table) " Lookup $$[success]{}{%s}: $$[action]{}{%s}%s\n",
         #[               hit ? "hit" : "miss",
-        #[               entry == 0 ? "(no action)" : action_names[entry->action.action_id],
+        #[               entry == NULL ? "(no action)" : action_names[entry->action.action_id],
         #[               hit ? "" : " (default)");
 
         #{     if (likely(hit)) {
@@ -169,7 +169,6 @@ for table in hlir16.tables:
         if action_name == 'NoAction':
             continue
         #{         case action_${action_name}:
-        #[           debug("   :: Executing action $$[action]{action_name}%s...\n", hit ? "" : " (default)");
         #[           action_code_${action_name}(SHORT_STDPARAMS_IN, entry->action.${action_name}_params);
         #}           break;
     #[       }
@@ -237,7 +236,9 @@ for table in hlir16.tables:
 #[     init_headers(SHORT_STDPARAMS_IN);
 #[     reset_headers(SHORT_STDPARAMS_IN);
 #[     init_keyless_tables();
-#[     pd->dropped=0;
+
+#[     uint32_t res32;
+#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, false);
 #} }
 
 #{ void update_packet(packet_descriptor_t* pd) {
@@ -250,7 +251,7 @@ for hdr in hlir16.header_instances:
     #[ 
     #[ // updating header instance ${hdr.name}
 
-    for fld in hdr.type.type_ref.valid_fields:
+    for fld in hdr.type.type_ref.fields:
         if not fld.preparsed and fld.type.size <= 32:
             #{ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
@@ -282,7 +283,7 @@ class types:
         for v in self.env_vars:
             del type_env[v]
 
-# objects for externs
+# forward declarations for externs
 for m in hlir16.objects['Method']:
     # TODO temporary fix for l3-routing-full, this will be computed later on
     with types({
@@ -292,7 +293,7 @@ for m in hlir16.objects['Method']:
     }):
         t = m.type
         ret_type = format_type(t.returnType)
-        args = ", ".join([format_expr(arg) for arg in t.parameters.parameters] + [STDPARAMS])
+        args = ", ".join([format_expr(arg) for arg in t.parameters.parameters] + ['SHORT_STDPARAMS'])
 
         #[ extern ${ret_type} ${m.name}(${args});
 
@@ -317,16 +318,18 @@ for pe in pipeline_elements:
 #{ {
 for pe in pipeline_elements:
     ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
-    if ctl is not None:
-        #[ control_${pe.expression.type.name}(${STDPARAMS_IN});
-        if pe.expression.type.name == 'egress':
-            #[ update_packet(pd); // we need to update the packet prior to calculating the new checksum
+    if ctl is None:
+        continue
+
+    #[ control_${pe.expression.type.name}(STDPARAMS_IN);
+    if pe.expression.type.name == 'egress':
+        #[ // TODO temporarily disabled
+        #[ // update_packet(pd); // we need to update the packet prior to calculating the new checksum
 #} }
 
 ################################################################################
 
-metadata_names = {hi.name for hi in hlir16.header_instances if hasattr(hi.type, 'type_ref') if hi.type.type_ref.is_metadata}
-longest_hdr_name_len = max({len(h.name) for h in hlir16.header_instances if h.name not in metadata_names})
+longest_hdr_name_len = max({len(h.name) for h in hlir16.header_instances if not h.type._type_ref.is_metadata})
 
 pkt_name_indent = " " * longest_hdr_name_len
 
@@ -339,25 +342,24 @@ pkt_name_indent = " " * longest_hdr_name_len
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
 
-#{         if (hdr.pointer == NULL) {
-#[             debug("    : Skipping header   ($$[header][%]{longest_hdr_name_len}{s})  : (invalid header)\n", hdr.name);
-#[             continue;
-#}         }
+#{         #if T4P4S_EMIT != 1
+#{             if (unlikely(hdr.pointer == NULL)) {
+#[                 debug("        : $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = " T4LIT(skipping invalid header,warning) "\n", hdr.name, hdr.length);
+#[                 continue;
+#}             }
+#}         #endif
 
-#[         dbg_bytes(hdr.pointer, hdr.length, "    : Storing  $${}{%02d} bytes ($$[header][%]{longest_hdr_name_len}{s})  : ", hdr.length, hdr.name);
+#[         dbg_bytes(hdr.pointer, hdr.length, "        : $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = %s", hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
 
 #[         memcpy(storage, hdr.pointer, hdr.length);
 #[         storage += hdr.length;
 #[         pd->emit_headers_length += hdr.length;
 #}     }
-
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Stored   $${}{%02d} bytes     $pkt_name_indent: ", pd->emit_headers_length);
 #} }
 
 #[ void resize_packet_on_emit(STDPARAMS)
 #{ {
 #{     if (likely(pd->emit_headers_length == pd->parsed_length)) {
-#[         debug("   :: Emitting $${}{%02d} bytes (no resize)\n", pd->emit_headers_length);
 #[         return;
 #}     }
 #[
@@ -380,7 +382,6 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[ void copy_emit_contents(STDPARAMS)
 #{ {
-#[     dbg_bytes(pd->header_tmp_storage, pd->emit_headers_length, "   :: Headers: $${}{%02d} bytes %${longest_hdr_name_len}{s} : ", pd->emit_headers_length, "from storage");
 #[     memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), pd->header_tmp_storage, pd->emit_headers_length);
 #} }
 
@@ -388,9 +389,9 @@ pkt_name_indent = " " * longest_hdr_name_len
 #{ {
 #[     if (unlikely(pd->is_emit_reordering)) {
 #[         debug(" :::: Reordering emit\n");
-#[         store_headers_for_emit(${STDPARAMS_IN});
-#[         resize_packet_on_emit(${STDPARAMS_IN});
-#[         copy_emit_contents(${STDPARAMS_IN});
+#[         store_headers_for_emit(STDPARAMS_IN);
+#[         resize_packet_on_emit(STDPARAMS_IN);
+#[         copy_emit_contents(STDPARAMS_IN);
 #[     }
 #} }
 
@@ -402,17 +403,17 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     reset_headers(SHORT_STDPARAMS_IN);
 #[     set_handle_packet_metadata(pd, portid);
 #[
-#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port %" PRIu32 ", $${}{%02d} bytes)  : ", extract_ingress_port(pd), rte_pktmbuf_pkt_len(pd->wrapper));
+#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port " T4LIT(%d,port) ", $${}{%02d} bytes)  : ", extract_ingress_port(pd), rte_pktmbuf_pkt_len(pd->wrapper));
 #[
 #[     pd->parsed_length = 0;
-#[     parse_packet(${STDPARAMS_IN});
+#[     parse_packet(STDPARAMS_IN);
 #[     pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
 #[
 #[     emit_addr = pd->data;
 #[     pd->emit_hdrinst_count = 0;
 #[     pd->is_emit_reordering = false;
 #[
-#[     process_packet(${STDPARAMS_IN});
+#[     process_packet(STDPARAMS_IN);
 #[
-#[     emit_packet(${STDPARAMS_IN});
+#[     emit_packet(STDPARAMS_IN);
 #} }
