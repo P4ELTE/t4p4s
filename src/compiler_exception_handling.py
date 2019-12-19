@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2019 Eotvos Lorand University, Budapest, Hungary
+
+from __future__ import print_function
+
+import os
+import sys
+import traceback
+import pkgutil
+import itertools
+
+
+class T4P4SHandledException(Exception):
+    """This "exception" type indicates that the exception has already been handled."""
+    def __init__(self):
+        pass
+
+
+def line_from_file(file, lineno):
+    try:
+        with open(file, 'r') as lines:
+            from itertools import islice
+            [line] = islice(lines, lineno-1, lineno)
+            return line
+    except:
+        raise T4P4SHandledException()
+
+def replace_genfile_in_tb(tb, genfile):
+    is_not_genfile = lambda tbelem: (tbelem[0], tbelem[2], tbelem[3]) != ('<string>', '<module>', None)
+    part1 = list(itertools.takewhile(is_not_genfile, tb))
+    part2 = list(itertools.dropwhile(is_not_genfile, tb))
+
+    if part2:
+        lineno = part2[0][1]
+        line   = line_from_file(genfile, lineno)
+        if line is not None:
+            new_line = line.strip()
+        else:
+            new_line = "{}:{}".format(genfile, lineno)
+
+        part2 = [(genfile, lineno, "...", new_line)] + part2[1:]
+
+    return part1 + part2
+
+
+def line_info(line):
+    if line is None:
+        return None
+
+    split = line.split(' ')
+    if line.strip().startswith("generated_code +="):
+        file   =  split[-2][1:-2]
+        lineno =  int(split[-1][:-1])
+    elif len(split) > 3 and split[-3] == '##':
+        file   =  split[-2]
+        lineno =  int(split[-1])
+    else:
+        return None
+
+    return (file, line)
+
+
+
+def add_generator_file_to_tb(idx, tbelem):
+    (t1, t2, t3, t4) = tbelem
+
+    info = line_info(t4)
+    if not info:
+        return [tbelem]
+
+    (file, lineno) = info
+
+    line = line_from_file(file, lineno)
+    if line is None:
+        return [tbelem]
+
+    return [(file, lineno, '...', line.strip()), tbelem]
+
+
+def print_with_backtrace((exc_type, exc, tb), file, is_tb_extracted = False):
+    if not pkgutil.find_loader('backtrace'):
+        raise
+
+    import backtrace
+
+    if not is_tb_extracted:
+        tb = traceback.extract_tb(tb)
+
+    try:
+        orig_tb = tb
+        tb = replace_genfile_in_tb(tb, file)
+        tb = [new_elem for idx, tbelem in enumerate(tb) for new_elem in add_generator_file_to_tb(idx, tbelem)]
+        tb = [(rel if not rel.startswith('..') else t1, t2, t3, t4) for (t1, t2, t3, t4) in tb for rel in [os.path.relpath(t1)]]
+    except:
+        tb = orig_tb
+
+    backtrace.hook(
+        tpe=exc_type,
+        value=exc,
+        tb=tb,
+        reverse=True,
+        align=True,
+        strip_path=False,
+        enable_on_envvar_only=False,
+        on_tty=False,
+        conservative=False,
+        styles={})
+
+
+def errmsg_srcfile(genline, genlineno):
+    split = genline.split(" ")
+    if len(split) <= 3 or split[-3] != "##":
+        raise T4P4SHandledException()
+
+    file   = split[-2]
+
+    lineno = int(split[-1])
+    line = line_from_file(file, lineno)
+    return line, lineno
+
+def errmsg_genfile(tb, genfile):
+    extracted_tb = traceback.extract_tb(tb)
+    extracted_tb_last = extracted_tb[-1]
+    if extracted_tb_last[0] != '<string>':
+        genfile = extracted_tb_last[0]
+
+    genlineno = extracted_tb_last[1]
+    genline = line_from_file(genfile, genlineno)
+    return genline, genlineno
+
+
+def _detailed_error_message(genfile, file, sys_exc_info):
+    (exc_type, exc, tb) = sys_exc_info
+
+    genline, genlineno = errmsg_genfile(tb, genfile)
+    line, lineno = errmsg_srcfile(genline, genlineno)
+
+    new_tb = [
+        (genfile, genlineno, '...', genline.strip()),
+        (file, lineno, '...', line.strip())
+    ]
+
+    print_with_backtrace((exc_type, exc, new_tb), file, True)
+
+
+def detailed_error_message(genfile, file, sys_exc_info):
+    try:
+        _detailed_error_message(genfile, file, sys_exc_info)
+        raise T4P4SHandledException()
+    except:
+        print("Error during the compilation of {}".format(file))
+        print_with_backtrace(sys_exc_info, file)
+        raise
