@@ -1,0 +1,23 @@
+# You may list a test case on each line in this file.
+# These cases will be skipped by run_tests.py
+#   - the cases may be prefixed with a dash
+#   - you can paste part or all of the summary output of run_tests.py
+# Lines can be commented out using #
+
+
+
+# Tests that contain functionality that is not supported yet
+%test-int
+%test-header-stacks
+%test-header-union-1
+%test-header-union-2
+%test-skipping-bits
+%test-varbit
+
+# Tests that contain functionality in ways that are more complex than supported
+%test-headers
+%test-typedef
+%test-smem
+
+# No controller yet
+%vEPG

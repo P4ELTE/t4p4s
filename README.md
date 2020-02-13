@@ -201,13 +201,17 @@ To see detailed output about compilation and execution, use the following option
 
     ./t4p4s.sh %%l2fwd=payload
 
-To run all available test cases, execute `./run_all_tests.sh`.
+To run all available test cases, execute `./run_tests.sh`.
 You can also give this script any number of additional options.
 
-    ./run_all_tests.sh verbose dbg
+    ./run_tests.sh verbose dbg
 
-Once all test cases are run, the script prints a summary of successful and failed test cases,
-exits with the error code `0` if all tests ran successfully, and `1` if there were any errors.
+Once the test cases are run, the script prints a summary of successful and failed test cases,
+grouped by the types of failures.
+You may indicate which tests are to be skipped by listing them in a file.
+See the default skip file, `tests_to_skip.txt`, for further details.
+
+    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg
 
 
 # Using Docker with T<sub>4</sub>P<sub>4</sub>S
