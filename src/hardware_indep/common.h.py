@@ -15,7 +15,7 @@ for struct in hlir16.objects['Type_Struct']:
     if not struct.name.endswith('_t'):
         continue
 
-    #{ typedef struct {
+    #{ typedef struct ${struct.name[:-2]}_s {
     for field in struct.fields:
         #[ ${format_type(field.type)} ${field.name};
     #} } ${struct.name};
