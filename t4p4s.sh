@@ -18,6 +18,7 @@ ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
 PYTHON=${PYTHON-python}
 DEBUGGER=${DEBUGGER-gdb}
 
+
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
 ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
 
@@ -660,7 +661,7 @@ if [ "$(optvalue run)" != off ]; then
     [ $ERROR_CODE -eq 255 ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
 
     [ $ERROR_CODE -eq 0 ] && msg "${nn}T4P4S switch exited $(cc 0)normally$nn"
-    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
+    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch running $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
     [ $ERROR_CODE -ne 0 ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
 
     DBGWAIT=1
