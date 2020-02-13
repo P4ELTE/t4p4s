@@ -32,4 +32,11 @@ ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t le
 
 volatile int ctrl_is_initialized;
 
+struct mem_cell_s;
+
+typedef struct {
+    struct mem_cell_s* mem_cell;
+    struct p4_digest* ctrl_plane_digest;
+} Digest_t;
+
 #endif

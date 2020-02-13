@@ -30,4 +30,6 @@ void destroy_controller(controller c);
 void execute_controller(controller c);
 int send_p4_msg(controller c, char* buffer, int length);
 
+#define MAC_LEARN_RECEIVER 1024
+
 #endif

@@ -37,11 +37,11 @@
 
 #define MIN(x,y) (((x) < (y)) ? (x) : (y))
 
-typedef struct mem_cell_st {
+typedef struct mem_cell_s {
     char* data;
     uint16_t length;
-    struct mem_cell_st* next;
-    struct mem_cell_st* prev;
+    struct mem_cell_s* next;
+    struct mem_cell_s* prev;
 } mem_cell_t;
 
 typedef struct backend_st {
@@ -61,11 +61,6 @@ typedef struct backend_st {
     fifo_t output_queue; /* one queue per digest-receiver should be needed */
     p4_msg_callback cb;
 } backend_t;
-
-typedef struct digest_st {
-    mem_cell_t* mem_cell;
-    struct p4_digest* ctrl_plane_digest;
-} digest_t;
 
 mem_cell_t* touch_mem_cell(backend_t* bgt);
 void detouch_mem_cell(backend_t* bgt, mem_cell_t* cell);
@@ -344,7 +339,7 @@ void detouch_mem_cell(backend_t* bgt, mem_cell_t* cell)
 
 int send_digest(ctrl_plane_backend bg, ctrl_plane_digest d, uint32_t receiver_id)
 {
-    digest_t* dt = (digest_t*)d;
+    Digest_t* dt = (Digest_t*)d;
     backend_t* bgt = (backend_t*)bg;
 
     netconv_p4_header((struct p4_header*)(dt->ctrl_plane_digest));
@@ -358,17 +353,15 @@ int send_digest(ctrl_plane_backend bg, ctrl_plane_digest d, uint32_t receiver_id
 ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
 {
     backend_t* bgt = (backend_t*) bg;
-    digest_t* dg;
-
-    dg = (digest_t*) malloc( sizeof(digest_t) );
-    if (dg==0)
+    Digest_t* dg = (Digest_t*) malloc( sizeof(Digest_t) );
+    if (unlikely(dg==0))
     {
                 fprintf(stderr, "Out of memory to a new ctrl_plane_digest message!\n");
                 return 0;
     }
     
     dg->mem_cell = touch_mem_cell(bgt);
-    if (dg->mem_cell == 0)
+    if (unlikely(dg->mem_cell == 0))
     {
         fprintf(stderr, "Out of memory pool - memcell cannot be assigned to a new ctrl_plane_digest message!\n");
         return 0;   
@@ -377,7 +370,7 @@ ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
     create_p4_header(dg->mem_cell->data, 0, dg->mem_cell->length);
     dg->ctrl_plane_digest = create_p4_digest(dg->mem_cell->data, 0, dg->mem_cell->length);
 
-    if (strlen( name ) > P4_MAX_FIELD_LIST_NAME_LEN-1)
+    if (unlikely(strlen( name ) > P4_MAX_FIELD_LIST_NAME_LEN-1))
     {
         fprintf(stderr, "Too long fieldname! The maximum length allowed is %d\n", (P4_MAX_FIELD_LIST_NAME_LEN-1));
         return 0;
@@ -392,21 +385,12 @@ ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
 
 ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t length)
 {
-    digest_t* dg = (digest_t*) d;
-    struct p4_digest_field* dfield;
+    Digest_t* dg = (Digest_t*) d;
     uint32_t bytelength = (length-1)/8+1;
 
-    dfield = add_p4_digest_field( dg->ctrl_plane_digest, dg->mem_cell->length );
-/*  if (strlen( name ) > P4_MAX_FIELD_NAME_LENGTH-1)
-    {
-            fprintf(stderr, "Too long fieldname! The maximum length allowed is %d\n", (P4_MAX_FIELD_NAME_LENGTH-1));
-                return 0;
-    }
+    struct p4_digest_field* dfield = add_p4_digest_field( dg->ctrl_plane_digest, dg->mem_cell->length );
 
-    strncpy( dfield->name, name, P4_MAX_FIELD_NAME_LENGTH );
-    dfield->name[P4_MAX_FIELD_NAME_LENGTH-1] = '\0'; // For safety reasons */
-
-    if (bytelength>P4_MAX_FIELD_VALUE_LENGTH)
+    if (unlikely(bytelength>P4_MAX_FIELD_VALUE_LENGTH))
     {
         fprintf(stderr, "Too long value array! The maximum byte length allowed is %d\n", P4_MAX_FIELD_VALUE_LENGTH);
         return 0;

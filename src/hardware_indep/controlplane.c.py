@@ -37,7 +37,7 @@ for table in hlir16.tables:
 
 
 if len(hlir16.tables)>0:
-    max_bytes = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')])
+    max_bytes = max([0] + [t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')])
     #[ uint8_t reverse_buffer[$max_bytes];
 
 # Variable width fields are not supported
@@ -170,7 +170,7 @@ for table in hlir16_tables_with_keys:
         for j, p in enumerate(action.action_object.parameters.parameters):
             if p.type._type_ref.size <= 32:
                 size = 8 if p.type._type_ref.size <= 8 else 16 if p.type._type_ref.size <= 16 else 32
-                #[ debug("        : $$[field]{p.name}/$${}{%d} = $$[bytes]{}{%d}\n", ${p.type._type_ref.size}, *(uint${size}_t*)${p.name});
+                #[ dbg_bytes(${p.name}, sizeof(uint${size}_t), "        : $$[field]{p.name}/$${}{%d} = $$[bytes]{}{%d} = ", ${p.type._type_ref.size}, *(uint${size}_t*)${p.name});
             else:
                 #[ dbg_bytes(${p.name}, (${p.type._type_ref.size}+7)/8, "        : $$[field]{p.name}/$${}{%d} = ", ${p.type._type_ref.size});
 

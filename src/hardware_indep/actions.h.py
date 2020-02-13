@@ -20,6 +20,9 @@ from utils.codegen import format_type
 #[ #include "dataplane.h"
 #[ #include "common.h"
 
+# Note: this is for Digest_t
+#[ #include "ctrl_plane_backend.h"
+
 # TODO this should not be here in the indep section
 #[ #include "dpdk_reg.h"
 
@@ -50,7 +53,7 @@ def resolve_typeref(hlir16, f):
 
 for ctl in hlir16.controls:
     for act in ctl.actions:
-        #{ typedef struct {
+        #{ typedef struct action_${act.name}_params_s {
         for param in act.parameters.parameters:
             paramtype = resolve_typeref(hlir16, param)
             #[ FIELD(${param.name}, ${paramtype.size});
@@ -58,7 +61,7 @@ for ctl in hlir16.controls:
         #[ FIELD(DUMMY_FIELD, 0);
         #} } action_${act.name}_params_t;
 
-#{ typedef struct {
+#{ typedef struct all_metadatas_s {
 for metainst in hlir16.metadata_insts:
     if hasattr(metainst.type, 'type_ref'):
         for fld in metainst.type.type_ref.fields:
@@ -82,6 +85,7 @@ for table in hlir16.tables:
         #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
     #} };
+    #[
 
 
 
@@ -97,10 +101,8 @@ for table in hlir16.tables:
 for ctl in hlir16.controls:
     #{ typedef struct control_locals_${ctl.name}_s {
     for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
-        if local_var_decl.type.node_type == 'Type_Name':
-            #[ ${format_type(local_var_decl.type, resolve_names = False)}_t ${local_var_decl.name};
-        else:
-            #[ ${format_type(local_var_decl.type, resolve_names = False)} ${local_var_decl.name};
+        postfix = "_t" if local_var_decl.type.node_type == 'Type_Name' else ""
+        #[ ${format_type(local_var_decl.type, resolve_names = False)}$postfix ${local_var_decl.name};
 
     # TODO is there a more appropriate way to store registers?
     for reg in hlir16.registers:
