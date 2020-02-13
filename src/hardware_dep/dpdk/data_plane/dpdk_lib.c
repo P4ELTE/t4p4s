@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "dpdk_lib.h"
+#include "util.h"
 
 #include <rte_ethdev.h>
 #include <rte_ip.h>
@@ -20,7 +21,6 @@
 
 extern int numa_on;
 
-extern void sleep_millis(int millis);
 extern void print_all_ports_link_status(uint8_t port_num, uint32_t port_mask);
 extern void print_port_mac(unsigned portid, uint8_t* mac_bytes);
 extern void table_set_default_action(lookup_table_t* t, uint8_t* value);

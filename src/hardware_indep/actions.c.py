@@ -22,8 +22,6 @@ from utils.codegen import format_declaration, format_statement, format_expr, for
 
 #[ extern ctrl_plane_backend bg;
 
-#[ extern void sleep_millis(int millis);
-
 
 # TODO remove the duplication (with dataplane.c.py)
 class types:
