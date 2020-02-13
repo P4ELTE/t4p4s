@@ -279,14 +279,14 @@ generated_code += "\\n"
                 # sugar_filename = os.path.basename(file)
                 # sugar_filename = re.sub("([.]sugar)?[.]py", "", sugar_filename)
                 sugar_filename = file
-                new_line += " ## {} {}".format(os.path.relpath(sugar_filename, "src/"), idx)
+                new_line += " ## {}:{}".format(os.path.relpath(sugar_filename, "."), idx)
 
         stripped = new_line.strip()
 
         # won't mark empty lines and continued lines
         if stripped != "" and new_line.strip()[-1] != '\\' and idx is not None and not stripped.startswith('generated_code +='):
             # TODO idx is sometimes off by one?
-            new_line += " ## {} {}".format(os.path.relpath(file, "src/"), int(idx) + 1)
+            new_line += " ## {}:{}".format(os.path.relpath(file, "."), int(idx) + 1)
 
         new_lines.append(new_line)
 

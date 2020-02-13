@@ -46,28 +46,31 @@ def replace_genfile_in_tb(tb, genfile):
     return part1 + part2
 
 
-def line_info(line):
+def line_info(origfile, line):
     if line is None:
         return None
 
     split = line.split(' ')
     if line.strip().startswith("generated_code +="):
-        file   =  split[-2][1:-2]
-        lineno =  int(split[-1][:-1])
-    elif len(split) > 3 and split[-3] == '##':
-        file   =  split[-2]
-        lineno =  int(split[-1])
+        import re
+        file   = os.path.join("src", "hardware_indep", re.sub("[.]gen[.]py", ".py", os.path.basename(origfile)))
+        lineno = int(split[-1].split(')')[0])
+    elif len(split) > 2 and split[-2] == '##':
+        split2 = split[-1].split(":")
+        file   = split2[0]
+        lineno = int(split2[1])
     else:
         return None
 
-    return (file, line)
+    return (file, lineno)
 
 
 
 def add_generator_file_to_tb(idx, tbelem):
     (t1, t2, t3, t4) = tbelem
 
-    info = line_info(t4)
+
+    info = line_info(t1, t4)
     if not info:
         return [tbelem]
 
@@ -112,12 +115,13 @@ def print_with_backtrace((exc_type, exc, tb), file, is_tb_extracted = False):
 
 def errmsg_srcfile(genline, genlineno):
     split = genline.split(" ")
-    if len(split) <= 3 or split[-3] != "##":
+    if len(split) <= 2 or split[-2] != "##":
         raise T4P4SHandledException()
 
-    file   = split[-2]
+    split2 = split[-1].split(":")
+    file   = split2[0]
 
-    lineno = int(split[-1])
+    lineno = int(split2[1])
     line = line_from_file(file, lineno)
     return line, lineno
 
@@ -151,6 +155,5 @@ def detailed_error_message(genfile, file, sys_exc_info):
         _detailed_error_message(genfile, file, sys_exc_info)
         raise T4P4SHandledException()
     except:
-        print("Error during the compilation of {}".format(file))
-        print_with_backtrace(sys_exc_info, file)
+        print_with_backtrace(sys_exc_info, genfile)
         raise
