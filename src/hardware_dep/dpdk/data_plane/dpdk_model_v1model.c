@@ -19,17 +19,17 @@
 
 
 int extract_egress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_egress_port);
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_port);
 }
 
 int extract_ingress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port);
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_ingress_port);
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 {
     int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, portid);
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_ingress_port, portid);
 }
 
 void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, SHORT_STDPARAMS) {
@@ -51,7 +51,7 @@ void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t ck
 #endif
 
         if (unlikely(calculated_cksum != current_cksum)) {
-            MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_checksum_error, 1)
+            MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_checksum_error, 1)
         }
     }
 }
@@ -78,7 +78,7 @@ void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_Has
     
     if ((pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
         uint32_t res32;
-        MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_checksum_error, 1)
+        MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_checksum_error, 1)
 
         debug("       : Verifying packet checksum: " T4LIT(%04x,bytes) "\n", res32);
     }
@@ -101,7 +101,7 @@ void mark_to_drop(SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(mark_to_drop,extern) "\n");
 
     uint32_t res32;
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, 1)
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, 1)
 
     debug("       : " T4LIT(standard_metadata,header) "." T4LIT(drop,field) " = " T4LIT(1,bytes) "\n");
 }

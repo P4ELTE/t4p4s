@@ -16,6 +16,7 @@
 
 #include <rte_ip.h>
 #include "actions.h"
+#include "util.h"
 
 extern struct all_metadatas_t all_metadatas;
 
@@ -38,11 +39,11 @@ void InternetChecksum_t_get() {
 
 
 int extract_egress_port(packet_descriptor_t* pd) {
-    return all_metadatas.meta_psa_egress_deparser_input_metadata_t.egress_port;
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_instance_psa_ingress_output_metadata_egress_port);
 }
 
 int extract_ingress_port(packet_descriptor_t* pd) {
-    return all_metadatas.meta_psa_ingress_input_metadata_t.ingress_port;
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_instance_psa_ingress_parser_input_metadata_ingress_port);
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
@@ -73,7 +74,7 @@ void mark_to_drop(SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(mark_to_drop,extern) "\n");
 
     uint32_t res32;
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, 1)
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, 1)
 }
 
 void verify(bool check, enum error_error toSignal, SHORT_STDPARAMS) {
@@ -86,8 +87,4 @@ void verify_checksum_with_payload(bool condition, struct uint8_buffer_s data, bi
 
 void update_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(update_checksum_with_payload,extern) "\n");
-}
-
-void extern_Digest_pack(struct mac_learn_digest_t* mac_learn_digest) {
-    debug(" :::: Calling extern " T4LIT(extern_pack,extern) "\n");
 }
