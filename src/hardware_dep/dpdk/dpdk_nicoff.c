@@ -21,7 +21,6 @@
 extern int get_socketid(unsigned lcore_id);
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
-extern void sleep_millis(int millis);
 extern void dpdk_init_nic();
 
 extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
@@ -150,9 +149,24 @@ void abort_on_strict() {
 
 void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_port) {
     if (cmd.out_port != egress_port) {
-        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d,expected) ", got " T4LIT(%d,error) "\n",
+        char port_designation_egress[256];
+        port_designation_egress[0] = '\0';
+
+        char port_designation_cmd[256];
+        port_designation_cmd[0] = '\0';
+
+        if (egress_port == 100) {
+            strcpy(port_designation_egress, " (broadcast)");
+        }
+
+        if (cmd.out_port == 100) {
+            strcpy(port_designation_cmd, " (broadcast)");
+        }
+
+        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
-              cmd.out_port, egress_port);
+              cmd.out_port, port_designation_cmd,
+              egress_port, port_designation_egress);
         lcdata->is_valid = false;
         abort_on_strict();
     }
@@ -293,9 +307,7 @@ void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_des
     }
 }
 
-#ifdef T4P4S_DEBUG
 bool encountered_error = false;
-#endif
 
 void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port) {
     fake_cmd_t cmd = get_cmd(lcdata);
@@ -306,14 +318,12 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
         check_packet_contents(lcdata, cmd, pd);
     }
 
-#ifdef T4P4S_DEBUG
     if (lcdata->is_valid) {
         debug( "   :: " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
     } else {
         debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
         encountered_error = true;
     }
-#endif
 }
 
 // ------------------------------------------------------
@@ -438,12 +448,10 @@ void t4p4s_after_launch(int idx) {
 }
 
 int t4p4s_normal_exit() {
-#ifdef T4P4S_DEBUG
     if (encountered_error) {
-        debug(T4LIT(Normal exit but errors in processing packets,error) "\n");
+        debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
         return 3;
     }
-#endif
 
     debug(T4LIT(Normal exit.,success) "\n");
     return 0;
