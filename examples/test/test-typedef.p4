@@ -19,6 +19,7 @@ struct metadata {
 struct headers {
     dummy_t dummy;
 }
+
 parser IngressParserImpl(packet_in packet,
                          out headers hdr,
                          inout metadata meta,

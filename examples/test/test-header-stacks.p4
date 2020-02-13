@@ -5,9 +5,9 @@
 // Out: 1111
 
 struct data {
-	bit<1> first;
-        bit<1> second;
-        bit<1> third;
+    bit<1> first;
+    bit<1> second;
+    bit<1> third;
 }
 
 header empty_t { }

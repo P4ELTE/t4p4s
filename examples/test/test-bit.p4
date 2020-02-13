@@ -67,8 +67,13 @@ control egress(inout headers hdr,
        hdr.dummy.f11 = (hdr.dummy.f11 |-| tmp_bit) + tmp_bit;
        hdr.dummy.f12 = (hdr.dummy.f12 + tmp_bit) |+| tmp_bit;
        hdr.dummy.f13 = (hdr.dummy.f13 ++ (hdr.dummy.f13 + 1))[0:0];
-       hdr.dummy.f14[0:0] = (bit<1>)((hdr.dummy.f14 >> 123) == (bit<3>)0);
-       hdr.dummy.f14[2:1] = (((hdr.dummy.f14 ++ (bit<3>)7) >> 1) << 2)[3:2];
+
+       // note: shifting by 123 does not make sense, as it is longer than f14
+       // hdr.dummy.f14[0:0] = (bit<1>)((hdr.dummy.f14 >> 123) == (bit<3>)0);
+
+       // note: currently the partial update of a field is not supported
+       // hdr.dummy.f14[0:0] = (bit<1>)((hdr.dummy.f14 >> 1) == (bit<3>)0);
+       // hdr.dummy.f14[2:1] = (((hdr.dummy.f14 ++ (bit<3>)7) >> 1) << 2)[3:2];
     }
 }
 
@@ -78,7 +83,9 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { }
+    apply {
+        ostd.egress_port = (PortId_t)12345;
+    }
 }
 
 parser EgressParserImpl(packet_in buffer,

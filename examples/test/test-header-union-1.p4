@@ -48,15 +48,15 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-    	AB u;
-	A my_a = { 1w1 };
-	u.a = my_a;
+        AB u;
+        A my_a = { 1w1 };
+        u.a = my_a;
         hdr.dummy2 = u.a;
 
         AB u2;
-	A my_a2 = { 1w1 };
+        A my_a2 = { 1w1 };
         my_a2.setInvalid();
-	u.a = my_a;
+        u.a = my_a;
         hdr.dummy3 = u.a;    
     }
 }
