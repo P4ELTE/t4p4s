@@ -92,7 +92,7 @@ else
 fi
 
 if [ "$USE_OPTIONAL_PACKAGES" != "" ]; then
-    OPT_PACKAGES="python-ipdb python-termcolor python-backtrace python-pip python-ruamel python-yaml python-ujson"
+    OPT_PACKAGES="python-ipdb python-termcolor python-backtrace python-pip python-yaml python-ujson python-ruamel.yaml"
 fi
 
 T4P4S_DIR=t4p4s
