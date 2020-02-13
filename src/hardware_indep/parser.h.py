@@ -25,11 +25,14 @@ from hlir16.utils_hlir16 import *
 #{ typedef struct parsed_fields_s {
 
 for hdr in hlir16.header_instances_with_refs:
-    for fld in hdr.type.type_ref.fields:
-        if hasattr(fld, 'expression'):
-            fld = fld.expression
+    if hdr.type.type_ref.node_type == 'Type_HeaderUnion':
+        raise NotImplementedError("Header unions are not supported")
 
-        if not fld.preparsed and fld.type.size <= 32:
+    for fld in hdr.type.type_ref.fields:
+        fld = fld._expression
+
+        # if fld('preparsed', False) and fld.type.size <= 32:
+        if fld.type._type_ref.size <= 32:
             #[ uint32_t field_instance_${hdr.name}_${fld.name};
             #[ uint8_t attr_field_instance_${hdr.name}_${fld.name};
 #} } parsed_fields_t;
@@ -71,7 +74,10 @@ hdrlens = "+".join([str(hi.type.type_ref.byte_width) for hi in hlir16.header_ins
 
 #{ typedef enum header_instance_e {
 for hdr in hlir16.header_instances:
-    #[   header_instance_${hdr.name},
+    if not hdr.type._type_ref.is_metadata:
+        #[ header_instance_${hdr.name},
+
+#[ header_instance_all_metadatas,
 #} } header_instance_t;
 
 
@@ -118,7 +124,6 @@ for hdr in hlir16.header_instances_with_refs:
 #} };
 
 
-
 # TODO move to hlir16.py/set_additional_attrs?
 def all_field_instances():
     return [fld for hdr in hlir16.header_instances_with_refs for fld in hdr.type.type_ref.fields]
@@ -136,6 +141,7 @@ for hdr in hlir16.header_instances_with_refs:
     for fld in hdr.type.type_ref.fields:
         #[   field_instance_${hdr.name}_${fld.name},
 #} } field_instance_t;
+
 
 #[ #define FIXED_WIDTH_FIELD -1
 #{ static const int header_instance_var_width_field[HEADER_INSTANCE_COUNT] = {
@@ -191,7 +197,10 @@ for hdr in hlir16.header_instances_with_refs:
 #{ static const header_instance_t field_instance_header[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances_with_refs:
     for fld in hdr.type.type_ref.fields:
-        #[   header_instance_${hdr.name}, // field_instance_${hdr.name}_${fld.name}
+        if hdr.type.type_ref.is_metadata:
+            #[ header_instance_all_metadatas,
+        else:
+            #[ header_instance_${hdr.name}, // field_instance_${hdr.name}_${fld.name}
 #} };
 
 
@@ -201,7 +210,10 @@ for hi in hlir16.header_instances_with_refs:
     #[ // header_instance_${hi.name}
     #{ {
     for stack_elem in [hi.name]:
-        #[ header_instance_${stack_elem},
+        if hdr.type.type_ref.is_metadata:
+            #[ header_instance_all_metadatas,
+        else:
+            #[ header_instance_${stack_elem},
     #} },
 #} };
 

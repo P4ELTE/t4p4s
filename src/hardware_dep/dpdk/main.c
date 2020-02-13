@@ -159,7 +159,7 @@ void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_
 
 void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
-    if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop))) {
+    if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop))) {
         debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
         free_packet(pd);
     } else {

@@ -107,12 +107,20 @@ for s in parser.states:
         if c.call != 'extract_header':
             continue
 
+        #[ // CALL ${c} ${s}
+
         hdrtype = c.header.type_ref if hasattr(c.header, 'type_ref') else c.header
 
         # TODO find a more universal way to get to the header instance
         if hasattr(c.methodCall.arguments[0].expression, 'path'):
             hdrinst_name = c.methodCall.arguments['Argument'][0].expression.path.name
-            hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
+
+            dvar = parser.parserLocals.get(hdrinst_name, 'Declaration_Variable')
+            if dvar:
+                hdrinst = dvar.type.type_ref
+                hdrtype = dvar.type.type_ref
+            else:
+                hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
         elif hasattr(c.methodCall.method.expr, 'header_ref'):
             hdrinst = c.methodCall.method.expr.header_ref
         else:
@@ -135,15 +143,15 @@ for s in parser.states:
         else:
             if not c.is_vw:
                 #[ ${gen_extract_header_tmp(hdrinst)}
-                #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrinst.type.byte_width},
-                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrinst.type.byte_width} bytes): ");
+                #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrtype.byte_width},
+                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrtype.byte_width} bytes): ");
 
             else:
                 #[ ${gen_extract_header_tmp_2(hdrinst, hdrtype, c.width)}
                 hdr_width = header_bit_width(hdrtype)
                 var_width = format_expr(c.width)
                 #[ dbg_bytes(pstate->${hdrinst.ref.name}, (($hdr_width + $var_width)+7)/8,
-                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
+                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrtype.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
                 #[           $var_width, (($hdr_width + $var_width)+7)/8);
 
     if not hasattr(s, 'selectExpression'):
@@ -151,7 +159,7 @@ for s in parser.states:
             #[ debug("   :: Packet is $$[success]{}{accepted}\n");
         if s.name == 'reject':
             #[ debug("   :: Packet is $$[success]{}{dropped}\n");
-            #[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, true);
+            #[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, true);
     else:
         b = s.selectExpression
         bexpr = format_expr(b)

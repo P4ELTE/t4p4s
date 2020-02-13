@@ -44,18 +44,29 @@ max_key_length = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'k
 packet_name = hlir16.p4_main.type.baseType.type_ref.name
 pipeline_elements = hlir16.p4_main.arguments
 
+if hlir16.p4_model == 'V1Switch':
+    p4_ctls = [ctl for pe in pipeline_elements for ctl in [hlir16.objects.get(pe.expression.type.name, 'P4Control')] if ctl is not None]
+elif hlir16.p4_model == 'PSA_Switch':
+    parsers_controls = [hlir16.objects.get(arg2.expression.type.name, ['P4Control', 'P4Parser'])
+        for arg in hlir16.p4_main.arguments
+        if arg.expression.node_type == "PathExpression" # ignoring PacketReplicationEngine and BufferingQueueingEngine for now
+        for arg2 in arg.expression.ref.arguments
+        ]
+
+    p4_ctls = [pc for pc in parsers_controls if pc.node_type == 'P4Control']
+else:
+    # if the P4 model is unknown, it would already be detected
+    pass
+
+
 #{ struct apply_result_s {
 #[     bool hit;
 #[     enum actions action_run;
 #} };
 
-for pe in pipeline_elements:
-    c = hlir16.objects.get(pe.expression.type.name, 'P4Control')
-    if c is None:
-        continue
-
-    #[ void control_${pe.expression.type.name}(STDPARAMS);
-    for t in c.controlLocals['P4Table']:
+for ctl in p4_ctls:
+    #[ void control_${ctl.name}(STDPARAMS);
+    for t in ctl.controlLocals['P4Table']:
         #[ struct apply_result_s ${t.name}_apply(STDPARAMS);
 
 ################################################################################
@@ -83,10 +94,10 @@ for table in hlir16.tables:
             addError('Computing key for table', 'the width attribute of field {} is missing'.format(f.name))
             continue
 
-        if f.header_name == 'meta':
-            href, fref = "header_instance_{}".format(f.header_ref.name), "field_{}_{}".format(f.header_ref.type.type_ref.name, f.field_name)
-        else:
-            href, fref = "header_instance_{}".format(f.header.name), "field_{}_{}".format(f.header.type.type_ref.name, f.field_name)
+        hi_name = "all_metadatas" if f.header_name in ['meta', 'standard_metadata'] else f.header.name
+        href = "header_instance_{}".format(hi_name)
+        # fref = "field_{}_{}".format(f.header_name, f.field_name)
+        fref = "field_{}_{}".format(f.header.type.type_ref.name, f.field_name)
 
         if f.width <= 32:
             #[ EXTRACT_INT32_BITS_PACKET(pd, $href, $fref, *(uint32_t*)key)
@@ -185,15 +196,16 @@ for table in hlir16.tables:
 
 #{ void reset_headers(SHORT_STDPARAMS) {
 for h in hlir16.header_instances:
-    if hasattr(h.type, 'type_ref') and not h.type.type_ref.is_metadata:
+    if not h.type('type_ref', lambda t: t.is_metadata):
         #[ pd->headers[${h.id}].pointer = NULL;
-    else:
-        #[ memset(pd->headers[${h.id}].pointer, 0, header_info(${h.id}).bytewidth * sizeof(uint8_t));
+
+#[     // reset metadatas
+#[     memset(pd->headers[header_instance_all_metadatas].pointer, 0, header_info(header_instance_all_metadatas).bytewidth * sizeof(uint8_t));
 #} }
 
 #{ void init_headers(SHORT_STDPARAMS) {
 for h in hlir16.header_instances:
-    if hasattr(h.type, 'type_ref') and not h.type.type_ref.is_metadata:
+    if not h.type('type_ref', lambda t: t.is_metadata):
         #[ pd->headers[${h.id}] = (header_descriptor_t)
         #{ {
         #[     .type = ${h.id},
@@ -202,14 +214,15 @@ for h in hlir16.header_instances:
         #[     .var_width_field_bitwidth = 0,
         #[     .name = "${h.name}",
         #} };
-    else:
-        #[ pd->headers[${h.id}] = (header_descriptor_t)
-        #{ {
-        #[     .type = ${h.id},
-        #[     .length = header_info(${h.id}).bytewidth,
-        #[     .pointer = malloc(header_info(${h.id}).bytewidth * sizeof(uint8_t)),
-        #[     .var_width_field_bitwidth = 0
-        #} };
+
+#[     // init metadatas
+#[     pd->headers[header_instance_all_metadatas] = (header_descriptor_t)
+#{     {
+#[         .type = header_instance_all_metadatas,
+#[         .length = header_info(header_instance_all_metadatas).bytewidth,
+#[         .pointer = malloc(header_info(header_instance_all_metadatas).bytewidth * sizeof(uint8_t)),
+#[         .var_width_field_bitwidth = 0
+#}     };
 #} }
 
 ################################################################################
@@ -238,7 +251,7 @@ for table in hlir16.tables:
 #[     init_keyless_tables();
 
 #[     uint32_t res32;
-#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, false);
+#[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, false);
 #} }
 
 #{ void update_packet(packet_descriptor_t* pd) {
@@ -252,11 +265,11 @@ for hdr in hlir16.header_instances:
     #[ // updating header instance ${hdr.name}
 
     for fld in hdr.type.type_ref.fields:
-        if not fld.preparsed and fld.type.size <= 32:
+        if not fld.preparsed and fld.type._type_ref.size <= 32:
             #{ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
-            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_${hdr.name}, field_instance_${hdr.name}_${fld.name}, value32);
-            #[     // set_field((fldT[]){{pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}}}, 0, value32, ${fld.type.size});
+            #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_instance_${hdr.name}_${fld.name}, value32);
+            #[     // set_field((fldT[]){{pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}}}, 0, value32, ${fld.type._type_ref.size});
             #} }
 #} }
 
@@ -297,32 +310,23 @@ for m in hlir16.objects['Method']:
 
         #[ extern ${ret_type} ${m.name}(${args});
 
-for pe in pipeline_elements:
-    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
-        
-    if ctl is None:
-        continue
-
-    #[ void control_${pe.expression.type.name}(STDPARAMS)
+for ctl in p4_ctls:
+    #[ void control_${ctl.name}(STDPARAMS)
     #{ {
     #[     debug("Entering control $$[control]{ctl.name}...\n");
     #[     uint32_t value32, res32;
     #[     (void)value32, (void)res32;
-    #[     control_locals_${pe.expression.type.name}_t local_vars_struct;
-    #[     control_locals_${pe.expression.type.name}_t* local_vars = &local_vars_struct;
+    #[     control_locals_${ctl.name}_t local_vars_struct;
+    #[     control_locals_${ctl.name}_t* local_vars = &local_vars_struct;
     #[     pd->control_locals = (void*) local_vars;
     #= format_statement(ctl.body, ctl)
     #} }
 
 #[ void process_packet(STDPARAMS)
 #{ {
-for pe in pipeline_elements:
-    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
-    if ctl is None:
-        continue
-
-    #[ control_${pe.expression.type.name}(STDPARAMS_IN);
-    if pe.expression.type.name == 'egress':
+for ctl in p4_ctls:
+    #[ control_${ctl.name}(STDPARAMS_IN);
+    if ctl.name == 'egress':
         #[ // TODO temporarily disabled
         #[ // update_packet(pd); // we need to update the packet prior to calculating the new checksum
 #} }
@@ -388,6 +392,10 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[ void emit_packet(STDPARAMS)
 #{ {
 #[     if (unlikely(pd->is_emit_reordering)) {
+#{         if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop))) {
+#[             debug(" " T4LIT(::::,status) " Skipping reordering emit, as packet is " T4LIT(dropped,status) "\n");
+#[             return;
+#}         }
 #[         debug(" :::: Reordering emit\n");
 #[         store_headers_for_emit(STDPARAMS_IN);
 #[         resize_packet_on_emit(STDPARAMS_IN);
