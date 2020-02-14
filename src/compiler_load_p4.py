@@ -88,7 +88,7 @@ def load_ujson(file, data):
         return ujson.load(f)
 
 
-def load_json(filename, data):
+def load_json(file, data):
     if file is not None:
         return json.load(file)
 
