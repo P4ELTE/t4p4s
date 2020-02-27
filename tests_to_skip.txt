@@ -7,6 +7,7 @@
 
 
 # Tests that contain functionality that is not supported yet
+%test-bit2
 %test-int
 %test-header-stacks
 %test-header-union-1
