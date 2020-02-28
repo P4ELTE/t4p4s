@@ -165,7 +165,7 @@ struct lcore_data init_lcore_data() {
         .prev_tsc  = 0,
 
         .conf     = &lcore_conf[rte_lcore_id()],
-        .mempool  = pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id()),
+        .mempool  = pktmbuf_pool[get_socketid(rte_lcore_id())], // TODO: Check for MULTI-SOCKET CASE !!!!
 
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
@@ -201,7 +201,7 @@ bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned
 }
 
 void free_packet(packet_descriptor_t* pd) {
-    rte_pktmbuf_free((struct rte_mbuf*)pd->data);
+    rte_pktmbuf_free(pd->wrapper);
 }
 
 
@@ -257,15 +257,16 @@ int launch_count() {
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
-    debug("Abnormal exit.\n");
+    debug(T4LIT(Abnormal exit,error) ", code " T4LIT(%d) ".\n", retval);
 }
 
 void t4p4s_after_launch(int idx) {
-    debug("Execution done.\n");
+    debug(T4LIT(Execution done.,success) "\n");
 }
 
-void t4p4s_normal_exit() {
-    debug("Normal exit.\n");
+int t4p4s_normal_exit() {
+    debug(T4LIT(Normal exit.,success) "\n");
+    return 0;
 }
 
 void t4p4s_pre_launch(int idx) {

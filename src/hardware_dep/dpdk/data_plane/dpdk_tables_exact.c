@@ -65,7 +65,7 @@ void exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
 
     ext->content[index%t->max_size] = make_table_entry_on_socket(t, value);
 
-    dbg_bytes(key, t->entry.key_size, "   :: Add " T4LIT(exact) " entry to " T4LIT(%s,table) " (hash " T4LIT(%d) "): " T4LIT(%s,action) " <- ", t->name, index, get_entry_action_name(value));
+    // dbg_bytes(key, t->entry.key_size, "   :: Add " T4LIT(exact) " entry to " T4LIT(%s,table) " (hash " T4LIT(%d) "): " T4LIT(%s,action) " <- ", t->name, index, get_entry_action_name(value));
 }
 
 void exact_delete(lookup_table_t* t, uint8_t* key)

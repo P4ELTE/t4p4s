@@ -57,108 +57,104 @@ void extern_direct_meter_read_uint32_t(uint32_t* result, uint32_t index) {
 }
 
 
-/*
-void extern_register_read_uint8_t(uint8_t* result, uint32_t index) {
-    debug("    :: Executing extern_register_read_uint8_t#" T4LIT(%d) "\n", index);
-}
+// Register: init
 
-void extern_register_read_uint16_t(uint16_t* result, uint32_t index) {
-    debug("    :: Executing extern_register_read_uint16_t#" T4LIT(%d) "\n", index);
-}
-
-void extern_register_read_uint32_t(uint32_t* result, uint32_t index) {
-    debug("    :: Executing extern_register_read_uint32_t#" T4LIT(%d) "\n", index);
-}
-
-
-
-void extern_register_write_uint8_t(uint32_t index, uint8_t data) {
-    debug("    :: Executing extern_register_write_uint8_t#" T4LIT(%d) "\n", index);
-}
-
-void extern_register_write_uint16_t(uint32_t index, uint16_t data) {
-    debug("    :: Executing extern_register_write_uint16_t#" T4LIT(%d) "\n", index);
-}
-
-void extern_register_write_uint32_t(uint32_t index, uint32_t data) {
-    debug("    :: Executing extern_register_write_uint32_t#" T4LIT(%d) "\n", index);
-}
-*/
-
-void extern_register_write_int8_t(reg_int8_t* reg, uint32_t idx, int8_t value) { 
-    reg[idx].value = value; 
-} 
-void extern_register_read_int8_t(reg_int8_t* reg, int8_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_int8_t(reg_int8_t* reg, uint32_t size)  { 
+void init_register_int8_t(register_int8_t* reg, uint32_t size)  { 
     for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_int16_t(reg_int16_t* reg, uint32_t idx, int16_t value) { 
-    reg[idx].value = value; 
-} 
-void extern_register_read_int16_t(reg_int16_t* reg, int16_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_int16_t(reg_int16_t* reg, uint32_t size)  { 
+}
+
+void init_register_int16_t(register_int16_t* reg, uint32_t size)  { 
     for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_int32_t(reg_int32_t* reg, uint32_t idx, int32_t value) { 
-    reg[idx].value = value; 
-} 
-void extern_register_read_int32_t(reg_int32_t* reg, int32_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_int32_t(reg_int32_t* reg, uint32_t size)  { 
+}
+
+void init_register_int32_t(register_int32_t* reg, uint32_t size)  { 
     for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_int64_t(reg_int64_t* reg, uint32_t idx, int64_t value) { 
-    reg[idx].value = value; 
-} 
-void extern_register_read_int64_t(reg_int64_t* reg, int64_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_int64_t(reg_int64_t* reg, uint32_t size)  { 
+}
+
+void init_register_int64_t(register_int64_t* reg, uint32_t size)  { 
     for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_uint8_t(reg_uint8_t* reg, uint32_t idx, uint8_t value) { 
-    reg[idx].value = value; 
-} 
-void extern_register_read_uint8_t(reg_uint8_t* reg, uint8_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_uint8_t(reg_uint8_t* reg, uint32_t size)  { 
+}
+
+void init_register_uint8_t(register_uint8_t* reg, uint32_t size)  { 
     for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_uint16_t(reg_uint16_t* reg, uint32_t idx, uint16_t value) { 
+}
+
+void init_register_uint16_t(register_uint16_t* reg, uint32_t size)  { 
+    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
+}
+
+void init_register_uint32_t(register_uint32_t* reg, uint32_t size)  { 
+    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
+}
+
+void init_register_uint64_t(register_uint64_t* reg, uint32_t size)  { 
+    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
+}
+
+
+// Register: read
+
+void extern_register_read_int8_t(register_int8_t* reg, int8_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_int16_t(register_int16_t* reg, int16_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_int32_t(register_int32_t* reg, int32_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_int64_t(register_int64_t* reg, int64_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_uint8_t(register_uint8_t* reg, uint8_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_uint16_t(register_uint16_t* reg, uint16_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value;
+    debug("    :: Executing extern_register_read_uint16_t#" T4LIT(%d) " value:" T4LIT(%d) "\n", idx, reg[idx].value);
+}
+
+void extern_register_read_uint32_t(register_uint32_t* reg, uint32_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+void extern_register_read_uint64_t(register_uint64_t* reg, uint64_t* value_result, uint32_t idx) { 
+    *value_result =  reg[idx].value; 
+}
+
+
+// Register: write
+
+void extern_register_write_int8_t(register_int8_t* reg, uint32_t idx, int8_t value) { 
+    reg[idx].value = value; 
+}
+void extern_register_write_int16_t(register_int16_t* reg, uint32_t idx, int16_t value) { 
+    reg[idx].value = value; 
+}
+void extern_register_write_int32_t(register_int32_t* reg, uint32_t idx, int32_t value) { 
+    reg[idx].value = value; 
+}
+void extern_register_write_int64_t(register_int64_t* reg, uint32_t idx, int64_t value) { 
+    reg[idx].value = value; 
+}
+void extern_register_write_uint8_t(register_uint8_t* reg, uint32_t idx, uint8_t value) { 
+    reg[idx].value = value; 
+}
+void extern_register_write_uint16_t(register_uint16_t* reg, uint32_t idx, uint16_t value) { 
     reg[idx].value = value;
     debug("    :: Executing extern_register_write_uint16_t#" T4LIT(%d) " value:" T4LIT(%d) "\n", idx, reg[idx].value);
-} 
-void extern_register_read_uint16_t(reg_uint16_t* reg, uint16_t* value, uint32_t idx) { 
-    *value =  reg[idx].value;
-    debug("    :: Executing extern_register_read_uint16_t#" T4LIT(%d) " value:" T4LIT(%d) "\n", idx, reg[idx].value);
-} 
-void init_register_uint16_t(reg_uint16_t* reg, uint32_t size)  { 
-    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_uint32_t(reg_uint32_t* reg, uint32_t idx, uint32_t value) { 
+}
+void extern_register_write_uint32_t(register_uint32_t* reg, uint32_t idx, uint32_t value) { 
     reg[idx].value = value; 
-} 
-void extern_register_read_uint32_t(reg_uint32_t* reg, uint32_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_uint32_t(reg_uint32_t* reg, uint32_t size)  { 
-    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
-void extern_register_write_uint64_t(reg_uint64_t* reg, uint32_t idx, uint64_t value) { 
+}
+void extern_register_write_uint64_t(register_uint64_t* reg, uint32_t idx, uint64_t value) { 
     reg[idx].value = value; 
-} 
-void extern_register_read_uint64_t(reg_uint64_t* reg, uint64_t* value, uint32_t idx) { 
-    *value =  reg[idx].value; 
-} 
-void init_register_uint64_t(reg_uint64_t* reg, uint32_t size)  { 
-    for (uint32_t i=0;i<size;++i) reg[i].value = 0; 
-} 
+}
 
 
 

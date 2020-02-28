@@ -13,12 +13,18 @@
 # limitations under the License.
 
 from utils.codegen import format_type
-from hlir16.hlir16_attrs import get_main
 
 #[ #ifndef __ACTIONS_H__
 #[ #define __ACTIONS_H__
 
 #[ #include "dataplane.h"
+#[ #include "common.h"
+
+# Note: this is for Digest_t
+#[ #include "ctrl_plane_backend.h"
+
+# TODO this should not be here in the indep section
+#[ #include "dpdk_reg.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
@@ -38,25 +44,35 @@ for table in hlir16.tables:
 # TODO remove this; instead:
 # TODO in set_additional_attrs, replace all type references with the referenced types
 def resolve_typeref(hlir16, f):
-    # resolving type reference
     if f.type.node_type == 'Type_Name':
         tref = f.type.type_ref
-        return hlir16.objects.get(tref.name)
+        return hlir16.objects.get(tref.name).type('type_ref')
 
-    return f
+    return f.type
 
-for table in hlir16.tables:
-    for action in table.actions:
-        # if len(action.action_object.parameters) == 0:
-        #     continue
 
-        #{ struct action_${action.action_object.name}_params {
-        for param in action.action_object.parameters.parameters:
-            param = resolve_typeref(hlir16, param)
-            
-            #[ FIELD(${param.name}, ${param.type.size});
+for ctl in hlir16.controls:
+    for act in ctl.actions:
+        #{ typedef struct action_${act.name}_params_s {
+        for param in act.parameters.parameters:
+            paramtype = resolve_typeref(hlir16, param)
+            #[ FIELD(${param.name}, ${paramtype.size});
+
         #[ FIELD(DUMMY_FIELD, 0);
-        #} };
+        #} } action_${act.name}_params_t;
+
+#{ typedef struct all_metadatas_s {
+for metainst in hlir16.metadata_insts:
+    if hasattr(metainst.type, 'type_ref'):
+        for fld in metainst.type.type_ref.fields:
+            vardecl = format_type(fld.type, "field_{}_{}".format(metainst.type.type_ref.name, fld.name))
+            #[ $vardecl; // ${metainst.type.type_ref.name}, ${fld.name}
+    else:
+        # note: in the case of an array type,
+        #       the array brackets have to go after the variable name
+        varname = "metafield_" + metainst.name
+        #[ ${format_type(metainst.type, varname)};
+#} } all_metadatas_t;
 
 for table in hlir16.tables:
     #{ struct ${table.name}_action {
@@ -66,9 +82,10 @@ for table in hlir16.tables:
         # TODO what if the action is not a method call?
         # TODO what if there are more actions?
         action_method_name = action.expression.method.ref.name
-        #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
+        #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
     #} };
+    #[
 
 
 
@@ -78,17 +95,19 @@ for table in hlir16.tables:
         aname = action.action_object.name
         mname = action.expression.method.ref.name
 
-        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
+        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, action_${mname}_params_t);
 
 
-# TODO: The controls shouldn't be accessed through an instance declaration parameter
-for pe in get_main(hlir16).arguments:
-    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
+for ctl in hlir16.controls:
+    #{ typedef struct control_locals_${ctl.name}_s {
+    for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
+        postfix = "_t" if local_var_decl.type.node_type == 'Type_Name' else ""
+        #[ ${format_type(local_var_decl.type, resolve_names = False)}$postfix ${local_var_decl.name};
 
-    if ctl is not None:
-        #[ typedef struct control_locals_${pe.expression.type.name}_s {
-        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-            #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
-        #[ } control_locals_${pe.expression.type.name}_t;
+    # TODO is there a more appropriate way to store registers?
+    for reg in hlir16.registers:
+        #[ ${format_type(reg.type, resolve_names = False)} ${reg.name};
+
+    #} } control_locals_${ctl.name}_t;
 
 #[ #endif

@@ -38,7 +38,7 @@ struct lcore_params lcore_params[MAX_LCORE_PARAMS];
 
 struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
-struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
+rte_eth_addr_t ports_eth_addr[RTE_MAX_ETHPORT_COUNT];
 
 uint16_t t4p4s_nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
@@ -47,7 +47,7 @@ uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 struct rte_eth_conf port_conf = {
     .rxmode = {
         .mq_mode = ETH_MQ_RX_RSS,
-        .max_rx_pkt_len = ETHER_MAX_LEN,
+        .max_rx_pkt_len = RTE_ETH_MAX_LEN,
         .split_hdr_size = 0,
 #if RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
         .offloads = DEV_RX_OFFLOAD_CHECKSUM,

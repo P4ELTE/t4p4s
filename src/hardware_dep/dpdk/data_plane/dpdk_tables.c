@@ -143,7 +143,6 @@ void create_table(lookup_table_t* t, int socketid)
             ternary_create(t, socketid);
             break;
     }
-    debug("    : Created table replica " T4LIT(%s,table) ".\n", t->name);
 }
 
 void flush_table(lookup_table_t* t)
@@ -162,13 +161,10 @@ void flush_table(lookup_table_t* t)
             ternary_flush(t);
             break;
     }
-    debug("    : Flushed table replica " T4LIT(%s,table) ".\n", t->name);
 }
 
 void table_set_default_action(lookup_table_t* t, uint8_t* entry)
 {
-    debug("   :: Table " T4LIT(%s,table) "@" T4LIT(%d,socket) " default action set: " T4LIT(%s,action) "\n", t->name, t->socketid, get_entry_action_name(entry));
-
     if (t->default_val) rte_free(t->default_val);
 
     t->default_val = make_table_entry_on_socket(t, entry);

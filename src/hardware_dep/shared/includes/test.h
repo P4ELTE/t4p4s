@@ -58,12 +58,24 @@ typedef struct testcase_s {
 // ------------------------------------------------------
 // Fake packet data creation helpers
 
+#define INIT_WAIT_CONTROLPLANE_SHORT_MILLIS 500
+#define INIT_WAIT_CONTROLPLANE_LONG_MILLIS  2000
+#define WAIT_OTHER_CORE_PROCESSES_PACKAGES_MILLIS  500
+#define WAIT_CONTROLPLANE_REPLY  200
+
+
 #define FDATA(...)    { __VA_ARGS__, "" }
 
 #define FSLEEP(time)  {FAKE_PKT, 0, 0, FDATA(""), time, 0, FDATA("")}
 #define FEND          {FAKE_END, 0, 0, FDATA(""),    0, 0, FDATA("")}
 
+#define UNKNOWN_PKT(src, dst, ...)        {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__), WAIT_CONTROLPLANE_REPLY,    0, ETH(src, dst, ##__VA_ARGS__)}
+#define LEARNED_PKT(port, src, dst, ...)  {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__),                       0, port, ETH(src, dst, ##__VA_ARGS__)}
+
 #define ETH(dst, src, ...) FDATA(dst, src, "0800", ##__VA_ARGS__)
+#define IPV4(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, dstip, srcip, ##__VA_ARGS__)
+
+#define IPV4_0000 "0000000000000000000000000000000000000000"
 
 #define ETH01 "000001000000"
 #define ETH02 "000002000000"
@@ -72,6 +84,9 @@ typedef struct testcase_s {
 
 #define ETH1A "001234567890"
 #define ETH1B "001234567891"
+
+#define LPM_ETH1 "cccccccc0000"
+#define LPM_ETH2 "dddddddd0000"
 
 // random payloads
 
@@ -84,6 +99,11 @@ typedef struct testcase_s {
 #define PAYLOAD12 "a0a0a0a0a0"
 #define PAYLOAD13 "00000000"
 #define PAYLOAD14 "f00ff00f"
+
+// LPM prefixes
+
+#define LPM1_TOP16B   "9600"
+#define LPM2_TOP16B   "3200"
 
 #define T4P4S_BROADCAST_PORT 100
 

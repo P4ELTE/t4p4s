@@ -251,14 +251,13 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
 
     if (f != 0) {
         fldT fld = f[0];
-        debug("    : Modifying " T4LIT(%2d) " bit wide field (copying " T4LIT(%d) " %s) " T4LIT(%s,header) "." T4LIT(%s,field) " = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
-              bit_width,
-              bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
-              bit_width <= 8 ? " byte" : "bytes",
+        debug("    " T4LIT(=,field) " Modifying field " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%d) "b (" T4LIT(%d) "B) = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
               header_instance_names[fld.hdr],
               field_names[fld.fld],
+              bit_width,
+              bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32,
-              (bit_width+3)/4,
+              (bit_width+7)/4,
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
 
         int res32;
@@ -277,8 +276,8 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
    Extract - statement
 *******************************************************************************/
 
-#define EXTRACT_EGRESSPORT(p)  GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_egress_port) 
-#define EXTRACT_INGRESSPORT(p) GET_INT32_AUTO_PACKET(p, header_instance_standard_metadata, field_standard_metadata_t_ingress_port)
+int extract_egress_port(packet_descriptor_t* pd);
+int extract_ingress_port(packet_descriptor_t* pd);
 
 #endif // DPDK_PRIMITIVES_H
 

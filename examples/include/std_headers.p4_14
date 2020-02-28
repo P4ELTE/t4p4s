@@ -123,4 +123,7 @@ header_type igmp_t {
 
 header igmp_t igmp;
 
+#define ETHERTYPE_IPV4 0x0800
+#define ETHERTYPE_ARP  0x0806
+
 #endif

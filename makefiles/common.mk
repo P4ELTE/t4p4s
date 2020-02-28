@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+CFLAGS += -DCMAKE_C_COMPILER_LAUNCHER="ccache"
+
+ifdef $(T4P4S_DEBUG)
+CFLAGS += -O$(T4P4S_DEBUG)
+else
 CFLAGS += -O3
+endif
+
 CFLAGS += -fdiagnostics-color
 CFLAGS += -Wall 
 CFLAGS += -Wno-unused-function
@@ -35,5 +42,7 @@ VPATH  += $(CDIR)/srcgen
 ifneq ($(P4_GCC_OPTS),)
 CFLAGS += $(P4_GCC_OPTS)
 endif
+
+LDFLAGS += -fuse-ld=gold
 
 SRCS-y += util.c

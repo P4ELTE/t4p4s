@@ -1,51 +1,9 @@
-header_type ethernet_t {
-    fields {
-        dstAddr : 48;
-        srcAddr : 48;
-        etherType : 16;
-    }
-}
 
-header_type arp_t {
-    fields {
-	hardware_type : 16;
-	protocol_type : 16;
-	HLEN          : 8;   /* hardware address length */
-	PLEN          : 8;   /* protocol address length */
-	OPER          : 16; 
-	sender_ha     : 48;  /* ha = hardware address */ 
-	sender_ip     : 32;
-	target_ha     : 48;
-	target_ip     : 32;
-    }
-}
-
-
-header_type ipv4_t {
-    fields {
-        versionIhl : 8;
-        diffserv : 8;
-        totalLen : 16;
-        identification : 16;
-        fragOffset : 16;
-        ttl : 8;
-        protocol : 8;
-        hdrChecksum : 16;
-        srcAddr : 32;
-        dstAddr: 32;
-    }
-}
+#include "include/std_headers.p4_14"
 
 parser start {
     return parse_ethernet;
 }
-
-#define ETHERTYPE_IPV4 0x0800
-#define ETHERTYPE_ARP  0x0806
-
-header ethernet_t ethernet;
-header arp_t arp;
-header ipv4_t ipv4;
 
 parser parse_ethernet {
     extract(ethernet);
@@ -96,7 +54,7 @@ table ipv4_lpm {
     size: 1024;
 }
 
-action forward(dmac_val,smac_val,port) {
+action forward(dmac_val, smac_val, port) {
     modify_field(ethernet.dstAddr, dmac_val);
     modify_field(standard_metadata.egress_port, port);
     modify_field(ethernet.srcAddr, smac_val);
@@ -126,12 +84,12 @@ table macfwd {
 }
 
 control ingress {
-       apply(macfwd) {
-          hit {
-               apply(ipv4_lpm);
-               apply(nexthops);
-          }
-       }
+   apply(macfwd) {
+      hit {
+           apply(ipv4_lpm);
+           apply(nexthops);
+      }
+   }
 }
 
 control egress {

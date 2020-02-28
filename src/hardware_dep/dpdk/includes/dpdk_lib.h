@@ -59,6 +59,19 @@
 #define MAX_ETHPORTS RTE_MAX_ETHPORTS
 
 //=============================================================================
+// Unifying renamed types and constants
+
+#if RTE_VERSION >= RTE_VERSION_NUM(19,8,0,0)
+    typedef struct rte_ether_addr rte_eth_addr_t;
+    #define RTE_MAX_ETHPORT_COUNT RTE_MAX_ETHPORTS
+    #define RTE_ETH_MAX_LEN RTE_ETHER_MAX_LEN
+#else
+    typedef struct ether_addr rte_eth_addr_t;
+    #define RTE_MAX_ETHPORT_COUNT MAX_ETHPORTS
+    #define RTE_ETH_MAX_LEN ETHER_MAX_LEN
+#endif
+
+//=============================================================================
 // Shared types and constants
 
 #define RTE_LOGTYPE_L3FWD RTE_LOGTYPE_USER1 // rte_log.h

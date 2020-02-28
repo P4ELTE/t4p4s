@@ -20,6 +20,8 @@ def match_type_order(t):
     }
     return match_types[t]
 
+#[ #include <unistd.h>
+
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
 #[ #include "tables.h"
@@ -35,7 +37,7 @@ for table in hlir16.tables:
 
 
 if len(hlir16.tables)>0:
-    max_bytes = max([t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')])
+    max_bytes = max([0] + [t.key_length_bytes for t in hlir16.tables if hasattr(t, 'key')])
     #[ uint8_t reverse_buffer[$max_bytes];
 
 # Variable width fields are not supported
@@ -43,8 +45,15 @@ def get_key_byte_width(k):
     # for special functions like isValid
     if k.get_attr('header') is None:
         return 0
-        
-    return (k.width+7)/8 if not k.header.type.type_ref.is_vw else 0
+    
+    if k.header.type._type_ref('is_vw', False):
+        return 0
+
+    if hasattr(k, 'width'):
+        return (k.width+7)/8
+
+    # reaching this point, k can only come from metadata
+    return (k.header.type.size+7)/8
 
 
 hlir16_tables_with_keys = [t for t in hlir16.tables if hasattr(t, 'key')]
@@ -140,17 +149,9 @@ for table in hlir16_tables_with_keys:
         #{ if(strcmp("$action_name_str", ctrl_m->action_name)==0) {
         #[     struct ${table.name}_action action;
         #[     action.action_id = action_${action.action_object.name};
-        #[     debug("From controller: add new entry to $$[table]{table.name} with action $$[action]{action.action_object.name}\n");
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-
-            if p.type.size <= 32:
-                size = 8 if p.type.size <= 8 else 16 if p.type.size <= 16 else 32
-                #[ debug("   :: $$[field]{p.name} ($${}{%d} bits): $$[bytes]{}{%d}\n", ${p.type.size}, *(uint${size}_t*)${p.name});
-            else:
-                #[ dbg_bytes(${p.name}, (${p.type.size}+7)/8, "   :: $$[field]{p.name} ($${}{%d} bits): ", ${p.type.size});
-
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type._type_ref.size+7)/8});
 
         #{     ${table.name}_add(
         for i, k in enumerate(table.key.keyElements):
@@ -165,6 +166,14 @@ for table in hlir16_tables_with_keys:
                 #[ 0 /* TODO dstPort_mask */,
         #[     action);
         #}
+
+        for j, p in enumerate(action.action_object.parameters.parameters):
+            if p.type._type_ref.size <= 32:
+                size = 8 if p.type._type_ref.size <= 8 else 16 if p.type._type_ref.size <= 16 else 32
+                #[ dbg_bytes(${p.name}, sizeof(uint${size}_t), "        : $$[field]{p.name}/$${}{%d} = $$[bytes]{}{%d} = ", ${p.type._type_ref.size}, *(uint${size}_t*)${p.name});
+            else:
+                #[ dbg_bytes(${p.name}, (${p.type._type_ref.size}+7)/8, "        : $$[field]{p.name}/$${}{%d} = ", ${p.type._type_ref.size});
+
         #} } else
 
     valid_actions = ", ".join(["\" T4LIT(" + get_action_name_str(a) + ",action) \"" for a in table.actions])
@@ -180,8 +189,8 @@ for table in hlir16_tables_with_keys:
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type.size+7)/8});
-        #[     debug("From controller: set default action for $$[table]{table.name} with action $$[action]{action_name_str}\n");
+            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.type._type_ref.size+7)/8});
+        #[     debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.name}: $$[action]{action_name_str}\n");
         #[     ${table.name}_setdefault( action );
         #} } else
 
@@ -203,7 +212,6 @@ for table in hlir16_tables_with_keys:
 #[ extern char* action_names[];
 
 #{ void ctrl_setdefault(struct p4_ctrl_msg* ctrl_m) {
-#[ debug("Set default message from control plane for table $$[table]{}{%s}: $$[action]{}{%s}\n", ctrl_m->table_name, ctrl_m->action_name);
 for table in hlir16_tables_with_keys:
     #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_set_default_table_action(ctrl_m);
@@ -216,7 +224,7 @@ for table in hlir16_tables_with_keys:
 
 #[ extern volatile int ctrl_is_initialized;
 #{ void ctrl_initialized() {
-#[     debug("Control plane fully initialized.\n");
+#[     debug("   " T4LIT(::,incoming) " Control plane fully initialized\n");
 #[     ctrl_is_initialized = 1;
 #} }
 

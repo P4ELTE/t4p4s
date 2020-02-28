@@ -125,7 +125,6 @@ typedef struct packet_descriptor_s {
     header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
     parsed_fields_t     fields;
     packet*             wrapper;
-    uint8_t             dropped;
 
     int emit_hdrinst_count;
     int emit_headers_length;
