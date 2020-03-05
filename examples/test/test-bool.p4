@@ -1,14 +1,15 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0000
-// Out: 1111
+// In: 00000000
+// Out: 11110000
 
 header dummy_t {
     bool f1;
     bool f2;
     bool f3;
     bool f4;
+    bit<4> padding;
 }
 
 struct empty_metadata_t {
@@ -56,8 +57,8 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-         ostd.egress_port = (PortId_t)12345;
+    apply { 
+	ostd.egress_port = (PortId_t)12345;
     }
 }
 

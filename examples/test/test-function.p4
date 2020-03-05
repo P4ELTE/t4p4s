@@ -1,11 +1,12 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0
-// Out: 1
+// In: 00000000
+// Out: 10000000
 
 header dummy_t {
     bit<1> f1;
+    bit<7> padding;
 }
 
 bit<1> max(in bit<1> left, in bit<1> right) {
@@ -54,9 +55,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-        ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,

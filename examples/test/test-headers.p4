@@ -1,20 +1,20 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000000
-// Out: 1111
+// In: 0000000000000000
+// Out: 11111111
 
-struct custom_struct {
-    bit<1> first;
-    bit<1> second;
-    bit<1> third;
+struct data {
+	bit<1> first;
+        bit<1> second;
+        bit<1> third;
 }
 
 header empty_t { }
 
 header dummy_t {
     bit<1> f1;
-    custom_struct f2;
+    data f2;
 }
 
 struct empty_metadata_t {
@@ -27,8 +27,9 @@ struct headers {
     empty_t empty;
     dummy_t dummy;
     dummy_t dummy2;
+    dummy_t dummy3;
+    dummy_t dummy4;
 }
-
 parser IngressParserImpl(packet_in packet,
                          out headers hdr,
                          inout metadata meta,
@@ -39,6 +40,8 @@ parser IngressParserImpl(packet_in packet,
         packet.extract(hdr.empty);
         packet.extract(hdr.dummy);
         packet.extract(hdr.dummy2);
+        packet.extract(hdr.dummy3);
+        packet.extract(hdr.dummy4);
         transition accept;
     }
     state start {
@@ -52,10 +55,11 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-       custom_struct d = {~hdr.dummy.f2.second, ~hdr.dummy.f2.second, ~hdr.dummy.f2.second};
+       data d = {~hdr.dummy.f2.second, ~hdr.dummy.f2.second, ~hdr.dummy.f2.second};
        hdr.dummy.f1 = (bit<1>)hdr.empty.isValid();
        hdr.dummy.f2 = d;
-       hdr.dummy2.setInvalid();
+       hdr.dummy3.setInvalid();
+       hdr.dummy4.setInvalid();
     }
 }
 
@@ -65,9 +69,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-        ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,
@@ -94,6 +96,8 @@ control IngressDeparserImpl(packet_out buffer,
     apply {
        buffer.emit(hdr.dummy);
        buffer.emit(hdr.dummy2);
+       buffer.emit(hdr.dummy3);
+       buffer.emit(hdr.dummy4);
     }
 }
 

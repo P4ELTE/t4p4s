@@ -1,8 +1,8 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 000000000
-// Out: 111111111
+// In: 0000000000000000
+// Out: 1111111110000000
 
 enum Suits { Clubs, Diamonds, Hearths, Spades }
 
@@ -18,6 +18,7 @@ header dummy_t {
     bit<2> f3;
     bit<1> f4;
     Choice f5;
+    bit<7> padding;
 }
 
 struct empty_metadata_t {
@@ -70,9 +71,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-        ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,
