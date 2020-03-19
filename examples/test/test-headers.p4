@@ -1,13 +1,14 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0000000000000000
-// Out: 11111111
+// In: 00000000000000000000000000000000
+// Out: 1111100000000000
 
 struct data {
 	bit<1> first;
         bit<1> second;
         bit<1> third;
+        bit<1> fourth;
 }
 
 header empty_t { }
@@ -15,6 +16,7 @@ header empty_t { }
 header dummy_t {
     bit<1> f1;
     data f2;
+    bit<3> padding;
 }
 
 struct empty_metadata_t {
@@ -55,7 +57,12 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-       data d = {~hdr.dummy.f2.second, ~hdr.dummy.f2.second, ~hdr.dummy.f2.second};
+       //Version 1: working
+       //data d = {~hdr.dummy.f2.first, ~hdr.dummy.f2.second, ~hdr.dummy.f2.third, ~hdr.dummy.f2.fourth};
+       //Version 2: working
+       //data d = {1,1,1,1};
+       //Version 3: C compile error
+       data d = {~hdr.dummy.f2.fourth, ~hdr.dummy.f2.third, ~hdr.dummy.f2.second, ~hdr.dummy.f2.first};
        hdr.dummy.f1 = (bit<1>)hdr.empty.isValid();
        hdr.dummy.f2 = d;
        hdr.dummy3.setInvalid();
