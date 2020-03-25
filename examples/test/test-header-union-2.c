@@ -5,7 +5,7 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 1, {"00011011", ""}, 200, 0, {"11", ""}},
+        {FAKE_PKT, 0, 1, {"00010203", ""}, 200, 0, {"03", ""}},
         FEND,
     },
     {

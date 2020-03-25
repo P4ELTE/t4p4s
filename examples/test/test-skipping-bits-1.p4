@@ -1,11 +1,11 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0000
-// Out: 1
+// In: 0000000000000000
+// Out: 00000001
 
 header dummy_t {
-    bit<1> f1;
+    bit<8> f1;
 }
 
 struct empty_metadata_t {
@@ -26,7 +26,7 @@ parser IngressParserImpl(packet_in packet,
     state parse_ethernet {
         packet.extract<dummy_t>(_);
         // packet.advance is not supported currently
-        packet.advance(2);
+        //packet.advance(2);
         packet.extract(hdr.dummy);
         transition accept;
     }

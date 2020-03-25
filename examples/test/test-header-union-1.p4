@@ -1,14 +1,14 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00
-// Out: 1
+// In: 0000000000000000
+// Out: 00000001
 
 header A {
-  bit<1> a;
+  bit<8> a;
 }
 header B {
-  bit<1> b;
+  bit<8> b;
 }
 header_union AB {
   A a;
@@ -49,12 +49,12 @@ control egress(inout headers hdr,
 {
     apply {
         AB u;
-        A my_a = { 1w1 };
+        A my_a = { 8w1 };
         u.a = my_a;
         hdr.dummy2 = u.a;
 
         AB u2;
-        A my_a2 = { 1w1 };
+        A my_a2 = { 8w1 };
         my_a2.setInvalid();
         u.a = my_a;
         hdr.dummy3 = u.a;    

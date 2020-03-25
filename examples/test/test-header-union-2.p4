@@ -1,17 +1,17 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00011011
-// Out: 11
+// In: 00000000000000010000001000000011
+// Out: 00000011
 
 header option_A_t {
-  bit<2> a;
+  bit<8> a;
 }
 header option_B_t {
-  bit<2> b;
+  bit<8> b;
 }
 header option_C_t {
-  bit<2> c;
+  bit<8> c;
 }
 header_union options_t {
   option_A_t a;
@@ -100,7 +100,7 @@ control IngressDeparserImpl(packet_out buffer,
                             in psa_ingress_output_metadata_t istd)
 {
     apply {
-        option_A_t tmp = { 2w3 };
+        option_A_t tmp = { 8w3 };
         if (hdr.option_stack[0].isValid() && hdr.option_stack[1].isValid() && hdr.option_stack[2].isValid() && !hdr.option_stack[3].isValid()) {
 		buffer.emit(tmp);
         }
