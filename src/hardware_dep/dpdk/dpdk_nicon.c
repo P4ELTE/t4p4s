@@ -212,7 +212,7 @@ bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned p
 }
 
 void free_packet(packet_descriptor_t* pd) {
-    rte_pktmbuf_free((struct rte_mbuf*)pd->data);
+    rte_pktmbuf_free(pd->wrapper);
 }
 
 // defined in main_async.c

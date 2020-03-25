@@ -35,6 +35,7 @@
 
 #include "dpdk_lib.h"
 #include <rte_ethdev.h>
+#include <rte_mempool.h>
 
 #include "gen_include.h"
 
@@ -46,7 +47,6 @@
     #include <unistd.h>
     #include <stdio.h>
 #endif
-
 
 // TODO from...
 extern void initialize_args(int argc, char **argv);
@@ -172,13 +172,15 @@ void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32
 // defined in main_async.c
 void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned pkt_idx, uint32_t port_id, void (*handler_function)(void));
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
+void main_loop_fake_crypto(struct lcore_data* lcdata);
 
 #ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-    int packet_required_counter = -1;
+    int packet_required_counter[RTE_MAX_LCORE];
 #endif
 void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
     pd->context = NULL;
+    pd->dropped = 0;
     bool got_packet = fetch_packet(pd, lcdata, pkt_idx);
 
     if (got_packet) {
@@ -186,8 +188,9 @@ void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
         if (likely(is_packet_handled(pd, lcdata))) {
             pd->port_id = get_portid(lcdata, queue_idx);
         #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-            if(PACKET_REQUIRES_ASYNC(pd))
+            if(PACKET_REQUIRES_ASYNC(pd)){
                 async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
+            }
             else
         #endif
                 handler_function(lcdata, pd, get_portid(lcdata, queue_idx));
@@ -207,32 +210,55 @@ void do_rx(struct lcore_data* lcdata, packet_descriptor_t* pd)
     }
 }
 
+void main_loop_whole_process(struct lcore_data* lcdata, packet_descriptor_t* pd){
+    main_loop_pre_rx(lcdata);
+
+    do_rx(lcdata, pd);
+    main_loop_post_rx(lcdata);
+}
+
 bool dpdk_main_loop()
 {
+    extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
+    uint32_t lcore_id = rte_lcore_id();
+
     struct lcore_data lcdata = init_lcore_data();
-    if (!lcdata.is_valid) {
-    	debug("lcore data is invalid, exiting\n");
-    	return false;
-    }
+    #ifdef START_CRYPTO_NODE
+        if (!lcdata.is_valid && rte_lcore_id() != rte_lcore_count() - 1) {
+            debug("lcore data is invalid, exiting\n");
+            return false;
+        }
+        if (lcore_id ==  rte_lcore_count() - 1){
+            RTE_LOG(INFO, P4_FWD, "lcore %u is the crypto node\n", lcore_id);
+        }
+    #else
+        if (!lcdata.is_valid) {
+            debug("lcore data is invalid, exiting\n");
+            return false;
+        }
+    #endif
 
     packet_descriptor_t pd;
     init_dataplane(&pd, lcdata.conf->state.tables);
 
-#if ASYNC_MODE == ASYNC_MODE_CONTEXT
-    extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
-    getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
-#endif
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
+    #endif
 
     while (core_is_working(&lcdata)) {
-        main_loop_pre_rx(&lcdata);
+        #ifdef START_CRYPTO_NODE
+            if (lcore_id ==  rte_lcore_count() - 1){
+                main_loop_fake_crypto(&lcdata);
+            }else{
+                main_loop_whole_process(&lcdata,&pd);
+            }
+        #else
+            main_loop_whole_process(&lcdata,&pd);
+        #endif
 
-        do_rx(&lcdata, &pd);
-
-        main_loop_post_rx(&lcdata);
-
-#if ASYNC_MODE != ASYNC_MODE_OFF
-        main_loop_async(&lcdata, &pd);
-#endif
+        #if ASYNC_MODE != ASYNC_MODE_OFF
+            main_loop_async(&lcdata, &pd);
+        #endif
     }
 
     return lcdata.is_valid;
@@ -261,6 +287,15 @@ int launch_dpdk()
 
 int main(int argc, char** argv)
 {
+    RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
+    RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
+    #ifdef  DEBUG__CRYPTO_EVERY_N
+        RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
+    #endif
+
+    RTE_LOG(INFO, P4_FWD, " -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
+
     debug("Initializing switch\n");
 
     initialize_args(argc, argv);

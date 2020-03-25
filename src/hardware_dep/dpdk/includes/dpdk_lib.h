@@ -141,24 +141,46 @@ struct lcore_conf {
     ucontext_t                 main_loop_context;
     struct rte_ring*           async_queue;
     unsigned                   pending_crypto;
+    struct rte_ring    *fake_crypto_rx;
+    struct rte_ring    *fake_crypto_tx;
+
 } __rte_cache_aligned;
 
 //-----------------------------------------------------------------------------
 // Async
 
-#define ASYNC_MODE_OFF -1
+#define ASYNC_MODE_OFF 0
 #define ASYNC_MODE_CONTEXT 1
 
-#define ASYNC_MODE ASYNC_MODE_CONTEXT
+#ifndef ASYNC_MODE
+	#define ASYNC_MODE ASYNC_MODE_OFF
+#endif
 
-//#define DEBUG__CRYPTO_EVERY_N 2
-//#define DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET 5
+#ifndef NUMBER_OF_CORES
+    #define NUMBER_OF_CORES 4
+#endif
 
+
+//#define DEBUG__CRYPTO_EVERY_N 1
+//#define DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET 1
+
+
+//#//define START_CRYPTO_NODE
+#define CRYPTO_NODE_MODE_OPENSSL 1
+#define CRYPTO_NODE_MODE_FAKE 2
+#ifndef CRYPTO_NODE_MODE
+    #define CRYPTO_NODE_MODE CRYPTO_NODE_MODE_OPENSSL
+#endif
+
+
+#ifndef FAKE_CRYPTO_SLEEP_MULTIPLIER
+	#define FAKE_CRYPTO_SLEEP_MULTIPLIER 5000
+#endif
 
 
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
 	#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-		#define PACKET_REQUIRES_ASYNC(pd) (packet_required_counter = (packet_required_counter + 1) % DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET) == 0
+		#define PACKET_REQUIRES_ASYNC(pd) (packet_required_counter[rte_lcore_id()] = (packet_required_counter[rte_lcore_id()] + 1) % DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET) == 0
     #else
 		#define PACKET_REQUIRES_ASYNC(pd) true
     #endif
@@ -169,6 +191,8 @@ struct lcore_conf {
 	#define CRYPTO_BURST_SIZE 1
 #endif
 
+
+//#define DEBUG__COUNT_CONTEXT_MISSING_CAUSED_PACKET_DROP
 
 
 // Shall we move these to backend.h?

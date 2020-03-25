@@ -205,7 +205,7 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
 }
 
 #ifdef DEBUG__CRYPTO_EVERY_N
-    int run_blocking_encryption_counter = 0;
+    int run_blocking_encryption_counter[RTE_MAX_LCORE];
 #endif
 
 // defined in main_async.c
@@ -213,7 +213,7 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
-        if(run_blocking_encryption_counter == 0){
+        if(run_blocking_encryption_counter[rte_lcore_id()] == 0){
             do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
         }
     #else
@@ -224,10 +224,10 @@ void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_stat
 void do_decryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
-        if(run_blocking_encryption_counter == 0) {
+        if(run_blocking_encryption_counter[rte_lcore_id()] == 0) {
             do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
         }
-        run_blocking_encryption_counter = (run_blocking_encryption_counter + 1) % DEBUG__CRYPTO_EVERY_N; // 10%
+        run_blocking_encryption_counter[rte_lcore_id()] = (run_blocking_encryption_counter[rte_lcore_id()] + 1) % DEBUG__CRYPTO_EVERY_N;
     #else
         do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
     #endif
