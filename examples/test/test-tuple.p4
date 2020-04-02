@@ -1,12 +1,13 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 000
-// Out: 111
+// In: 00000000
+// Out: 11100000
 
 header dummy_t {
     bit<1> f1;
     bit<2> f2;
+    bit<5> padding;
 }
 
 struct empty_metadata_t {
@@ -39,10 +40,10 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     tuple<> empty_tuple = {};
-    tuple<bit<1>, bit<2>> x = { hdr.dummy.f1, hdr.dummy.f2 };
+    tuple<bit<1>, bit<2>, bit<5>> x = { hdr.dummy.f1, hdr.dummy.f2, hdr.dummy.padding };
     
     apply {
-       hdr.dummy = {1w1, 2w3};
+       hdr.dummy = {1w1, 2w3, 5w0};
     }
 }
 

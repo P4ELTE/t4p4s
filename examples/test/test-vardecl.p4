@@ -1,8 +1,8 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000
-// Out: 11111
+// In: 00000000
+// Out: 11111000
 
 header dummy_t {
     bit<1> f1;
@@ -10,6 +10,7 @@ header dummy_t {
     bit<1> f3;
     bit<1> f4;
     bit<1> f5;
+    bit<3> padding;
 }
 
 struct empty_metadata_t {

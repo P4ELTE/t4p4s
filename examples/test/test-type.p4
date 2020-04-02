@@ -1,13 +1,14 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0
-// Out: 1
+// In: 00000000
+// Out: 10000000
 
 type bit<1> one_bit_t;
 
 header dummy_t {
     one_bit_t f1;
+    bit<7> padding;
 }
 
 struct empty_metadata_t {

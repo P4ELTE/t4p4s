@@ -1,18 +1,20 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In1: 00011
-// Out1: 11
-// In2: 1000011
-// Out2: 11
+// In1: 0000000000000011
+// Out1: 00000011
+// In2: 1000000000000011
+// Out2: 00000011
 
 header dummy_t {
     bit<1> f1;
+    bit<3> padding;
     varbit<4> f2;
 }
 
 header real_t {
     bit<2> f1;
+    bit<6> padding;
 }
 
 struct empty_metadata_t {
@@ -32,12 +34,12 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state short {
-	packet.extract(hdr.dummy, 3);
+	packet.extract(hdr.dummy, 6);
 	packet.extract(hdr.real);
         transition accept;
     }
     state long {
-	packet.extract(hdr.dummy, 5);
+	packet.extract(hdr.dummy, 8);
 	packet.extract(hdr.real);
         transition accept;
     }
