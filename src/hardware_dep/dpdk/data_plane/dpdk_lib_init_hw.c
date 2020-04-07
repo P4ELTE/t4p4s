@@ -172,10 +172,10 @@ uint32_t min(uint32_t val1, uint32_t val2) {
     return val1 < val2 ? val1 : val2;
 }
 
-void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
+bool init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
 {
     if (rte_lcore_is_enabled(lcore_id) == 0)
-        return;
+        return false;
 
     uint8_t socketid = get_socketid(lcore_id);
 
@@ -193,6 +193,7 @@ void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
 
     struct lcore_conf* qconf = &lcore_conf[lcore_id];
     qconf->hw.tx_queue_id[portid] = queueid;
+    return true;
 }
 
 // We have to initialize all ports - create membufs, tx/rx queues, etc.
@@ -220,8 +221,9 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     print_port_mac((unsigned)portid, ports_eth_addr[portid].addr_bytes);
 
     uint16_t queueid = 0;
-    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++, queueid++) {
-        init_tx_on_lcore(lcore_id, portid, queueid);
+    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        if (init_tx_on_lcore(lcore_id, portid, queueid))
+		++queueid;
     }
 
     debug("\n");

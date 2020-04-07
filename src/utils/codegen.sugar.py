@@ -942,7 +942,11 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False):
 
             # TODO this looks like it should be the proper result
             # return 'handle(header_desc_ins(pd, {}), {})'.format(e.expr.header_ref.id, e.field_ref.id)
-            hdrinst = 'header_instance_all_metadatas' if e.expr.header_ref.type.type_ref.is_metadata else e.expr.header_ref.id
+            if hasattr(e.expr.header_ref, 'type'):
+                hdrinst = 'header_instance_all_metadatas' if e.expr.header_ref.type.type_ref.is_metadata else e.expr.header_ref.id
+            else:
+                print(e.expr.header_ref.xdir())
+                hdrinst = 'header_instance_all_metadatas' if e.expr.header_ref.type_ref.is_metadata else e.expr.header_ref.id
             return '(GET_INT32_AUTO_PACKET(pd, {}, {}))'.format(hdrinst, e.field_ref.id)
         elif hasattr(e, 'header_ref'):
             # TODO do both individual meta fields and metadata instance fields
