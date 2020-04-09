@@ -36,7 +36,10 @@ void InternetChecksum_t_get() {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_get,extern) "\n");
 }
 
-
+void transfer_to_egress(packet_descriptor_t* pd) 
+{
+	/*not implemented*/
+}
 
 int extract_egress_port(packet_descriptor_t* pd) {
     return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_instance_psa_ingress_output_metadata_egress_port);

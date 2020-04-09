@@ -324,8 +324,12 @@ for ctl in p4_ctls:
 
 #[ void process_packet(STDPARAMS)
 #{ {
+it=0
 for ctl in p4_ctls:
     #[ control_${ctl.name}(STDPARAMS_IN);
+    if hlir16.p4_model == 'V1Switch' and it==2:
+        #[ transfer_to_egress(pd);
+    it = it+1;
     if ctl.name == 'egress':
         #[ // TODO temporarily disabled
         #[ // update_packet(pd); // we need to update the packet prior to calculating the new checksum

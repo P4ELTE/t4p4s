@@ -272,6 +272,8 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
     return -1;
 }
 
+void transfer_to_egress(packet_descriptor_t* pd);
+
 /*******************************************************************************
    Extract - statement
 *******************************************************************************/

@@ -17,6 +17,12 @@
 
 #include <rte_ip.h>
 
+void transfer_to_egress(packet_descriptor_t* pd)
+{
+	int res32; // needed for the macro
+        uint32_t val = GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_spec);
+	MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_port, val);
+}
 
 int extract_egress_port(packet_descriptor_t* pd) {
     return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_port);
