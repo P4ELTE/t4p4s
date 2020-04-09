@@ -327,7 +327,7 @@ for ctl in p4_ctls:
 it=0
 for ctl in p4_ctls:
     #[ control_${ctl.name}(STDPARAMS_IN);
-    if hlir16.p4_model == 'V1Switch' and it==2:
+    if hlir16.p4_model == 'V1Switch' and it==1:
         #[ transfer_to_egress(pd);
     it = it+1;
     if ctl.name == 'egress':
