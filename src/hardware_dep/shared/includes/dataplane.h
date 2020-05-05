@@ -134,6 +134,7 @@ typedef struct packet_descriptor_s {
     // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
     int header_reorder[HEADER_INSTANCE_COUNT+8];
     uint8_t header_tmp_storage[HEADER_INSTANCE_TOTAL_LENGTH];
+    uint8_t header_emit_storage[HEADER_INSTANCE_TOTAL_LENGTH];
 
     void * control_locals;
 } packet_descriptor_t;

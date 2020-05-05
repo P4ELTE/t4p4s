@@ -345,7 +345,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #{ {
 #[     debug("   :: Preparing $${}{%d} header instances for storage...\n", pd->emit_hdrinst_count);
 
-#[     uint8_t* storage = pd->header_tmp_storage;
+#[     uint8_t* storage = pd->header_emit_storage;
 #[     pd->emit_headers_length = 0;
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
@@ -390,7 +390,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[ void copy_emit_contents(STDPARAMS)
 #{ {
-#[     memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), pd->header_tmp_storage, pd->emit_headers_length);
+#[     memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), pd->header_emit_storage, pd->emit_headers_length);
 #} }
 
 #[ void emit_packet(STDPARAMS)
