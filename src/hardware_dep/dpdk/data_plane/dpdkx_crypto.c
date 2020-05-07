@@ -187,7 +187,7 @@ void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
     #else
-        do_async_op(pd, ASYNC_OP_ENCRYPT);
+        do_encryption(pd,tables,pstate);
     #endif
 }
 
@@ -199,8 +199,8 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
-    #else
-        do_async_op(pd, ASYNC_OP_DECRYPT);
+    #elif ASNY_MODE == ASYNC_MODE_OFF
+        do_decryption(pd,tables,pstate);
     #endif
 }
 
