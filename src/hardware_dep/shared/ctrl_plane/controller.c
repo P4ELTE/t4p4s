@@ -25,6 +25,8 @@
 #include <sys/select.h>
 #include "threadpool.h"
 
+extern int usleep(__useconds_t usec);
+
 typedef struct msg_buf_st
 {
 	char data[2048]; /* todo */
@@ -208,7 +210,7 @@ void execute_controller(controller c)
 			        ti->sock_fd = conn;
 
 					dispatch(ct->tpool, output_processor, (void*)ti);
-					sleep(1);
+					usleep(1000);
 				    dispatch(ct->tpool, input_processor, (void*)ti);
 					FD_SET(conn, &master);
 					maxfds = conn>maxfds?conn:maxfds;

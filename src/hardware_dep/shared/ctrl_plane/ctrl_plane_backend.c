@@ -383,10 +383,10 @@ ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
 }
 
 
-ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t length)
+ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t bitlength)
 {
     Digest_t* dg = (Digest_t*) d;
-    uint32_t bytelength = (length-1)/8+1;
+    uint32_t bytelength = (bitlength-1)/8+1;
 
     struct p4_digest_field* dfield = add_p4_digest_field( dg->ctrl_plane_digest, dg->mem_cell->length );
 
@@ -397,7 +397,7 @@ ctrl_plane_digest add_digest_field(ctrl_plane_digest d, void* value, uint32_t le
     }
     
     memcpy( dfield->value, value, MIN(bytelength, P4_MAX_FIELD_VALUE_LENGTH));
-    dfield->length = length;
+    dfield->length = bitlength;
     netconv_p4_digest_field(dfield);
 
     return d;

@@ -20,9 +20,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-  #define MAX_IPS 60000
+#define MAX_IPS 60000
 
 controller c;
+
+extern void notify_controller_initialized();
 
 void fill_smac_table(uint8_t port, uint8_t mac[6]) {
   char buffer[2048];
@@ -99,10 +101,10 @@ void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_
   
   // uint16_t mask = (mode==0?65565:0);
 
-  printf("ue_selector %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
+  printf("ue_selector_0 %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "ue_selector");
+  strcpy(te->table_name, "ue_selector_0");
 
   lpm = add_p4_field_match_lpm(te, 2048);
   strcpy(lpm->header.name, "ipv4.dstAddr");
@@ -225,10 +227,10 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint8_t prefix, uint8_t nhgrp) {
   struct p4_action_parameter * ap;
   struct p4_field_match_lpm * lpm;
 
-  printf("ipv4_lpm %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
+  printf("ipv4_lpm_0 %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "ipv4_lpm");
+  strcpy(te->table_name, "ipv4_lpm_0");
 
   lpm = add_p4_field_match_lpm(te, 2048);
   strcpy(lpm->header.name, "ipv4.dstAddr");
@@ -269,7 +271,7 @@ void fill_ipv4_forward_table(uint8_t nhgroup, uint8_t port, uint8_t smac[6], uin
 
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "ipv4_forward");
+  strcpy(te->table_name, "ipv4_forward_0");
 
   exact = add_p4_field_match_exact(te, 2048);
   strcpy(exact->header.name, "routing_metadata.nhgrp");
@@ -362,7 +364,7 @@ void set_default_action_ue_selector_table() {
   h = create_p4_header(buffer, 0, sizeof(buffer));
 
   sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ue_selector");
+  strcpy(sda->table_name, "ue_selector_0");
 
   a = & (sda->action);
   strcpy(a->description.name, "drop");
@@ -431,7 +433,7 @@ void set_default_action_ipv4_forward() {
   h = create_p4_header(buffer, 0, sizeof(buffer));
 
   sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ipv4_forward");
+  strcpy(sda->table_name, "ipv4_forward_0");
 
   a = & (sda->action);
   strcpy(a->description.name, "drop");
@@ -454,7 +456,7 @@ void set_default_action_ipv4_lpm() {
   h = create_p4_header(buffer, 0, sizeof(buffer));
 
   sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ipv4_lpm");
+  strcpy(sda->table_name, "ipv4_lpm_0");
 
   a = & (sda->action);
   strcpy(a->description.name, "drop");
@@ -498,6 +500,8 @@ void init_simple() {
 
   fill_ipv4_lpm_table(ip, 16, nhgrp);
 //  fill_nexthops_table(nhgrp, port, smac, mac);
+
+  notify_controller_initialized();
 }
 
 int read_config_from_file(char * filename) {
@@ -532,7 +536,7 @@ int read_config_from_file(char * filename) {
     printf("Found code %s\n", format_code);
 
     if (!strcmp("SMAC", format_code) || !strcmp("M", format_code)) { //SMAC
-      if (7 == sscanf(line, "%s %x:%x:%x:%x:%x:%x", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
+      if (7 == sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
         //fill_smac_table(port, dmac);
         printf("Skipping SMAC\n");
       } else {
@@ -541,7 +545,7 @@ int read_config_from_file(char * filename) {
         return -1;
       }
     } else if (!strcmp("DMAC", format_code)) { //DMAC
-      if (8 == sscanf(line, "%s %x:%x:%x:%x:%x:%x %d", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
+      if (8 == sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhd", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
         fill_dmac_table(port, dmac);
       } else {
         printf("Wrong format error in line\n");
@@ -549,12 +553,12 @@ int read_config_from_file(char * filename) {
         return -1;
       }
     } else if (!strcmp("UE-SELECTOR", format_code) || !strcmp("U", format_code)) { //UE_SELECTOR
-      if (13 == sscanf(line, "%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
+      if (13 == sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hu %hd %hhd %d %hhd.%hhd.%hhd.%hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
       {
-  prefix = 32;
-  printf(line);
-  printf("%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", format_code, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
-  printf("PREFIX:::%d %d\n", prefix, temp);
+        prefix = 32;
+        printf("%s\n", line);
+        printf("%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", format_code, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
+        printf("PREFIX:::%d %d\n", prefix, temp);
         fill_ue_selector_table(ip, prefix, udpport, mode, teid, ipbst );
       } else {
         printf("Wrong format error in line\n");
@@ -563,7 +567,7 @@ int read_config_from_file(char * filename) {
       }
     } else if (!strcmp("TEID-RATE-LIMITER", format_code) || !strcmp("T", format_code)) { //teid_rate_limiter
       char teid_mode[256];
-      if (3 == sscanf(line, "%s %d %d", format_code, & teid, & teid_mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
+      if (3 == sscanf(line, "%s %d %s", format_code, & teid, teid_mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
       {
         if (!strcmp("APPLY-METER", teid_mode) || !strcmp("0", format_code))  mode = 0;
         if (!strcmp("NOP", teid_mode)         || !strcmp("1", format_code))  mode = 1;
@@ -576,7 +580,7 @@ int read_config_from_file(char * filename) {
       }
     } else if (!strcmp("M-FILTER", format_code) || !strcmp("F", format_code)) { //m_filter
       char m_filter_mode[256];
-      if (3 == sscanf(line, "%s %d %d", format_code, & color, & m_filter_mode)) //mode 1 _nop, 2 _drop
+      if (3 == sscanf(line, "%s %hhd %s", format_code, & color, m_filter_mode)) //mode 1 _nop, 2 _drop
       {
         if (!strcmp("NOP", m_filter_mode)  || !strcmp("1", format_code))         mode = 1;
         if (!strcmp("DROP", m_filter_mode) || !strcmp("2", format_code))         mode = 2;
@@ -587,7 +591,7 @@ int read_config_from_file(char * filename) {
         return -1;
       }
     } else if (!strcmp("NEXTHOP", format_code) || !strcmp("E", format_code)) {
-      if (7 == sscanf(line, "%s %d.%d.%d.%d %d %d", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
+      if (7 == sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hhd %hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
         fill_ipv4_lpm_table(ip, prefix, nhgrp);
       } else {
         printf("Wrong format error in line\n");
@@ -595,10 +599,9 @@ int read_config_from_file(char * filename) {
         return -1;
       }
     } else if (!strcmp("SMAC-DMAC", format_code) || !strcmp("N", format_code)) {
-      if (15 == sscanf(line, "%s %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
-        printf(line);
-        printf("\n");
-        printf("%s %d %d %x:%x:%x:%x:%x:%x %x:%x:%x:%x:%x:%x", format_code, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
+      if (15 == sscanf(line, "%s %hhd %hhd %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
+        printf("%s\n", line);
+        printf("%s %d %d %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
         fill_ipv4_forward_table(nhgrp, port, smac, dmac);
       } else {
         printf("Wrong format error in line\n");
@@ -629,6 +632,7 @@ void init_complex() {
   if (read_config_from_file(fn) < 0) {
     printf("File cannnot be opened...\n");
   }
+  notify_controller_initialized();
 }
 
 int main(int argc, char * argv[]) {

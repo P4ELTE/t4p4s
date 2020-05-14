@@ -14,7 +14,7 @@ controller c;
 
 extern void notify_controller_initialized();
 
-void fill_smac_table(uint8_t port, uint8_t mac[6])
+void fill_smac_table(uint32_t port, uint8_t mac[6])
 {
     char buffer[2048];
     struct p4_header* h;
@@ -44,7 +44,7 @@ void fill_smac_table(uint8_t port, uint8_t mac[6])
     send_p4_msg(c, buffer, 2048);
 }
 
-void fill_dmac_table(uint8_t port, uint8_t mac[6])
+void fill_dmac_table(uint32_t port, uint8_t mac[6])
 {
     char buffer[2048];
     struct p4_header* h;
@@ -67,10 +67,7 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
 
     ap = add_p4_action_parameter(h, a, 2048);
     strcpy(ap->name, "port");
-    memcpy(ap->bitmap, &port, 1);
-    ap->bitmap[1] = 0;
-    ap->bitmap[2] = 0;
-    ap->bitmap[3] = 0;
+    memcpy(ap->bitmap, &port, 4);
     ap->length = 4*8+0;
 
     netconv_p4_header(h);
@@ -84,19 +81,18 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6])
 
 void mac_learn_digest(void* b) {
     uint8_t mac[6];
-    uint8_t port[4];
+    uint32_t port;
     uint16_t offset=0;
     offset = sizeof(struct p4_digest);
     struct p4_digest_field* df = netconv_p4_digest_field(unpack_p4_digest_field(b, offset));
     memcpy(mac, df->value, 6);
     offset += sizeof(struct p4_digest_field);
     df = netconv_p4_digest_field(unpack_p4_digest_field(b, offset));
-    memcpy(port, df->value, 4);
+    memcpy(&port, df->value, 4);
 
-    uint8_t p = port[0];
-    printf("Ctrl: mac_learn_digest PORT: %d MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", p, mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    fill_dmac_table(p, mac);
-    fill_smac_table(p, mac);
+    printf("Ctrl: mac_learn_digest PORT: %d MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", port, mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    fill_dmac_table(port, mac);
+    fill_smac_table(port, mac);
 }
 
 void test_learn_ip(void* b) {
@@ -220,7 +216,7 @@ void set_default_action_dmac()
 }
 
 uint8_t macs[MAX_MACS][6];
-uint8_t portmap[MAX_MACS];
+uint32_t portmap[MAX_MACS];
 int mac_count = -1;
 
 int read_macs_and_ports_from_file(char *filename) {
@@ -249,7 +245,7 @@ int read_macs_and_ports_from_file(char *filename) {
             ++mac_count;
             for( i = 0; i < 6; ++i )
                     macs[mac_count][i] = (uint8_t) values[i];
-            portmap[mac_count] = (uint8_t) port;
+            portmap[mac_count] = (uint32_t) port;
 
         } else {
             printf("Wrong format error in line %d : %s\n", mac_count+2, line);
