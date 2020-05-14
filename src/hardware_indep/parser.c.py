@@ -39,17 +39,22 @@ def gen_extract_header_tmp_2(hdrinst, hdrtype, w):
     #[ buf += hdrlen;
 
 
-def gen_extract_header(hdrinst, hdrtype):
+def gen_extract_header(hdrinst, hdrtype, arg0_expr):
     if hdrinst is None:
         addError("extracting header", "no instance found for header type " + hdrtype.name)
         return
 
-    #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${hdrtype.byte_width} > pd->wrapper->pkt_len)
+    if hasattr(arg0_expr, "path"):
+        hdrname = arg0_expr.path.name
+    else:
+        hdrname = hdrinst.name
+
+    #[ if(unlikely((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${hdrtype.byte_width} > pd->wrapper->pkt_len))
     #[     ; // packet_too_short // TODO optimize this
-    #[ pd->headers[${hdrinst.id}].pointer = buf;
-    #[ pd->headers[${hdrinst.id}].length = ${hdrtype.byte_width};
+    #[ pd->headers[header_instance_${hdrname}].pointer = buf;
+    #[ pd->headers[header_instance_${hdrname}].was_enabled_at_initial_parse = true;
+    #[ pd->headers[header_instance_${hdrname}].length = ${hdrtype.byte_width};
     #[ pd->parsed_length += ${hdrtype.byte_width};
-    #[ buf += pd->headers[${hdrinst.id}].length;
     for f in hdrtype.fields:
         # TODO get rid of "f.get_attr('preparsed') is not None"
         # TODO (f must always have a preparsed attribute)
@@ -57,24 +62,26 @@ def gen_extract_header(hdrinst, hdrtype):
             #[ EXTRACT_INT32_AUTO_PACKET(pd, ${hdrinst.id}, ${f.id}, value32)
             #[ pd->fields.${f.id} = value32;
             #[ pd->fields.attr_${f.id} = 0;
+    #[ buf += ${hdrtype.byte_width};
 
-def gen_extract_header_2(hdrinst, hdrtype, w):
+def gen_extract_header_var_width(hdrinst, hdrtype, width_expr):
     if not hdrtype.is_vw:
         addError("generating extract header call", "fixed-width header extracted with two-param extract")
         return
 
     x = header_bit_width(hdrtype)
 
-    #[ uint32_t hdrlen = ((${format_expr(w)}+${x})/8);
-
-    #[ if ((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len)
+    #[ uint32_t hdrlen = ((${format_expr(width_expr)}+${x})/8);
+    #[ if (unlikely((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len))
     #[     ; // packet_too_short // TODO optimize this
     #[ if (hdrlen > ${hdrtype.byte_width})
-    #[     debug("    " T4LIT(!,warning) " header " T4LIT(${hdrinst.name},header) " is too long (" T4LIT(%d,warning) " bytes)\n", hdrlen);
+    #[     debug("    " T4LIT(!,warning) " variable width header " T4LIT(${hdrinst.name},header) " is " T4LIT(too long,warning) " (" T4LIT(%d,warning) " bytes)\n", hdrlen);
     #[ pd->headers[${hdrinst.id}].pointer = buf;
+    #[ pd->headers[${hdrinst.id}].was_enabled_at_initial_parse = true;
     #[ pd->headers[${hdrinst.id}].length = hdrlen;
     #[ pd->parsed_length += hdrlen;
     #[ pd->headers[${hdrinst.id}].var_width_field_bitwidth = hdrlen * 8 - ${header_bit_width(hdrtype)};
+    #[ buf += hdrlen;
 
 
 ################################################################################
@@ -90,13 +97,14 @@ for l in parser.parserLocals:
 #} }
 
 for s in parser.states:
-    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate);
+    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* in_buf, lookup_table_t** tables, parser_state_t* pstate);
 
 for s in parser.states:
-    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate) {
+    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* in_buf, lookup_table_t** tables, parser_state_t* pstate) {
     #[     uint32_t value32; (void)value32;
     #[     uint32_t res32; (void)res32;
     #[     parser_state_t* local_vars = pstate;
+    #[     uint8_t* buf = in_buf;
     #[     debug(" :::: Parser state $$[parserstate]{s.name}\n");
 
     for c in s.components:
@@ -107,58 +115,87 @@ for s in parser.states:
         if c.call != 'extract_header':
             continue
 
-        #[ // CALL ${c} ${s}
+        #[ // Extracting header ${s.name}
 
         hdrtype = c.header.type_ref if hasattr(c.header, 'type_ref') else c.header
 
+        arg0_expr = c.methodCall.arguments['Argument'][0]
+
         # TODO find a more universal way to get to the header instance
-        if hasattr(c.methodCall.arguments[0].expression, 'path'):
-            hdrinst_name = c.methodCall.arguments['Argument'][0].expression.path.name
+        if hasattr(arg0_expr, 'path'):
+            hdrinst_name = arg0_expr.path.name
 
             dvar = parser.parserLocals.get(hdrinst_name, 'Declaration_Variable')
             if dvar:
-                hdrinst = dvar.type.type_ref
+                insts = [hi for hi in hlir16.header_instances['StructField'] if hi.type.type_ref.name == hdrtype.name]
+                if len(insts) == 1:
+                    hdrinst = insts[0]
+                elif len(insts) == 0:
+                    # note: it is defined as a local variable
+                    hdrinst = dvar.type.type_ref
+                else:
+                    addError("Finding header instance", "There is no single header instance that corresponds to {}".format(hdrtype.name))
+
                 hdrtype = dvar.type.type_ref
             else:
                 hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
+
+            pstate_var_name = dvar.name
         elif hasattr(c.methodCall.method.expr, 'header_ref'):
             hdrinst = c.methodCall.method.expr.header_ref
+            pstate_var_name = hdrinst.name
         else:
-            hdrinst_name = c.methodCall.arguments[0].expression.member
-            hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
+            arg0_expr = c.methodCall.arguments[0].expression
+            if hasattr(arg0_expr, "member"):
+                hdrinst_name = arg0_expr.member
+                hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
+            else:
+                hdrinst_name = arg0_expr.path.name
+                hdrinst = hlir16.header_instances.get(hdrinst_name)
+            pstate_var_name = hdrinst.name
 
         # TODO there should be no "secondary" hdrtype node
         if not hasattr(hdrtype, 'bit_width'):
             hdrtype = hlir16.header_types.get(hdrtype.name, 'Type_Header')
-            
+
         bitwidth = hdrtype.bit_width if not c.is_vw else header_bit_width(hdrtype)
 
         if not c.is_tmp:
             if not c.is_vw:
-                #[ ${gen_extract_header(hdrinst, hdrtype)}
+                #[ ${gen_extract_header(hdrinst, hdrtype, arg0_expr)}
             else:
-                #[ ${gen_extract_header_2(hdrinst, hdrtype, c.width)}
+                #[ ${gen_extract_header_var_width(hdrinst, hdrtype, c.width)}
+
+                # the variable counts in bytes, length in bits, hence the multiplication by 8
+                #[ pstate->${pstate_var_name}_var = pd->headers[${hdrinst.id}].length * 8;
             #[ dbg_bytes(pd->headers[${hdrinst.id}].pointer, pd->headers[${hdrinst.id}].length,
-            #[           "   :: Extracted header $$[header]{hdrinst.name} ($${(bitwidth+7)/8}{ bytes}): ");
+            #[           "   :: Extracted ${"variable width " if c.is_vw else ""}header instance " T4LIT(#%d) " $$[header]{hdrinst.name}/$${}{%d}B: ", ${hdrinst.id} + 1, pd->headers[${hdrinst.id}].length);
         else:
             if not c.is_vw:
                 #[ ${gen_extract_header_tmp(hdrinst)}
                 #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrtype.byte_width},
-                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrtype.byte_width} bytes): ");
+                #[           "   :: Extracted header instance " T4LIT(#%d) " $$[header]{hdrinst.path.name} of type $${hdrinst.type.name}/$${hdrtype.byte_width}B: ", ${hdrinst.id} + 1, pd->headers[${hdrinst.id}].length);
 
             else:
                 #[ ${gen_extract_header_tmp_2(hdrinst, hdrtype, c.width)}
                 hdr_width = header_bit_width(hdrtype)
                 var_width = format_expr(c.width)
                 #[ dbg_bytes(pstate->${hdrinst.ref.name}, (($hdr_width + $var_width)+7)/8,
-                #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrtype.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
-                #[           $var_width, (($hdr_width + $var_width)+7)/8);
+                #[           "   :: Extracted header instance " T4LIT(#%d) " $$[header]{hdrinst.path.name} of type $${hdrtype.name}/$${}{%d}B: ",
+                #[           ${hdrinst.id} + 1, (($hdr_width + $var_width)+7)/8);
 
     if not hasattr(s, 'selectExpression'):
         if s.name == 'accept':
             #[ debug("   :: Packet is $$[success]{}{accepted}\n");
+            #[ pd->payload_length = packet_length(pd) - pd->parsed_length;
+
+            #{ if (pd->payload_length > 0) {
+            #[     dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, "    : " T4LIT(Payload,header) " is $${}{%d} bytes: ", pd->payload_length);
+            #[ } else {
+            #[     debug("    : " T4LIT(Payload,header) " is empty\n");
+            #} }
         if s.name == 'reject':
-            #[ debug("   :: Packet is $$[success]{}{dropped}\n");
+            #[ debug("   :: Packet is $$[status]{}{dropped}\n");
             #[     MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, true);
     else:
         b = s.selectExpression
@@ -190,16 +227,12 @@ for hdr in hlir16.header_types:
 #} };
 
 
-#[ // Returns the sum of all collected variable widths,
-#[ // and resets all varwidth counters.
+#[ // Returns the sum of all collected variable widths.
 #{ int get_var_width_bitwidth(parser_state_t* pstate) {
 #[     int retval = 0
 for loc in parser.parserLocals:
     #[ + pstate->${loc.name}_var
 #[     ;
-
-for loc in parser.parserLocals:
-    #[ pstate->${loc.name}_var = 0;
 
 #[ return retval;
 

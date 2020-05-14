@@ -30,9 +30,9 @@ for hdr in hlir16.header_instances_with_refs:
 
     for fld in hdr.type.type_ref.fields:
         fld = fld._expression
+        fldtype = fld.canonical_type()
 
-        # if fld('preparsed', False) and fld.type.size <= 32:
-        if fld.type._type_ref.size <= 32:
+        if fldtype.size <= 32:
             #[ uint32_t field_instance_${hdr.name}_${fld.name};
             #[ uint8_t attr_field_instance_${hdr.name}_${fld.name};
 #} } parsed_fields_t;
@@ -59,14 +59,16 @@ for hi in hlir16.header_instances_with_refs:
 #[ // ---------------------
 
 #[ #define HEADER_INSTANCE_COUNT ${len(hlir16.header_instances)}
-hdrlens = "+".join([str(hi.type.type_ref.byte_width) for hi in hlir16.header_instances_with_refs])
-#[ #define HEADER_INSTANCE_TOTAL_LENGTH ($hdrlens)
+
+# TODO maybe some more needs to be added for varlen headers?
+nonmeta_hdrlens = "+".join([str(hi.type.type_ref.byte_width) for hi in hlir16.header_instances_with_refs if not hi.canonical_type().is_metadata])
+#[ #define HEADER_INSTANCE_TOTAL_LENGTH ($nonmeta_hdrlens)
 
 
 #{ struct header_instance_info {
 #[     const char* name;
 #[     int         byte_width;
-#[     int         byte_width_summed;
+#[     int         byte_offset;
 #[     bool        is_metadata;
 #} };
 
@@ -82,21 +84,21 @@ for hdr in hlir16.header_instances:
 
 
 #{ static const struct header_instance_info header_instance_infos[HEADER_INSTANCE_COUNT+1] = {
-byte_widths = []
+byte_offsets = []
 for hdr in hlir16.header_instances:
     typ = hdr.type.type_ref if hasattr(hdr.type, 'type_ref') else hdr.type
     typ_bit_width = typ.bit_width if hasattr(typ, 'bit_width') else 0
     typ_byte_width = typ.byte_width if hasattr(typ, 'byte_width') else 0
 
-    byte_widths += [str(typ_byte_width)]
-    joined = "+".join(byte_widths)
-
     #{ { // header_instance_${hdr.name}
     #[     "${hdr.name}",
     #[     ${typ_byte_width}, // header_instance_${hdr.name}, ${typ_bit_width} bits, ${typ_bit_width/8.0} bytes
-    #[     $joined,
+    #[     ${"+".join(byte_offsets) if byte_offsets != [] else "0"},
     #[     ${'true' if hasattr(typ, 'is_metadata') and typ.is_metadata else 'false'},
     #} },
+
+    byte_offsets += [str(typ_byte_width)]
+
 #[ { // dummy
 #[ },
 #} };
@@ -151,14 +153,10 @@ for hdr in hlir16.header_instances_with_refs:
 #} };
 
 
-# TODO this should be available as a field
-def get_real_type(typenode):
-    return typenode.type_ref if hasattr(typenode, 'type_ref') else typenode
-
 #{ static const int field_instance_bit_width[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances_with_refs:
     for fld in hdr.type.type_ref.fields:
-        fldtype = get_real_type(fld.type)
+        fldtype = fld.canonical_type()
         #[   ${fldtype.size}, // field_instance_${hdr.name}_${fld.name}
 #} };
 
@@ -189,7 +187,7 @@ for hdr in hlir16.header_instances_with_refs:
 #{ static const int field_instance_mask[FIELD_INSTANCE_COUNT] = {
 for hdr in hlir16.header_instances_with_refs:
     for fld in hdr.type.type_ref.fields:
-        fldtype = get_real_type(fld.type)
+        fldtype = fld.canonical_type()
         #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_instance_${hdr.name}_${fld.name},
 #} };
 
@@ -265,7 +263,7 @@ for hdr in hlir16.header_types:
 #{ static const int field_bit_width[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
     for fld in hdr.fields:
-        fldtype = get_real_type(fld.type)
+        fldtype = fld.canonical_type()
         #[ ${fldtype.size}, // field_${hdr.name}_${fld.name}
 #} };
 
@@ -288,7 +286,7 @@ for hdr in hlir16.header_types:
 #{ static const int field_mask[FIELD_COUNT] = {
 for hdr in hlir16.header_types:
     for fld in hdr.fields:
-        fldtype = get_real_type(fld.type)
+        fldtype = fld.canonical_type()
         #[  __bswap_constant_32(uint32_top_bits(${fldtype.size}) >> (${fld.offset}%8)), // field_${hdr.name}_${fld.name},
 #} };
 
@@ -327,10 +325,10 @@ for loc in parser.parserLocals:
         if loc.type.type_ref.node_type == 'Type_Extern':
             #[ ${loc.type.type_ref.name}_t ${loc.name};
         else:
-            #[ uint8_t ${loc.name}[${loc.type.type_ref.byte_width}];
+            #[ uint8_t ${loc.name}[${loc.type.type_ref.byte_width}]; // type: ${loc.type.type_ref.name}
     else:
         #[ uint8_t ${loc.name}[(${loc.type.size}+7)/8];
-    #[ uint8_t ${loc.name}_var; // Width of the variable width field
+    #[ uint8_t ${loc.name}_var; // Width of the variable width field // type: ${loc.type.type_ref.name}
 #} } parser_state_t;
 
 
