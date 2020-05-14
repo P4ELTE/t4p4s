@@ -23,7 +23,6 @@
 for t in hlir16.tables:
     #{ typedef struct table_entry_${t.name}_s {
     #[     struct ${t.name}_action  action;
-    #[     local_state_${t.name}_t  state;
     #[     entry_validity_t         is_entry_valid;
     #} } table_entry_${t.name}_t;
 
