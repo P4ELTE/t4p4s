@@ -7,18 +7,22 @@
 
 
 # Tests that contain functionality that is not supported yet
-%test-bit2
-%test-int
-%test-header-stacks
-%test-header-union-1
-%test-header-union-2
-%test-skipping-bits-2
-%test-varbit
+test-bit2
+test-int
+test-header-stacks
+test-header-union-1
+test-header-union-2
+test-skipping-bits-1
+test-skipping-bits-2
+test-varbit
+test-action
 
 # Tests that contain functionality in ways that are more complex than supported
-%test-headers
-%test-typedef
-%test-smem
+test-headers
+test-typedef
+
+# Shall be supported soon
+test-hdrinsts-nonaligned-flds
 
 # No controller yet
-%vEPG
+vEPG

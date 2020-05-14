@@ -1,22 +1,18 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000000000000010000001000000011
-// Out: 00000011
+// In:  00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+// Out: 00000001 00000010 00000100 00001000 00010000 00100000 01000000 10000000
 
-header option_A_t {
-  bit<8> a;
-}
-header option_B_t {
-  bit<8> b;
-}
-header option_C_t {
-  bit<8> c;
-}
-header_union options_t {
-  option_A_t a;
-  option_B_t b;
-  option_C_t c;
+header dummy_t {
+    bit<1> f7;
+    bit<1> f6;
+    bit<1> f5;
+    bit<1> f4;
+    bit<1> f3;
+    bit<1> f2;
+    bit<1> f1;
+    bit<1> f0;
 }
 
 struct empty_metadata_t {
@@ -26,7 +22,14 @@ struct metadata {
 }
 
 struct headers {
-    options_t[10] option_stack;
+    dummy_t dummy0;
+    dummy_t dummy1;
+    dummy_t dummy2;
+    dummy_t dummy3;
+    dummy_t dummy4;
+    dummy_t dummy5;
+    dummy_t dummy6;
+    dummy_t dummy7;
 }
 
 parser IngressParserImpl(packet_in packet,
@@ -35,28 +38,19 @@ parser IngressParserImpl(packet_in packet,
                          in psa_ingress_parser_input_metadata_t istd,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
-    state parse_option_a {
-        packet.extract(hdr.option_stack.next.a);
-        transition start;
-    }
-    state parse_option_b {
-        packet.extract(hdr.option_stack.next.b);
-        transition start;
-    }
-    state parse_option_c {
-        packet.extract(hdr.option_stack.next.c);
-        transition start;
-    }
-    state end {
+    state parse_ethernet {
+        packet.extract(hdr.dummy0);
+        packet.extract(hdr.dummy1);
+        packet.extract(hdr.dummy2);
+        packet.extract(hdr.dummy3);
+        packet.extract(hdr.dummy4);
+        packet.extract(hdr.dummy5);
+        packet.extract(hdr.dummy6);
+        packet.extract(hdr.dummy7);
         transition accept;
     }
     state start {
-        transition select(packet.lookahead<bit<2>>()) {
-            2w0x0 : parse_option_a;
-            2w0x1 : parse_option_b;
-            2w0x2 : parse_option_c;
-            2w0x3 : end;
-        }
+        transition parse_ethernet;
     }
 }
 
@@ -65,7 +59,19 @@ control egress(inout headers hdr,
                in    psa_egress_input_metadata_t  istd,
                inout psa_egress_output_metadata_t ostd)
 {
+    bit<1> one = 1;
+
     apply {
+       hdr.dummy0.f0  = hdr.dummy0.f0 + one + 1w0;
+
+       // tests if modifying non-byte-aligned fields works properly
+       hdr.dummy1.f1 = hdr.dummy1.f1 + one + 1w0;
+       hdr.dummy2.f2 = hdr.dummy2.f2 + one + 1w0;
+       hdr.dummy3.f3 = hdr.dummy3.f3 + one + 1w0;
+       hdr.dummy4.f4 = hdr.dummy4.f4 + one + 1w0;
+       hdr.dummy5.f5 = hdr.dummy5.f5 + one + 1w0;
+       hdr.dummy6.f6 = hdr.dummy6.f6 + one + 1w0;
+       hdr.dummy7.f7 = hdr.dummy7.f7 + one + 1w0;
     }
 }
 
@@ -75,7 +81,9 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { }
+    apply {
+        ostd.egress_port = (PortId_t)12345;
+    }
 }
 
 parser EgressParserImpl(packet_in buffer,
@@ -100,10 +108,14 @@ control IngressDeparserImpl(packet_out buffer,
                             in psa_ingress_output_metadata_t istd)
 {
     apply {
-        option_A_t tmp = { 8w3 };
-        if (hdr.option_stack[0].isValid() && hdr.option_stack[1].isValid() && hdr.option_stack[2].isValid() && !hdr.option_stack[3].isValid()) {
-            buffer.emit(tmp);
-        }
+        buffer.emit(hdr.dummy0);
+        buffer.emit(hdr.dummy1);
+        buffer.emit(hdr.dummy2);
+        buffer.emit(hdr.dummy3);
+        buffer.emit(hdr.dummy4);
+        buffer.emit(hdr.dummy5);
+        buffer.emit(hdr.dummy6);
+        buffer.emit(hdr.dummy7);
     }
 }
 

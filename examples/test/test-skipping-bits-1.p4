@@ -24,9 +24,12 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_ethernet {
-        packet.extract<dummy_t>(_);
+        // extracting to the underscore identifier is not supported currently
+        // packet.extract<dummy_t>(_);
+
         // packet.advance is not supported currently
         //packet.advance(2);
+
         packet.extract(hdr.dummy);
         transition accept;
     }
@@ -51,7 +54,9 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { }
+    apply {
+        ostd.egress_port = (PortId_t)12345;
+    }
 }
 
 parser EgressParserImpl(packet_in buffer,

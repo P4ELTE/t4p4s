@@ -59,6 +59,7 @@ control ingress(inout headers hdr,
     }
     action mac_learn() {
     	mac_learn_digest.pack({ hdr.ethernet.srcAddr, istd.ingress_port });
+        ostd.egress_port = (PortId_t)32w100;
     }
     action _nop() {
     }

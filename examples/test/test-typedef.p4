@@ -1,14 +1,19 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000000
-// Out: 10000000
+// In:  00000000 00000000 00000000 00000000
+// Out: 00000001 11111111 10101100 11011100
 
-typedef bit<1> one_bit_t;
+typedef bit<1>  one_bit_t;
+typedef bit<8>  one_byte_t;
+typedef bit<16> two_byte_t;
 
 header dummy_t {
-    one_bit_t f1;
-    bit<7> padding;
+    bit<7>     padding;
+    one_bit_t  f0;
+
+    one_byte_t byte_field1;
+    two_byte_t byte_field2;
 }
 
 struct empty_metadata_t {
@@ -42,9 +47,11 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     one_bit_t one = 1;
-    
+
     apply {
-       hdr.dummy.f1 = hdr.dummy.f1 + one + 1w0;
+       hdr.dummy.f0          = hdr.dummy.f0 + one + 1w0;
+       hdr.dummy.byte_field1 = 0xFF;
+       hdr.dummy.byte_field2 = 0xACDC;
     }
 }
 
@@ -54,7 +61,9 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { }
+    apply {
+        ostd.egress_port = (PortId_t)12345;
+    }
 }
 
 parser EgressParserImpl(packet_in buffer,

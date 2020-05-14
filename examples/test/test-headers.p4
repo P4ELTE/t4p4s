@@ -5,17 +5,17 @@
 // Out: 1111100000000000
 
 struct data {
-	bit<1> first;
-        bit<1> second;
-        bit<1> third;
-        bit<1> fourth;
+    bit<1> first;
+    bit<1> second;
+    bit<1> third;
+    bit<1> fourth;
 }
 
 header empty_t { }
 
 header dummy_t {
     bit<1> f1;
-    data f2;
+    data   f2;
     bit<3> padding;
 }
 
@@ -76,7 +76,9 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { }
+    apply {
+        ostd.egress_port = (PortId_t)12345;
+    }
 }
 
 parser EgressParserImpl(packet_in buffer,

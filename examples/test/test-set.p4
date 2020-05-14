@@ -30,34 +30,34 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_continue_4 {
-	hdr.dummy.f4 = 2w3;
-	hdr.dummy.f5 = 2w3;
-	transition accept;
+        hdr.dummy.f4 = 2w3;
+        hdr.dummy.f5 = 2w3;
+        transition accept;
     }
 
     state parse_continue_3 {
-	hdr.dummy.f3 = 4w0xF;
-	transition select(hdr.dummy.f4, hdr.dummy.f5) {
-		(2w0, 2w1) : parse_continue_4;
+        hdr.dummy.f3 = 4w0xF;
+        transition select(hdr.dummy.f4, hdr.dummy.f5) {
+                (2w0, 2w1) : parse_continue_4;
                 (2w0, 2w0) : reject;
                 (_, _) : reject; 
-	}
+        }
     }
 
     state parse_continue_2 {
         hdr.dummy.f2 = 8w0xFF;
         transition select(hdr.dummy.f3) {
-		4w5..4w8 : parse_continue_3;
+                4w5..4w8 : parse_continue_3;
                 _ : reject;
         }
     }
     
     state parse_continue {
-	hdr.dummy.f1 = hdr.dummy.f1 + 1;
+        hdr.dummy.f1 = hdr.dummy.f1 + 1;
         transition select(hdr.dummy.f2) {
-		8w0x0A &&& 8w0x0F: parse_continue_2;
-	        _ : reject;
-	}
+                8w0x0A &&& 8w0x0F: parse_continue_2;
+                _ : reject;
+        }
     }
     state start {
         packet.extract(hdr.dummy);
