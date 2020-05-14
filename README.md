@@ -1,5 +1,5 @@
 
-# T<sub>4</sub>P<sub>4</sub>S, a multitarget P4<sub>16</sub> compiler
+# T₄P₄S, a multitarget P4<sub>16</sub> compiler
 
 This is an experimental compiler for P4<sub>16</sub> and P4<sub>14</sub> files.
 For publications and more, [see our homepage](http://p4.elte.hu/).
@@ -16,7 +16,7 @@ To start working with the compiler, simply download the `bootstrap-t4p4s.sh` scr
 
     . ./bootstrap-t4p4s.sh
 
-The script installs all necessary software including T<sub>4</sub>P<sub>4</sub>S itself, and sets up environment variables.
+The script installs all necessary software including T₄P₄S itself, and sets up environment variables.
 
 - Note: without the `.` at the beginning of the line, the environment variables will not be usable immediately.
     - In that case, you can either start a new terminal, or run `. ./t4p4s_environment_variables.sh`
@@ -40,7 +40,7 @@ Overriding defaults.
 
     RTE_TARGET=x86_64-native-linuxapp-gcc . ./bootstrap-t4p4s.sh
 
-To download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+To download T₄P₄S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
 
 - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
 
@@ -184,6 +184,14 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh %%l2fwd`
     - Stop the switch immediately upon encountering invalid data
         `./t4p4s.sh %l2fwd=payload strict`
+1. Redo
+    - `t4p4s.sh` saves the collected environment variables to `build/l2fwd-gen@test-test/redo.opts.txt` (when executed as `./t4p4s.sh %l2fwd`)
+    - This option loads the saved environment; can speed up rerunning test cases
+        - Mostly useful for development purposes
+    - Has to be the very first argument to `t4p4s.sh`
+    - `run_tests.sh` (see below) also uses this option
+        `./t4p4s.sh redo=%l2fwd`
+        `./t4p4s.sh redo=%l2fwd=test2`
 1. Miscellaneous options
     - Specify the P4 version manually (usually decided by other options or P4 file extension)
         `./t4p4s.sh :l2fwd vsn=14`
@@ -206,6 +214,12 @@ You can also give this script any number of additional options.
 
     ./run_tests.sh verbose dbg
 
+As its name implies, `run_tests.sh` runs each test case in the offline (`nicoff`, meaning no NIC present) mode.
+You may set the `PREFIX` and `POSTFIX` environment variables to make the script start `t4p4s.sh` with a different setup for the test case.
+For example, the following command tests whether the test cases compile in the online (`nicon`) mode, but it doesn't execute them.
+
+    PREFIX=: POSTFIX="" ./run_tests.sh ^run
+
 Once the test cases are run, the script prints a summary of successful and failed test cases,
 grouped by the types of failures.
 You may indicate which tests are to be skipped by listing them in a file.
@@ -214,9 +228,9 @@ See the default skip file, `tests_to_skip.txt`, for further details.
     SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg
 
 
-# Using Docker with T<sub>4</sub>P<sub>4</sub>S
+# Using Docker with T₄P₄S
 
-You can also run `t4p4s-docker.sh` to run T<sub>4</sub>P<sub>4</sub>S in a Docker container.
+You can also run `t4p4s-docker.sh` to run T₄P₄S in a Docker container.
 
 - Docker Community Edition has to be configured on your system.
     - Usually it is available once you install the package `docker.io`.
@@ -397,6 +411,7 @@ The compiler uses the `.py` files inside the `hardware_indep` directory to gener
             - `$$[mycolourname]{PyExpr}` uses `T4LIGHT_mycolourname` as the colour of highlighting; these colours are defined in `lights.cfg` and must be listed in `ALL_COLOURS` of `t4p4s.sh`
             - `$$[mycolourname]{PyExpr}{text}` is the same as above, but `text` (which is just plain text) also appears in the highlighted part
             - `$$[mycolourname][text1]{PyExpr}{text}` is the same as above, but `text1` (which is just plain text) also appears in the highlighted part
+        - The generated C code can also use highlighting: use `T4LIT(some text)` or `T4LIT(my header instance's name,hdrinst)`
 - The following capabilities are most useful inside the `.sugar.py` files, but are used in `hardware_indep` as well.
     - Functions whose name begin with `gen_` are considered helper functions in which the above markers are usable.
         - Technically, they will have a local `generated_code` variable that starts out empty, and they will return it at the end.
