@@ -257,7 +257,7 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
               bit_width,
               bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32,
-              (bit_width+7)/4,
+              (bit_width+7)/8*2,
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
 
         int res32;

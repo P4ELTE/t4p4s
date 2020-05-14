@@ -7,6 +7,9 @@ from utils.codegen import format_type
 #[ #ifndef __COMMON_H__
 #[ #define __COMMON_H__
 
+#[ #include <stdint.h>
+#[ #include "parser.h"
+
 for typedef in hlir16.objects['Type_Typedef']:
     #[ typedef ${format_type(typedef.type)} ${typedef.name};
 
