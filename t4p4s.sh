@@ -1,38 +1,12 @@
 #!/bin/bash
 
 # --------------------------------------------------------------------
-# Set defaults
+# Helper functions
 
-ERROR_CODE=1
-
-COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
-LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
-EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
-
-P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
-CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
-
-ARCH=${ARCH-dpdk}
-ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
-
-PYTHON=${PYTHON-python}
-DEBUGGER=${DEBUGGER-gdb}
-
-
-declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
-
-# --------------------------------------------------------------------
-# Helpers
-
-function ctrl_c_handler() {
-    (>&2 echo -e "\nInterrupted, exiting...")
-    ERROR_CODE=254
-    exit_program
+save_envs() {
+    mkdir -p $T4P4S_TARGET_DIR/build/recent
+    get_current_envs | grep -vE "(${ORIG_ENVS})" > $T4P4S_TARGET_DIR/build/recent/${OPTS[example]}@${OPTS[variant]}.opts.txt
 }
-
-trap 'ctrl_c_handler' INT
-
 
 exit_program() {
     echo -e "$nn"
@@ -77,6 +51,7 @@ array_contains() {
     echo "n"
 }
 
+
 # Return the first valid colour code in the args, or the neutral colour if no valid colour is found.
 cc() {
     [ "$(array_contains "${OPTS[bw]}" "on" "terminal")" == y ] && echo "$nn" && return
@@ -88,30 +63,8 @@ cc() {
     echo "$nn"
 }
 
-# Set lit terminal text to colour indicated by `$1`.
-set_term_light() {
-    OPTS[light]=$1
-    colours=()
-
-    [ "$1" == "0" ] && nn="" && return
-
-    IFS=',' read -r -a optparts <<< "$1"
-    for i in "${!optparts[@]}"; do 
-        COLOUR=${optparts[$i]}
-        COLOUR=${KNOWN_COLOURS[$COLOUR]-$COLOUR}
-
-        colours[$i]="\033[${COLOUR}m"
-    done
-    nn="\033[0m"
-}
-
-remove_name_markers() {
-    [[ "$1" == \?\?*     ]] && echo "${1#\?\?}" && return
-    [[ "$1" == \?*       ]] && echo "${1#\?}"   && return
-    [[ "$1" == \@*       ]] && echo "${1#\@}"   && return
-    [[ "$1" == \**       ]] && echo "${1#\*}"   && return
-
-    echo "$1"
+get_current_envs() {
+    ( set -o posix ; set ) | tr '\n' '\r' | sed "s/\r[^=]*='[^']*\r[^\r]*'\r/\r/g" | tr '\r' '\n'
 }
 
 print_cmd_opts() {
@@ -172,6 +125,41 @@ optvalue() {
     [ "${IGNORE_OPTS["$1"]}" != "" ] && echo "off" && return
     [ "${OPTS[$1]}" == "" ] && echo "off" && return
     echo "${OPTS[$1]}"
+}
+
+ctrl_c_handler() {
+    (>&2 echo -e "\nInterrupted, exiting...")
+    ERROR_CODE=254
+    exit_program
+}
+
+trap 'ctrl_c_handler' INT
+
+
+# Set lit terminal text to colour indicated by `$1`.
+set_term_light() {
+    OPTS[light]=$1
+    colours=()
+
+    [ "$1" == "0" ] && nn="" && return
+
+    IFS=',' read -r -a optparts <<< "$1"
+    for i in "${!optparts[@]}"; do 
+        COLOUR=${optparts[$i]}
+        COLOUR=${KNOWN_COLOURS[$COLOUR]-$COLOUR}
+
+        colours[$i]="\033[${COLOUR}m"
+    done
+    nn="\033[0m"
+}
+
+remove_name_markers() {
+    [[ "$1" == \?\?*     ]] && echo "${1#\?\?}" && return
+    [[ "$1" == \?*       ]] && echo "${1#\?}"   && return
+    [[ "$1" == \@*       ]] && echo "${1#\@}"   && return
+    [[ "$1" == \**       ]] && echo "${1#\*}"   && return
+
+    echo "$1"
 }
 
 # --------------------------------------------------------------------
@@ -254,24 +242,86 @@ overwrite_on_difference() {
     rm -f "/tmp/$1.tmp"
 }
 
-# --------------------------------------------------------------------
-# Set defaults
 
-declare -A KNOWN_COLOURS
-declare -A OPTS
-declare -A IGNORE_OPTS
+ORIG_ENVS=`get_current_envs | cut -f 1 -d"=" | paste -sd "|" -`
 
-colours=()
-nn="\033[0m"
+if [ $# -gt 0 ] && [[ $1 = redo=* ]]; then
+    REDO=${1#redo=}
+    REDO=${REDO#%}
+    if [[ $REDO == *=* ]]; then
+        REDO=${REDO%=*}@test-${REDO#*=}
+    elif [[ $1 == *:* ]]; then
+        REDO=${REDO#:}@std
+    elif [[ $1 == *%* ]]; then
+        REDO=${REDO%=*}@test-test
+    else
+        REDO=${REDO%=.*}
+    fi
 
-# Check if configuration is valid
-[ "${P4C}" == "" ] && exit_program "\$P4C not defined"
-[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
+    # array variables have to be explicitly declared as such before reading them from the file
+    declare -A OPTS
+    declare -A IGNORE_OPTS
 
-# --------------------------------------------------------------------
-# Parse opts from files and command line
+    REDO_FILE=./build/$REDO/redo.opts.txt
+    if [ -f ${REDO_FILE} ]; then
+        . ${REDO_FILE}
+        REDO_DONE=1
 
-PYTHON_PARSE_OPT=$(cat <<END
+        verbosemsg "Options reloaded from $(cc 0)${REDO_FILE}$nn"
+    else
+        colours=([0]="\033[1;32m" [1]="\033[1;33m" [2]="\033[1;31m")
+        nn="\033[0m"
+
+        if [ "${ON_REDO_FAIL}" != "continue" ]; then
+            echo -e "$(cc 2)Cannot redo$nn $(cc 0)${1#redo=}$nn: config file $(cc 1)${REDO_FILE}$nn does not exist"
+            exit_program
+        else
+            echo -e "Redo config file for $(cc 0)${1#redo=}$nn $(cc 1)does not exist$nn, continuing regular execution..."
+        fi
+    fi
+fi
+
+if [ "$REDO_DONE" != "1" ]; then
+    # --------------------------------------------------------------------
+    # Set defaults
+
+    ERROR_CODE=1
+
+    COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
+    LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
+    EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
+
+    P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
+    CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+
+    ARCH=${ARCH-dpdk}
+    ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
+
+    PYTHON=${PYTHON-python}
+    DEBUGGER=${DEBUGGER-gdb}
+
+
+    declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
+    ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
+
+    # --------------------------------------------------------------------
+    # Set defaults
+
+    declare -A KNOWN_COLOURS
+    declare -A OPTS
+    declare -A IGNORE_OPTS
+
+    colours=()
+    nn="\033[0m"
+
+    # Check if configuration is valid
+    [ "${P4C}" == "" ] && exit_program "\$P4C not defined"
+    [ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
+
+    # --------------------------------------------------------------------
+    # Parse opts from files and command line
+
+    PYTHON_PARSE_OPT=$(cat <<END
 import re
 import sys
 
@@ -302,179 +352,216 @@ print 'ok', ('y' if m is not None else 'n')
 for gname in (p[0] for p in patterns):
     print gname, '' if m is None else m.group(gname) or ''
 END
-)
+    )
 
 
-candidate_count() {
-    simple_count=$(find "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
-    if [ $simple_count -eq 1 ]; then
-        echo 1
-    else
-        echo $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l)
-    fi
-}
+    candidate_count() {
+        simple_count=$(find "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
+        if [ $simple_count -eq 1 ]; then
+            echo 1
+        else
+            echo $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l)
+        fi
+    }
 
-candidates() {
-    if [ $(candidate_count $1) -gt 0 ]; then
-        echo
-        find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
-    else
-        echo "(no candidates found)"
-    fi
-}
+    candidates() {
+        if [ $(candidate_count $1) -gt 0 ]; then
+            echo
+            find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
+        else
+            echo "(no candidates found)"
+        fi
+    }
 
-OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
+    OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
 
-CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
-declare -A OPTS=([cfgfiles]="$CFGFILES")
+    CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
+    declare -A OPTS=([cfgfiles]="$CFGFILES")
 
 
-while [ "${OPTS[cfgfiles]}" != "" ]; do
-    IFS=',' read -r -a cfgfiles <<< "${OPTS[cfgfiles]}"
-    OPTS[cfgfiles]=""
+    while [ "${OPTS[cfgfiles]}" != "" ]; do
+        IFS=',' read -r -a cfgfiles <<< "${OPTS[cfgfiles]}"
+        OPTS[cfgfiles]=""
 
-    for cfgfile in ${cfgfiles[@]}; do
-        declare -a NEWOPTS=()
+        for cfgfile in ${cfgfiles[@]}; do
+            declare -a NEWOPTS=()
 
-        # Collect option descriptions either from the command line or a file
-        if [ "$cfgfile" == "!cmdline!" ]; then
-            OPT_ORIGIN="$(cc 0)command line$nn"
-            for opt; do
-                NEWOPTS+=("$opt")
-            done
-        elif [[ $cfgfile =~ !varcfg!* ]]; then
-            OPT_ORIGIN="$(cc 0)variant config file$nn $(cc 1)${cfgfile#!varcfg!}$nn"
-            examplename="${OPTS[example]}@${OPTS[variant]}"
-            [ "${OPTS[variant]}" == "std" ] && examplename="${OPTS[example]}\(@std\)\?"
-
-            IFS=$'\n'
-            while read -r opts; do
-                IFS=' ' read -r -a optparts <<< "$opts"
-
-                for opt in ${optparts[@]}; do
+            # Collect option descriptions either from the command line or a file
+            if [ "$cfgfile" == "!cmdline!" ]; then
+                OPT_ORIGIN="$(cc 0)command line$nn"
+                for opt; do
                     NEWOPTS+=("$opt")
                 done
-            done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$examplename\s" | sed -e "s/^[^ \t]+[ \t]*//g")
-        else
-            OPT_ORIGIN="$(cc 0)file$nn $(cc 1)${cfgfile}$nn"
-            IFS=$'\n'
-            while read -r opt; do
-                NEWOPTS+=("$opt")
-            done < <(cat "${cfgfile}")
-        fi
+            elif [[ $cfgfile =~ !varcfg!* ]]; then
+                OPT_ORIGIN="$(cc 0)variant config file$nn $(cc 1)${cfgfile#!varcfg!}$nn"
+                examplename="${OPTS[example]}@${OPTS[variant]}"
+                [ "${OPTS[variant]}" == "std" ] && examplename="${OPTS[example]}\(@std\)\?"
 
-        verbosemsg "Parsing $OPT_ORIGIN"
+                IFS=$'\n'
+                while read -r opts; do
+                    IFS=' ' read -r -a optparts <<< "$opts"
 
-        # Process the options
-        for opt in ${NEWOPTS[@]}; do
-            if [[ $opt == *.p4* ]] && [ -f "$opt" ]; then
-                setopt example "$(basename ${opt%.*})"
-                setopt source "$opt"
-                continue
+                    for opt in ${optparts[@]}; do
+                        if [[ $opt == @* ]]; then
+                            collected_opts=""
+                            # option can refers to another option in the same file
+                            while read -r opts2; do
+                                IFS=' ' read -r -a optparts2 <<< `echo $opts2 | sed -e "s/^$opt//g"`
+
+                                # skip the first element, which is textually the same as $opt
+                                for opt2 in ${optparts2[@]}; do
+                                    NEWOPTS+=("$opt2")
+                                done
+                            done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$opt\s" | sed -e "s/^[^ \t]+[ \t]*//g")
+                        else
+                            NEWOPTS+=("$opt")
+                        fi
+                    done
+                done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$examplename\s" | sed -e "s/^[^ \t]+[ \t]*//g")
+            else
+                OPT_ORIGIN="$(cc 0)file$nn $(cc 1)${cfgfile}$nn"
+                IFS=$'\n'
+                while read -r opt; do
+                    NEWOPTS+=("$opt")
+                done < <(cat "${cfgfile}")
             fi
 
-            # Split the option into its components along the above regex
-            IFS=' '
-            declare -A groups=() && while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(python -c "$PYTHON_PARSE_OPT" "$opt")
-            [ "${groups[ok]}" == n ] && [[ $opt = *\;* ]] && continue
-            [ "${groups[ok]}" == n ] && echo -e "Cannot parse option $(cc 0)$opt$nn (origin: $OPT_ORIGIN)" && continue
+            # printf 'IIIIIIIIIIIII %s\n' "${NEWOPTS[@]}"
 
-            var="${groups[var]}"
-            value="${groups[letval]:-on}"
-            [ "${groups[neg]}" != "" ] && OPTS[$var]=off && continue
+            verbosemsg "Parsing $OPT_ORIGIN"
 
-            if [ "${groups[cond]}" != "" ]; then
-                expected_value="${groups[condval]}"
-                [ "$(optvalue "${groups[condvar]}")" == off ] && continue
-                [ "$expected_value" != "" -a "${OPTS[${groups[condvar]}]}" != "$expected_value" ] && continue
+            # Process the options
+            for opt in ${NEWOPTS[@]}; do
+                if [[ $opt == *.p4* ]] && [ -f "$opt" ]; then
+                    setopt example "$(basename ${opt%.*})"
+                    setopt source "$opt"
+                    continue
+                fi
+
+                # Split the option into its components along the above regex
+                IFS=' '
+                declare -A groups=() && while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(python -c "$PYTHON_PARSE_OPT" "$opt")
+                [ "${groups[ok]}" == n ] && [[ $opt = *\;* ]] && continue
+                [ "${groups[ok]}" == n ] && echo -e "Cannot parse option $(cc 0)$opt$nn (origin: $OPT_ORIGIN)" && continue
+
+                var="${groups[var]}"
+                value="${groups[letval]:-on}"
+                [ "${groups[neg]}" != "" ] && OPTS[$var]=off && continue
+
+                if [ "${groups[cond]}" != "" ]; then
+                    expected_value="${groups[condval]}"
+                    [ "$(optvalue "${groups[condvar]}")" == off ] && continue
+                    [ "$expected_value" != "" -a "${OPTS[${groups[condvar]}]}" != "$expected_value" ] && continue
+                fi
+
+                [[ $var == COLOUR_* ]] && KNOWN_COLOURS[${var#COLOUR_}]="$value"
+                [ "$var" == "light" ] && set_term_light "$value" && continue
+
+                [ "$var" == cfgfiles -a ! -f "$value" ] && echo -e "Config file $(cc 0)$value$nn cannot be found" && continue
+
+                if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
+                    FIND_COUNT=$(candidate_count "${var}")
+                    [ $FIND_COUNT -gt 1 ] && exit_program "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+                    [ $FIND_COUNT -eq 0 ] && exit_program "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+
+                    setopt example "$var"
+                    setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
+                fi
+
+                [ "${groups[prefix]}" == ":"  ] && setopt example "$var" && continue
+                [ "${groups[prefix]}" == "::" ] && setopt example "$var" && setopt dbg on && continue
+                [ "${groups[prefix]}" == "%"  ] && [ "$value" == "on" ]  && verbosemsg "Test case not specified for example $(cc 0)$var$nn, using $(cc 1)test$nn as default" && value="test"
+                [ "${groups[prefix]}" == "%"  ] && setopt example "$var" && setopt testcase "$value" && setopt variant test && continue
+                [ "${groups[prefix]}" == "%%" ] && [ "$value" == "on" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
+                [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt testcase "$value" && setopt dbg on && setopt variant test && continue
+                [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
+                [ "${groups[prefix]}" == "^"  ] && IGNORE_OPTS["$var"]=on && continue
+
+                [ "${groups[letop]}" == "+="  ] && addopt "$var" "$value" " " && continue
+                [ "${groups[letop]}" == "++=" ] && addopt "$var" "$value" "\n" && continue
+
+                setopt "$var" "$value"
+            done
+
+            # Steps after processing the command line
+            if [ "$cfgfile" == "!cmdline!" ]; then
+                # The command line must specify an example to run
+                [ "$(optvalue example)" == off ] && exit_program "No example to run"
+                # The variant has to be determined before processing the config files.
+                [ "$(optvalue variant)" == off ] && setopt variant std
             fi
-
-            [[ $var == COLOUR_* ]] && KNOWN_COLOURS[${var#COLOUR_}]="$value"
-            [ "$var" == "light" ] && set_term_light "$value" && continue
-
-            [ "$var" == cfgfiles -a ! -f "$value" ] && echo -e "Config file $(cc 0)$value$nn cannot be found" && continue
-
-            if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
-                FIND_COUNT=$(candidate_count "${var}")
-                [ $FIND_COUNT -gt 1 ] && exit_program "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
-                [ $FIND_COUNT -eq 0 ] && exit_program "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
-
-                setopt example "$var"
-                setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
-            fi
-
-            [ "${groups[prefix]}" == ":"  ] && setopt example "$var" && continue
-            [ "${groups[prefix]}" == "::" ] && setopt example "$var" && setopt dbg on && continue
-            [ "${groups[prefix]}" == "%"  ] && [ "$value" == "on" ]  && verbosemsg "Test case not specified for example $(cc 0)$var$nn, using $(cc 1)test$nn as default" && value="test"
-            [ "${groups[prefix]}" == "%"  ] && setopt example "$var" && setopt testcase "$value" && setopt variant test && continue
-            [ "${groups[prefix]}" == "%%" ] && [ "$value" == "on" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
-            [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt testcase "$value" && setopt dbg on && setopt variant test && continue
-            [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
-            [ "${groups[prefix]}" == "^"  ] && IGNORE_OPTS["$var"]=on && continue
-
-            [ "${groups[letop]}" == "+="  ] && addopt "$var" "$value" " " && continue
-            [ "${groups[letop]}" == "++=" ] && addopt "$var" "$value" "\n" && continue
-
-            setopt "$var" "$value"
         done
-
-        # Steps after processing the command line
-        if [ "$cfgfile" == "!cmdline!" ]; then
-            # The command line must specify an example to run
-            [ "$(optvalue example)" == off ] && exit_program "No example to run"
-            # The variant has to be determined before processing the config files.
-            [ "$(optvalue variant)" == off ] && setopt variant std
-        fi
     done
-done
 
 
-[ "$(optvalue verbose)" == on ] && IGNORE_OPTS[silent]=on
-[ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
+    [ "$(optvalue verbose)" == on ] && IGNORE_OPTS[silent]=on
+    [ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
 
 
-[ "$(optvalue variant)" == off ] && [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ] && OPTS[variant]=test && verbosemsg "Variant $(cc 1)@test$nn is chosen because testing is requested"
-[ "${OPTS[variant]}" == "" -o "${OPTS[variant]}" == "-" ] && OPTS[variant]=std && verbosemsg "Variant $(cc 1)@std$nn is automatically chosen"
+    [ "$(optvalue variant)" == off ] && [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ] && OPTS[variant]=test && verbosemsg "Variant $(cc 1)@test$nn is chosen because testing is requested"
+    [ "${OPTS[variant]}" == "" -o "${OPTS[variant]}" == "-" ] && OPTS[variant]=std && verbosemsg "Variant $(cc 1)@std$nn is automatically chosen"
 
 
-# Determine version by extension if possible
-if [ "${OPTS[vsn]}" == "" ]; then
-    P4_EXT="$(basename "${OPTS[source]}")"
-    P4_EXT=${P4_EXT##*.}
-    if [ "$(array_contains "${P4_EXT##*.}" ${!EXT_TO_VSN[@]})" == n ]; then
-        exit_program "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+    # Determine version by extension if possible
+    if [ "${OPTS[vsn]}" == "" ]; then
+        P4_EXT="$(basename "${OPTS[source]}")"
+        P4_EXT=${P4_EXT##*.}
+        if [ "$(array_contains "${P4_EXT##*.}" ${!EXT_TO_VSN[@]})" == n ]; then
+            exit_program "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+        fi
+        OPTS[vsn]="${EXT_TO_VSN["${P4_EXT##*.}"]}"
+        [ "${OPTS[vsn]}" == "" ] && exit_program "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
+        verbosemsg "Determined P4 version to be $(cc 0)${OPTS[vsn]}$nn by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
     fi
-    OPTS[vsn]="${EXT_TO_VSN["${P4_EXT##*.}"]}"
-    [ "${OPTS[vsn]}" == "" ] && exit_program "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
-    verbosemsg "Determined P4 version to be $(cc 0)${OPTS[vsn]}$nn by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+
+    [ "$(optvalue testcase)" == off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
+    [ "$(optvalue testcase)" != off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}-$(optvalue testcase)}
+    T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/${OPTS[choice]}"}
+
+    OPTS[executable]="$T4P4S_TARGET_DIR/build/${OPTS[example]}"
+
+    T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"$T4P4S_TARGET_DIR/srcgen"}
+    T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
+    T4P4S_GEN_INCLUDE="gen_include.h"
+    GEN_MAKEFILE_DIR="${T4P4S_TARGET_DIR}"
+    GEN_MAKEFILE="Makefile"
+
+    T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(dirname $(dirname ${OPTS[executable]}))/log}
+
+    # By default use all three phases
+    if [ "${OPTS[p4]}" != on ] && [ "${OPTS[c]}" != on ] && [ "${OPTS[run]}" != on ]; then
+        OPTS[p4]=on
+        OPTS[c]=on
+        OPTS[run]=on
+    fi
 fi
 
-OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
-OPTS[executable]="./build/${OPTS[choice]}/build/${OPTS[example]}"
-
-T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/${OPTS[choice]}"}
-T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"./build/${OPTS[choice]}/srcgen"}
-T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
-T4P4S_GEN_INCLUDE="gen_include.h"
-GEN_MAKEFILE_DIR="${T4P4S_TARGET_DIR}"
-GEN_MAKEFILE="Makefile"
-
-T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(dirname $(dirname ${OPTS[executable]}))/log}
-
-# By default use all three phases
-if [ "${OPTS[p4]}" != on ] && [ "${OPTS[c]}" != on ] && [ "${OPTS[run]}" != on ]; then
-    OPTS[p4]=on
-    OPTS[c]=on
-    OPTS[run]=on
-fi
+[ "$(optvalue silent)" != off ] && addopt makeopts ">/dev/null" " "
 
 # Generate directories and files
 mkdir -p $T4P4S_TARGET_DIR
 mkdir -p $T4P4S_SRCGEN_DIR
 
+# --------------------------------------------------------------------
 
-[ "$(optvalue silent)" != off ] && addopt makeopts ">/dev/null" " "
+if [ "$REDO_DONE" != 1 ]; then
+    # This local variable is multiline, it does not need to be saved
+    unset PYTHON_PARSE_OPT
 
+    # Save local variables
+    get_current_envs | grep -vE "^(${ORIG_ENVS})=" > $T4P4S_TARGET_DIR/redo.opts.txt
+fi
+
+# --------------------------------------------------------------------
+
+# Checks before execution of phases begins
+
+if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
+    TESTDIR=${TESTDIR-./examples}
+    if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
+        exit_program "No test input file found for example $(cc 0)${OPTS[example]}$nn under $(cc 0)$TESTDIR$nn (expected filename: $(cc 0)test-${OPTS[example]##test-}.c$nn)"
+    fi
+fi
 
 # --------------------------------------------------------------------
 
@@ -542,13 +629,11 @@ include \$(CDIR)/../../makefiles/common.mk
 include \$(CDIR)/../../makefiles/hw_independent.mk
 VPATH += $(dirname ${OPTS[source]})
 EXTRA_CFLAGS += ${OPTS[extra-cflags]}
+LDFLAGS += ${OPTS[ldflags]}
 EOT
 
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
-        TESTDIR="examples"
-        if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
-            exit_program "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
-        fi
+        # TESTDIR is defined in the check above
         TESTFILE=$(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c")
 
         [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=\"t4p4s_testcase_${OPTS[testcase]}\"" " "
