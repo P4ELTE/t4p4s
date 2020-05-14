@@ -26,6 +26,7 @@ CFLAGS += -Wno-unused-function
 # TODO clang has a different name for this
 ifneq ($(CC),clang)
 CFLAGS += -Wno-unused-but-set-variable
+CFLAGS += -flto=thin
 endif
 
 # TODO this is for valgrind, do not use as a regular option
