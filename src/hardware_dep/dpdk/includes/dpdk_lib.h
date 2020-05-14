@@ -146,7 +146,12 @@ struct lcore_conf {
 // Timings
 
 #define TABCHANGE_SLEEP_MICROS 200
-#define DIGEST_SLEEP_MILLIS    1000
 
+// in debug mode, we assume that the controllers react briskly
+#ifdef T4P4S_DEBUG
+#define DIGEST_SLEEP_MILLIS    200
+#else
+#define DIGEST_SLEEP_MILLIS    1000
+#endif
 
 #endif // DPDK_LIB_H
