@@ -100,6 +100,11 @@ for table in hlir16.tables:
         fref = "field_{}_{}".format(f.header.type.type_ref.name, f.field_name)
 
         if f.width <= 32:
+            #{ #ifdef T4P4S_DEBUG
+            #{     if (unlikely(pd->headers[header_instance_${hi_name}].pointer == NULL)) {
+            #[         debug(" " T4LIT(!!!!,error) " " T4LIT(Lookup on invalid header,error) " " T4LIT(${hi_name},header) "." T4LIT(${f.field_name},field) "\n");
+            #}     }
+            #} #endif
             #[ EXTRACT_INT32_BITS_PACKET(pd, $href, $fref, *(uint32_t*)key)
             #[ key += sizeof(uint32_t);
         elif f.width > 32 and f.width % 8 == 0:
@@ -119,12 +124,17 @@ for table in hlir16.tables:
 ################################################################################
 # Table application
 
-for table in hlir16.tables:
-    for smem in table.meters + table.counters:
-        for comp in smem.components:
-            type = comp['type']
-            name  = comp['name']
-            #[ void apply_direct_smem_$type(rte_atomic32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name);
+def unique_stable(items):
+    """Returns only the first occurrence of the items in a list.
+    Equivalent to unique_everseen from Python 3."""
+    from collections import OrderedDict
+    return list(OrderedDict.fromkeys(items))
+
+
+for type in unique_stable([comp['type'] for table in hlir16.tables for smem in table.direct_meters + table.direct_counters for comp in smem.components]):
+    #[ void apply_direct_smem_$type(register_uint32_t* smem, uint32_t value, char* table_name, char* smem_type_name, char* smem_name) {
+    #[    debug("     : applying apply_direct_smem_$type(register_uint32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name)");
+    #[ }
 
 
 for table in hlir16.tables:
@@ -149,17 +159,20 @@ for table in hlir16.tables:
         #[               hit ? "" : " (default)");
 
         #{     if (likely(hit)) {
-        for smem in table.meters + table.counters:
+        #[         // applying direct counters and meters
+        for smem in table.direct_meters + table.direct_counters:
             for comp in smem.components:
                 value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
                 type = comp['type']
                 name  = comp['name']
-                #[ apply_direct_smem_$type(&(entry->state.$name), $value, "${table.name}", "${smem.smem_type}", "$name");
+                #[ extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
+                #[ apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
         #}    }
     else:
         action = table.default_action.expression.method.ref.name if hasattr(table, 'default_action') else None
 
         if action:
+            #[    debug(" :::: Lookup on keyless table " T4LIT(${table.name},table) ", default action is " T4LIT($action,action) "\n");
             #[    table_entry_${table.name}_t resStruct = {
             #[        .action = { action_${table.default_action.expression.method.ref.name} },
             #[    };
@@ -167,6 +180,7 @@ for table in hlir16.tables:
             #[    bool hit = true;
             #[    bool is_default = false;
         else:
+            #[    debug(" :::: Lookup on keyless table " T4LIT(${table.name},table) ", " T4LIT(no default action,action) "\n");
             #[    table_entry_${table.name}_t* entry = (struct ${table.name}_action*)0;
             #[    bool hit = false;
             #[    bool is_default = false;
@@ -183,8 +197,6 @@ for table in hlir16.tables:
         #[           action_code_${action_name}(SHORT_STDPARAMS_IN, entry->action.${action_name}_params);
         #}           break;
     #[       }
-    #[     } else {
-    #[       debug("   :: NO RESULT, NO DEFAULT ACTION.\n");
     #}     }
 
     #[     struct apply_result_s apply_result = { hit, hit ? entry->action.action_id : -1 };
@@ -212,7 +224,9 @@ for h in hlir16.header_instances:
         #[     .length = header_info(${h.id}).bytewidth,
         #[     .pointer = NULL,
         #[     .var_width_field_bitwidth = 0,
+        #[ #ifdef T4P4S_DEBUG
         #[     .name = "${h.name}",
+        #[ #endif
         #} };
 
 #[     // init metadatas
@@ -265,11 +279,11 @@ for hdr in hlir16.header_instances:
     #[ // updating header instance ${hdr.name}
 
     for fld in hdr.type.type_ref.fields:
-        if not fld.preparsed and fld.type._type_ref.size <= 32:
+        if not fld.preparsed and fld.canonical_type().size <= 32:
             #{ if(pd->fields.attr_field_instance_${hdr.name}_${fld.name} == MODIFIED) {
             #[     value32 = pd->fields.field_instance_${hdr.name}_${fld.name};
             #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_instance_${hdr.name}_${fld.name}, value32);
-            #[     // set_field((fldT[]){{pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}}}, 0, value32, ${fld.type._type_ref.size});
+            #[     // set_field((fldT[]){{pd, header_instance_${hdr.name}, field_${hdr.type.type_ref.name}_${fld.name}}}, 0, value32, ${fld.canonical_type().size});
             #} }
 #} }
 
@@ -345,22 +359,25 @@ pkt_name_indent = " " * longest_hdr_name_len
 #{ {
 #[     debug("   :: Preparing $${}{%d} header instances for storage...\n", pd->emit_hdrinst_count);
 
-#[     uint8_t* storage = pd->header_emit_storage;
 #[     pd->emit_headers_length = 0;
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
 
+#[
 #{         #if T4P4S_EMIT != 1
 #{             if (unlikely(hdr.pointer == NULL)) {
-#[                 debug("        : $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = " T4LIT(skipping invalid header,warning) "\n", hdr.name, hdr.length);
+#[                 debug("        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = " T4LIT(skipping invalid header,warning) "\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
 #[                 continue;
 #}             }
 #}         #endif
 
-#[         dbg_bytes(hdr.pointer, hdr.length, "        : $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = %s", hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
-
-#[         memcpy(storage, hdr.pointer, hdr.length);
-#[         storage += hdr.length;
+#{         if (likely(hdr.was_enabled_at_initial_parse)) {
+#[             dbg_bytes(hdr.pointer, hdr.length, "        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} = %s", pd->header_reorder[i] + 1, hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
+#[             memcpy(pd->header_tmp_storage + header_instance_infos[hdr.type].byte_offset, hdr.pointer, hdr.length);
+#[         } else {
+#[             debug("        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02d} was created in-place (not present at ingress)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#}         }
+#[
 #[         pd->emit_headers_length += hdr.length;
 #}     }
 #} }
@@ -368,12 +385,13 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[ void resize_packet_on_emit(STDPARAMS)
 #{ {
 #{     if (likely(pd->emit_headers_length == pd->parsed_length)) {
+#[         debug(" " T4LIT(::::,status) " Skipping packet resizing: no change in total packet header length\n");
 #[         return;
 #}     }
 #[
 #{     if (likely(pd->emit_headers_length > pd->parsed_length)) {
 #[         int len_change = pd->emit_headers_length - pd->parsed_length;
-#[         debug("   :: Adding   $${}{%02d} bytes %${longest_hdr_name_len}{s}   : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "to packet", pd->parsed_length, pd->emit_headers_length);
+#[         debug("   " T4LIT(::,status) " Adding   $${}{%02d} bytes %${longest_hdr_name_len}{s}   : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "to packet", pd->parsed_length, pd->emit_headers_length);
 #[         char* new_ptr = rte_pktmbuf_prepend(pd->wrapper, len_change);
 #[         if (unlikely(new_ptr == 0)) {
 #[             rte_exit(1, "Could not reserve necessary headroom ($${}{%d} additional bytes)", len_change);
@@ -381,29 +399,61 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[         pd->data = (packet_data_t*)new_ptr;
 #[     } else {
 #[         int len_change = pd->parsed_length - pd->emit_headers_length;
-#[         debug("   :: Removing $${}{%02d} bytes %${longest_hdr_name_len}{s}  : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
+#[         debug("   " T4LIT(::,status) " Removing $${}{%02d} bytes %${longest_hdr_name_len}{s}  : (header: from $${}{%d} bytes to $${}{%d} bytes)\n", len_change, "from packet", pd->parsed_length, pd->emit_headers_length);
 #[         char* new_ptr = rte_pktmbuf_adj(pd->wrapper, len_change);
 #[         pd->data = (packet_data_t*)new_ptr;
 #}     }
 #[     pd->wrapper->pkt_len = pd->emit_headers_length + pd->payload_length;
 #} }
 
+#[ // if (some of) the emitted headers are one after another, this function copies them in one go
 #[ void copy_emit_contents(STDPARAMS)
 #{ {
-#[     memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), pd->header_emit_storage, pd->emit_headers_length);
+#[     debug("   :: Putting together packet\n");
+#[     uint8_t* dst_start = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+#[     uint8_t* dst = dst_start;
+#{     for (int idx = 0; idx < pd->emit_hdrinst_count; ) {
+#[         #ifdef T4P4S_DEBUG
+#[             char header_names_txt[1024];
+#[             char* header_names_ptr = header_names_txt;
+#[         #endif
+#[         header_descriptor_t hdr = pd->headers[pd->header_reorder[idx]];
+#[         uint8_t* copy_start     = hdr.pointer;
+#[         int copy_start_idx      = idx;
+#[         int copy_length         = hdr.length;
+#[         int count               = 1;
+#[         #ifdef T4P4S_DEBUG
+#[             header_names_ptr += sprintf(header_names_ptr, " " T4LIT(%s,header), hdr.name);
+#[         #endif
+#[         ++idx;
+#{         while (idx < pd->emit_hdrinst_count && pd->headers[pd->header_reorder[idx]].pointer == hdr.pointer + hdr.length) {
+#[             ++count;
+#[             hdr = pd->headers[pd->header_reorder[idx]];
+#[             copy_length += hdr.length;
+#[             ++idx;
+#[             #ifdef T4P4S_DEBUG
+#[                 header_names_ptr += sprintf(header_names_ptr, " " T4LIT(%s,header), hdr.name);
+#[             #endif
+#}         }
+#[         dbg_bytes(copy_start, copy_length, "    : Copying " T4LIT(%d) " %s to byte " T4LIT(#%ld) " of egress header, " T4LIT(%d) " bytes: %s: ", count, count == 1 ? "header" : "adjacent headers", dst - dst_start, copy_length, header_names_txt);
+#[         memcpy(dst, copy_start, copy_length);
+#[         dst += copy_length;
+#}     }
 #} }
 
 #[ void emit_packet(STDPARAMS)
 #{ {
 #[     if (unlikely(pd->is_emit_reordering)) {
 #{         if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop))) {
-#[             debug(" " T4LIT(::::,status) " Skipping reordering emit, as packet is " T4LIT(dropped,status) "\n");
+#[             debug(" " T4LIT(::::,status) " Skipping pre-emit processing: packet is " T4LIT(dropped,status) "\n");
 #[             return;
 #}         }
-#[         debug(" :::: Reordering emit\n");
+#[         debug(" :::: Pre-emit reordering\n");
 #[         store_headers_for_emit(STDPARAMS_IN);
 #[         resize_packet_on_emit(STDPARAMS_IN);
 #[         copy_emit_contents(STDPARAMS_IN);
+#[     } else {
+#[         debug(" " T4LIT(::::,status) " Skipping pre-emit processing: no change in packet header structure\n");
 #[     }
 #} }
 
@@ -415,11 +465,10 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     reset_headers(SHORT_STDPARAMS_IN);
 #[     set_handle_packet_metadata(pd, portid);
 #[
-#[     dbg_bytes(pd->data, rte_pktmbuf_pkt_len(pd->wrapper), "Handling packet (port " T4LIT(%d,port) ", $${}{%02d} bytes)  : ", extract_ingress_port(pd), rte_pktmbuf_pkt_len(pd->wrapper));
+#[     dbg_bytes(pd->data, packet_length(pd), "Handling packet (port " T4LIT(%d,port) ", $${}{%02d} bytes)  : ", extract_ingress_port(pd), packet_length(pd));
 #[
 #[     pd->parsed_length = 0;
 #[     parse_packet(STDPARAMS_IN);
-#[     pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
 #[
 #[     emit_addr = pd->data;
 #[     pd->emit_hdrinst_count = 0;

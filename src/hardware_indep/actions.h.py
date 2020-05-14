@@ -24,7 +24,7 @@ from utils.codegen import format_type
 #[ #include "ctrl_plane_backend.h"
 
 # TODO this should not be here in the indep section
-#[ #include "dpdk_reg.h"
+#[ #include "dpdk_smem.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
@@ -41,21 +41,11 @@ for table in hlir16.tables:
 #[ action_,
 #} };
 
-# TODO remove this; instead:
-# TODO in set_additional_attrs, replace all type references with the referenced types
-def resolve_typeref(hlir16, f):
-    if f.type.node_type == 'Type_Name':
-        tref = f.type.type_ref
-        return hlir16.objects.get(tref.name).type('type_ref')
-
-    return f.type
-
-
 for ctl in hlir16.controls:
     for act in ctl.actions:
         #{ typedef struct action_${act.name}_params_s {
         for param in act.parameters.parameters:
-            paramtype = resolve_typeref(hlir16, param)
+            paramtype = param.canonical_type()
             #[ FIELD(${param.name}, ${paramtype.size});
 
         #[ FIELD(DUMMY_FIELD, 0);
@@ -101,6 +91,13 @@ for table in hlir16.tables:
 for ctl in hlir16.controls:
     #{ typedef struct control_locals_${ctl.name}_s {
     for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
+        if hasattr(local_var_decl.type, 'type_ref'):
+            if local_var_decl.type.type_ref.name in ['counter', 'direct_counter', 'meter']:
+                continue
+        else:
+            if local_var_decl.type('baseType.type_ref.name', lambda n: n in ['direct_meter', 'register']):
+                continue
+
         postfix = "_t" if local_var_decl.type.node_type == 'Type_Name' else ""
         #[ ${format_type(local_var_decl.type, resolve_names = False)}$postfix ${local_var_decl.name};
 

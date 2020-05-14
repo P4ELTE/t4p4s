@@ -12,101 +12,96 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from utils.codegen import format_expr, format_statement, statement_buffer_value, format_declaration
+from utils.misc import addError
+from utils.codegen import format_expr, format_type, format_statement, statement_buffer_value, format_declaration
 
 
-# In v1model, all software memory cells are represented as 32 bit integers
-def smem_repr_type(smem_type, bit_width=32, is_signed=False):
-    if is_signed:
-        tname = "int"
-    else:
-        tname = "uint"
-
-    for w in [8,16,32,64]:
-        if bit_width <= w:
-            return "register_" + tname + str(w) + "_t"
-
-    return "NOT_SUPPORTED"
+def unique_stable(items):
+    """Returns only the first occurrence of the items in a list.
+    Equivalent to unique_everseen from Python 3."""
+    from collections import OrderedDict
+    return list(OrderedDict.fromkeys(items))
 
 
-def smem_components(smem, smem_type, bit_width=32, is_signed=False):
-    base_type = smem_repr_type(smem_type, bit_width, is_signed)
+def gen_make_smem_code(smem, table = None):
+    size = smem.bit_width
+    type = smem.type._baseType.path.name
 
-    if smem_type == 'reg':
-        return [{"type": base_type, "name": smem.name}]
-
-    member = [s.expression for s in smem.arguments if s.expression.node_type == 'Member'][0]
-
-    # TODO set these in hlir16_attrs
-    smem.packets_or_bytes = member.member
-    smem.smem_for = {
-        "packets": smem.packets_or_bytes in ("packets", "packets_and_bytes"),
-        "bytes":   smem.packets_or_bytes in (  "bytes", "packets_and_bytes"),
-    }
-
-    pkts_name  = "{}_{}_packets".format(smem_type, smem.name)
-    bytes_name = "{}_{}_bytes".format(smem_type, smem.name)
-
-    pbs = {
-        "packets":           [{"for": "packets", "type": base_type, "name": pkts_name}],
-        "bytes":             [{"for":   "bytes", "type": base_type, "name": bytes_name}],
-
-        "packets_and_bytes": [{"for": "packets", "type": base_type, "name": pkts_name},
-                              {"for":   "bytes", "type": base_type, "name": bytes_name}],
-    }
-
-    return pbs[smem.packets_or_bytes]
-
-
-def gen_make_smem_code(smem, smem_size, smem_type, locked = False, bit_width = 32, is_signed = False):
-    # TODO set these in hlir16_attrs
-    smem.smem_type  = smem_type
-    smem.components = smem_components(smem, smem_type, bit_width, is_signed)
-
-
+    # TODO have just one lock even if there are two components
     for c in smem.components:
-        if locked:
-            #[ lock_t         lock_${c['name']}[$smem_size];
-        #[ ${c['type']} ${c['name']}[$smem_size];
+        cname =  c['name']
+        ctype =  c['type']
+        if smem.smem_type == "register":
+            signed = "int" if smem.is_signed else "uint"
+            bit_width = smem.bit_width
+            size = 8 if bit_width <= 8 else 16 if bit_width <= 16 else 32 if bit_width <= 32 else 64
+            c['vartype'] = "register_{}{}_t".format(signed, size)
+            #[     lock_t lock_$cname[${smem.amount}];
+            #[     ${c['vartype']} $cname[${smem.amount}];
+            #[     int ${cname}_amount;
+        elif table:
+            sname = "{}_{}".format(cname, table.name)
+
+            #[     lock_t lock_$sname;
+            #[     ${smem.type._baseType.path.name}_t $sname;
+            #[
+        else:
+            #[     lock_t lock_$cname[${smem.amount}];
+            #[     ${smem.type._baseType.path.name}_t $cname[${smem.amount}];
+            #[     int ${cname}_amount;
+
+        #[
 
 
 #[ #ifndef __STATEFUL_MEMORY_H_
 #[ #define __STATEFUL_MEMORY_H_
 
+#[ #include "common.h"
 #[ #include "aliases.h"
-#[ #include "dpdk_reg.h"
+#[ #include "dpdk_smem.h"
 
 #{ typedef struct global_state_s {
-for t, meter in hlir16.meters:
-    size = meter.arguments[0].expression.value
+for table, smem in hlir16.all_meters + hlir16.all_counters:
+    if smem.smem_type not in ["direct_counter", "direct_meter"]:
+        continue
+    #= gen_make_smem_code(smem, table)
+for smem in unique_stable([smem for table, smem in hlir16.all_meters + hlir16.all_counters if smem.smem_type not in ["direct_counter", "direct_meter"]]):
+    #= gen_make_smem_code(smem)
+for smem in hlir16.registers:
+    #= gen_make_smem_code(smem)
 
-    #= gen_make_smem_code(meter, size, 'direct_meter', True)
 
-for t, counter in hlir16.counters:
-    size = counter.arguments[0].expression.value
 
-    #= gen_make_smem_code(counter, size, 'direct_counter', True)
+all_locals = unique_stable([(param.name, format_type(param.type)) for table in hlir16.tables for local in table.control.controlLocals["P4Action"] for param in local.parameters.parameters])
+all_locals_dict = dict(all_locals)
+if len(all_locals) != len(all_locals_dict):
+    names = [name for name, _type in all_locals]
+    dups = unique_stable([name for name in names if names.count(name) > 1])
+    addError("Collecting counters, meters, registers and controls' local variables", "The following names are used with different types, which is currently unsupported: {}".format(", ".join(dups)))
 
-for reg in hlir16.registers:
-    size = reg.arguments[0].expression.value
-    bit_width = reg.type.arguments[0].size
-    is_signed = reg.type.arguments[0].isSigned
+for locname, loctype in all_locals:
+    #[     $loctype $locname;
 
-    #= gen_make_smem_code(reg, size, 'reg', True, bit_width, is_signed)
+
+# Note: currently all control locals are put together into the global state
+for ctl in hlir16.controls:
+    for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
+        if hasattr(local_var_decl.type, 'type_ref'):
+            if local_var_decl.type.type_ref.name in ['counter', 'direct_counter', 'meter']:
+                continue
+        else:
+            if local_var_decl.type('baseType.type_ref.name', lambda n: n in ['direct_meter', 'register']):
+                continue
+        postfix = "_t" if local_var_decl.type.node_type == 'Type_Name' else ""
+        #[     ${format_type(local_var_decl.type, resolve_names = False)}$postfix ${local_var_decl.name};
+
+
+
 
 #} } global_state_t;
 
-#[ static global_state_t global_smem;
+#[ extern global_state_t global_smem;
 
-for table in hlir16.tables:
-    #{ typedef struct {
-    for counter in table.counters:
-        #= gen_make_smem_code(counter, 1, 'counter')
-
-    for meter in table.meters:
-        #= gen_make_smem_code(meter, 1, 'meter')
-
-    #} } local_state_${table.name}_t;
 
 #[ static lock_t ingress_lock;
 #[ static lock_t egress_lock;
