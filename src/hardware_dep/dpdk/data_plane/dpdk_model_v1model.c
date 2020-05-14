@@ -17,25 +17,33 @@
 
 #include <rte_ip.h>
 
+int egress_port_field() {
+    return field_standard_metadata_t_egress_spec;
+}
+
+int ingress_port_field() {
+    return field_standard_metadata_t_ingress_port;
+}
+
 void transfer_to_egress(packet_descriptor_t* pd)
 {
-	int res32; // needed for the macro
-        uint32_t val = GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_spec);
-	MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_port, val);
+    // int res32; // needed for the macro
+    // uint32_t val = GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, egress_port_field());
+    // MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_spec, val);
 }
 
 int extract_egress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_port);
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, egress_port_field());
 }
 
 int extract_ingress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_ingress_port);
+    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, ingress_port_field());
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 {
     int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_ingress_port, portid);
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, ingress_port_field(), portid);
 }
 
 void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, SHORT_STDPARAMS) {

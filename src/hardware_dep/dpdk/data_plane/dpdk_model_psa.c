@@ -38,7 +38,7 @@ void InternetChecksum_t_get() {
 
 void transfer_to_egress(packet_descriptor_t* pd) 
 {
-	/*not implemented*/
+    /*not implemented*/
 }
 
 int extract_egress_port(packet_descriptor_t* pd) {
@@ -52,9 +52,7 @@ int extract_ingress_port(packet_descriptor_t* pd) {
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 {
     int res32; // needed for the macro
-    // TODO use with PSA field, something like this:
-    //      header_instance_psa_ingress_parser_input_metadata
-    // MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_ingress_port, inport);
+    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_instance_psa_ingress_parser_input_metadata_ingress_port, portid);
 }
 
 void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
