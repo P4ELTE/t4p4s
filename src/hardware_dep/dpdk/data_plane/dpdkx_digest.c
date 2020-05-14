@@ -17,8 +17,8 @@ void extern_Digest_pack(mac_learn_digest_t* mac_learn_digest) {
 
     ctrl_plane_digest digest = create_digest(bg, "mac_learn_digest");
 
-    add_digest_field(digest, &(mac_learn_digest->srcAddr), 6);
-    add_digest_field(digest, &(mac_learn_digest->ingress_port), 4);
+    add_digest_field(digest, &(mac_learn_digest->srcAddr), 6*8);
+    add_digest_field(digest, &(mac_learn_digest->ingress_port), 4*8);
 
     send_digest(bg, digest, STD_DIGEST_RECEIVER_ID);
     sleep_millis(300);

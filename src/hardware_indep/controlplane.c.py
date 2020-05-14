@@ -27,9 +27,9 @@ def match_type_order(t):
 #[ #include "tables.h"
 
 #[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
-#[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value);
-#[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value);
-#[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value);
+#[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value, bool should_print);
+#[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool should_print);
+#[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool should_print);
 
 
 for table in hlir16.tables:
@@ -77,7 +77,7 @@ for table in hlir16_tables_with_keys:
         if k.match_type == "lpm":
             #[ uint8_t field_instance_${k.header.name}_${k.field_name}_prefix_length,
 
-    #}     struct ${table.name}_action action)
+    #}     struct ${table.name}_action action, bool has_fields)
     #{ {
 
     #[     uint8_t key[${table.key_length_bytes}];
@@ -106,10 +106,10 @@ for table in hlir16_tables_with_keys:
         #[ int c, d;
         #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
         #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
-        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action);
+        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, has_fields);
 
     if table.match_type == "EXACT":
-        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action);
+        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action, has_fields);
 
     #} }
 
@@ -164,7 +164,7 @@ for table in hlir16_tables_with_keys:
                 #[ field_instance_${k.header.name}_${k.field_name}_prefix_length,
             if k.match_type == "ternary":
                 #[ 0 /* TODO dstPort_mask */,
-        #[     action);
+        #[     action, ${"false" if len(action.action_object.parameters.parameters) == 0 else "true"});
         #}
 
         for j, p in enumerate(action.action_object.parameters.parameters):
@@ -224,7 +224,7 @@ for table in hlir16_tables_with_keys:
 
 #[ extern volatile int ctrl_is_initialized;
 #{ void ctrl_initialized() {
-#[     debug("   " T4LIT(::,incoming) " Control plane fully initialized\n");
+#[     debug("   " T4LIT(::,incoming) " Control plane init " T4LIT(done,success) "\n");
 #[     ctrl_is_initialized = 1;
 #} }
 
@@ -241,11 +241,20 @@ for table in hlir16_tables_with_keys:
 
 
 
+#[ extern struct socket_state state[NB_SOCKETS];
 #[ ctrl_plane_backend bg;
 #[ void init_control_plane()
 #[ {
 #[ #ifndef T4P4S_NO_CONTROL_PLANE
 #[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
 #[     launch_backend(bg);
+#[ 
+#[     #ifdef T4P4S_DEBUG
+#[     for (int i = 0; i < NB_TABLES; i++) {
+#[         lookup_table_t t = table_config[i];
+#[         if (state[0].tables[t.id][0]->init_entry_count > 0)
+#[             debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->name, state[0].tables[t.id][0]->init_entry_count);
+#[         }
+#[     #endif
 #[ #endif
 #[ }

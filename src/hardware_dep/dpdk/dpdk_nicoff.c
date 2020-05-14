@@ -148,28 +148,28 @@ void abort_on_strict() {
 }
 
 void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_port) {
-    if (cmd.out_port != egress_port) {
-        char port_designation_egress[256];
-        port_designation_egress[0] = '\0';
+    if (cmd.out_port == egress_port)    return;
 
-        char port_designation_cmd[256];
-        port_designation_cmd[0] = '\0';
+    char port_designation_egress[256];
+    port_designation_egress[0] = '\0';
 
-        if (egress_port == 100) {
-            strcpy(port_designation_egress, " (broadcast)");
-        }
+    char port_designation_cmd[256];
+    port_designation_cmd[0] = '\0';
 
-        if (cmd.out_port == 100) {
-            strcpy(port_designation_cmd, " (broadcast)");
-        }
-
-        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
-              lcdata->pkt_idx + 1, rte_lcore_id(),
-              cmd.out_port, port_designation_cmd,
-              egress_port, port_designation_egress);
-        lcdata->is_valid = false;
-        abort_on_strict();
+    if (egress_port == 100) {
+        strcpy(port_designation_egress, " (broadcast)");
     }
+
+    if (cmd.out_port == 100) {
+        strcpy(port_designation_cmd, " (broadcast)");
+    }
+
+    debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
+          lcdata->pkt_idx + 1, rte_lcore_id(),
+          cmd.out_port, port_designation_cmd,
+          egress_port, port_designation_egress);
+    lcdata->is_valid = false;
+    abort_on_strict();
 }
 
 bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {

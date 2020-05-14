@@ -53,7 +53,7 @@ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
 
 void create_error_text(int socketid, const char* errno_txt, const char* table_type, const char* table_name, const char* error_text)
 {
-    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(%s,error) "): Unable to create %s table " T4LIT(%s,table) " on socket " T4LIT(%d,socket) ": %s\n", errno_txt, table_type, table_name, socketid, error_text);
+    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(rte_errno,error) ", " T4LIT(%s,error) "): Unable to create %s table " T4LIT(%s,table) " on socket " T4LIT(%d,socket) ": %s\n", errno_txt, table_type, table_name, socketid, error_text);
 }
 
 void create_error(int socketid, const char* table_type, const char* table_name)

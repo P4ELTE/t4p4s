@@ -21,16 +21,17 @@ extern void flush_table(lookup_table_t* t);
 
 void create_tables_on_socket(int socketid)
 {
-    debug("   :: Initializing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("    : Creating instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             state[socketid].tables[i][j] = malloc(sizeof(lookup_table_t));
             memcpy(state[socketid].tables[i][j], &t, sizeof(lookup_table_t));
             state[socketid].tables[i][j]->instance = j;
             create_table(state[socketid].tables[i][j], socketid);
+            #ifdef T4P4S_DEBUG
+                state[socketid].tables[i][j]->init_entry_count = 0;
+            #endif
         }
 
         state[socketid].active_replica[i] = 0;
@@ -56,7 +57,17 @@ void create_table_on_lcore(unsigned lcore_id)
 
 void init_tables()
 {
-    debug(" :::: Initializing tables on all cores\n");
+#ifdef T4P4S_DEBUG
+    char table_names[1024];
+    char* nameptr = table_names;
+    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): ", NB_REPLICA);
+    for (int i = 0; i < NB_TABLES; i++) {
+        lookup_table_t t = table_config[i];
+        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.name);
+    }
+    debug("%s\n", table_names);
+#endif
+
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         create_table_on_lcore(lcore_id);
     }

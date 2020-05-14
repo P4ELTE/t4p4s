@@ -108,20 +108,24 @@ bool is_port_disabled(uint8_t portid) {
 
 bool check_port_config(unsigned nb_ports)
 {
+    bool retval = true;
+
     for (uint16_t i = 0; i < nb_lcore_params; ++i) {
         unsigned portid = lcore_params[i].port_id;
 
-        if (is_port_disabled(portid)) {
-            debug("port %u is not enabled in port mask\n", portid);
-            return false;
+        if (portid >= nb_ports) {
+            debug(" " T4LIT(!!!!,error) " Port " T4LIT(%u,port) " is " T4LIT(not present,error) " on the board\n", portid);
+            retval = false;
+            continue;
         }
 
-        if (portid >= nb_ports) {
-            debug("port %u is not present on the board\n", portid);
-            return false;
+        if (is_port_disabled(portid)) {
+            debug(" " T4LIT(!!!!,error) " Port " T4LIT(%u,port) " is " T4LIT(not enabled,error) " in port mask\n", portid);
+            retval = false;
+            continue;
         }
     }
-    return true;
+    return retval;
 }
 
 //=============================================================================
@@ -133,7 +137,7 @@ int init_lcore_rx_queues()
         uint16_t nb_rx_queue = lcore_conf[lcore].hw.n_rx_queue;
 
         if (nb_rx_queue >= MAX_RX_QUEUE_PER_LCORE) {
-            debug("   :: Error: too many queues (%u) for lcore %u (max: %u)\n",
+            debug("   " T4LIT(!!,error) " Error: " T4LIT(too many queues,error) " (%u) for lcore %u (max: %u)\n",
                 (unsigned)nb_rx_queue + 1, (unsigned)lcore, MAX_RX_QUEUE_PER_LCORE);
             return -1;
         }
@@ -203,7 +207,7 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
         return;
     }
 
-    debug(" :::: Initializing port %d\n", portid);
+    debug(" :::: Init port %d\n", portid);
     fflush(stdout);
 
     uint16_t nb_rx_queue = get_port_n_rx_queues(portid);
@@ -223,7 +227,7 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     uint16_t queueid = 0;
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         if (init_tx_on_lcore(lcore_id, portid, queueid))
-		++queueid;
+            ++queueid;
     }
 
     debug("\n");
@@ -250,7 +254,7 @@ void dpdk_init_lcore(unsigned lcore_id) {
         return;
 
     struct lcore_conf* qconf = &lcore_conf[lcore_id];
-    debug(" :::: Initializing RX queues on lcore " T4LIT(%u,core) "...\n", lcore_id);
+    debug(" :::: Init RX queues on lcore " T4LIT(%u,core) "...\n", lcore_id);
     fflush(stdout);
 
     /* init RX queues */
@@ -301,6 +305,9 @@ void dpdk_init_nic()
         init_mbuf_pool(socketid);
     }
 
+    if (nb_ports > 0) {
+        debug(" :::: Init ports\n");
+    }
     for (uint8_t portid = 0; portid < nb_ports; portid++) {
         dpdk_init_port(nb_ports, nb_lcores, portid);
     }
