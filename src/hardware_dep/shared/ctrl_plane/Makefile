@@ -31,6 +31,9 @@ dpdk_test-digest_controller: controllers_common dpdk_test-digest_controller.c
 dpdk_l3fwd_controller: controllers_common dpdk_l3fwd_controller.c
 	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_l3fwd_controller.c -o dpdk_l3fwd_controller
 
+dpdk_l3-routing-full_controller: controllers_common dpdk_l3-routing-full_controller.c
+	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_l3-routing-full_controller.c -o dpdk_l3-routing-full_controller
+
 dpdk_smgw_controller: controllers_common dpdk_smgw_controller.c
 	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_smgw_controller.c -o dpdk_smgw_controller
 
