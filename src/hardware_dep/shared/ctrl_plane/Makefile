@@ -25,6 +25,9 @@ dpdk_l2fwd_controller: controllers_common dpdk_l2fwd_controller.c
 dpdk_psa_l2fwd_controller: controllers_common dpdk_psa_l2fwd_controller.c
 	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_psa_l2fwd_controller.c -o dpdk_psa_l2fwd_controller
 
+dpdk_test-digest_controller: controllers_common dpdk_test-digest_controller.c
+	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_test-digest_controller.c -o dpdk_test-digest_controller
+
 dpdk_l3fwd_controller: controllers_common dpdk_l3fwd_controller.c
 	$(CC) $(CFLAGS) $(LIB) dpdk_ctrl.o dpdk_l3fwd_controller.c -o dpdk_l3fwd_controller
 
