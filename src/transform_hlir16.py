@@ -52,7 +52,7 @@ def search_for_annotations(stmt):
     if stmt.node_type != "BlockStatement":
         return stmt
 
-    annots = [ann for ann in x.annotations.annotations if annot.name in available_optimization_annotations]
+    annots = [ann for ann in stmt.annotations.annotations if ann.name in available_optimization_annotations]
     name   = '_'.join([ann.name for ann in annots])
     if "" != name:
         args = [ann.expr for ann in annots]
