@@ -1,11 +1,14 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0000000000000000
-// Out: 00000001
+// In1: 00000000
+// Out1: 10000000
+// In2: 10000000
+// Out2: 00000000
 
 header dummy_t {
-    bit<8> f1;
+    bit<1> f1;
+    bit<7> padding;
 }
 
 struct empty_metadata_t {
@@ -23,12 +26,21 @@ parser IngressParserImpl(packet_in packet,
                          in psa_ingress_parser_input_metadata_t istd,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
-    state parse_ethernet {
-        packet.extract(hdr.dummy);
-        transition accept;
+    state zero {
+	    packet.extract(hdr.dummy);
+	    hdr.dummy.f1 = 1w1;
+	    transition accept;
+    }
+    state one {
+	    packet.extract(hdr.dummy);
+	    hdr.dummy.f1 = 1w0;
+	    transition accept;
     }
     state start {
-        transition parse_ethernet;
+        transition select(packet.lookahead<bit<1>>()) {
+		    1w0: zero;
+		    1w1: one;	
+	    }
     }
 }
 
@@ -38,7 +50,6 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-       hdr.dummy.f1 = hdr.dummy.f1 + 1;
     }
 }
 
@@ -48,9 +59,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-        ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,

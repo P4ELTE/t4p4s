@@ -1,7 +1,7 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 0000000000000000
+// In: 0000000000
 // Out: 00000001
 
 header dummy_t {
@@ -24,6 +24,7 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_ethernet {
+        packet.advance(4);
         packet.extract(hdr.dummy);
         transition accept;
     }
@@ -48,9 +49,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply {
-        ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,
