@@ -192,15 +192,33 @@ Note that for non-testing examples, you will have to setup your network card, an
     - `run_tests.sh` (see below) also uses this option
         `./t4p4s.sh redo=%l2fwd`
         `./t4p4s.sh redo=%l2fwd=test2`
+1. Hugepages
+    - `examples.cfg` sets the required number of hugepages for each example
+    - Set it to another value
+        `./t4p4s.sh %l2fwd hugepages=1024`
+    - Instruct `t4p4s.sh` not to modify the current number of hugepages (may cause problems if it is less than required for the example)
+        `./t4p4s.sh %l2fwd hugepages=keep`
+    - Instruct `t4p4s.sh` to keep the number of hugepages if it is at least as much as is set in the `hugepages` option
+        `./t4p4s.sh %l2fwd hugeopt=increase_only`
+1. Environment variables
+    - Many options can be overridden using environment variables.
+        `EXAMPLES_CONFIG_FILE="my_config.cfg" ./t4p4s.sh my_p4 @test`
+        `EXAMPLES_CONFIG_FILE="my_config.cfg" COLOUR_CONFIG_FILE="my_colors.txt" P4_SRC_DIR="../my_files" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh %my_p4 dbg verbose`
+    - Running this command gives you the list of environment variables available for customisation.
+    - To see which environment variables are available for customisation and what their default values are, run the following command.
+        `./t4p4s.sh showenvs`
+    - If `showenvs` is not the first argument, it prints the argument values after they have been fully computed/substituted
+        `./t4p4s.sh %l2fwd showenvs`
+1. Controller
+    - Set the controller manually
+        `./t4p4s.sh :l2fwd ctr=l2fwd`
+    - Let the output of the controller be shown in a separate window. For this to work, `gnome-terminal` is used, as the more general `x-terminal-emulator` does not seem to work properly.
+        `./t4p4s.sh %my_p4 ctrterm`
 1. Miscellaneous options
     - Specify the P4 version manually (usually decided by other options or P4 file extension)
         `./t4p4s.sh :l2fwd vsn=14`
-    - Set the controller manually
-        `./t4p4s.sh :l2fwd ctr=l2fwd`
-    - Many options can be overridden using environment variables
-        `EXAMPLES_CONFIG_FILE="my_config.cfg" ./t4p4s.sh my_p4 @test`
-        `EXAMPLES_CONFIG_FILE="my_config.cfg" COLOUR_CONFIG_FILE="my_colors.txt" P4_SRC_DIR="../my_files" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh %my_p4 dbg verbose`
-
+    - Pass a test option to the P4 compiler. This defines a macro called `T4P4S_TEST_1` that is available during P4 preprocessing.
+        `./t4p4s.sh %my_p4 p4testcase=1`
 
 ### Testing
 
@@ -247,151 +265,9 @@ You can also run `t4p4s-docker.sh` to run T₄P₄S in a Docker container.
 
 # Working with the compiler
 
-## Gathering data
+## HLIR
 
-The following parts presume that you are using `ipdb` for debugging.
-You can manually add a debug trigger the following way.
-
-~~~
-import ipdb; ipdb.set_trace()
-~~~
-
-A convenient place to start an investigation is at the end of `set_additional_attrs` in `hlir16_attrs.py`.
-
-### Search by content
-
-The root node of the representation is called `hlir16`.
-Starting at this node or any other one, you can search for all occurrences of a string/integer/etc. using the `%` operator.
-
-~~~
-hlir16 % 'ethernet'
-hlir16 % 1234567
-~~~
-
-The `%` operator is an abbreviated form; you can also use the function `paths_to`.
-
-~~~
-hl[TAB]
-hlir16.p[TAB]
-hlir16.paths_to('ethernet')
-hlir16.paths_to(1234567)
-~~~
-
-The result will look something like this.
-
-~~~
-  = .objects['Type_Header'][0]
-  < .objects['Type_Struct'][4].fields
-  ∈ .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
-  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
-  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
-...........
-~~~
-
-The first character indicates if the searched content is a perfect match (`=`), a prefix (`<`) or an infix (`∈`) of the result of the path.
-
-You can copy-paste a line of the result, and inspect the element there.
-
-~~~
-ipdb> hlir16.objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-ethernet_t<Type_Header>[annotations, declid, fields, name]
-~~~
-
-You can give some options to `paths_to`.
-
-- `print_details` shows each node that each path traverses
-- `match` controls how the matching works (it is always textual)
-
-~~~
-hlir16.paths_to('intrinsic_metadata')
-hlir16.paths_to('intrinsic_metadata', print_details=False, match='prefix')
-hlir16.paths_to('intrinsic_metadata', match='prefix')
-hlir16.paths_to('intrinsic_metadata', match='infix')
-hlir16.paths_to('intrinsic_metadata', match='full')
-~~~
-
-
-### Pretty printing nodes
-
-The most convenient way to pretty print a node is to use the postfix "heart operator".
-
-~~~
-hlir16 <3
-~~~
-
-This, in fact, is a call to the "less than" operator.
-This operator uses the `json_repr` function internally, and turns it into a nice, YAML based output.
-
-~~~
-hlir16 < 3
-hlir16 < 4
-~~~
-
-
-## Attributes
-
-The nodes get their attributes in the following ways.
-
-1. At creation, see `p4node.py`.
-    - In the debugger, enter `hlir16.common_attrs` to see them.
-1. Most attributes are directly loaded from the JSON file.
-    - See `load_p4` in `hlir16.py`.
-    - The `.json` file is produced using the `--toJSON` option of the P4 frontend `p4test`.
-      By default, this is a temporary file that is deleted upon exit.
-1. Many attributes are set in `set_additional_attrs` in `hlir16.py`.
-   While the compiler is in the experimental stage,
-   they may be subject to change, but once it crystallizes,
-   they will be considered standard.
-1. You can manually add attributes using `add_attrs`, but those will be considered non-standard,
-   and will not be portable in general.
-
-The representation contains internal nodes (of type `P4Node`)
-and leaves (primitives like ints and strings).
-Internal nodes will sometimes be (ordered) vectors.
-
-Some of the more important attributes are the following.
-
-~~~
-hl[TAB].d[TAB]        # expands to...
-hlir16.objects   # these are the top-level objects in the program
-
-ds = hlir16.objects
-ds.is_vec()           # True
-ds[0]                 # indexes the vector; the first declaration in the program
-ds.b[TAB]             # expands to...
-ds.by_type('Type_Struct')   # gives you all 'Type_Struct' objects
-ds.by_type('Struct')        # shortcut; many things are called 'Type_...'
-ds.get('name')        # all elems in the vector with the name 'name'
-ds.get('ipv4_t', 'Type_Header')   # the same, limited to the given type
-
-any_node.name         # most nodes (but not all) have names
-any_node.xdir()       # names of the node's non-common attributes
-~~~
-
-## Special attribute operators
-
-When traversing several attributes like `node.type.type_ref.size`, sometimes a part of the chain is optional; in certain cases, `node.type.size` will contain the appropriate value, that is, `type_ref` is not present at `node.type` and should not be in the chain.
-
-- Writing `node.type._type_ref.size` will get the proper attribute value.
-    - Note the underscore prefix in `_type_ref`.
-    - This attribute chain will first get `node.type`. Let's call this node `node2`.
-    - Starting from `node2`, `type_ref` is traversed if it is present. If `node2` doesn't have the `type_ref` attribute, `node.type._type_ref` evaluates to `node2` itself.
-    - Going on from the reached node, the `size` attribute is traversed.
-- For this to work, we assume that no attribute begins with an underscore.
-
-In some cases, an attribute chain cannot be continued if an attribute is missing. For example, `e.expr.header_ref.type.type_ref.is_metadata` may only be meaningful if `header_ref` is present under `e.expr`.
-
-- Writing `e.expr('header_ref.type.type_ref.is_metadata')` will get the proper attribute value.
-    - The call operator will return an invalid `P4Node` object if the chain in its string argument cannot be fully traversed.
-    - The invalid node is falsy. For example, you may use it as `if not e.expr('header_ref.type.type_ref.is_metadata'):`.
-    - The invalid node contains some attributes about where the chain was broken, the last valid node reached in the chain etc.
-- It is also possible to write `e.expr('header_ref.type.type_ref.is_metadata', lambda ismeta: not ismeta)`.
-    - Here, the expression evaluates to the value returned by the lambda, which is invoked on the node reached at the end of the chain.
-    - If the chain is broken, the invalid `P4Node` object is returned as before.
-
+For more details on how to work with HLIR attribures, see [the readme of the `hlir16` submodule](src/hlir16/README.md).
 
 ## Special markers
 

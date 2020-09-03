@@ -12,7 +12,7 @@ extern ctrl_plane_backend bg;
 
 void extern_Digest_pack(learn_digest_t* learn_digest) {
     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(1024,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(learn_digest,extern) "\n");
-    dbg_bytes(&(learn_digest->addr), 1, "       : " T4LIT(addr,field) "/" T4LIT(8) " = ");
+    dbg_print(&(learn_digest->addr), 1, "       : " T4LIT(addr,field));
     debug("       : " T4LIT(dd,field) "/" T4LIT(8) " = " T4LIT(%x) "\n", learn_digest->dd);
 
     ctrl_plane_digest digest = create_digest(bg, "learn_digest");

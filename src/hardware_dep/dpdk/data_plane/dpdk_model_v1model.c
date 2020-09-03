@@ -1,16 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2017 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 #include "dpdk_model_v1model.h"
 #include "util_packet.h"
@@ -18,32 +7,32 @@
 #include <rte_ip.h>
 
 int egress_port_field() {
-    return field_standard_metadata_t_egress_spec;
+    return FLD(all_metadatas,egress_spec);
 }
 
 int ingress_port_field() {
-    return field_standard_metadata_t_ingress_port;
+    return FLD(all_metadatas,ingress_port);
 }
 
 void transfer_to_egress(packet_descriptor_t* pd)
 {
     // int res32; // needed for the macro
-    // uint32_t val = GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, egress_port_field());
-    // MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_egress_spec, val);
+    // uint32_t val = GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), egress_port_field());
+    // MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), FLD(all_metadatas,egress_spec), val);
 }
 
 int extract_egress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, egress_port_field());
+    return GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), egress_port_field());
 }
 
 int extract_ingress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, ingress_port_field());
+    return GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), ingress_port_field());
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 {
     int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, ingress_port_field(), portid);
+    MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), ingress_port_field(), portid);
 }
 
 void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum enum_HashAlgorithm algorithm, SHORT_STDPARAMS) {
@@ -65,7 +54,7 @@ void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t ck
 #endif
 
         if (unlikely(calculated_cksum != current_cksum)) {
-            MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_checksum_error, 1)
+            MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), FLD(all_metadatas,checksum_error), 1)
         }
     }
 }
@@ -92,7 +81,7 @@ void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum enum_Has
     
     if ((pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
         uint32_t res32;
-        MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_checksum_error, 1)
+        MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), FLD(all_metadatas,checksum_error), 1)
 
         debug("       : Verifying packet checksum: " T4LIT(%04x,bytes) "\n", res32);
     }
@@ -115,7 +104,7 @@ void mark_to_drop(SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(mark_to_drop,extern) "\n");
 
     uint32_t res32;
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop, 1)
+    MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), FLD(all_metadatas,drop), 1)
 
     debug("       : " T4LIT(standard_metadata,header) "." T4LIT(drop,field) " = " T4LIT(1,bytes) "\n");
 }

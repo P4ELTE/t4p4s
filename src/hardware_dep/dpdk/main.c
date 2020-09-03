@@ -86,6 +86,7 @@ extern void send_broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t
 extern struct lcore_data init_lcore_data();
 extern packet* clone_packet(packet* pd, struct rte_mempool* mempool);
 extern void init_parser_state(parser_state_t*);
+extern void init_table_default_actions();
 
 //=============================================================================
 
@@ -159,7 +160,7 @@ void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_
 
 void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
-    if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop))) {
+    if (unlikely(GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), FLD(all_metadatas,drop)))) {
         debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
         free_packet(pd);
     } else {
@@ -258,8 +259,14 @@ int main(int argc, char** argv)
         init_storage();
 
         init_memories();
-        debug(" " T4LIT(::::,incoming) " Init control plane connection\n");
-        init_control_plane();
+        #ifndef T4P4S_NO_CONTROL_PLANE
+            debug(" " T4LIT(::::,incoming) " Init control plane connection\n");
+            init_control_plane();
+        #else
+            debug(" :::: (Control plane inactive)\n");
+        #endif
+
+        init_table_default_actions();
 
         t4p4s_pre_launch(i);
 

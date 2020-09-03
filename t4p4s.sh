@@ -1,6 +1,25 @@
 #!/bin/bash
 
 # --------------------------------------------------------------------
+# Default colours
+
+escape_char=$(printf '\033')
+colours=([0]="${escape_char}[1;32m" [1]="${escape_char}[1;33m" [2]="${escape_char}[1;31m")
+nn="${escape_char}[0m"
+
+# --------------------------------------------------------------------
+# Show customisable environment values in this file
+
+if [ $# == 1 ] && [ "$1" == "showenvs" ]; then
+    echo "The ${colours[0]}$0$nn script uses the following ${colours[1]}default values$nn for ${colours[0]}environment variables$nn."
+    cat t4p4s.sh | grep -e '\([A-Z_]*\)=[$][{]\1-' | sed "s/[ ]*\([^=]*\)=[$][{]\1-\(.*\)[}]$/    ${colours[0]}\1$nn=${colours[1]}\2$nn/"
+    echo "Override them like this to customise the script's behaviour."
+    echo "    ${colours[0]}EXAMPLES_CONFIG_FILE$nn=${colours[1]}my_config.cfg$nn ${colours[0]}$0$nn ${colours[1]}:my_p4$nn"
+    echo "    ${colours[0]}EXAMPLES_CONFIG_FILE$nn=${colours[1]}my_config.cfg$nn ${colours[0]}COLOURS_CONFIG_FILE$nn=${colours[1]}my_favourite_colours.cfg$nn ${colours[0]}$0$nn ${colours[1]}%my_p4 dbg verbose p4testcase=1$nn"
+    exit
+fi
+
+# --------------------------------------------------------------------
 # Helper functions
 
 save_envs() {
@@ -11,6 +30,7 @@ save_envs() {
 exit_program() {
     echo -e "$nn"
     [ "${OPTS[ctr]}" != "" ] && verbosemsg "(Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn)" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+    [ "$PYTHON_PARSE_HELPER_PROCESS" != "" ] && verbosemsg "(Terminating parse helper $(cc 0)PID $PYTHON_PARSE_HELPER_PROCESS$nn)" && sudo kill -9 "$PYTHON_PARSE_HELPER_PROCESS"
     [ "$1" != "" ] && errmsg "$(cc 3)Error$nn: $*"
     exit $ERROR_CODE
 }
@@ -38,7 +58,7 @@ exit_on_error() {
     ERROR_CODE=$?
     [ "$ERROR_CODE" -eq 0 ] && return
 
-    exit_program "$1 (error code: $(cc 3)$ERROR_CODE$nn)"
+    exit_program "$1 (error code: $(cc 2)$ERROR_CODE$nn)"
 }
 
 array_contains() {
@@ -64,7 +84,7 @@ cc() {
 }
 
 get_current_envs() {
-    ( set -o posix ; set ) | tr '\n' '\r' | sed "s/\r[^=]*='[^']*\r[^\r]*'\r/\r/g" | tr '\r' '\n'
+    ( set -o posix ; set ) | grep -v "PYTHON_PARSE_HELPER_PROCESS" | tr '\n' '\r' | sed "s/\r[^=]*='[^']*\r[^\r]*'\r/\r/g" | tr '\r' '\n'
 }
 
 print_cmd_opts() {
@@ -164,67 +184,27 @@ remove_name_markers() {
 
 # --------------------------------------------------------------------
 
-# Unmounting /mnt/huge and removing directory
-remove_mnt_huge()
-{
-    grep -s '/mnt/huge' /proc/mounts > /dev/null
-    [ $? -eq 0 ]     && sudo umount /mnt/huge
-    [ -d /mnt/huge ] && sudo rm -R /mnt/huge
-}
-
-# Creating /mnt/huge and mounting as hugetlbfs
-create_mnt_huge()
-{
-    sudo mkdir -p /mnt/huge
-    grep -s '/mnt/huge' /proc/mounts > /dev/null
-    [ $? -ne 0 ] && sudo mount -t hugetlbfs nodev /mnt/huge
-}
-
-allocate_huge_pages() {
-    echo "echo $2 > /sys/kernel/mm/hugepages/hugepages-$1/nr_hugepages" > .echo_tmp
-    sudo sh .echo_tmp
-    rm -f .echo_tmp
-}
-
-# Removing currently reserved hugepages
-create_huge_pages()
-{
-    allocate_huge_pages $1 $2
-    create_mnt_huge
-}
-
-# Removing currently reserved hugepages
-clear_huge_pages()
-{
-    allocate_huge_pages $1 0
-    remove_mnt_huge
-}
-
 reserve_hugepages() {
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+    [ "$(optvalue hugepages)" == keep ] && return
+
+    HUGEPGSZ=`cat /proc/meminfo | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
     OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
 
-    [ $OLD_HUGEPAGES -eq $1 ] && verbosemsg "Using $(cc 0)$OLD_HUGEPAGES$nn hugepages (sufficient, as $(cc 0)$1$nn are needed)" && return
+    HUGE_FORMULA=`echo $HUGEPGSZ | sed -e 's/kB//' | sed -e 's/MB/*1024/' | sed -e 's/GB/*1024*1024/'`
+    HUGE_UNIT=kB
+    HUGE_KB=$(($HUGE_FORMULA*OPTS[hugepages]))
+    HUGE_AMOUNT=$HUGE_KB
+    [ "$(($HUGE_KB % 1024))" -eq 0 ] && HUGE_UNIT=MB && HUGE_AMOUNT=$(($HUGE_KB / 1024))
+    [ "$(($HUGE_KB % 1048576))" -eq 0 ] && HUGE_UNIT=GB && HUGE_AMOUNT=$(($HUGE_KB / 1048576))
 
-    if [ $OLD_HUGEPAGES -lt $1 ]; then
-        msg "Allocating $(cc 0)$1 hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
-
-        create_huge_pages $HUGEPGSZ $1
-        return
-    fi
-
-    [ "$(optvalue keephuge)" != off ] && return
-
-    msg "Allocating $(cc 0)$1$nn hugepages (clearing $(cc 0)$OLD_HUGEPAGES$nn old hugepages)"
-    clear_huge_pages "$HUGEPGSZ"
-    allocate_huge_pages "$HUGEPGSZ" "$1"
-}
-
-reserve_hugepages2() {
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
-    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
     if [ $OLD_HUGEPAGES -lt ${OPTS[hugepages]} ]; then
-        verbosemsg "Reserving $(cc 0)${OPTS[hugepages]} hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
+        verbosemsg "Increasing hugepage count from $(cc 0)$OLD_HUGEPAGES$nn to $(cc 0)${OPTS[hugepages]}$nn ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
+
+        echo "echo ${OPTS[hugepages]} > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
+        sudo sh .echo_tmp
+        rm -f .echo_tmp
+    elif [ "$(optvalue hugeopt)" != increase_only ] && [ $OLD_HUGEPAGES -gt ${OPTS[hugepages]} ]; then
+        verbosemsg "Reducing hugepage count from $(cc 0)$OLD_HUGEPAGES$nn to $(cc 0)${OPTS[hugepages]}$nn ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
 
         echo "echo ${OPTS[hugepages]} > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
         sudo sh .echo_tmp
@@ -242,88 +222,82 @@ overwrite_on_difference() {
     rm -f "/tmp/$1.tmp"
 }
 
+get_stdcfg_redo_filename() {
+    HASH=`echo -n "$* +++ ${CFGFILES}" | cat - "t4p4s.sh" | md5sum | cut -f 1 -d' '`
+    echo "./build-redo/.redo.stdcfg.$HASH.txt"
+}
 
-ORIG_ENVS=`get_current_envs | cut -f 1 -d"=" | paste -sd "|" -`
+get_redo_filename() {
+    HASH=`echo -n "$*" | cat - "t4p4s.sh" ${EXAMPLES_CONFIG_FILE} ${ARCH_OPTS_FILE} | md5sum | cut -f 1 -d' '`
+    echo "./build-redo/.redo.$HASH.txt"
+}
 
-if [ $# -gt 0 ] && [[ $1 = redo=* ]]; then
-    REDO=${1#redo=}
-    REDO=${REDO#%}
-    if [[ $REDO == *=* ]]; then
-        REDO=${REDO%=*}@test-${REDO#*=}
-    elif [[ $1 == *:* ]]; then
-        REDO=${REDO#:}@std
-    elif [[ $1 == *%* ]]; then
-        REDO=${REDO%=*}@test-test
+
+candidate_count() {
+    simple_count=$(find "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
+    if [ $simple_count -eq 1 ]; then
+        echo 1
     else
-        REDO=${REDO%=.*}
+        echo $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l)
     fi
+}
 
-    # array variables have to be explicitly declared as such before reading them from the file
-    declare -A OPTS
-    declare -A IGNORE_OPTS
-
-    REDO_FILE=./build/$REDO/redo.opts.txt
-    if [ -f ${REDO_FILE} ]; then
-        . ${REDO_FILE}
-        REDO_DONE=1
-
-        verbosemsg "Options reloaded from $(cc 0)${REDO_FILE}$nn"
+candidates() {
+    if [ $(candidate_count $1) -gt 0 ]; then
+        echo
+        find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
     else
-        colours=([0]="\033[1;32m" [1]="\033[1;33m" [2]="\033[1;31m")
-        nn="\033[0m"
-
-        if [ "${ON_REDO_FAIL}" != "continue" ]; then
-            echo -e "$(cc 2)Cannot redo$nn $(cc 0)${1#redo=}$nn: config file $(cc 1)${REDO_FILE}$nn does not exist"
-            exit_program
-        else
-            echo -e "Redo config file for $(cc 0)${1#redo=}$nn $(cc 1)does not exist$nn, continuing regular execution..."
-        fi
+        echo "(no candidates found)"
     fi
-fi
+}
 
-if [ "$REDO_DONE" != "1" ]; then
-    # --------------------------------------------------------------------
-    # Set defaults
+# --------------------------------------------------------------------
+# Set defaults
 
-    ERROR_CODE=1
+ERROR_CODE=1
 
-    COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
-    LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
-    EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
+COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
+LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
+EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
 
-    P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
-    CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
+CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
 
-    ARCH=${ARCH-dpdk}
-    ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
+ARCH=${ARCH-dpdk}
+ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
+CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
 
-    PYTHON=${PYTHON-python}
-    DEBUGGER=${DEBUGGER-gdb}
+POSSIBLE_PYTHONS=(python3.9 python3.8 python3.7 python3.6 python3)
+for found_python3 in "${POSSIBLE_PYTHONS[@]}"
+do
+    if [ `command -v "${found_python3}"` ]; then
+        PYTHON=${PYTHON-${found_python3}}
+        break
+    fi
+done
+DEBUGGER=${DEBUGGER-gdb}
 
+declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
 
-    declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
-    ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
+# --------------------------------------------------------------------
 
-    # --------------------------------------------------------------------
-    # Set defaults
+# Generating random ephemeral port
+while
+    PYTHON_PARSE_HELPER_PORT=$(shuf -n 1 -i 49152-65535)
+    netstat -atun | grep -q "$PYTHON_PARSE_HELPER_PORT"
+do
+    continue
+done
 
-    declare -A KNOWN_COLOURS
-    declare -A OPTS
-    declare -A IGNORE_OPTS
+PYTHON_PARSE_HELPER=$(cat <<END
+#!/usr/bin/env ${PYTHON}
 
-    colours=()
-    nn="\033[0m"
-
-    # Check if configuration is valid
-    [ "${P4C}" == "" ] && exit_program "\$P4C not defined"
-    [ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
-
-    # --------------------------------------------------------------------
-    # Parse opts from files and command line
-
-    PYTHON_PARSE_OPT=$(cat <<END
-import re
+import socket
 import sys
+import re
+
+HOST = 'localhost'
+PORT = int(sys.argv[1])
 
 # To facilitate understanding, almost all named patterns of the regex are separated
 patterns = (
@@ -346,38 +320,112 @@ for pattern, replacement in patterns:
 
 rexp = re.compile(rexp)
 
-m = re.match(rexp, sys.argv[1])
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    s.bind((HOST, PORT))
+    s.listen()
 
-print 'ok', ('y' if m is not None else 'n')
-for gname in (p[0] for p in patterns):
-    print gname, '' if m is None else m.group(gname) or ''
+    while True:
+        conn, addr = s.accept()
+        with conn:
+            bline = conn.recv(1024)
+            line = bline.decode()
+            if line.startswith("exit_parse_helper"):
+                sys.exit()
+
+            m = re.match(rexp, line)
+
+            is_ok = 'y' if m else 'n'
+            conn.sendall(f'ok {is_ok}\n'.encode())
+            for gname in (p[0] for p in patterns):
+                opt = '' if not m else m.group(gname) or ''
+                conn.sendall(f'{gname} {opt}\n'.encode())
 END
     )
 
+($PYTHON -c "$PYTHON_PARSE_HELPER" "${PYTHON_PARSE_HELPER_PORT}" &)
+PYTHON_PARSE_HELPER_PROCESS="$!"
 
-    candidate_count() {
-        simple_count=$(find "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
-        if [ $simple_count -eq 1 ]; then
-            echo 1
+unset PYTHON_PARSE_HELPER
+
+sleep 0.1
+
+
+# --------------------------------------------------------------------
+# Set defaults
+
+
+ORIG_ENVS=`get_current_envs | cut -f 1 -d"=" | paste -sd "|" -`
+
+mkdir -p build-redo
+
+if [ $# -gt 0 ] && [[ $1 != noredo ]]; then
+    if [[ $1 = %* ]] || [[ $1 = :* ]]; then
+        REDO=${1#redo=}
+        REDO_SHORT_NAME=$REDO
+        REDO=${REDO#%}
+        if [[ $REDO == *=* ]]; then
+            REDO=${REDO%=*}@test-${REDO#*=}
+        elif [[ $1 == *:* ]]; then
+            REDO=${REDO#:}@std
+        elif [[ $1 == *%* ]]; then
+            REDO=${REDO%=*}@test-test
         else
-            echo $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l)
+            REDO=${REDO%=.*}
         fi
-    }
 
-    candidates() {
-        if [ $(candidate_count $1) -gt 0 ]; then
-            echo
-            find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
-        else
-            echo "(no candidates found)"
+        # array variables have to be explicitly declared as such before reading them from the file
+        declare -A OPTS
+        declare -A IGNORE_OPTS
+
+        REDO_FILE=`get_redo_filename $*`
+        STDCFG_REDO_FILE=`get_stdcfg_redo_filename "${CFGFILES}"`
+        if [ -f ${REDO_FILE} ]; then
+            . ${REDO_FILE}
+            REDO_DONE=1
+
+            verbosemsg "Options reloaded from $(cc 0)${REDO_FILE}$nn"
+        elif [ -f ${STDCFG_REDO_FILE} ]; then
+            . ${STDCFG_REDO_FILE}
+            CMDLINE_OPT_PROCESSED="bypass"
+
+            msg "Standard options have been loaded from $(cc 0)${STDCFG_REDO_FILE}$nn"
         fi
-    }
+    fi
+fi
 
-    OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
+if [ "$REDO_DONE" != "1" ]; then
+    if [ "$CMDLINE_OPT_PROCESSED" != "bypass" ]; then
+        verbosemsg "Using $(cc 0)$p$nn as Python 3 executable"
+        verbosemsg "Using $(cc 0)$DEBUGGER$nn as debugger"
 
-    CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
-    declare -A OPTS=([cfgfiles]="$CFGFILES")
+        ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
 
+        # --------------------------------------------------------------------
+        # Set defaults
+
+        declare -A KNOWN_COLOURS
+        declare -A OPTS
+        declare -A IGNORE_OPTS
+
+        colours=()
+        nn="\033[0m"
+
+        # Check if configuration is valid
+        [ "${P4C}" == "" ] && exit_program "\$P4C not defined"
+        [ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
+
+        # --------------------------------------------------------------------
+        # Parse opts from files and command line
+
+        OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
+
+        CMDLINE_OPT_PROCESSED="no"
+        declare -A OPTS=([cfgfiles]="$CFGFILES")
+
+        ORIGINAL_CFGFILES="$CFGFILES"
+    else
+        declare -A OPTS=([cfgfiles]="${ORIGINAL_CFGFILES}")
+    fi
 
     while [ "${OPTS[cfgfiles]}" != "" ]; do
         IFS=',' read -r -a cfgfiles <<< "${OPTS[cfgfiles]}"
@@ -388,10 +436,26 @@ END
 
             # Collect option descriptions either from the command line or a file
             if [ "$cfgfile" == "!cmdline!" ]; then
+                STDCFG_REDO_FILE=`get_stdcfg_redo_filename "${CFGFILES}"`
+                if [ ! -f $STDCFG_REDO_FILE ]; then
+                    # Save command line, commented out
+                    echo -e "#$*\n" > $STDCFG_REDO_FILE
+
+                    # Save local variables
+                    get_current_envs | grep -vE "^(${ORIG_ENVS})=" >> $STDCFG_REDO_FILE
+
+                    verbosemsg "Standard config options saved to $(cc 0)$STDCFG_REDO_FILE$nn"
+                fi
+
+                CMDLINE_OPT_PROCESSED="yes"
+
                 OPT_ORIGIN="$(cc 0)command line$nn"
                 for opt; do
                     NEWOPTS+=("$opt")
                 done
+            elif [ "$CMDLINE_OPT_PROCESSED" == "bypass" ]; then
+                # do nothing, the contents of this config file have been reloaded
+                continue
             elif [[ $cfgfile =~ !varcfg!* ]]; then
                 OPT_ORIGIN="$(cc 0)variant config file$nn $(cc 1)${cfgfile#!varcfg!}$nn"
                 examplename="${OPTS[example]}@${OPTS[variant]}"
@@ -426,33 +490,40 @@ END
                 done < <(cat "${cfgfile}")
             fi
 
-            # printf 'IIIIIIIIIIIII %s\n' "${NEWOPTS[@]}"
-
             verbosemsg "Parsing $OPT_ORIGIN"
 
             # Process the options
             for opt in ${NEWOPTS[@]}; do
-                if [[ $opt == *.p4* ]] && [ -f "$opt" ]; then
+                if [[ "$opt" == *.p4* ]] && [ -f "$opt" ]; then
                     setopt example "$(basename ${opt%.*})"
                     setopt source "$opt"
                     continue
                 fi
 
+
                 # Split the option into its components along the above regex
+                unset groups
+                declare -A groups=()
                 IFS=' '
-                declare -A groups=() && while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(python -c "$PYTHON_PARSE_OPT" "$opt")
+                while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(echo "$opt" | netcat localhost "${PYTHON_PARSE_HELPER_PORT}" | grep -ve "^$")
+
                 [ "${groups[ok]}" == n ] && [[ $opt = *\;* ]] && continue
                 [ "${groups[ok]}" == n ] && echo -e "Cannot parse option $(cc 0)$opt$nn (origin: $OPT_ORIGIN)" && continue
 
                 var="${groups[var]}"
-                value="${groups[letval]:-on}"
                 [ "${groups[neg]}" != "" ] && OPTS[$var]=off && continue
 
                 if [ "${groups[cond]}" != "" ]; then
                     expected_value="${groups[condval]}"
-                    [ "$(optvalue "${groups[condvar]}")" == off ] && continue
+                    [ "$(optvalue "${groups[condvar]}")" == off -a "$expected_value" != "off" ] && continue
                     [ "$expected_value" != "" -a "${OPTS[${groups[condvar]}]}" != "$expected_value" ] && continue
+
+                    letval_cond=${groups[condvar]}
+                    letval_value=$(optvalue ${groups[condvar]})
+                    groups[letval]=`echo ${groups[letval]} | sed -e "s/[$][\{]${letval_cond}[\}]/${letval_value}/g"`
                 fi
+
+                value="${groups[letval]:-on}"
 
                 [[ $var == COLOUR_* ]] && KNOWN_COLOURS[${var#COLOUR_}]="$value"
                 [ "$var" == "light" ] && set_term_light "$value" && continue
@@ -493,6 +564,7 @@ END
         done
     done
 
+    verbosemsg "Using $(cc 0)$PYTHON_PARSE_HELPER_PORT$nn as parse helper port"
 
     [ "$(optvalue verbose)" == on ] && IGNORE_OPTS[silent]=on
     [ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
@@ -545,22 +617,40 @@ mkdir -p $T4P4S_SRCGEN_DIR
 # --------------------------------------------------------------------
 
 if [ "$REDO_DONE" != 1 ]; then
-    # This local variable is multiline, it does not need to be saved
-    unset PYTHON_PARSE_OPT
+    REDO_FILE=`get_redo_filename $*`
+
+    # Save command line, commented out
+    echo "#$*" > $REDO_FILE
 
     # Save local variables
-    get_current_envs | grep -vE "^(${ORIG_ENVS})=" > $T4P4S_TARGET_DIR/redo.opts.txt
+    get_current_envs | grep -vE "^(${ORIG_ENVS})=" >> $REDO_FILE
+
+    verbosemsg "Config options saved to $(cc 0)$REDO_FILE$nn"
 fi
 
 # --------------------------------------------------------------------
-
 # Checks before execution of phases begins
 
 if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
-    TESTDIR=${TESTDIR-./examples}
-    if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
-        exit_program "No test input file found for example $(cc 0)${OPTS[example]}$nn under $(cc 0)$TESTDIR$nn (expected filename: $(cc 0)test-${OPTS[example]##test-}.c$nn)"
+    EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
+    if [ $(find "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
+        exit_program "No test input file found for example $(cc 0)${OPTS[example]}$nn under $(cc 0)$EXAMPLES_DIR$nn (expected filename: $(cc 0)test-${OPTS[example]##test-}.c$nn)"
     fi
+fi
+
+# --------------------------------------------------------------------
+# Environment variable printout
+
+if [ "${OPTS[showenvs]}" != "" ]; then
+    echo -e "The following values have been computed for the $(cc 0)customisable environment variables$nn."
+    IFS=$'\n'
+    for envvar in `cat t4p4s.sh | grep -e '\([A-Z_]*\)=[$][{]\1-' | sed "s/[ ]*\([^=]*\)=[$][{]\1-\(.*\)[}]$/\1/"`; do
+        if [ -z "${!envvar}" ]; then
+            echo -e "    $(cc 0)$envvar$nn $(cc 2)is not set$nn"
+        else
+            echo -e "    $(cc 0)$envvar$nn=$(cc 1)${!envvar}$nn"
+        fi
+    done
 fi
 
 # --------------------------------------------------------------------
@@ -594,7 +684,7 @@ if [ "$(optvalue p4)" != off ]; then
 
     IFS=" "
     $PYTHON -B src/compiler.py ${OPTS[p4opts]}
-    exit_on_error "P4 to C compilation failed"
+    exit_on_error "P4 to C compilation $(cc 2)failed$nn"
 fi
 
 
@@ -607,6 +697,10 @@ EOT
 
     for colour in ${ALL_COLOUR_NAMES[@]}; do
         COLOUR_MACRO=""
+        # echo DBG BBBBBBBBBBBBBBBBBB T4LIGHT_$colour
+        # echo DBG BBBBBBBBBBBCCCCC   ${OPTS[T4LIGHT_$colour]}
+        # echo DBG BBBBBBBBBBBCCCCC   ${OPTS[${OPTS[T4LIGHT_$colour]}]-${OPTS[T4LIGHT_$colour]}}
+        # echo DBG BBBBBBBBBBBCCCCC   ${OPTS[bw]}
         [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && COLOUR_MACRO="\"${OPTS[${OPTS[T4LIGHT_$colour]}]-${OPTS[T4LIGHT_$colour]}}\"  // ${OPTS[T4LIGHT_$colour]}"
         [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && [ "$COLOUR_MACRO" == "\"\"" ] && [ "$colour" != "default" ] && COLOUR_MACRO="T4LIGHT_default"
         echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
@@ -633,8 +727,8 @@ LDFLAGS += ${OPTS[ldflags]}
 EOT
 
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
-        # TESTDIR is defined in the check above
-        TESTFILE=$(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c")
+        # EXAMPLES_DIR is defined in the check above
+        TESTFILE=$(find "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
 
         [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=\"t4p4s_testcase_${OPTS[testcase]}\"" " "
         echo "VPATH += \$(CDIR)/../../`dirname $TESTFILE`" >>"/tmp/${GEN_MAKEFILE}.tmp"
@@ -661,7 +755,7 @@ EOT
     else
         make -j
     fi
-    exit_on_error "C compilation failed"
+    exit_on_error "C compilation $(cc 2)failed$nn"
 
     cd - >/dev/null
 fi
@@ -680,26 +774,34 @@ if [ "$(optvalue run)" != off ]; then
 
         msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
 
+        for ctrcfg in ${OPTS[ctrcfg]}; do
+            [ ! -f $ctrcfg ] && exit_program "Controller config file $(cc 2)$ctrcfg$nn does not exist"
+        done
+
         verbosemsg "Controller log : $(cc 0)${CONTROLLER_LOG}$nn"
         verbosemsg "Controller opts: $(print_cmd_opts ${OPTS[ctrcfg]})"
 
         # Step 3A-1: Compile the controller
         cd $CTRL_PLANE_DIR
-        if [ "$(optvalue silent)" != off ]; then
-            make -s -j $CONTROLLER >/dev/null
-        else
+        if [ "$(optvalue verbose)" == on ]; then
+            make -j $CONTROLLER
+        elif [ "$(optvalue silent)" != off ]; then
             make -s -j $CONTROLLER
+        else
+            make -s -j $CONTROLLER >/dev/null
         fi
-        exit_on_error "Controller compilation failed"
+        exit_on_error "Controller compilation $(cc 2)failed$nn"
         cd - >/dev/null
 
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
             stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+        elif [ "$(optvalue ctrterm)" != off -a `command -v gnome-terminal` ]; then
+            gnome-terminal -- bash -c "(stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
         else
             (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
         fi
-        sleep 0.05
+        sleep 0.2
     fi
 fi
 
@@ -715,7 +817,7 @@ if [ "$(optvalue run)" != off ]; then
         sudo mount -t hugetlbfs nodev /mnt/huge
     fi
 
-    [ "$(optvalue hugepages)" != off ] && reserve_hugepages2 "${OPTS[hugepages]}"
+    reserve_hugepages "${OPTS[hugepages]}"
 
     [ "$ARCH" == "dpdk" ] && EXEC_OPTS="${OPTS[ealopts]} -- ${OPTS[cmdopts]}"
 

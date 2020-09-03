@@ -51,10 +51,22 @@
             fprintf(stderr, T4COLOR(T4LIGHT_off) "\n"); \
             pthread_mutex_unlock(&dbg_mutex); \
         }
+
+    #define dbg_print(bytes, bit_count, MSG, ...) \
+        { \
+            char fmt[256]; \
+            if (bit_count <= 32) { \
+                sprintf(fmt, "%s/" T4LIT(%db) " = " T4LIT(%d) " = " T4LIT(0x%x) " = ", MSG, bit_count, *(bytes), *(bytes)); \
+            } else { \
+                sprintf(fmt, "%s/" T4LIT(%db) " = ", MSG, bit_count); \
+            } \
+            dbg_bytes(bytes, (bit_count+7)/8, "%s", fmt, ##__VA_ARGS__);   \
+        }
+
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)   
+    #define dbg_print(bytes, bit_count, MSG, ...) 
 #endif
-
 
 
 void sleep_millis(int millis);

@@ -53,7 +53,7 @@ control ingress(inout headers hdr,
         hdr.dummy.addr = dd;
     }
     action learn() {
-    	learn_digest.pack({ hdr.dummy.addr, (bit<8>)2});
+    	learn_digest.pack({ hdr.dummy.addr, (bit<8>)2 });
     }
     table t {
         actions = {

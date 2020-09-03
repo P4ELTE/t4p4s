@@ -1,18 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-#ifndef DATAPLANE_H
-#define DATAPLANE_H
+
+#pragma once
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -88,31 +77,31 @@ typedef struct header_reference_s {
     int var_width_field;
 } header_reference_t;
 
-#define FIELD_FIXED_WIDTH(f) (f != header_instance_var_width_field[field_instance_header[f]])
-#define FIELD_FIXED_POS(f)   (f <= header_instance_var_width_field[field_instance_header[f]] || header_instance_var_width_field[field_instance_header[f]] == -1)
+#define FIELD_FIXED_WIDTH_PD(f) (f != hdr_infos[fld_infos[f].header_instance].var_width_field)
+#define FIELD_FIXED_POS_PD(f)   (f <= hdr_infos[fld_infos[f].header_instance].var_width_field || hdr_infos[fld_infos[f].header_instance].var_width_field == -1)
 
-#define FIELD_DYNAMIC_BITWIDTH(pd, f) (FIELD_FIXED_WIDTH(f) ? field_instance_bit_width[f] : (pd)->headers[field_instance_header[f]].var_width_field_bitwidth)
-#define FIELD_DYNAMIC_BYTEOFFSET(pd, f) (field_instance_byte_offset_hdr[f] + (FIELD_FIXED_POS(f) ? 0 : ((pd)->headers[field_instance_header[f]].var_width_field_bitwidth / 8)))
+#define FIELD_DYNAMIC_BITWIDTH_PD(pd, f) (FIELD_FIXED_WIDTH_PD(f) ? fld_infos[f].bit_width : (pd)->headers[fld_infos[f].header_instance].var_width_field_bitwidth)
+#define FIELD_DYNAMIC_BYTEOFFSET_PD(pd, f) (fld_infos[f].byte_offset + (FIELD_FIXED_POS_PD(f) ? 0 : ((pd)->headers[fld_infos[f].header_instance].var_width_field_bitwidth / 8)))
 
 #define field_desc(pd, f) ((field_reference_t) \
                { \
-                 .header     = field_instance_header[f], \
-                 .meta       = header_instance_is_metadata[field_instance_header[f]], \
-                 .bitwidth   =   FIELD_DYNAMIC_BITWIDTH(pd, f), \
-                 .bytewidth  =  (FIELD_DYNAMIC_BITWIDTH(pd, f) + 7) / 8, \
-                 .bytecount  = ((FIELD_DYNAMIC_BITWIDTH(pd, f) + 7 + field_instance_bit_offset[f]) / 8), \
-                 .bitoffset  = field_instance_bit_offset[f], \
-                 .byteoffset = FIELD_DYNAMIC_BYTEOFFSET(pd, f), \
-                 .mask       = field_instance_mask[f], \
-                 .fixed_width= FIELD_FIXED_WIDTH(f), \
-                 .byte_addr  = (((uint8_t*)(pd)->headers[field_instance_header[f]].pointer)+(FIELD_DYNAMIC_BYTEOFFSET(pd, f))), \
+                 .header     = fld_infos[f].header_instance, \
+                 .meta       = hdr_infos[fld_infos[f].header_instance].is_metadata, \
+                 .bitwidth   =   FIELD_DYNAMIC_BITWIDTH_PD(pd, f), \
+                 .bytewidth  =  (FIELD_DYNAMIC_BITWIDTH_PD(pd, f) + 7) / 8, \
+                 .bytecount  = ((FIELD_DYNAMIC_BITWIDTH_PD(pd, f) + 7 + fld_infos[f].bit_offset) / 8), \
+                 .bitoffset  = fld_infos[f].bit_offset, \
+                 .byteoffset = FIELD_DYNAMIC_BYTEOFFSET_PD(pd, f), \
+                 .mask       = fld_infos[f].mask, \
+                 .fixed_width= FIELD_FIXED_WIDTH_PD(f), \
+                 .byte_addr  = (((uint8_t*)(pd)->headers[fld_infos[f].header_instance].pointer)+(FIELD_DYNAMIC_BYTEOFFSET_PD(pd, f))), \
                })
 
 #define header_info(h) (header_reference_t) \
                { \
                  .header_instance = h, \
-                 .bytewidth       = header_instance_byte_width[h], \
-                 .var_width_field  = header_instance_var_width_field[h], \
+                 .bytewidth       = hdr_infos[h].byte_width, \
+                 .var_width_field = hdr_infos[h].var_width_field, \
                }
 
 typedef struct header_descriptor_s {
@@ -128,7 +117,7 @@ typedef struct header_descriptor_s {
 
 typedef struct packet_descriptor_s {
     packet_data_t*      data;
-    header_descriptor_t headers[HEADER_INSTANCE_COUNT+1];
+    header_descriptor_t headers[HEADER_COUNT+1];
     parsed_fields_t     fields;
     packet*             wrapper;
 
@@ -138,8 +127,8 @@ typedef struct packet_descriptor_s {
     int payload_length;
     bool is_emit_reordering;
     // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
-    int header_reorder[HEADER_INSTANCE_COUNT+8];
-    uint8_t header_tmp_storage[HEADER_INSTANCE_TOTAL_LENGTH];
+    int header_reorder[HEADER_COUNT+8];
+    uint8_t header_tmp_storage[NONMETA_HDR_TOTAL_LENGTH];
 
     void * control_locals;
 } packet_descriptor_t;
@@ -151,5 +140,3 @@ extern lookup_table_t table_config[];
 
 void init_dataplane(packet_descriptor_t* packet, lookup_table_t** tables);
 void handle_packet(packet_descriptor_t* packet, lookup_table_t** tables, parser_state_t* pstate, uint32_t portid);
-
-#endif

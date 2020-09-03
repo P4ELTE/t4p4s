@@ -24,6 +24,12 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_ethernet {
+        // extracting to the underscore identifier is not supported currently
+        // packet.extract<dummy_t>(_);
+
+        // packet.advance is not supported currently
+        //packet.advance(2);
+
         packet.extract(hdr.dummy);
         transition accept;
     }

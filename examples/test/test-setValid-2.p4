@@ -48,6 +48,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
 
         size = 1;
+
+        default_action = setValid_srcAddrAdded;
     }
 
     apply {

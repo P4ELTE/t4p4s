@@ -1,28 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# Miscellaneous utility functions (not using HLIR)
-
-from __future__ import print_function
 
 import sys
 import os
 import pkgutil
+import itertools
 
 global filename
 global filepath
 global genfile
 global outfile
+
 filename = "?"
 filepath = "?"
 genfile = "?"
@@ -36,9 +24,8 @@ def addError(where, msg):
     rootcwd = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
     import traceback
-    import itertools
     sb  = traceback.extract_stack()
-    res = list(itertools.dropwhile(lambda (mod, line, fun, code): mod == 'src/compiler.py', sb))
+    res = list(itertools.dropwhile(lambda tb: tb[0] == 'src/compiler.py', sb))
     lineno = res[0][1]
     res = [(genfile, lineno, res[0][2], res[0][3])] + res[1:-1]
 
@@ -53,7 +40,7 @@ def addError(where, msg):
     except:
         pass
 
-    res = [("." + path[len(rootcwd):] if path.startswith(rootcwd) else path, line, module, errmsg) for (path, line, module, errmsg) in res]
+    res = [(f".{path[len(rootcwd):]}" if path.startswith(rootcwd) else path, line, module, errmsg) for (path, line, module, errmsg) in res]
 
     global errors
     msg = "Error while {}: {}".format(where, msg)
@@ -62,14 +49,14 @@ def addError(where, msg):
         # uses the backtrace module to prettify output
         import backtrace
         btrace = backtrace._Hook(res, align=True)
-        errors += [msg] + ["    " + msg for msg in btrace.generate_backtrace(backtrace.STYLES)]
+        errors += [msg] + [f"    {msg}" for msg in btrace.generate_backtrace(backtrace.STYLES)]
     else:
         errors += [msg] + traceback.format_list(res)
 
 
 def addWarning(where, msg):
     global warnings
-    warnings += ["WARNING: " + msg + " (While " + where + ").\n"]
+    warnings += [f"WARNING: {msg} (While {where}).\n"]
 
 
 def showErrors():

@@ -66,6 +66,9 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     register<bit<16>>(32w65536) reg16;
 
 
+    action forward() {}
+    action _nop() {}
+
     action bcast() {
         c_p.count(1);
 
@@ -111,6 +114,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 
         actions = {
             mac_learn;
+            _nop;
         }
     }
 
@@ -120,6 +124,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 
         actions = {
             bcast;
+            forward;
         }
 
         size = 1;

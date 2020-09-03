@@ -11,8 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef DPDK_PRIMITIVES_H
-#define DPDK_PRIMITIVES_H
+#pragma once
 
 #include <rte_byteorder.h>
 #include "dataplane.h"
@@ -38,25 +37,25 @@ typedef struct bitfield_handle_s {
     int      fixed_width;
 } bitfield_handle_t;
 
-#define FIELD_FIXED_WIDTH_(f) (f != header_var_width_field[field_header[f]])
-#define FIELD_FIXED_POS_(f)   (f <= header_var_width_field[field_header[f]] || header_var_width_field[field_header[f]] == -1)
+#define FIELD_FIXED_WIDTH_HDESC(f) (f != hdr_infos[fld_infos[f].header_instance].var_width_field)
+#define FIELD_FIXED_POS_HDESC(f)   (f <= hdr_infos[fld_infos[f].header_instance].var_width_field || hdr_infos[fld_infos[f].header_instance].var_width_field == -1)
 
-#define FIELD_DYNAMIC_BITWIDTH_(hdesc, f) (FIELD_FIXED_WIDTH_(f) ? field_bit_width[f] : hdesc.var_width_field_bitwidth)
-#define FIELD_DYNAMIC_BYTEOFFSET_(hdesc, f) (field_byte_offset_hdr[f] + (FIELD_FIXED_POS_(f) ? 0 : (hdesc.var_width_field_bitwidth / 8)))
+#define FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, f) (FIELD_FIXED_WIDTH_HDESC(f) ? fld_infos[f].bit_width : hdesc.var_width_field_bitwidth)
+#define FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, f) (fld_infos[f].byte_offset + (FIELD_FIXED_POS_HDESC(f) ? 0 : (hdesc.var_width_field_bitwidth / 8)))
 
 #define handle(hdesc, f) \
         ((bitfield_handle_t) \
         { \
-            .byte_addr   = (((uint8_t*)hdesc.pointer)+(FIELD_DYNAMIC_BYTEOFFSET_(hdesc, f))), \
-            .meta        = header_is_metadata[field_header[f]], \
-            .bitwidth    = FIELD_DYNAMIC_BITWIDTH_(hdesc, f), \
-            .bytewidth   = (FIELD_DYNAMIC_BITWIDTH_(hdesc, f) + 7) / 8, \
-            .bitcount    = FIELD_DYNAMIC_BITWIDTH_(hdesc, f) + field_bit_offset[f], /* bitwidth + bitoffset */ \
-            .bytecount   = ((FIELD_DYNAMIC_BITWIDTH_(hdesc, f) + 7 + field_bit_offset[f]) / 8), \
-            .bitoffset   = field_bit_offset[f], \
-            .byteoffset  = FIELD_DYNAMIC_BYTEOFFSET_(hdesc, f), \
-            .mask        = field_mask[f], \
-            .fixed_width = FIELD_FIXED_WIDTH_(f), \
+            .byte_addr   = (((uint8_t*)hdesc.pointer)+(FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, f))), \
+            .meta        = hdr_infos[fld_infos[f].header_instance].is_metadata, \
+            .bitwidth    = FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, f), \
+            .bytewidth   = (FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, f) + 7) / 8, \
+            .bitcount    = FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, f) + fld_infos[f].bit_offset, /* bitwidth + bitoffset */ \
+            .bytecount   = ((FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, f) + 7 + fld_infos[f].bit_offset) / 8), \
+            .bitoffset   = fld_infos[f].bit_offset, \
+            .byteoffset  = FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, f), \
+            .mask        = fld_infos[f].mask, \
+            .fixed_width = FIELD_FIXED_WIDTH_HDESC(f), \
         })
 
 #define header_desc_buf(buf, w) ((header_descriptor_t) { -1, buf, -1, w })
@@ -234,13 +233,13 @@ static int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_i
 typedef struct target_fld_s {
     packet_descriptor_t*   pd;
     enum header_instance_e hdr;
-    enum field_e           fld;
+    enum field_instance_e  fld;
 } fldT;
 
 typedef struct target_buf_s {
     uint8_t* buf;
     int      w;
-    enum field_instance_e  fld;
+    enum field_instance_e fld;
 } bufT;
 
 static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
@@ -280,6 +279,3 @@ void transfer_to_egress(packet_descriptor_t* pd);
 
 int extract_egress_port(packet_descriptor_t* pd);
 int extract_ingress_port(packet_descriptor_t* pd);
-
-#endif // DPDK_PRIMITIVES_H
-
