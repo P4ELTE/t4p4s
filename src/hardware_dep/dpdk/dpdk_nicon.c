@@ -179,7 +179,7 @@ struct lcore_data init_lcore_data() {
 
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
-    lcdata.conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
+    lcdata.conf->async_queue = rte_ring_create(str, (unsigned)4*1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
 
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());

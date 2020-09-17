@@ -18,18 +18,20 @@
 #include "dataplane.h"
 #include "util.h"
 #include <string.h>
+#define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
+
+#define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) "] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+#define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
+
+#include <pthread.h>
+pthread_mutex_t dbg_mutex;
+
+#define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
+
+#include <inttypes.h>
 
 #ifdef T4P4S_DEBUG
-    #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-    #define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
-
-    #define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) "] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-    #define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
-
-    #include <pthread.h>
-    pthread_mutex_t dbg_mutex;
-
-    #define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
 
     #define debug(M, ...) \
         { \
@@ -41,6 +43,82 @@
 #else
     #define debug(M, ...)
 #endif
+
+
+#if 1==1
+    #define fdebug(M, ...) \
+    { \
+        pthread_mutex_lock(&dbg_mutex); \
+        debug_printf(M, ##__VA_ARGS__); \
+        pthread_mutex_unlock(&dbg_mutex); \
+    }
+#else
+    #define fdebug(M, ...)
+#endif
+
+typedef struct occurence_counter_s {
+    int counter;
+    uint64_t start_cycle;
+} occurence_counter_t;
+
+
+typedef struct time_measure_s{
+    uint64_t start_cycle;
+    uint64_t echo_start_cycle;
+    int counter;
+    uint64_t time_sum;
+}time_measure_t;
+
+#if 1==1
+    #define COUNTER_INIT(oc) {oc.counter=0;}
+    #define COUNTER_ECHO(oc,print_template){ \
+            if(oc.counter == 0) { \
+                oc.start_cycle = rte_get_tsc_cycles(); \
+                oc.counter++; \
+            } \
+            if(rte_get_tsc_cycles() - oc.start_cycle > rte_get_timer_hz()){ \
+                fdebug(print_template,oc.counter); \
+                oc.start_cycle = rte_get_tsc_cycles(); \
+                oc.counter = 0; \
+            } \
+        }
+    #define COUNTER_STEP(oc){ \
+               oc.counter++;  \
+            }
+
+
+    #define TIME_MEASURE_INIT(tm) {tm.echo_start_cycle = 0;}
+    #define TIME_MEASURE_ECHO(tm,print_template) { \
+            if(tm.echo_start_cycle == 0) { \
+                tm.echo_start_cycle = rte_get_tsc_cycles(); \
+            } \
+            if(rte_get_tsc_cycles() - tm.echo_start_cycle > rte_get_timer_hz() && tm.counter > 0){ \
+                fdebug(print_template,tm.time_sum); \
+                tm.echo_start_cycle = rte_get_tsc_cycles(); \
+                tm.time_sum = 0; \
+                tm.counter = 0; \
+            } \
+        }
+    #define TIME_MEASURE_START(tm){ \
+               tm.start_cycle = rte_get_tsc_cycles();  \
+            }
+    #define TIME_MEASURE_STOP(tm){ \
+               tm.time_sum += rte_get_tsc_cycles() - tm.start_cycle;  \
+               tm.counter++; \
+            }
+#else
+    #define COUNTER_INIT(oc)
+    #define COUNTER_ECHO(oc,print_template)
+    #define COUNTER_STEP(oc)
+
+    #define TIME_MEASURE_INIT(tm)
+    #define TIME_MEASURE_ECHO(tm,print_template)
+    #define TIME_MEASURE_START(tm)
+    #define TIME_MEASURE_STOP(tm)
+#endif
+
+#define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - timer > rte_get_timer_hz()?(timer = rte_get_tsc_cycles()),true:false)
+
 
 typedef struct packet_descriptor_s packet_descriptor_t;
 typedef struct header_descriptor_s header_descriptor_t;

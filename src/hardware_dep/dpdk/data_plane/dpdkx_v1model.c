@@ -87,7 +87,7 @@ void mark_to_drop(SHORT_STDPARAMS) {
     debug(" :::: Called extern " T4LIT(mark_to_drop,extern) "\n");
 
     uint32_t res32;
-    MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, 1)
+    //MODIFY_INT32_INT32_BITS_PACKET(pd, header_instance_standard_metadata, field_standard_metadata_t_drop, 1)
 }
 
 void verify(bool check, enum error_error toSignal, SHORT_STDPARAMS) {

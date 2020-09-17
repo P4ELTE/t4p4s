@@ -48,6 +48,10 @@
     #include <stdio.h>
 #endif
 
+#if ASYNC_MODE == ASYNC_MODE_PD
+    #include <setjmp.h>
+    extern jmp_buf mainLoopJumpPoint[RTE_MAX_LCORE];
+#endif
 // TODO from...
 extern void initialize_args(int argc, char **argv);
 extern void initialize_nic();
@@ -179,23 +183,55 @@ void main_loop_fake_crypto(struct lcore_data* lcdata);
 #endif
 void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
 {
+    COUNTER_ECHO(lcdata->conf->processed_packet_num,"processed packet num: %d\n");
+    COUNTER_STEP(lcdata->conf->processed_packet_num);
+    COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"send to crypto packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"doing crypto packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->fwd_packet,"fwd packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->async_packet,"async packet: %d\n");
+    //TIME_MEASURE_ECHO(lcdata->conf->async_main_time,"async main time: %" PRIu64 "\n");
+    //TIME_MEASURE_ECHO(lcdata->conf->sync_main_time,"ssync main time: %" PRIu64 "\n");
+
+    bool got_packet = false;
+    clear_pd_states(pd);
+
     pd->context = NULL;
     pd->dropped = 0;
-    bool got_packet = fetch_packet(pd, lcdata, pkt_idx);
+    got_packet = fetch_packet(pd, lcdata, pkt_idx);
 
     if (got_packet) {
         void (*handler_function)(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id) = do_handle_packet;
         if (likely(is_packet_handled(pd, lcdata))) {
             pd->port_id = get_portid(lcdata, queue_idx);
-        #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+
+        #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
             if(PACKET_REQUIRES_ASYNC(pd)){
-                async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
+                //fdebug("Async packet\n");
+                COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
+
+                //TIME_MEASURE_START(lcdata->conf->async_main_time);
+                #if ASYNC_MODE == ASYNC_MODE_PD
+                    if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0){
+                        async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
+                    }
+                #else
+                    async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
+                #endif
+                //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
             }
-            else
-        #endif
+            else{
+                //TIME_MEASURE_START(lcdata->conf->sync_main_time);
+                //fdebug("SYNC packet\n");
                 handler_function(lcdata, pd, get_portid(lcdata, queue_idx));
+                //TIME_MEASURE_STOP(lcdata->conf->sync_main_time);
+            }
+        #else
+            handler_function(lcdata, pd, get_portid(lcdata, queue_idx));
+        #endif
+
         }
     }
+
     main_loop_post_single_rx(lcdata, got_packet);
 }
 
@@ -245,7 +281,27 @@ bool dpdk_main_loop()
         getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
     #endif
 
+    COUNTER_INIT(lcdata.conf->processed_packet_num);
+    COUNTER_INIT(lcdata.conf->async_packet);
+    COUNTER_INIT(lcdata.conf->sent_to_crypto_packet);
+    COUNTER_INIT(lcdata.conf->doing_crypto_packet);
+    COUNTER_INIT(lcdata.conf->fwd_packet);
+
+    //TIME_MEASURE_INIT(lcdata.conf->main_time);
+    //TIME_MEASURE_INIT(lcdata.conf->async_main_time);
+    //TIME_MEASURE_INIT(lcdata.conf->sync_main_time);
+    //TIME_MEASURE_INIT(lcdata.conf->middle_time);
+    //TIME_MEASURE_INIT(lcdata.conf->middle_time2);
+
     while (core_is_working(&lcdata)) {
+        //TIME_MEASURE_ECHO(lcdata.conf->middle_time,"middle time: %" PRIu64 "\n");
+        //TIME_MEASURE_ECHO(lcdata.conf->main_time,"main cycle time: %" PRIu64 "\n");
+        //TIME_MEASURE_ECHO(lcdata.conf->middle_time2,"middle2 time: %" PRIu64 "\n");
+
+        if (lcore_id !=  rte_lcore_count() - 1){
+            //TIME_MEASURE_START(lcdata.conf->main_time);
+            //TIME_MEASURE_START(lcdata.conf->middle_time);
+        }
         #ifdef START_CRYPTO_NODE
             if (lcore_id ==  rte_lcore_count() - 1){
                 main_loop_fake_crypto(&lcdata);
@@ -253,12 +309,20 @@ bool dpdk_main_loop()
                 main_loop_whole_process(&lcdata,&pd);
             }
         #else
-            main_loop_whole_process(&lcdata,&pd);
+            main_loop_whole_process(&lcdata, &pd);
         #endif
 
         #if ASYNC_MODE != ASYNC_MODE_OFF
+        if (lcore_id != rte_lcore_count() - 1) {
+            //TIME_MEASURE_START(lcdata.conf->middle_time2);
             main_loop_async(&lcdata, &pd);
+            //TIME_MEASURE_STOP(lcdata.conf->middle_time2);
+        }
         #endif
+        if (lcore_id !=  rte_lcore_count() - 1) {
+            //TIME_MEASURE_STOP(lcdata.conf->middle_time);
+            //TIME_MEASURE_STOP(lcdata.conf->main_time);
+        }
     }
 
     return lcdata.is_valid;
@@ -289,7 +353,9 @@ int main(int argc, char** argv)
 {
     RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
     RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
+    RTE_LOG(INFO, P4_FWD, " -- NUMBER_OF_CORES: %u\n", NUMBER_OF_CORES);
     RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
     #ifdef  DEBUG__CRYPTO_EVERY_N
         RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
     #endif

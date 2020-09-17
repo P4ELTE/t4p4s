@@ -88,7 +88,7 @@ static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
     session_priv_pool = session_pool;
 
     unsigned int crypto_op_private_data = AES_CBC_IV_LENGTH;
-    crypto_pool = rte_crypto_op_pool_create("crypto_pool", RTE_CRYPTO_OP_TYPE_SYMMETRIC, 1024, POOL_CACHE_SIZE, crypto_op_private_data, socket_id);
+    crypto_pool = rte_crypto_op_pool_create("crypto_pool", RTE_CRYPTO_OP_TYPE_SYMMETRIC, 64*1024, POOL_CACHE_SIZE, crypto_op_private_data, socket_id);
     if (crypto_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create crypto op pool\n");
 }
 
@@ -178,16 +178,34 @@ void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *cryp
 // defined in main_async.c
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
 
+extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
+
 void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
             do_async_op(pd, ASYNC_OP_ENCRYPT);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
-    #else
+    #elif ASYNC_MODE == ASYNC_MODE_PD
+        if(pd->context != NULL) {
+            //debug("-----------------------------------------------Encrypt command, Program State: %d\n",pd->program_state)
+            if(pd->program_state == 0){
+                COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
+                do_async_op(pd, ASYNC_OP_ENCRYPT);
+            }
+        }else{
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
+        }
+    #elif ASYNC_MODE == ASYNC_MODE_SKIP
+        COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
+    #elif ASYNC_MODE == ASYNC_MODE_OFF
         do_encryption(pd,tables,pstate);
+    #else
+        #error Not Supported Async mode
     #endif
 }
 
@@ -199,8 +217,19 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
-    #elif ASNY_MODE == ASYNC_MODE_OFF
+    #elif ASYNC_MODE == ASYNC_MODE_PD
+        if(pd->context != NULL) {
+            //debug("-----------------------------------------------DECRYPT command, Program State: %d\n",pd->program_state)
+            if(pd->program_state == 1){
+                do_async_op(pd, ASYNC_OP_DECRYPT);
+            }
+        }
+    #elif ASYNC_MODE == ASYNC_MODE_SKIP
+        ;
+    #elif ASYNC_MODE == ASYNC_MODE_OFF
         do_decryption(pd,tables,pstate);
+    #else
+        #error Not Supported Async mode
     #endif
 }
 
@@ -208,13 +237,18 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
     int run_blocking_encryption_counter[RTE_MAX_LCORE];
 #endif
 
+
 // defined in main_async.c
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(run_blocking_encryption_counter[rte_lcore_id()] == 0){
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].sent_to_crypto_packet);
             do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+        }else{
+            COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #else
         do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);

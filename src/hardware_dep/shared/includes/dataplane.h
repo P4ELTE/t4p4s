@@ -112,6 +112,12 @@ typedef struct header_reference_s {
                  .var_width_field  = header_instance_var_width_field[h], \
                }
 
+#define clear_pd_states(pd)\
+                { \
+                    pd->context = NULL; \
+                    pd->program_state = 0; \
+                }
+
 typedef struct header_descriptor_s {
     header_instance_t   type;
     void *              pointer;
@@ -124,6 +130,7 @@ typedef struct packet_descriptor_s {
     void *context;
 
     uint32_t port_id;
+    int program_state;
 
 
     packet_data_t*      data;

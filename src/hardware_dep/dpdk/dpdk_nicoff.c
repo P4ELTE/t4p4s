@@ -275,8 +275,26 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
 // ------------------------------------------------------
 // TODO
 
+#ifdef START_CRYPTO_NODE
+    bool core_stopped_running[RTE_MAX_LCORE];
+#endif
+
 bool core_is_working(struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0 || lcdata->conf->pending_crypto > 0;
+    bool ret = get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0 || lcdata->conf->pending_crypto > 0;
+    #ifdef START_CRYPTO_NODE
+        if(ret == false){
+            core_stopped_running[rte_lcore_id()] = true;
+        }
+
+        if(rte_lcore_id() ==  rte_lcore_count() - 1){
+            bool is_any_runing = false;
+            for(int a = 0; a < rte_lcore_count()-1;a++){
+                is_any_runing |= !core_stopped_running[a];
+            }
+            ret = is_any_runing;
+        }
+    #endif
+    return ret;
 }
 
 bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
@@ -365,6 +383,13 @@ void init_storage() {
     pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
     async_init_storage();
     storage_already_inited = true;
+
+    #ifdef START_CRYPTO_NODE
+        for(int a=0;a<rte_lcore_count();a++){
+            core_stopped_running[a] = false;
+        }
+    #endif
+
 }
 
 struct lcore_data init_lcore_data() {

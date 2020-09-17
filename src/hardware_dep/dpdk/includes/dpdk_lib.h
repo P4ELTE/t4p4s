@@ -144,6 +144,20 @@ struct lcore_conf {
     struct rte_ring    *fake_crypto_rx;
     struct rte_ring    *fake_crypto_tx;
 
+    occurence_counter_t async_drop_counter;
+    occurence_counter_t fwd_packet;
+    occurence_counter_t sent_to_crypto_packet;
+    occurence_counter_t doing_crypto_packet;
+    occurence_counter_t async_packet;
+	occurence_counter_t processed_packet_num;
+
+	//time_measure_t main_time;
+	//time_measure_t middle_time;
+	//time_measure_t middle_time2;
+
+	//time_measure_t async_main_time;
+	//time_measure_t sync_main_time;
+	//time_measure_t async_work_loop_time;
 } __rte_cache_aligned;
 
 //-----------------------------------------------------------------------------
@@ -151,6 +165,8 @@ struct lcore_conf {
 
 #define ASYNC_MODE_OFF 0
 #define ASYNC_MODE_CONTEXT 1
+#define ASYNC_MODE_PD 2
+#define ASYNC_MODE_SKIP 3
 
 #ifndef ASYNC_MODE
 	#define ASYNC_MODE ASYNC_MODE_OFF
@@ -178,21 +194,25 @@ struct lcore_conf {
 #endif
 
 
-#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
 	#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
 		#define PACKET_REQUIRES_ASYNC(pd) (packet_required_counter[rte_lcore_id()] = (packet_required_counter[rte_lcore_id()] + 1) % DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET) == 0
     #else
 		#define PACKET_REQUIRES_ASYNC(pd) true
     #endif
 
-	#define CRYPTO_BURST_SIZE 64
+    #ifndef CRYPTO_BURST_SIZE
+	    #define CRYPTO_BURST_SIZE 64
+    #endif
 #else
 	#define PACKET_REQUIRES_ASYNC(pd) false
-	#define CRYPTO_BURST_SIZE 1
+    #ifndef CRYPTO_BURST_SIZE
+    	#define CRYPTO_BURST_SIZE 1
+    #endif
 #endif
 
 
-//#define DEBUG__COUNT_CONTEXT_MISSING_CAUSED_PACKET_DROP
+#define DEBUG__COUNT_CONTEXT_MISSING_CAUSED_PACKET_DROP
 
 
 // Shall we move these to backend.h?
