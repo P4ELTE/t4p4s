@@ -72,38 +72,34 @@ typedef struct testcase_s {
 #define UNKNOWN_PKT(src, dst, ...)        {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__), WAIT_CONTROLPLANE_REPLY,    0, ETH(src, dst, ##__VA_ARGS__)}
 #define LEARNED_PKT(port, src, dst, ...)  {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__),                       0, port, ETH(src, dst, ##__VA_ARGS__)}
 
-// Already defined in DPDK
+#define _ETHERTYPE_IPV4 "0800"
+#define _ETHERTYPE_ARP "0806"
+#define _ETHERTYPE_VLAN "8100"
 
-//#define ETHERTYPE_IPV4 "0800"
-//#define ETHERTYPE_ARP "0806"
-//#define ETHERTYPE_VLAN "8100"
+#define _IPPROTO_ICMP "01"
+#define _IPPROTO_IPv4 "04"
+#define _IPPROTO_TCP "06"
+#define _IPPROTO_UDP "11"
 
-//#define IPPROTO_ICMP "01"
-//#define IPPROTO_IPv4 "04"
-//#define IPPROTO_TCP "06"
-//#define IPPROTO_UDP "11"
+#define _GTP_UDP_PORT "2152"
 
-//#define GTP_UDP_PORT "2152"
-
-#define ARP_HTYPE_ETHERNET "0001"
-#define ARP_PTYPE_IPV4     "0800"
-#define ARP_HLEN_ETHERNET  "06"
-#define ARP_PLEN_IPV4      "04"
+#define _ARP_HTYPE_ETHERNET "0001"
+#define _ARP_PTYPE_IPV4     "0800"
+#define _ARP_HLEN_ETHERNET  "06"
+#define _ARP_PLEN_IPV4      "04"
 
 #define ETH(dst, src, ...) FDATA(dst, src, ##__VA_ARGS__)
-#define IPV4(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000000000", srcip, dstip, ##__VA_ARGS__)
-#define ICMP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_ICMP, "0000", srcip, dstip, ##__VA_ARGS__)
-#define UDP(dsteth, dstip, dstport, srceth, srcip, srcport, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, srcport, dstport, ##__VA_ARGS__)
-#define GTP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, ##__VA_ARGS__)
-#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, "00000000", "2", (tFlag?"8":"0"), ##__VA_ARGS__)
-#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, "00000000", "4", (tFlag?"8":"0"), ##__VA_ARGS__)
+#define IPV4(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000000000", srcip, dstip, ##__VA_ARGS__)
+#define ICMP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_ICMP, "0000", srcip, dstip, ##__VA_ARGS__)
+#define UDP(dsteth, dstip, dstport, srceth, srcip, srcport, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, srcport, dstport, ##__VA_ARGS__)
+#define GTP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, ##__VA_ARGS__)
+#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", "2", (tFlag?"8":"0"), ##__VA_ARGS__)
+#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", "4", (tFlag?"8":"0"), ##__VA_ARGS__)
 
-#define ARP(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_ARP, ##__VA_ARGS__)
-#define ARP_IPV4(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_ARP, ARP_HTYPE_ETHERNET, ARP_PTYPE_IPV4, ARP_HLEN_ETHERNET, ARP_PLEN_IPV4, ##__VA_ARGS__)
+#define ARP(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_ARP, ##__VA_ARGS__)
+#define ARP_IPV4(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_ARP, _ARP_HTYPE_ETHERNET, _ARP_PTYPE_IPV4, _ARP_HLEN_ETHERNET, _ARP_PLEN_IPV4, ##__VA_ARGS__)
 
-#define VLAN(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_VLAN, ##__VA_ARGS__)
-
-
+#define VLAN(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_VLAN, ##__VA_ARGS__)
 
 #define IPV4_0000 "0000000000000000000000000000000000000000"
 
