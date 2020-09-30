@@ -124,7 +124,7 @@ void set_default_action_nexthops()
     strcpy(sda->table_name, "nexthops_0");
 
     a = &(sda->action);
-    strcpy(a->description.name, "_drop");
+    strcpy(a->description.name, "_drop_2");
 
     netconv_p4_header(h);
     netconv_p4_set_default_action(sda);
@@ -168,8 +168,8 @@ void init_simple() {
 	uint8_t port = 15;
 	uint32_t nhgrp = 0;
 
-        set_default_action_nexthops();
-        set_default_action_ipv4_lpm();
+    set_default_action_nexthops();
+    set_default_action_ipv4_lpm();
 
 	fill_ipv4_lpm_table(ip, 16, nhgrp);
 	fill_nexthops_table(nhgrp, port, smac, mac);
@@ -179,9 +179,9 @@ int main(int argc, char* argv[])
 {
 	printf("Create and configure controller...\n");
 
-        c = create_controller_with_init(11111, 3, dhf, init_simple);
-	
-        notify_controller_initialized();
+    c = create_controller_with_init(11111, 3, dhf, init_simple);
+
+    notify_controller_initialized();
 
 	printf("Launching controller's main loop...\n");
 	execute_controller(c);

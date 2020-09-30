@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+
 #include "controller.h"
 #include "messages.h"
 #include <unistd.h>
@@ -23,111 +13,18 @@ controller c;
 
 extern void notify_controller_initialized();
 
-void fill_t_fwd_table(uint16_t inport, uint8_t port, uint8_t mac[6], bool wmac)
-{
-        char buffer[2048];
-        struct p4_header* h;
-        struct p4_add_table_entry* te;
-        struct p4_action* a;
-        struct p4_action_parameter* ap;
-        struct p4_action_parameter* ap2;
-        struct p4_field_match_exact* exact;
-
-/*        uint8_t v[2];
-        v[0]=inport;
-        v[1]=0;
-*/
-        h = create_p4_header(buffer, 0, 2048);
-        te = create_p4_add_table_entry(buffer,0,2048);
-        strcpy(te->table_name, "t_fwd_0");
-
-        exact = add_p4_field_match_exact(te, 2048);
-        strcpy(exact->header.name, "standard_metadata.ingress_port");
-        memcpy(exact->bitmap, &inport , 2);
-        exact->length = 2*8+0;
-        if (wmac) {
-                a = add_p4_action(h, 2048);
-                strcpy(a->description.name, "forward_rewrite");
-        
-                ap = add_p4_action_parameter(h, a, 2048);        
-                strcpy(ap->name, "port");
-                memcpy(ap->bitmap, &port, 1);
-                ap->length = 1*8+0;
-
-                ap2 = add_p4_action_parameter(h, a, 2048);
-                strcpy(ap2->name, "mac");
-                memcpy(ap2->bitmap, mac, 6);
-                ap2->length = 6*8+0;
-
-                netconv_p4_header(h);
-                netconv_p4_add_table_entry(te);
-                netconv_p4_field_match_exact(exact);
-                netconv_p4_action(a);
-                netconv_p4_action_parameter(ap);
-                netconv_p4_action_parameter(ap2);
-        } else {
-                a = add_p4_action(h, 2048);
-                strcpy(a->description.name, "forward");
-        
-                ap = add_p4_action_parameter(h, a, 2048);        
-                strcpy(ap->name, "port");
-                memcpy(ap->bitmap, &port, 1);
-                ap->length = 1*8+0;
-
-                netconv_p4_header(h);
-                netconv_p4_add_table_entry(te);
-                netconv_p4_field_match_exact(exact);
-                netconv_p4_action(a);
-                netconv_p4_action_parameter(ap);
-
-        }
-
-        send_p4_msg(c, buffer, 2048);
-}
+extern void set_table_default_action(const char* table_nickname, const char* table_name, const char* default_action_name);
+extern void fill_t_fwd_table(uint16_t inport, uint16_t port, uint8_t mac[6], bool wmac);
 
 void dhf(void* b) {
        printf("Unknown digest received\n");
 }
 
-void set_default_action_t_fwd()
-{
-        char buffer[2048];
-        struct p4_header* h;
-        struct p4_set_default_action* sda;
-        struct p4_action* a;
-        // struct p4_action_parameter* ap;
-        // uint8_t port = 1;
-
-        printf("Generate set_default_action message for table t_fwd\n");
-        
-        h = create_p4_header(buffer, 0, sizeof(buffer));
-
-        sda = create_p4_set_default_action(buffer,0,sizeof(buffer));
-        strcpy(sda->table_name, "t_fwd_0");
-
-        a = &(sda->action);
-        strcpy(a->description.name, "_drop");
-
-//        strcpy(a->description.name, "forward");
-
-//        ap = add_p4_action_parameter(h, a, 2048);
-//        strcpy(ap->name, "port");
-//        memcpy(ap->bitmap, &port, 1);
-//        ap->length = 1*8+0;
-
-        netconv_p4_header(h);
-        netconv_p4_set_default_action(sda);
-        netconv_p4_action(a);
-//        netconv_p4_action_parameter(ap);
-
-        send_p4_msg(c, buffer, sizeof(buffer));
-}
-
 bool uplink, downlink;
 uint8_t uplink_mac[6];
 uint8_t downlink_mac[6];
-uint8_t uplink_port, downlink_port;
-uint8_t uplink_inport, downlink_inport;
+uint16_t uplink_port, downlink_port;
+uint16_t uplink_inport, downlink_inport;
 
 int read_config_from_file(char *filename) {
         FILE *f;
@@ -152,17 +49,18 @@ int read_config_from_file(char *filename) {
                                 uplink = (ismac==1);
                                 for( i = 0; i < 6; ++i )
                                         uplink_mac[i] = (uint8_t) values[i];
-                                uplink_port = (uint8_t) port;
-                                uplink_inport = (uint8_t) inport;
-                
+                                uplink_port = (uint16_t) port;
+                                uplink_inport = (uint16_t) inport;
+                                printf("UPLINK %d %d %x:%x:%x:%x:%x:%x\n", uplink_port, uplink_inport,values[0],values[1],values[2],values[3],values[4],values[5]);
                         }
                         else
                         {
                                 downlink = (ismac==1);
                                 for( i = 0; i < 6; ++i )
                                         downlink_mac[i] = (uint8_t) values[i];
-                                downlink_port = (uint8_t) port;
-                                downlink_inport = (uint8_t) inport;
+                                downlink_port = (uint16_t) port;
+                                downlink_inport = (uint16_t) inport;
+                                printf("DOWNLINK %d %d %x:%x:%x:%x:%x:%x\n", downlink_port, downlink_inport,values[0],values[1],values[2],values[3],values[4],values[5]);
                         }
 
                 } else {
@@ -179,7 +77,7 @@ int read_config_from_file(char *filename) {
 
 void init() {
         printf("Set default actions.\n");
-        set_default_action_t_fwd();
+        set_table_default_action("t_fwd", "t_fwd_0", "_drop");
 
         fill_t_fwd_table(uplink_inport, uplink_port, uplink_mac, uplink);
         fill_t_fwd_table(downlink_inport, downlink_port, downlink_mac, downlink);

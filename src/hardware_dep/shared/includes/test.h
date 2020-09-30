@@ -1,19 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
-#ifndef __TEST_H_
-#define __TEST_H_
+#pragma once
 
 #include <stdint.h>
 
@@ -72,36 +60,41 @@ typedef struct testcase_s {
 #define UNKNOWN_PKT(src, dst, ...)        {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__), WAIT_CONTROLPLANE_REPLY,    0, ETH(src, dst, ##__VA_ARGS__)}
 #define LEARNED_PKT(port, src, dst, ...)  {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__),                       0, port, ETH(src, dst, ##__VA_ARGS__)}
 
-#define _ETHERTYPE_IPV4 "0800"
-#define _ETHERTYPE_ARP "0806"
-#define _ETHERTYPE_VLAN "8100"
+// Already defined in DPDK
 
-#define _IPPROTO_ICMP "01"
-#define _IPPROTO_IPv4 "04"
-#define _IPPROTO_TCP "06"
-#define _IPPROTO_UDP "11"
+//#define ETHERTYPE_IPV4 "0800"
+//#define ETHERTYPE_ARP "0806"
+//#define ETHERTYPE_VLAN "8100"
 
-#define _GTP_UDP_PORT "2152"
+//#define IPPROTO_ICMP "01"
+//#define IPPROTO_IPv4 "04"
+//#define IPPROTO_TCP "06"
+//#define IPPROTO_UDP "11"
 
-#define _ARP_HTYPE_ETHERNET "0001"
-#define _ARP_PTYPE_IPV4     "0800"
-#define _ARP_HLEN_ETHERNET  "06"
-#define _ARP_PLEN_IPV4      "04"
+//#define GTP_UDP_PORT "2152"
 
-#define ETH(dst, src, ...) FDATA(dst, src, ##__VA_ARGS__)
-#define IPV4(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000000000", srcip, dstip, ##__VA_ARGS__)
-#define ICMP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_ICMP, "0000", srcip, dstip, ##__VA_ARGS__)
-#define UDP(dsteth, dstip, dstport, srceth, srcip, srcport, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, srcport, dstport, ##__VA_ARGS__)
-#define GTP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, ##__VA_ARGS__)
-#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", "2", (tFlag?"8":"0"), ##__VA_ARGS__)
-#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", "4", (tFlag?"8":"0"), ##__VA_ARGS__)
+#define ARP_HTYPE_ETHERNET "0001"
+#define ARP_PTYPE_IPV4     "0800"
+#define ARP_HLEN_ETHERNET  "06"
+#define ARP_PLEN_IPV4      "04"
 
-#define ARP(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_ARP, ##__VA_ARGS__)
-#define ARP_IPV4(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_ARP, _ARP_HTYPE_ETHERNET, _ARP_PTYPE_IPV4, _ARP_HLEN_ETHERNET, _ARP_PLEN_IPV4, ##__VA_ARGS__)
+#define ETH(dst, src, ...) FDATA(dst, src, ARP_PTYPE_IPV4, ##__VA_ARGS__)
+#define IPV4(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000000000", srcip, dstip, ##__VA_ARGS__)
+#define ICMP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_ICMP, "0000", srcip, dstip, ##__VA_ARGS__)
+#define UDP(dsteth, dstip, dstport, srceth, srcip, srcport, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, srcport, dstport, ##__VA_ARGS__)
+#define GTP(dsteth, dstip, srceth, srcip, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, ##__VA_ARGS__)
+#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, "00000000", "2", (tFlag?"8":"0"), ##__VA_ARGS__)
+#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) ETH(dsteth, srceth, ETHERTYPE_IPV4, "000000000000000000", IPPROTO_UDP, "0000", srcip, dstip, GTP_UDP_PORT, GTP_UDP_PORT, "00000000", "4", (tFlag?"8":"0"), ##__VA_ARGS__)
 
-#define VLAN(dsteth, srceth, ...) ETH(dsteth, srceth, _ETHERTYPE_VLAN, ##__VA_ARGS__)
+#define ARP(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_ARP, ##__VA_ARGS__)
+#define ARP_IPV4(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_ARP, ARP_HTYPE_ETHERNET, ARP_PTYPE_IPV4, ARP_HLEN_ETHERNET, ARP_PLEN_IPV4, ##__VA_ARGS__)
+
+#define VLAN(dsteth, srceth, ...) ETH(dsteth, srceth, ETHERTYPE_VLAN, ##__VA_ARGS__)
+
+
 
 #define IPV4_0000 "0000000000000000000000000000000000000000"
+#define IPV4_FFFF "00000000000000000000ffff0000000000000000"
 
 #define ETH01 "000001000000"
 #define ETH02 "000002000000"
@@ -113,6 +106,11 @@ typedef struct testcase_s {
 
 #define LPM_ETH1 "cccccccc0000"
 #define LPM_ETH2 "dddddddd0000"
+
+// other MAC addresses
+
+#define L3_MAC1 "D2690FA8399C"
+#define L3_MAC2 "D2690F00009C"
 
 // random payloads
 
@@ -132,5 +130,3 @@ typedef struct testcase_s {
 #define LPM2_TOP16B   "3200"
 
 #define T4P4S_BROADCAST_PORT 100
-
-#endif

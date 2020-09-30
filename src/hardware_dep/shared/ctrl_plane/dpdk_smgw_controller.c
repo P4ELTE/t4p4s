@@ -25,6 +25,8 @@
 controller c;
 
 extern void notify_controller_initialized();
+extern void set_table_default_action(char* table_nickname, char* table_name, char* default_action_name);
+extern void fill_teid_rate_limiter_table(uint32_t teid, uint8_t mode);
 
 void fill_smac_table(uint8_t port, uint8_t mac[6]) {
   char buffer[2048];
@@ -37,7 +39,7 @@ void fill_smac_table(uint8_t port, uint8_t mac[6]) {
 
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "smac");
+  strcpy(te->table_name, "smac_0");
 
   exact = add_p4_field_match_exact(te, 2048);
   strcpy(exact->header.name, "ethernet.srcAddr");
@@ -45,7 +47,7 @@ void fill_smac_table(uint8_t port, uint8_t mac[6]) {
   exact->length = 6 * 8 + 0;
 
   a = add_p4_action(h, 2048);
-  strcpy(a->description.name, "_nop");
+  strcpy(a->description.name, "NoAction_0");
 
   netconv_p4_header(h);
   netconv_p4_add_table_entry(te);
@@ -65,7 +67,7 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6]) {
 
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "dmac");
+  strcpy(te->table_name, "dmac_0");
 
   exact = add_p4_field_match_exact(te, 2048);
   strcpy(exact->header.name, "ethernet.dstAddr");
@@ -89,102 +91,6 @@ void fill_dmac_table(uint8_t port, uint8_t mac[6]) {
   send_p4_msg(c, buffer, 2048);
 }
 
-void fill_ue_selector_table(uint8_t ip[4], uint8_t prefix, uint16_t port, uint8_t mode, uint32_t teid, uint8_t ipbst[4]) {
-  char buffer[2048]; /* TODO: ugly */
-  struct p4_header * h;
-  struct p4_add_table_entry * te;
-  struct p4_action * a;
-  struct p4_action_parameter * ap1;
-  struct p4_action_parameter * ap2;
-  struct p4_field_match_lpm * lpm;
-  // struct p4_field_match_ternary * ternary;
-  
-  // uint16_t mask = (mode==0?65565:0);
-
-  printf("ue_selector_0 %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
-  h = create_p4_header(buffer, 0, 2048);
-  te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "ue_selector_0");
-
-  lpm = add_p4_field_match_lpm(te, 2048);
-  strcpy(lpm->header.name, "ipv4.dstAddr");
-  memcpy(lpm->bitmap, ip, 4);
-  lpm->prefix_length = prefix;
-
-/*  ternary = add_p4_field_match_ternary(te, 2048);
-  strcpy(ternary->header.name, "udp.dstPort");
-  memcpy(ternary->bitmap, &port, 2);
-  memcpy(ternary->mask, &mask, 2);
-
-*/
-  a = add_p4_action(h, 2048);
-  if (mode == 1) {
-    printf("add mode gtp_encapsulate\n");
-    strcpy(a->description.name, "gtp_encapsulate");
-    ap1 = add_p4_action_parameter(h, a, 2048);
-    strcpy(ap1->name, "teid");
-    memcpy(ap1->bitmap, &teid, 4);
-    ap1->length = 4 * 8 + 0;
-
-    ap2 = add_p4_action_parameter(h, a, 2048);
-    strcpy(ap2->name, "ip");
-    memcpy(ap2->bitmap, ipbst, 4);
-    ap2->length = 4 * 8 + 0;
-  } else {
-    printf("add mode gtp_decapsulate\n");
-    strcpy(a->description.name, "gtp_decapsulate");
-  }
-
-  netconv_p4_header(h);
-  netconv_p4_add_table_entry(te);
-  netconv_p4_field_match_lpm(lpm);
-  //netconv_p4_field_match_ternary(ternary);
-  netconv_p4_action(a);
-  if (mode == 1) {
-    netconv_p4_action_parameter(ap1);
-    netconv_p4_action_parameter(ap2);
-  }
-
-  send_p4_msg(c, buffer, 2048);
-}
-
-void fill_teid_rate_limiter_table(uint32_t teid, uint8_t mode) {
-  char buffer[2048]; /* TODO: ugly */
-  struct p4_header * h;
-  struct p4_add_table_entry * te;
-  struct p4_action * a;
-  struct p4_field_match_exact * exact;
-
-  printf("teid_rate_limiter\n");
-  h = create_p4_header(buffer, 0, 2048);
-  te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "teid_rate_limiter");
-
-  exact = add_p4_field_match_exact(te, 2048);
-  strcpy(exact->header.name, "gtp_metadata.teid");
-  memcpy(exact->bitmap, & teid, 1);
-  exact->length = 1 * 8 + 0;
-
-  a = add_p4_action(h, 2048);
-  if (mode == 1) {
-    printf("add mode apply_meter\n");
-    strcpy(a->description.name, "apply_meter");
-  } else if (mode == 2) {
-    printf("add mode _nop\n");
-    strcpy(a->description.name, "_nop");
-  } else {
-    printf("add mode _drop\n");
-    strcpy(a->description.name, "_drop");
-  }
-
-  netconv_p4_header(h);
-  netconv_p4_add_table_entry(te);
-  netconv_p4_field_match_exact(exact);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, 2048);
-}
-
 void fill_m_filter_table(uint8_t color, uint8_t mode) {
   char buffer[2048]; /* TODO: ugly */
   struct p4_header * h;
@@ -195,7 +101,7 @@ void fill_m_filter_table(uint8_t color, uint8_t mode) {
   printf("m_filter\n");
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "m_filter");
+  strcpy(te->table_name, "m_filter_0");
 
   exact = add_p4_field_match_exact(te, 2048);
   strcpy(exact->header.name, "gtp_metadata.color");
@@ -205,10 +111,10 @@ void fill_m_filter_table(uint8_t color, uint8_t mode) {
   a = add_p4_action(h, 2048);
   if (mode == 2) {
     printf("add mode _nop\n");
-    strcpy(a->description.name, "_nop");
+    strcpy(a->description.name, "NoAction_5");
   } else {
     printf("add mode _drop\n");
-    strcpy(a->description.name, "_drop");
+    strcpy(a->description.name, "drop_6");
   }
 
   netconv_p4_header(h);
@@ -307,168 +213,7 @@ void fill_ipv4_forward_table(uint8_t nhgroup, uint8_t port, uint8_t smac[6], uin
   send_p4_msg(c, buffer, 2048);
 }
 
-void set_default_action_smac() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table smac\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "smac");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "mac_learn");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_dmac() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table dmac\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "dmac");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "bcast");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_ue_selector_table() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table ue_lpm table\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ue_selector_0");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "drop");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_teid_rate_limiter_table() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for tteid_rate_limiter table\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "teid_rate_limiter");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "_drop");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_m_filter_table() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table m_filter table\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "m_filter");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "_drop");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_ipv4_forward() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table nexthops\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ipv4_forward_0");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "drop");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void set_default_action_ipv4_lpm() {
-  char buffer[2048];
-  struct p4_header * h;
-  struct p4_set_default_action * sda;
-  struct p4_action * a;
-
-  printf("Generate set_default_action message for table ipv4_lpm\n");
-
-  h = create_p4_header(buffer, 0, sizeof(buffer));
-
-  sda = create_p4_set_default_action(buffer, 0, sizeof(buffer));
-  strcpy(sda->table_name, "ipv4_lpm_0");
-
-  a = & (sda->action);
-  strcpy(a->description.name, "drop");
-
-  netconv_p4_header(h);
-  netconv_p4_set_default_action(sda);
-  netconv_p4_action(a);
-
-  send_p4_msg(c, buffer, sizeof(buffer));
-}
-
-void dhf(void * b) {
+void dhf(void* b) {
   printf("Unknown digest received\n");
 }
 
@@ -500,8 +245,6 @@ void init_simple() {
 
   fill_ipv4_lpm_table(ip, 16, nhgrp);
 //  fill_nexthops_table(nhgrp, port, smac, mac);
-
-  notify_controller_initialized();
 }
 
 int read_config_from_file(char * filename) {
@@ -526,6 +269,7 @@ int read_config_from_file(char * filename) {
   f = fopen(filename, "r");
   if (f == NULL) return -1;
 
+  int error = 0;
   int line_index = 0;
   while (fgets(line, sizeof(line), f)) {
     line[strlen(line) - 1] = '\0';
@@ -536,84 +280,84 @@ int read_config_from_file(char * filename) {
     printf("Found code %s\n", format_code);
 
     if (!strcmp("SMAC", format_code) || !strcmp("M", format_code)) { //SMAC
-      if (7 == sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5])) {
-        //fill_smac_table(port, dmac);
-        printf("Skipping SMAC\n");
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (7 != sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5]));
+      if (error)   break;
+
+      // fill_smac_table(port, smac);
     } else if (!strcmp("DMAC", format_code)) { //DMAC
-      if (8 == sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhd", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port)) {
-        fill_dmac_table(port, dmac);
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (8 != sscanf(line, "%s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhd", format_code, & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5], & port));
+      if (error)   break;
+
+      fill_dmac_table(port, dmac);
     } else if (!strcmp("UE-SELECTOR", format_code) || !strcmp("U", format_code)) { //UE_SELECTOR
-      if (13 == sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hu %hd %hhd %d %hhd.%hhd.%hhd.%hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, & mode, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3])) //mode 1 encapsulate, 0 decapsulate
-      {
-        prefix = 32;
-        printf("%s\n", line);
-        printf("%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", format_code, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
-        printf("PREFIX:::%d %d\n", prefix, temp);
-        fill_ue_selector_table(ip, prefix, udpport, mode, teid, ipbst );
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      char mode_string[256];
+
+      error = (13 != sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hu %hd %s %d %hhd.%hhd.%hhd.%hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], &temp, & udpport, mode_string, &teid, &ipbst[0], &ipbst[1],&ipbst[2],&ipbst[3]));
+      if (error)   break;
+
+      // modes: 1 encapsulate, 0 decapsulate
+      if (!strcmp("DECAPSULATE", mode_string) || !strcmp("0", mode_string))  mode = 0;
+      if (!strcmp("ENCAPSULATE", mode_string) || !strcmp("1", mode_string))  mode = 1;
+
+      prefix = 32;
+      printf("%s\n", line);
+      printf("%s %d.%d.%d.%d %u %d %d %d %d.%d.%d.%d\n", format_code, ip[0], ip[1], ip[2], ip[3], prefix, udpport, mode, teid, ipbst[0], ipbst[1],ipbst[2],ipbst[3]);
+      printf("PREFIX:::%d %d\n", prefix, temp);
+
+      // struct p4_header* hdr = new_hdr();
+      // add_table_lpm("ue_selector_0", "ipv4.dstAddr", prefix, ip);
+      // if (mode == 1) {
+      //   add_action2(hdr, "gtp_encapsulate", "teid", &teid, 4, "ip", &ipbst, 4);
+      // } else {
+      //   add_action0(hdr, "gtp_decapsulate");
+      // }
+      // send_msg();
+
     } else if (!strcmp("TEID-RATE-LIMITER", format_code) || !strcmp("T", format_code)) { //teid_rate_limiter
       char teid_mode[256];
-      if (3 == sscanf(line, "%s %d %s", format_code, & teid, teid_mode)) //mode 0 apply_meter, 1 _nop, 2 _drop
-      {
-        if (!strcmp("APPLY-METER", teid_mode) || !strcmp("0", format_code))  mode = 0;
-        if (!strcmp("NOP", teid_mode)         || !strcmp("1", format_code))  mode = 1;
-        if (!strcmp("DROP", teid_mode)        || !strcmp("2", format_code))  mode = 2;
-        fill_teid_rate_limiter_table(teid, mode);
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (3 != sscanf(line, "%s %d %s", format_code, & teid, teid_mode));
+      if (error)   break;
+
+      // modes: 0 apply_meter, 1 _nop, 2 _drop
+      if (!strcmp("APPLY-METER", teid_mode) || !strcmp("0", teid_mode))  mode = 0;
+      if (!strcmp("NOP", teid_mode)         || !strcmp("1", teid_mode))  mode = 1;
+      if (!strcmp("DROP", teid_mode)        || !strcmp("2", teid_mode))  mode = 2;
+
+      fill_teid_rate_limiter_table(teid, mode);
     } else if (!strcmp("M-FILTER", format_code) || !strcmp("F", format_code)) { //m_filter
       char m_filter_mode[256];
-      if (3 == sscanf(line, "%s %hhd %s", format_code, & color, m_filter_mode)) //mode 1 _nop, 2 _drop
-      {
-        if (!strcmp("NOP", m_filter_mode)  || !strcmp("1", format_code))         mode = 1;
-        if (!strcmp("DROP", m_filter_mode) || !strcmp("2", format_code))         mode = 2;
-        fill_m_filter_table(color, mode);
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (3 != sscanf(line, "%s %hhd %s", format_code, & color, m_filter_mode));
+      if (error)   break;
+
+      // modes: 1 _nop, 2 _drop
+      if (!strcmp("NOP", m_filter_mode)  || !strcmp("1", m_filter_mode))         mode = 1;
+      if (!strcmp("DROP", m_filter_mode) || !strcmp("2", m_filter_mode))         mode = 2;
+      fill_m_filter_table(color, mode);
     } else if (!strcmp("NEXTHOP", format_code) || !strcmp("E", format_code)) {
-      if (7 == sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hhd %hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp)) {
-        fill_ipv4_lpm_table(ip, prefix, nhgrp);
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (7 != sscanf(line, "%s %hhd.%hhd.%hhd.%hhd %hhd %hhd", format_code, & ip[0], & ip[1], & ip[2], & ip[3], & prefix, & nhgrp));
+      if (error)   break;
+
+      fill_ipv4_lpm_table(ip, prefix, nhgrp);
     } else if (!strcmp("SMAC-DMAC", format_code) || !strcmp("N", format_code)) {
-      if (15 == sscanf(line, "%s %hhd %hhd %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5])) {
-        printf("%s\n", line);
-        printf("%s %d %d %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
-        fill_ipv4_forward_table(nhgrp, port, smac, dmac);
-      } else {
-        printf("Wrong format error in line\n");
-        fclose(f);
-        return -1;
-      }
+      error = (15 != sscanf(line, "%s %hhd %hhd %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, & nhgrp, & port, & smac[0], & smac[1], & smac[2], & smac[3], & smac[4], & smac[5], & dmac[0], & dmac[1], & dmac[2], & dmac[3], & dmac[4], & dmac[5]));
+      if (error)   break;
+
+      printf("%s\n", line);
+      printf("%s %d %d %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hhx:%hhx:%hhx:%hhx:%hhx:%hhx", format_code, nhgrp, port, smac[0], smac[1], smac[2], smac[3], smac[4], smac[5], dmac[0], dmac[1], dmac[2], dmac[3], dmac[4], dmac[5]);
+      fill_ipv4_forward_table(nhgrp, port, smac, dmac);
     } else {
-      printf("Wrong format error in line, unknown code %s\n", format_code);
+      printf("Wrong format error on line %d, unknown code %s: %s\n", line_index, format_code, line);
       fclose(f);
-      return -1;
+      return -2;
     }
   }
+
+  if (error != 0) {
+    printf("Wrong format error on line %d: %s\n", line_index, line);
+    fclose(f);
+    return -2;
+  }
+
   fclose(f);
   return 0;
 }
@@ -621,18 +365,22 @@ int read_config_from_file(char * filename) {
 char * fn;
 
 void init_complex() {
-  //set_default_action_smac();
-  //set_default_action_dmac();
-  set_default_action_ue_selector_table();
- // set_default_action_teid_rate_limiter_table();
- // set_default_action_m_filter_table();
-  set_default_action_ipv4_forward();
-  set_default_action_ipv4_lpm();
+  // set_table_default_action("smac", "smac", "mac_learn");
+  // set_table_default_action("dmac", "dmac", "bcast");
+  set_table_default_action("ue_lpm", "ue_selector_0", "drop");
+  // set_table_default_action("tteid_rate_limiter", "teid_rate_limiter", "_drop_3");
+  // set_table_default_action("m_filter", "m_filter", "_drop_4");
+  set_table_default_action("nexthops", "ipv4_forward_0", "drop_8");
+  set_table_default_action("ipv4_lpm", "ipv4_lpm_0", "drop_7");
 
-  if (read_config_from_file(fn) < 0) {
-    printf("File cannnot be opened...\n");
-  }
-  notify_controller_initialized();
+  int retval = read_config_from_file(fn);
+  if (retval == -1) {
+    printf("File %s cannot be opened...\n", fn);
+  } else if (retval == -2) {
+    printf("File %s contains errors, stopped processing\n", fn);
+  } else {
+    printf("File %s processed successfully\n", fn);
+  } 
 }
 
 int main(int argc, char * argv[]) {
@@ -650,8 +398,11 @@ int main(int argc, char * argv[]) {
     c = create_controller_with_init(11111, 3, dhf, init_simple);
   }
 
+  notify_controller_initialized();
+
   printf("Launching controller's main loop...\n");
   execute_controller(c);
+
 
   printf("Destroy controller\n");
   destroy_controller(c);
