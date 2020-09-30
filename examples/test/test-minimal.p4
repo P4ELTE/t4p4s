@@ -38,7 +38,7 @@ control MyIngress(inout parsed_packet hdr, inout metadata meta, inout standard_m
     }
 
     action forward(bit<9> port) {
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
     }
 
     action mac_learn() {
@@ -74,7 +74,7 @@ control MyIngress(inout parsed_packet hdr, inout metadata meta, inout standard_m
         default_action = bcast;
     }
 
-    apply { 
+    apply {
         bit<32> test_val;
         test_register.read(test_val, 0);
         smac.apply();
@@ -87,7 +87,7 @@ control MyEgress(inout parsed_packet hdr, inout metadata meta, inout standard_me
 }
 
 control MyVerify(inout parsed_packet hdr, inout metadata meta) {
-    apply { } 
+    apply { }
 }
 
 control MyCalculate(inout parsed_packet hdr, inout metadata meta) {

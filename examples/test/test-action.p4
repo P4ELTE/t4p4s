@@ -41,11 +41,11 @@ control egress(inout headers hdr,
                in    psa_egress_input_metadata_t  istd,
                inout psa_egress_output_metadata_t ostd)
 {
-    action action_one(out dummy_t d, bool f1, bool f2, bool f3, bool f4) {
-        d.f1 = f1;
-        d.f2 = f2;
-        d.f3 = f3;
-        d.f4 = f4;
+    action action_one(out dummy_t out_d, bool f1, bool f2, bool f3, bool f4) {
+        out_d.f1 = f1;
+        out_d.f2 = f2;
+        out_d.f3 = f3;
+        out_d.f4 = f4;
     }
     apply {
         action_one(hdr.dummy, hdr.dummy.f1 || true, hdr.dummy.f2 || true, hdr.dummy.f3 || true, hdr.dummy.f4 || true);
@@ -58,7 +58,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { 
+    apply {
         ostd.egress_port = (PortId_t)12345;
     }
 }

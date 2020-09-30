@@ -56,11 +56,11 @@ control egress(inout headers hdr,
     
     apply {
        hdr.dummy.f1 = tmp;
-       hdr.dummy.f2 = 2w0x3;
+       hdr.dummy.f2 = (Choice)2w0x3;
        hdr.dummy.f3 = hdr.dummy.f3 + (bit<2>)Choice.AA;
        hdr.dummy.f4 = (tmp2==Suits.Diamonds)?1w0:1w1;
        if (hdr.dummy.f5!=Choice.A && hdr.dummy.f5!=Choice.AA && hdr.dummy.f5!=Choice.B) {
-       		hdr.dummy.f5 = Choice.AA;
+          hdr.dummy.f5 = Choice.AA;
        }
     }
 }

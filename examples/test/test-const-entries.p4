@@ -1,118 +1,95 @@
-#include <core.p4>
-#include <psa.p4>
 
-header dummy_t {
-    bit<8> f;
-}
-
-struct empty_metadata_t {
-}
+#include "../include/std_headers.p4"
 
 struct metadata {
 }
 
 struct headers {
-    dummy_t dummy;
+    ethernet_t ethernet;
+    hdr1_t     h1;
 }
-parser IngressParserImpl(packet_in packet,
-                         out headers hdr,
-                         inout metadata meta,
-                         in psa_ingress_parser_input_metadata_t istd,
-                         in empty_metadata_t resubmit_meta,
-                         in empty_metadata_t recirculate_meta) {
-    state parse_dummy {
-        packet.extract(hdr.dummy);
+
+parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    state start {
+        packet.extract(hdr.ethernet);
+        packet.extract(hdr.h1);
         transition accept;
     }
-    state start {
-        transition parse_dummy;
-    }
 }
 
-control egress(inout headers hdr,
-               inout metadata meta,
-               in    psa_egress_input_metadata_t  istd,
-               inout psa_egress_output_metadata_t ostd)
-{
-    apply { }
-}
+control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    action nop() {}
+    action action1() { hdr.h1.byte1 = hdr.h1.byte1 | 1; }
+    action action2() {}
+    action action3(bit<9> x) { standard_metadata.egress_port = x; }
 
-control ingress(inout headers hdr,
-                inout metadata meta,
-                in    psa_ingress_input_metadata_t  istd,
-                inout psa_ingress_output_metadata_t ostd)
-{
-    action def_act() {
-        hdr.dummy.f = (bit<8>)1;
-    }
-    action normal_act(bit<8> x) {
-        hdr.dummy.f = (bit<8>)x;
-    }
-    table t {
+    table t1 {
         actions = {
-            def_act;
-            normal_act;
+            nop;
+            action1;
+            action2;
         }
+
         key = {
-            hdr.dummy.f: exact;
+            hdr.ethernet.srcAddr: exact;
         }
-        size = 512;
-        default_action = def_act;
+
+        size = 1;
+
+        default_action = nop;
+
         const entries = {
-              (0x05) : normal_act((bit<8>)2);
-              (0x04) : normal_act((bit<8>)3);
+            123 : action1;
+            _   : action2;
         }
     }
+
+    table t2 {
+        actions = {
+            nop;
+            action1;
+            action2;
+            action3;
+        }
+
+        key = {
+            hdr.ethernet.dstAddr: exact;
+            hdr.ethernet.srcAddr: exact;
+        }
+
+        size = 1;
+
+        default_action = nop;
+
+        const entries = {
+            (0x12345678, 0x9ABCDEF0) : action1;
+            (100, 200)               : action2;
+            (300, 400)               : action3(500);
+            (_, _)                   : action3(123);
+
+            #ifdef T4P4S_TEST_1
+                    (0xD15EA5E, 0XDEAD_BEEF): action1;
+            #else
+                    (0xDEAD_10CC, 0xBAAAAAAD): action2;
+            #endif
+        }
+    }
+
     apply {
-        t.apply();
-        ostd.egress_port = (PortId_t)12345;
+        t1.apply();
+        t2.apply();
     }
 }
 
-parser EgressParserImpl(packet_in buffer,
-                        out headers hdr,
-                        inout metadata meta,
-                        in psa_egress_parser_input_metadata_t istd,
-                        in empty_metadata_t normal_meta,
-                        in empty_metadata_t clone_i2e_meta,
-                        in empty_metadata_t clone_e2e_meta)
-{
-    state start {
-        transition accept;
-    }
-}
-
-control IngressDeparserImpl(packet_out buffer,
-                            out empty_metadata_t clone_i2e_meta,
-                            out empty_metadata_t resubmit_meta,
-                            out empty_metadata_t normal_meta,
-                            inout headers hdr,
-                            in metadata meta,
-                            in psa_ingress_output_metadata_t istd)
-{
+control DeparserImpl(packet_out packet, in headers hdr) {
     apply {
-        buffer.emit(hdr.dummy);
+        packet.emit(hdr.ethernet);
+        packet.emit(hdr.h1);
     }
 }
 
-control EgressDeparserImpl(packet_out buffer,
-                           out empty_metadata_t clone_e2e_meta,
-                           out empty_metadata_t recirculate_meta,
-                           inout headers hdr,
-                           in metadata meta,
-                           in psa_egress_output_metadata_t istd,
-                           in psa_egress_deparser_input_metadata_t edstd)
-{
-    apply {
-    }
-}
+control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) { apply {} }
+control verifyChecksum(inout headers hdr, inout metadata meta) { apply {} }
+control computeChecksum(inout headers hdr, inout metadata meta) { apply {} }
 
-IngressPipeline(IngressParserImpl(),
-                ingress(),
-                IngressDeparserImpl()) ip;
-
-EgressPipeline(EgressParserImpl(),
-               egress(),
-               EgressDeparserImpl()) ep;
-
-PSA_Switch(ip, PacketReplicationEngine(), ep, BufferingQueueingEngine()) main;
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;

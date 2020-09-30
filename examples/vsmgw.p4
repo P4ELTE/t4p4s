@@ -85,7 +85,7 @@ header gtp_teid_t {
 
 /* GPRS Tunnelling Protocol (GTP) v1 */
 
-/* 
+/*
 This header part exists if any of the E, S, or PN flags are on.
 */
 
@@ -99,7 +99,7 @@ header gtpv1_optional_t {
 
 header gtpv1_extension_hdr_t {
     bit<8> plength; /* length in 4-octet units */
-    varbit<128> contents; 
+    varbit<128> contents;
     bit<8> nextExtHdrType;
 }
 
@@ -223,7 +223,7 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.udp);
         transition select(hdr.udp.dstPort) {
             GTP_UDP_PORT : parse_gtp;
-            default      : accept;    
+            default      : accept;
         }
     }
 
@@ -245,11 +245,11 @@ parser MyParser(packet_in packet,
             0x10 &  0x18 : parse_gtpv2; / v2 /
             0x0c & 0x1c : parse_gtpv1optional; / v1 + E /
             0x0a & 0x1a : parse_gtpv1optional; / v1 + S /
-            0x09 & 0x19 : parse_gtpv1optional; / v1 + PN 
+            0x09 & 0x19 : parse_gtpv1optional; / v1 + PN
             default     : parse_inner;
         }*/
     }
- 
+
     state parse_gtpv2 {
         packet.extract(hdr.gtpv2_ending);
         transition accept;
@@ -271,7 +271,7 @@ parser MyParser(packet_in packet,
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
 
@@ -289,7 +289,7 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop(standard_metadata);
     }
-    
+
     action mac_learn() {
     /*    digest(MAC_LEARN_RECEIVER, { hdr.ethernet.srcAddr, standard_metadata.ingress_port } );*/
     }
@@ -301,15 +301,15 @@ control MyIngress(inout headers hdr,
     action arp_reply() {
         hdr.ethernet.dstAddr = hdr.arp_ipv4.sha;
         hdr.ethernet.srcAddr = OWN_MAC;
-        
+
         hdr.arp.oper         = ARP_OPER_REPLY;
-        
+
         hdr.arp_ipv4.tha     = hdr.arp_ipv4.sha;
         hdr.arp_ipv4.tpa     = hdr.arp_ipv4.spa;
         hdr.arp_ipv4.sha     = OWN_MAC;
         hdr.arp_ipv4.spa     = meta.arp_metadata.dst_ipv4;
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action send_icmp_reply() {
@@ -327,16 +327,16 @@ control MyIngress(inout headers hdr,
         hdr.icmp.type        = ICMP_ECHO_REPLY;
         hdr.icmp.checksum    = 0; // For now
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action forward(port_id_t port) {
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
         hdr.ethernet.srcAddr = OWN_MAC;
     }
 
     action bcast() {
-        standard_metadata.egress_spec = 100;
+        standard_metadata.egress_port = 100;
     }
 
    action gtp_encapsulate(bit<32> teid, bit<32> ip) {
@@ -386,7 +386,7 @@ control MyIngress(inout headers hdr,
     action pkt_send(mac_addr_t nhmac, port_id_t port) {
         hdr.ethernet.srcAddr = OWN_MAC; // simplified
         hdr.ethernet.dstAddr = nhmac;
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
     }
 
     table smac {
@@ -432,7 +432,7 @@ control MyIngress(inout headers hdr,
         key = {
             meta.gtp_metadata.color : exact;
         }
-        actions = { drop; NoAction; }   
+        actions = { drop; NoAction; }
         size = 256;
         const default_action = drop;
         const entries = { ( 0 ) : NoAction();} /* GREEN */
@@ -449,7 +449,7 @@ control MyIngress(inout headers hdr,
 
     table ipv4_forward {
         key = {
-            meta.routing_metadata.nhgrp : exact;        
+            meta.routing_metadata.nhgrp : exact;
         }
         actions = {pkt_send; drop; }
         size = 64;

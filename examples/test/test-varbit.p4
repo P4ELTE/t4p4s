@@ -46,7 +46,7 @@ parser IngressParserImpl(packet_in packet,
     state parse_ethernet {
         transition select(packet.lookahead<bit<1>>()) {
 		1w0: short;
-		1w1: long;	
+		1w1: long;
 	}
     }
     state start {

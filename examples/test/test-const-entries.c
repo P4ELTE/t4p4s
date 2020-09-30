@@ -4,14 +4,12 @@
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
-    {		         
-        {FAKE_PKT, 0, 1, {"00", ""}, 200, 12345, {"01", ""}},
-        {FAKE_PKT, 0, 1, {"05", ""}, 200, 12345, {"02", ""}},
-        {FAKE_PKT, 0, 1, {"04", ""}, 200, 12345, {"03", ""}},
-	FEND,
+    {
+        {FAKE_PKT, 0, 1, ETH(ETH04, ETH1A, "00"), 200, 0, ETH(ETH04, ETH1A, "00")},
+        FEND,
     },
     {
-	FEND,
+        FEND,
     },
 };
 

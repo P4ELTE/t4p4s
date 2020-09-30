@@ -1,15 +1,24 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000000
-// Out: 10000000
+// In:  0_0_00_00_00
+// Out: 1_1_11_10_11
 
 header dummy_t {
     bit<1> f1;
-    bit<7> padding;
+    bit<1> f2;
+    bit<2> f3;
+    bit<2> f4;
+    bit<2> f5;
 }
 
 bit<1> max(in bit<1> left, in bit<1> right) {
+   if (left > right)
+      return left;
+   return right;
+}
+
+bit<2> max2(in bit<2> left, in bit<2> right) {
    if (left > right)
       return left;
    return right;
@@ -46,6 +55,10 @@ control egress(inout headers hdr,
 {
     apply {
        hdr.dummy.f1 = max(hdr.dummy.f1, 1w1);
+       hdr.dummy.f2 = max(1w1, hdr.dummy.f2);
+       hdr.dummy.f3 = max2(2w3, 2w0);
+       hdr.dummy.f4 = max2(2w1, 2w2);
+       hdr.dummy.f5 = max2(hdr.dummy.f4, 2w3);
     }
 }
 

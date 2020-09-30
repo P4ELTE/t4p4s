@@ -40,7 +40,7 @@ parser IngressParserImpl(packet_in packet,
         transition select(hdr.dummy.f4, hdr.dummy.f5) {
                 (2w0, 2w1) : parse_continue_4;
                 (2w0, 2w0) : reject;
-                (_, _) : reject; 
+                (_, _) : reject;
         }
     }
 
@@ -51,7 +51,7 @@ parser IngressParserImpl(packet_in packet,
                 _ : reject;
         }
     }
-    
+
     state parse_continue {
         hdr.dummy.f1 = hdr.dummy.f1 + 1;
         transition select(hdr.dummy.f2) {

@@ -100,38 +100,38 @@ header icmp_t {
 /* GPRS Tunnelling Protocol (GTP) common part for v1 and v2 */
 
 header gtp_common_t {
-	bit<3> version; /* this should be 1 for GTPv1 and 2 for GTPv2 */
-	bit<1> pFlag;   /* protocolType for GTPv1 and pFlag for GTPv2 */
-	bit<1> tFlag;   /* only used by GTPv2 - teid flag */
-	bit<1> eFlag;   /* only used by GTPv1 - E flag */
-	bit<1> sFlag;   /* only used by GTPv1 - S flag */
-	bit<1> pnFlag;  /* only used by GTPv1 - PN flag */
-	bit<8> messageType;
-	bit<16> messageLength;
+    bit<3> version; /* this should be 1 for GTPv1 and 2 for GTPv2 */
+    bit<1> pFlag;   /* protocolType for GTPv1 and pFlag for GTPv2 */
+    bit<1> tFlag;   /* only used by GTPv2 - teid flag */
+    bit<1> eFlag;   /* only used by GTPv1 - E flag */
+    bit<1> sFlag;   /* only used by GTPv1 - S flag */
+    bit<1> pnFlag;  /* only used by GTPv1 - PN flag */
+    bit<8> messageType;
+    bit<16> messageLength;
 }
 
 header gtp_teid_t {
-	bit<32> teid;
+    bit<32> teid;
 }
 
 /* GPRS Tunnelling Protocol (GTP) v1 */
 
-/* 
+/*
 This header part exists if any of the E, S, or PN flags are on.
 */
 
 header gtpv1_optional_t {
-	bit<16> sNumber;
-	bit<8> pnNumber;
-	bit<8> nextExtHdrType;
+    bit<16> sNumber;
+    bit<8> pnNumber;
+    bit<8> nextExtHdrType;
 }
 
 /* Extension header if E flag is on. */
 
 header gtpv1_extension_hdr_t {
-	bit<8> plength; /* length in 4-octet units */
-	varbit<128> contents; 
-	bit<8> nextExtHdrType;
+    bit<8> plength; /* length in 4-octet units */
+    varbit<128> contents;
+    bit<8> nextExtHdrType;
 }
 
 
@@ -139,8 +139,8 @@ header gtpv1_extension_hdr_t {
 
 
 header gtpv2_ending_t {
-	bit<24> sNumber;
-	bit<8> reserved;
+    bit<24> sNumber;
+    bit<8> reserved;
 }
 
 /* TCP */
@@ -170,8 +170,8 @@ header udp_t {
 /* Local metadata */
 
 struct gtp_metadata_t {
-	bit<32> teid;
-	bit<8> color;
+    bit<32> teid;
+    bit<8> color;
 }
 
 struct arp_metadata_t {
@@ -198,7 +198,7 @@ struct headers {
     ipv4_t       ipv4;
     ipv4_t       inner_ipv4;
     icmp_t       icmp;
-    icmp_t	 inner_icmp;
+    icmp_t   inner_icmp;
     arp_t        arp;
     arp_ipv4_t   arp_ipv4;
     vlan_t       vlan;
@@ -278,33 +278,33 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.udp);
         transition select(hdr.udp.dstPort) {
             GTP_UDP_PORT : parse_gtp;
-            default      : accept;    
+            default      : accept;
         }
     }
 
     state parse_gtp {
         packet.extract(hdr.gtp_common);
         transition select(hdr.gtp_common.version, hdr.gtp_common.tFlag) {
-		    (1,0)	: parse_teid;
-		    (1,1) : parse_teid;
-		    (2,1) : parse_teid;
-		    (2,0) : parse_gtpv2;
-		    default : accept;
-	    }
+            (1,0)   : parse_teid;
+            (1,1) : parse_teid;
+            (2,1) : parse_teid;
+            (2,0) : parse_gtpv2;
+            default : accept;
+        }
     }
 
     state parse_teid {
         packet.extract(hdr.gtp_teid);
         transition parse_inner;
 /*select( hdr.gtp_common.version, hdr.gtp_common.eFlag, hdr.gtp_common.sFlag, hdr.gtp_common.pnFlag ) {
-		    0x10 &  0x18 : parse_gtpv2; / v2 /
-		    0x0c & 0x1c : parse_gtpv1optional; / v1 + E /
-		    0x0a & 0x1a : parse_gtpv1optional; / v1 + S /
-		    0x09 & 0x19 : parse_gtpv1optional; / v1 + PN 
-		    default 	: parse_inner;
-	    }*/
+            0x10 &  0x18 : parse_gtpv2; / v2 /
+            0x0c & 0x1c : parse_gtpv1optional; / v1 + E /
+            0x0a & 0x1a : parse_gtpv1optional; / v1 + S /
+            0x09 & 0x19 : parse_gtpv1optional; / v1 + PN
+            default     : parse_inner;
+        }*/
     }
- 
+
     state parse_gtpv2 {
         packet.extract(hdr.gtpv2_ending);
         transition accept;
@@ -326,7 +326,7 @@ parser MyParser(packet_in packet,
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
 
@@ -344,7 +344,7 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop();
     }
-    
+
     action mac_learn() {
     /*    digest(MAC_LEARN_RECEIVER, { hdr.ethernet.srcAddr, standard_metadata.ingress_port } );*/
     }
@@ -356,15 +356,15 @@ control MyIngress(inout headers hdr,
     action arp_reply() {
         hdr.ethernet.dstAddr = hdr.arp_ipv4.sha;
         hdr.ethernet.srcAddr = OWN_MAC;
-        
+
         hdr.arp.oper         = ARP_OPER_REPLY;
-        
+
         hdr.arp_ipv4.tha     = hdr.arp_ipv4.sha;
         hdr.arp_ipv4.tpa     = hdr.arp_ipv4.spa;
         hdr.arp_ipv4.sha     = OWN_MAC;
         hdr.arp_ipv4.spa     = meta.arp_metadata.dst_ipv4;
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action send_icmp_reply() {
@@ -382,22 +382,22 @@ control MyIngress(inout headers hdr,
         hdr.icmp.type        = ICMP_ECHO_REPLY;
         hdr.icmp.checksum    = 0; // For now
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action forward(bit<9> port) {
-        standard_metadata.egress_spec = port;
-	    hdr.ethernet.srcAddr = OWN_MAC;
+        standard_metadata.egress_port = port;
+        hdr.ethernet.srcAddr = OWN_MAC;
     }
 
     action bcast() {
-        standard_metadata.egress_spec = 100;
+        standard_metadata.egress_port = 100;
     }
 
    action gtp_encapsulate(bit<32> teid, bit<32> ip) {
         hdr.inner_ipv4.setValid();
         hdr.inner_ipv4 = hdr.ipv4;
-	//hdr.inner_udp = hdr.udp;
+    //hdr.inner_udp = hdr.udp;
         hdr.udp.setValid();
         hdr.gtp_common.setValid();
         hdr.gtp_teid.setValid();
@@ -416,8 +416,8 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = 255;
         hdr.ipv4.totalLen = hdr.udp.plength + 28;
         meta.gtp_metadata.teid = teid;
-	//hdr.inner_icmp = hdr.icmp;
-	//hdr.icmp.setInvalid();
+    //hdr.inner_icmp = hdr.icmp;
+    //hdr.icmp.setInvalid();
     }
 
     action gtp_decapsulate() {
@@ -431,7 +431,7 @@ control MyIngress(inout headers hdr,
 
     action set_nhgrp(bit<8> nhgrp) {
         meta.routing_metadata.nhgrp = nhgrp;
-	hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+    hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
     action apply_meter(bit<32> mid) {
@@ -441,12 +441,12 @@ control MyIngress(inout headers hdr,
     action pkt_send(bit<48> nhmac, bit<9> port) {
         hdr.ethernet.srcAddr = OWN_MAC; // simplified
         hdr.ethernet.dstAddr = nhmac;
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
     }
 
 table smac {
     key = {
-		standard_metadata.ingress_port : exact;
+        standard_metadata.ingress_port : exact;
         hdr.ethernet.srcAddr : exact;
     }
     actions = {mac_learn; NoAction;}
@@ -465,46 +465,46 @@ table dmac {
 
 
 table ue_selector {
-	key = {
-		hdr.ipv4.dstAddr : lpm;
-		/*hdr.udp.dstPort  : ternary; /* in most of the cases the mask is 0 */
-	}
-	actions = { drop; gtp_encapsulate; gtp_decapsulate;}
-	size = 10000;
+    key = {
+        hdr.ipv4.dstAddr : lpm;
+        /*hdr.udp.dstPort  : ternary; /* in most of the cases the mask is 0 */
+    }
+    actions = { drop; gtp_encapsulate; gtp_decapsulate;}
+    size = 10000;
     default_action = drop;
 }
 
 table teid_rate_limiter {
-	key = {
-		meta.gtp_metadata.teid : exact;
-	}
-	actions = { apply_meter; NoAction; drop;}
-	size = 256;
-	default_action = drop;
+    key = {
+        meta.gtp_metadata.teid : exact;
+    }
+    actions = { apply_meter; NoAction; drop;}
+    size = 256;
+    default_action = drop;
 }
 
 table m_filter {
-	key = {
-		meta.gtp_metadata.color : exact;
-	}
-	actions = { drop; NoAction; }	
-	size = 256;
-	const default_action = drop;
-	const entries = { ( 0 ) : NoAction();} /* GREEN */
+    key = {
+        meta.gtp_metadata.color : exact;
+    }
+    actions = { drop; NoAction; }
+    size = 256;
+    const default_action = drop;
+    const entries = { ( 0 ) : NoAction();} /* GREEN */
 }
 
 table ipv4_lpm {
-	key = {
-		hdr.ipv4.dstAddr : lpm;
-	}
-	actions = { set_nhgrp; drop; }
-	size = 256;
-	default_action = drop;
+    key = {
+        hdr.ipv4.dstAddr : lpm;
+    }
+    actions = { set_nhgrp; drop; }
+    size = 256;
+    default_action = drop;
 }
 
 table ipv4_forward {
     key = {
-		meta.routing_metadata.nhgrp : exact;        
+        meta.routing_metadata.nhgrp : exact;
     }
     actions = {pkt_send; drop; }
     size = 64;
@@ -514,18 +514,18 @@ table ipv4_forward {
 
 
 apply {
-//	smac.apply();
-//	dmac.apply();
-	if ( (hdr.ethernet.dstAddr == OWN_MAC) || (hdr.ethernet.dstAddr == BCAST_MAC) )
-	{
-		    if ( hdr.ipv4.isValid() ) {
-			    ue_selector.apply();
-			    teid_rate_limiter.apply();
-			    //m_filter.apply();
-			    ipv4_lpm.apply();
-			    ipv4_forward.apply();
-		    }
-    	}
+//  smac.apply();
+//  dmac.apply();
+    if ( (hdr.ethernet.dstAddr == OWN_MAC) || (hdr.ethernet.dstAddr == BCAST_MAC) )
+    {
+            if ( hdr.ipv4.isValid() ) {
+                ue_selector.apply();
+                teid_rate_limiter.apply();
+                //m_filter.apply();
+                ipv4_lpm.apply();
+                ipv4_forward.apply();
+            }
+        }
       }
 }
 
@@ -545,10 +545,10 @@ control MyEgress(inout headers hdr,
 
 control Ipv4ComputeChecksum(inout headers  hdr, inout metadata meta) {
      apply {
-/*	update_checksum(
-	    hdr.ipv4.isValid(),
+/*  update_checksum(
+        hdr.ipv4.isValid(),
             { hdr.ipv4.version,
-	          hdr.ipv4.ihl,
+              hdr.ipv4.ihl,
               hdr.ipv4.diffserv,
               hdr.ipv4.totalLen,
               hdr.ipv4.identification,
@@ -571,15 +571,15 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.arp);
- 	    packet.emit(hdr.arp_ipv4);
+        packet.emit(hdr.arp_ipv4);
         packet.emit(hdr.ipv4);
-		 packet.emit(hdr.icmp);
+         packet.emit(hdr.icmp);
         packet.emit(hdr.udp);
         packet.emit(hdr.gtp_common);
         packet.emit(hdr.gtp_teid);
         packet.emit(hdr.inner_ipv4);
-		packet.emit(hdr.inner_icmp);
-	packet.emit(hdr.inner_udp);
+        packet.emit(hdr.inner_icmp);
+    packet.emit(hdr.inner_udp);
     }
 }
 
