@@ -44,6 +44,6 @@ ifneq ($(P4_GCC_OPTS),)
 CFLAGS += $(P4_GCC_OPTS)
 endif
 
-LDFLAGS += -fuse-ld=gold
+LDFLAGS += -fuse-ld=ld.lld
 
-SRCS-y += util.c
+SRCS-y += util_debug.c
