@@ -1,28 +1,24 @@
-# You may list a test case on each line in this file.
-# These cases will be skipped by run_tests.py
-#   - the cases may be prefixed with a dash
-#   - you can paste part or all of the summary output of run_tests.py
-# Lines can be commented out using #
+You may list a test case on each line in this file.
+The test cases listed here will be skipped by run_tests.py
+  - the cases may be prefixed with a dash
+  - you can paste part or all of the summary output of run_tests.py
+    - a copy of its output is saved to ./build/all-run-logs/last_log.txt
+Lines can be commented out using #
 
 
+Action out headers are not supported yet
+    test-action
 
-# Tests that contain functionality that is not supported yet
-test-bit2
-test-int
-test-header-stacks
-test-header-union-1
-test-header-union-2
-test-skipping-bits-1
-test-skipping-bits-2
-test-varbit
-test-action
+Slice copying not implemented yet
+    test-bit2
 
-# Tests that contain functionality in ways that are more complex than supported
-test-headers
-test-typedef
+Arithmetic operations are only supported on int<8>, int<16> and int<32>.
+    test-arithmetics
 
-# Shall be supported soon
-test-hdrinsts-nonaligned-flds
+Header stacks and unions are not supported
+    test-header-stacks
+    test-header-union-1
+    test-header-union-2
 
-# No controller yet
-vEPG
+Complex variable assignments are only partially supported
+    test-compound-assignment
