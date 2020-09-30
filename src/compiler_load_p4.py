@@ -1,24 +1,25 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2019 Eotvos Lorand University, Budapest, Hungary
 
-from __future__ import print_function
-
-from hlir16.hlir16 import *
-from hlir16.hlir16_attrs import set_additional_attrs
-from utils.misc import *
-from transform_hlir16 import *
+import hlir16.hlir
+from hlir16.hlir_attrs import set_additional_attrs
+from compiler_log_warnings_errors import *
 
 from subprocess import call
 
 import os
+import os.path
 import sys
 import pkgutil
 import importlib
+
+import bz2
 import pickle
-import dill
+
+import compiler_common
 
 
 # TODO also reload if (the relevant part of) the HLIR generator code has changed
@@ -35,48 +36,44 @@ def is_cache_file_loadable(path):
 def import_modules(required_modules):
     for modname in required_modules:
         if not pkgutil.find_loader(modname):
+            print(f"missing {modname}")
             return None
 
     return [importlib.import_module(modname) for modname in required_modules]
 
 
-def load_cache(filename, required_modules, loader):
+def load_cache(filename, is_compressed, required_modules, loader):
     if not is_cache_file_loadable(filename):
         return None
 
     if import_modules(required_modules) is None:
         return None
 
-    with open(filename, 'r') as cache_file:
-        return loader(cache_file, None)
+    if is_compressed:
+        with open(filename, 'rb') as cache_file:
+            return loader(cache_file, None)
 
 
 def write_cache(cache, required_modules, saver, data):
     if import_modules(required_modules) is None:
         return
 
-    with open(cache, 'w') as cache_file:
+    with open(cache, 'wb') as cache_file:
         cache_file.write(saver(data))
 
 
-def create_json_file(filename):
-    create_p4_json_file(filename, p4_version, p4c_path, json_cache_dir)
+def p4_to_json(files, arg):
+    p4_filename, json_filename = arg
+    return hlir16.hlir.p4_to_json(p4_filename, json_filename, args['p4v'], args['p4c_path'], args['p4opt'])
 
 
-def p4_to_json(files, (filename, json_filename)):
-    p4_version = args['p4v']
-    p4c_path = args['p4c_path'] or os.environ['P4C']
+def load_simdjson(file, data):
+    import simdjson
+    if file is not None:
+        return simdjson.load(file)
 
-    p4test = os.path.join(p4c_path, "build", "p4test")
-    p4include = os.path.join(p4c_path, "p4include")
-
-
-    version_opts = ['--p4v', str(p4_version)] if p4_version is not None else []
-
-    errcode = subprocess.call(
-        [p4test, filename, "-I", p4include, "--toJSON", json_filename] + version_opts)
-
-    return json_filename if errcode == 0 else None
+    with open(data, 'r') as f:
+        return simdjson.load(f)
 
 
 def load_ujson(file, data):
@@ -107,14 +104,32 @@ class RecursionLimit():
         sys.setrecursionlimit(self.old_limit)
 
 
+def restrict_stages(stages):
+    for stage in stages:
+        if 'dependency' not in stage:
+            yield stage
+            continue
+
+        if not os.path.isfile(stage['filename']):
+            return
+
+        filetime = os.path.getctime(stage['filename'])
+        for dep in stage['dependency']:
+            if filetime < os.path.getctime(dep):
+                args['verbose'] and print(f"Dependency file {dep} is newer than {stage['filename']}, stage {stage['name']} has to be redone")
+                return
+
+        yield stage
+
+
 def load_latest_stage_from_cache(stages):
-    for stage_idx, stage in reversed(list(enumerate(stages))):
-        for attrname, attrdefault in [('filename', None), ('is_valid', lambda x: True), ('msgfmt', ""), ('saver', None)]:
+    for stage_idx, stage in reversed(list(enumerate(restrict_stages(stages)))):
+        for attrname, attrdefault in [('filename', None), ('is_valid', lambda x: True), ('msgfmt', ""), ('saver', None), ('is_compressed', stage_idx != 0)]:
             if attrname not in stage:
                 stage[attrname] = attrdefault
-        out = stage['out_filename'] if hasattr(stage, 'out_filename') else None
+
         for required_modules, loader in stage['loaders']:
-            loaded = load_cache(stage['filename'], required_modules, loader)
+            loaded = load_cache(stage['filename'], stage['is_compressed'], required_modules, loader)
             if loaded and stage['is_valid'](loaded):
                 args['verbose'] and print(stage['msgfmt'].format(stage['filename']))
                 return stage_idx + 1, loaded
@@ -124,12 +139,15 @@ def load_latest_stage_from_cache(stages):
 
 def continue_stages(stages, stage_idx, data):
     for curr_stage_idx, stage in list(enumerate(stages))[stage_idx:]:
+        compiler_common.current_compilation = { 'from': f"(cached) {stage['filename']}", 'to': "(generated content)", 'stage': stage }
+
         new_data = None
         for required_modules, loader in stage['loaders']:
             if import_modules(required_modules) is None:
-                return None
+                continue
 
             new_data = loader(None, data)
+
             if new_data is not None:
                 break
 
@@ -141,9 +159,9 @@ def continue_stages(stages, stage_idx, data):
         if stage['saver'] is not None:
             required_modules, save_data = stage['saver']
             write_cache(stage['filename'], required_modules, save_data, data)
-
     return data
 
+    compiler_common.current_compilation = None
 
 def load_hlir(filename, cache_dir_name):
     p4cache = os.path.join(cache_dir_name, os.path.basename(filename))
@@ -153,13 +171,12 @@ def load_hlir(filename, cache_dir_name):
         stage_load_json(filename, p4cache),
         stage_json_to_hlir(filename, p4cache),
         stage_hlir_add_attributes(filename, p4cache),
-        stage_hlir_transform(filename, p4cache),
         ]
 
     stage_idx, data = load_latest_stage_from_cache(stages)
     if stage_idx == 0:
         args['verbose'] and print(stages[0]['msgfmt'].format(filename))
-        data = (filename, p4cache + ".json.cached")
+        data = (filename, f"{p4cache}.json.cached")
     return continue_stages(stages, stage_idx, data)
 
 
@@ -167,12 +184,14 @@ def cache_loader(no_cache_loader):
     return ([], lambda file, data: pickle.load(file) if file is not None else no_cache_loader(data) if data is not None else None)
 
 def cache_saver():
-    return ([], lambda data: pickle.dumps(data))
+    return ([], lambda data: pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL))
 
 def stage_p4_to_json_file(filename, p4cache):
     return {
         'name': 'stage_p4_to_json_file',
+        'filename': filename,
         'msgfmt': "HLIR (uncached) {}",
+        'dependency': [filename],
         # The P4C compiler creates the JSON file while "loading".
         'loaders': [([], p4_to_json)],
     }
@@ -181,8 +200,8 @@ def stage_load_json(filename, p4cache):
     return {
         'name': 'stage_load_json',
         'msgfmt': "HLIR (cached: JSON) {}",
-        'filename': p4cache + ".json.cached",
-        'loaders': [(['ujson'], load_ujson), ([], load_json)],
+        'filename': f"{p4cache}.json.cached",
+        'loaders': [(['simdjson'], load_simdjson), (['ujson'], load_ujson), ([], load_json)],
         # This detects if the loaded JSON does not contain "main".
         'is_valid': lambda json_root: json_root['Node_ID'] is not None,
     }
@@ -190,27 +209,19 @@ def stage_load_json(filename, p4cache):
 def stage_json_to_hlir(filename, p4cache):
     return {
         'name': 'stage_json_to_hlir',
-        'msgfmt': "HLIR (cached: stage 1) {}",
-        'filename': p4cache + ".hlir.cached",
-        'loaders': [cache_loader(lambda json_root: walk_json_from_top(json_root, p4node_creator))],
+        'msgfmt': "HLIR (cached: stage json_to_hlir) {}",
+        'filename': f"{p4cache}.hlir.cached",
+        'loaders': [cache_loader(lambda json_root: hlir16.hlir.walk_json_from_top(json_root))],
+        'dependency': ["src/compiler.py", "src/compiler_load_p4.py", "src/compiler_exception_handling.py", "src/hlir16/hlir.py", "src/hlir16/hlir_attrs.py", "src/hlir16/p4node.py"],
         'saver': cache_saver(),
     }
 
 def stage_hlir_add_attributes(filename, p4cache):
     return {
         'name': 'stage_hlir_add_attributes',
-        'msgfmt': "HLIR (cached: stage 2) {}",
-        'filename': p4cache + ".hlir.attributed.cached",
-        'loaders': [cache_loader(lambda hlir: set_additional_attrs(hlir, args['p4v']))],
-        'saver': cache_saver(),
-    }
-
-def stage_hlir_transform(filename, p4cache):
-    return {
-        'name': 'stage_hlir_transform',
-        'msgfmt': "HLIR (cached) {}",
-        'filename': p4cache + ".hlir.transformed.cached",
-        'loaders': [cache_loader(transform_hlir16)],
+        'msgfmt': "HLIR (cached: stage hlir_add_attributes) {}",
+        'filename': f"{p4cache}.hlir.attributed.cached",
+        'loaders': [cache_loader(lambda hlir: set_additional_attrs(hlir, filename, args['p4v']))],
         'saver': cache_saver(),
     }
 
@@ -225,7 +236,6 @@ def check_file_extension(filename):
     if ext not in {'.p4', '.p4_14'}:
         print("EXTENSION NOT SUPPORTED: %s" % ext, file=sys.stderr)
         sys.exit(1)
-
 
 
 def load_from_p4(compiler_args, cache_dir_name):
@@ -244,7 +254,7 @@ def load_from_p4(compiler_args, cache_dir_name):
         hlir = load_hlir(filename, cache_dir_name)
 
         if hlir is None:
-            print("P4 compilation failed for file %s" % (os.path.basename(__file__)), file=sys.stderr)
+            print(f"P4 compilation failed for file {os.path.basename(__file__)}", file=sys.stderr)
             sys.exit(1)
 
         return hlir
