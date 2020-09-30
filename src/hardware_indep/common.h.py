@@ -1,26 +1,42 @@
 #[ // SPDX-License-Identifier: Apache-2.0
 #[ // Copyright 2019 Eotvos Lorand University, Budapest, Hungary
 
-from hlir16.utils_hlir16 import *
 from utils.codegen import format_type
 
-#[ #ifndef __COMMON_H__
-#[ #define __COMMON_H__
+#[ #pragma once
 
 #[ #include <stdint.h>
 #[ #include "parser.h"
 
-for typedef in hlir16.objects['Type_Typedef']:
-    #[ typedef ${format_type(typedef.type)} ${typedef.name};
 
-for struct in hlir16.objects['Type_Struct']:
-    # TODO make condition less arbitrary
-    if not struct.name.endswith('_t'):
-        continue
+def short_name(name):
+    return name[:-2] if name.endswith('_t') else name
 
-    #{ typedef struct ${struct.name[:-2]}_s {
+for err in hlir.errors:
+    name = short_name(err.c_name)
+    #{ typedef enum enum_${name}_s {
+    for member in err.members:
+        #[     ${member.c_name},
+    #} } ${name}_t;
+
+for enum in hlir.enums:
+    name = short_name(enum.c_name)
+    #{ typedef enum enum_${name}_s {
+    for m in enum.members:
+        #[     ${m.c_name},
+    #} } ${name}_t;
+#[
+
+
+# TODO can the filter condition be simpler?
+for struct in hlir.news.data.filter(lambda n: not any(t.node_type == 'Type_Header' for t in n.fields.map('urtype'))):
+    name = re.sub('_t$', '', struct.name)
+
+    #{ typedef struct ${name}_s {
     for field in struct.fields:
-        #[ ${format_type(field.type)} ${field.name};
-    #} } ${struct.name};
+        #[     ${format_type(field.urtype, field.name)};
+    #} } ${name}_t;
 
-#[ #endif // __COMMON_H__
+
+for typedef in hlir.typedefs:
+    #[ typedef ${format_type(typedef.type)} ${typedef.name};
