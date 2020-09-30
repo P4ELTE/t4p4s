@@ -1,23 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 // This file is included directly from `dpdk_lib.c`.
 
 
 extern void create_table(lookup_table_t* t, int socketid);
 extern void flush_table(lookup_table_t* t);
+extern void init_table_const_entries();
 
 void create_tables_on_socket(int socketid)
 {
@@ -38,7 +27,7 @@ void create_tables_on_socket(int socketid)
     }
 }
 
-void create_table_on_lcore(unsigned lcore_id)
+void create_tables_on_lcore(unsigned lcore_id)
 {
     if (rte_lcore_is_enabled(lcore_id) == 0) return;
 
@@ -55,22 +44,39 @@ void create_table_on_lcore(unsigned lcore_id)
     }
 }
 
+void init_print_table_info()
+{
+    char table_names[64*NB_TABLES+256];
+    char* nameptr = table_names;
+    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): ", NB_REPLICA);
+    int hidden_count = 0;
+    for (int i = 0; i < NB_TABLES; i++) {
+        lookup_table_t t = table_config[i];
+        if (t.is_hidden) {
+            ++hidden_count;
+            continue;
+        }
+        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.name);
+    }
+
+    if (hidden_count > 0) {
+        nameptr += sprintf(nameptr, " and " T4LIT(%d) " hidden tables", hidden_count);
+    }
+
+    debug("%s\n", table_names);
+}
+
 void init_tables()
 {
 #ifdef T4P4S_DEBUG
-    char table_names[1024];
-    char* nameptr = table_names;
-    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): ", NB_REPLICA);
-    for (int i = 0; i < NB_TABLES; i++) {
-        lookup_table_t t = table_config[i];
-        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.name);
-    }
-    debug("%s\n", table_names);
+    init_print_table_info();
 #endif
 
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        create_table_on_lcore(lcore_id);
+        create_tables_on_lcore(lcore_id);
     }
+
+    init_table_const_entries();
 }
 
 void flush_tables_on_socket(int socketid)

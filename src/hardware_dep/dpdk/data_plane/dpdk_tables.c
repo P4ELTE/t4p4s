@@ -1,19 +1,9 @@
-// Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2017 Eotvos Lorand University, Budapest, Hungary
+
 #include "backend.h"
 #include "dpdk_tables.h"
-#include "util.h"
+#include "util_debug.h"
 
 #include "tables.h"
 
@@ -24,7 +14,7 @@ extern char* action_names[];
 
 #include <rte_hash.h>       // EXACT
 #include <rte_hash_crc.h>
-#include <nmmintrin.h> 
+#include <nmmintrin.h>
 #include <rte_lpm.h>        // LPM (32 bit key)
 #include <rte_lpm6.h>       // LPM (128 bit key)
 #include "ternary_naive.h"  // TERNARY
@@ -51,33 +41,33 @@ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
 // ============================================================================
 // Error messages
 
-void create_error_text(int socketid, const char* errno_txt, const char* table_type, const char* table_name, const char* error_text)
+void rte_exit_with_errno_text(const char* errno_txt, const char* msg, const char* table_name, const char* error_text)
 {
-    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(rte_errno,error) ", " T4LIT(%s,error) "): Unable to create %s table " T4LIT(%s,table) " on socket " T4LIT(%d,socket) ": %s\n", errno_txt, table_type, table_name, socketid, error_text);
+    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(rte_errno,error) ", " T4LIT(%s,error) "): Unable to %s " T4LIT(%s,table) ": %s\n", errno_txt, msg, table_name, error_text);
 }
 
-void create_error(int socketid, const char* table_type, const char* table_name)
+void rte_exit_with_errno(const char* msg, const char* table_name)
 {
     if (rte_errno == E_RTE_NO_CONFIG) {
-        create_error_text(socketid, "E_RTE_NO_CONFIG", table_type, table_name, "function could not get pointer to rte_config structure");
+        rte_exit_with_errno_text("E_RTE_NO_CONFIG", msg, table_name, "function could not get pointer to rte_config structure");
     }
     if (rte_errno == E_RTE_SECONDARY) {
-        create_error_text(socketid, "E_RTE_SECONDARY", table_type, table_name, "function was called from a secondary process instance");
+        rte_exit_with_errno_text("E_RTE_SECONDARY", msg, table_name, "function was called from a secondary process instance");
     }
     if (rte_errno == ENOENT) {
-        create_error_text(socketid, "ENOENT", table_type, table_name, "missing entry");
+        rte_exit_with_errno_text("ENOENT", msg, table_name, "missing entry");
     }
     if (rte_errno == EINVAL) {
-        create_error_text(socketid, "EINVAL", table_type, table_name, "invalid parameter passed to function");
+        rte_exit_with_errno_text("EINVAL", msg, table_name, "invalid parameter passed to function");
     }
     if (rte_errno == ENOSPC) {
-        create_error_text(socketid, "ENOSPC", table_type, table_name, "the maximum number of memzones has already been allocated");
+        rte_exit_with_errno_text("ENOSPC", msg, table_name, "the maximum number of memzones has already been allocated");
     }
     if (rte_errno == EEXIST) {
-        create_error_text(socketid, "EEXIST", table_type, table_name, "a memzone with the same name already exists");
+        rte_exit_with_errno_text("EEXIST", msg, table_name, "a memzone with the same name already exists");
     }
     if (rte_errno == ENOMEM) {
-        create_error_text(socketid, "ENOMEM", table_type, table_name, "no appropriate memory area found in which to create memzone");
+        rte_exit_with_errno_text("ENOMEM", msg, table_name, "no appropriate memory area found in which to create memzone");
     }
 }
 
@@ -95,7 +85,7 @@ uint8_t* make_table_entry_on_socket(lookup_table_t* t, uint8_t* value) {
     int length = t->entry.entry_size;
     uint8_t* entry = rte_malloc_socket("uint8_t", sizeof(uint8_t)*length, 0, t->socketid);
     if (unlikely(entry == NULL)) {
-        create_error(-1, t->type == 0 ? "hash" : t->type == 1 ? "lpm" : "ternary", t->name);
+        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->name);
     }
     make_table_entry(entry, value, t);
     return entry;
@@ -120,7 +110,7 @@ void create_ext_table(lookup_table_t* t, void* rte_table, int socketid)
     ext->size = 0;
     ext->content = rte_malloc_socket("uint8_t*", sizeof(uint8_t*)*t->max_size, 0, socketid);
     if (unlikely(ext->content == NULL)) {
-        create_error(-1, t->type == 0 ? "hash" : t->type == 1 ? "lpm" : "ternary", t->name);
+        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->name);
     }
     t->table = ext;
 }
@@ -133,13 +123,13 @@ void create_table(lookup_table_t* t, int socketid)
 
     switch(t->type)
     {
-        case LOOKUP_EXACT:
+        case LOOKUP_exact:
             exact_create(t, socketid);
             break;
-        case LOOKUP_LPM:
+        case LOOKUP_lpm:
             lpm_create(t, socketid);
             break;
-        case LOOKUP_TERNARY:
+        case LOOKUP_ternary:
             ternary_create(t, socketid);
             break;
     }
@@ -151,13 +141,13 @@ void flush_table(lookup_table_t* t)
 
     switch(t->type)
     {
-        case LOOKUP_EXACT:
+        case LOOKUP_exact:
             exact_flush(t);
             break;
-        case LOOKUP_LPM:
+        case LOOKUP_lpm:
             lpm_flush(t);
             break;
-        case LOOKUP_TERNARY:
+        case LOOKUP_ternary:
             ternary_flush(t);
             break;
     }

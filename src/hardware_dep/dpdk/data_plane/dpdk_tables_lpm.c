@@ -1,20 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 // This file is included directly from `dpdk_tables.c`.
 
+
+#include <rte_errno.h>
 
 struct rte_lpm* lpm4_create(int socketid, const char* name, int max_size)
 {
@@ -29,7 +19,7 @@ struct rte_lpm* lpm4_create(int socketid, const char* name, int max_size)
     struct rte_lpm *l = rte_lpm_create(name, socketid, max_size, 0/*flags*/);
 #endif
     if (l == NULL)
-        create_error(socketid, "LPM", name);
+        rte_exit_with_errno("create lpm4 table", name);
     return l;
 }
 
@@ -42,23 +32,23 @@ struct rte_lpm6* lpm6_create(int socketid, const char* name, int max_size)
     };
     struct rte_lpm6 *l = rte_lpm6_create(name, socketid, &config);
     if (l == NULL)
-        create_error(socketid, "LPM6", name);
+        rte_exit_with_errno("create lpm6 table", name);
     return l;
 }
 
 
-void lpm4_add(struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t value)
+void lpm4_add(lookup_table_t* t, struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm_add(l, key, depth, value);
     if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
+        rte_exit_with_errno("add entry to lpm4 table", t->name);
 }
 
-void lpm6_add(struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t value)
+void lpm6_add(lookup_table_t* t, struct rte_lpm6* l, uint8_t key[16], uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm6_add(l, key, depth, value);
     if (ret < 0)
-        rte_exit(EXIT_FAILURE, "Unable to add entry to the LPM table\n");
+        rte_exit_with_errno("add entry to lpm4 table", t->name);
 }
 
 
@@ -88,7 +78,7 @@ void lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value)
         uint32_t key32 = 0;
         memcpy(&key32, key, t->entry.key_size);
 
-        lpm4_add(ext->rte_table, key32, depth, ext->size++);
+        lpm4_add(t, ext->rte_table, key32, depth, ext->size++);
     }
     else if (t->entry.key_size <= 16)
     {
@@ -96,7 +86,7 @@ void lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value)
         memset(key128, 0, 16);
         memcpy(key128, key, t->entry.key_size);
 
-        lpm6_add(ext->rte_table, key128, depth, ext->size++);
+        lpm6_add(t, ext->rte_table, key128, depth, ext->size++);
     }
 }
 

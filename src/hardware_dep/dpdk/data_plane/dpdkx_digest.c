@@ -4,7 +4,7 @@
 #include "dpdk_model_psa.h"
 
 #include "actions.h"
-#include "util.h"
+#include "util_debug.h"
 
 extern ctrl_plane_backend bg;
 
