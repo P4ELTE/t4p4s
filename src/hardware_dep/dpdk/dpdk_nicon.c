@@ -1,20 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 #include <rte_ethdev.h>
 
 #include "dpdk_nicon.h"
+
+#include "util_packet.h"
 
 extern int get_socketid(unsigned lcore_id);
 
@@ -46,7 +37,7 @@ static inline void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
     }
 }
 
-void tx_burst_queue_drain(struct lcore_data* lcdata) {
+void tx_burst_queue_drain(LCPARAMS) {
     uint64_t cur_tsc = rte_rdtsc();
 
     uint64_t diff_tsc = cur_tsc - lcdata->prev_tsc;
@@ -139,7 +130,7 @@ static void dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore
 }
 
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone)
+void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS)
 {
     uint32_t lcore_id = rte_lcore_id();
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
@@ -149,7 +140,7 @@ void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, pack
 
 // ------------------------------------------------------
 
-void init_queues(struct lcore_data* lcdata) {
+void init_queues(LCPARAMS) {
     for (unsigned i = 0; i < lcdata->conf->hw.n_rx_queue; i++) {
         unsigned portid = lcdata->conf->hw.rx_queue_list[i].port_id;
         uint8_t queueid = lcdata->conf->hw.rx_queue_list[i].queue_id;
@@ -181,15 +172,15 @@ struct lcore_data init_lcore_data() {
 
 // ------------------------------------------------------
 
-bool core_is_working(struct lcore_data* lcdata) {
+bool core_is_working(LCPARAMS) {
     return true;
 }
 
-bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata) {
+bool is_packet_handled(LCPARAMS) {
     return true;
 }
 
-bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
+bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     packet* p = lcdata->pkts_burst[pkt_idx];
     rte_prefetch0(rte_pktmbuf_mtod(p, void *));
     pd->data = rte_pktmbuf_mtod(p, uint8_t *);
@@ -198,7 +189,7 @@ bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned
     return true;
 }
 
-void free_packet(packet_descriptor_t* pd) {
+void free_packet(LCPARAMS) {
     rte_pktmbuf_free(pd->wrapper);
 }
 
@@ -219,30 +210,30 @@ void init_storage() {
         rte_exit(EXIT_FAILURE, "Cannot init clone mbuf pool\n");
 }
 
-void main_loop_pre_rx(struct lcore_data* lcdata) {
+void main_loop_pre_rx(LCPARAMS) {
     tx_burst_queue_drain(lcdata);
 }
 
-void main_loop_post_rx(struct lcore_data* lcdata) {
+void main_loop_post_rx(LCPARAMS) {
 }
 
-void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet) {
+void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
 }
 
-uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx) {
+uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
     return lcdata->conf->hw.rx_queue_list[queue_idx].port_id;
 }
 
-void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx) {
+void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
     uint8_t queue_id = lcdata->conf->hw.rx_queue_list[queue_idx].queue_id;
     lcdata->nb_rx = rte_eth_rx_burst((uint8_t) get_portid(lcdata, queue_idx), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
 }
 
-unsigned get_pkt_count_in_group(struct lcore_data* lcdata) {
+unsigned get_pkt_count_in_group(LCPARAMS) {
     return lcdata->nb_rx;
 }
 
-unsigned get_queue_count(struct lcore_data* lcdata) {
+unsigned get_queue_count(LCPARAMS) {
     return lcdata->conf->hw.n_rx_queue;
 }
 

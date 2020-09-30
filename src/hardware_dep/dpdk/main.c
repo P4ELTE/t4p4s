@@ -1,96 +1,11 @@
-/*-
- *   BSD LICENSE
- *
- *   Copyright(c) 2010-2015 Intel Corporation. All rights reserved.
- *   All rights reserved.
- *
- *   Redistribution and use in source and binary forms, with or without
- *   modification, are permitted provided that the following conditions
- *   are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in
- *       the documentation and/or other materials provided with the
- *       distribution.
- *     * Neither the name of Intel Corporation nor the names of its
- *       contributors may be used to endorse or promote products derived
- *       from this software without specific prior written permission.
- *
- *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-// A large portion of the code in this file comes from
-// main.c in the l3fwd example of DPDK 2.2.0.
-
-#include "dpdk_lib.h"
-#include <rte_ethdev.h>
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2020 Eotvos Lorand University, Budapest, Hungary
 
 #include "gen_include.h"
+#include "main.h"
 
-#ifndef T4P4S_NIC_VARIANT
-#error The NIC variant is undefined
-#endif
+#include <rte_ethdev.h>
 
-#ifdef T4P4S_SUPPRESS_EAL
-    #include <unistd.h>
-    #include <stdio.h>
-#endif
-
-
-// TODO from...
-extern void initialize_args(int argc, char **argv);
-extern void initialize_nic();
-extern int init_tables();
-extern int init_memories();
-
-extern int flush_tables();
-
-extern int launch_count();
-extern void t4p4s_abnormal_exit(int retval, int idx);
-extern void t4p4s_pre_launch(int idx);
-extern void t4p4s_post_launch(int idx);
-extern int t4p4s_normal_exit();
-
-// TODO from...
-extern void init_control_plane();
-
-// defined in the generated file dataplane.c
-extern void handle_packet(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate, uint32_t portid);
-
-// defined separately for each example
-extern bool core_is_working(struct lcore_data* lcdata);
-extern bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx);
-extern void free_packet(packet_descriptor_t* pd);
-extern bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata);
-extern void init_storage();
-extern void main_loop_pre_rx(struct lcore_data* lcdata);
-extern void main_loop_post_rx(struct lcore_data* lcdata);
-extern void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet);
-extern uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx);
-extern void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx);
-extern unsigned get_pkt_count_in_group(struct lcore_data* lcdata);
-extern unsigned get_queue_count(struct lcore_data* lcdata);
-extern void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port);
-extern void send_broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port);
-extern struct lcore_data init_lcore_data();
-extern packet* clone_packet(packet* pd, struct rte_mempool* mempool);
-extern void init_parser_state(parser_state_t*);
-
-//=============================================================================
-
-extern uint32_t get_port_mask();
-extern uint8_t get_port_count();
 
 void get_broadcast_port_msg(char result[256], int ingress_port) {
     uint8_t nb_ports = get_port_count();
@@ -113,7 +28,7 @@ void get_broadcast_port_msg(char result[256], int ingress_port) {
 }
 
 
-void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
 {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
@@ -128,7 +43,7 @@ void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int eg
         if (is_port_disabled)   continue;
 
         packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
-        send_single_packet(lcdata, pd, pkt_out, egress_port, ingress_port);
+        send_single_packet(pkt_out, egress_port, ingress_port, false, LCPARAMS_IN);
 
         nb_port++;
     }
@@ -139,7 +54,7 @@ void broadcast_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int eg
 }
 
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port)
+void send_packet(int egress_port, int ingress_port, LCPARAMS)
 {
     uint32_t lcore_id = rte_lcore_id();
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
@@ -150,76 +65,84 @@ void send_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_
             get_broadcast_port_msg(ports_msg, ingress_port);
             dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%d) " bytes): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
         #endif
-        broadcast_packet(lcdata, pd, egress_port, ingress_port);
+        broadcast_packet(egress_port, ingress_port, LCPARAMS_IN);
     } else {
         dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
-        send_single_packet(lcdata, pd, pd->wrapper, egress_port, ingress_port);
+        send_single_packet(pd->wrapper, egress_port, ingress_port, false, LCPARAMS_IN);
     }
 }
 
-void do_single_tx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
+void do_single_tx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
-    if (unlikely(GET_INT32_AUTO_PACKET(pd, header_instance_all_metadatas, field_standard_metadata_t_drop))) {
+    if (unlikely(GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD) == EGRESS_DROP_VALUE)) {
         debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
-        free_packet(pd);
+        free_packet(LCPARAMS_IN);
     } else {
         debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Egressing,outgoing) " packet\n");
 
         int egress_port = extract_egress_port(pd);
         int ingress_port = extract_ingress_port(pd);
 
-        send_packet(lcdata, pd, egress_port, ingress_port);
+        send_packet(egress_port, ingress_port, LCPARAMS_IN);
     }
 }
 
-void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned queue_idx, unsigned pkt_idx)
+void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
-    bool got_packet = receive_packet(pd, lcdata, pkt_idx);
+    bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
 
     if (got_packet) {
-	    if (likely(is_packet_handled(pd, lcdata))) {
-	        init_parser_state(&(lcdata->conf->state.parser_state));
-            handle_packet(pd, lcdata->conf->state.tables, &(lcdata->conf->state.parser_state), get_portid(lcdata, queue_idx));
-            do_single_tx(lcdata, pd, queue_idx, pkt_idx);
+        if (likely(is_packet_handled(LCPARAMS_IN))) {
+            struct lcore_state state = lcdata->conf->state;
+            lookup_table_t** tables = state.tables;
+            parser_state_t* pstate = &(state.parser_state);
+
+            int portid = get_portid(queue_idx, LCPARAMS_IN);
+
+            init_parser_state(&(state.parser_state));
+            handle_packet(portid, STDPARAMS_IN);
+            do_single_tx(queue_idx, pkt_idx, LCPARAMS_IN);
         }
     }
 
-    main_loop_post_single_rx(lcdata, got_packet);
+    main_loop_post_single_rx(got_packet, LCPARAMS_IN);
 }
 
-void do_rx(struct lcore_data* lcdata, packet_descriptor_t* pd)
+void do_rx(LCPARAMS)
 {
     unsigned queue_count = get_queue_count(lcdata);
     for (unsigned queue_idx = 0; queue_idx < queue_count; queue_idx++) {
-        main_loop_rx_group(lcdata, queue_idx);
+        main_loop_rx_group(queue_idx, LCPARAMS_IN);
 
         unsigned pkt_count = get_pkt_count_in_group(lcdata);
         for (unsigned pkt_idx = 0; pkt_idx < pkt_count; pkt_idx++) {
-            do_single_rx(lcdata, pd, queue_idx, pkt_idx);
+            do_single_rx(queue_idx, pkt_idx, LCPARAMS_IN);
         }
     }
 }
 
 bool dpdk_main_loop()
 {
-    struct lcore_data lcdata = init_lcore_data();
-    if (!lcdata.is_valid) {
-    	debug("lcore data is invalid, exiting\n");
-    	return false;
+    struct lcore_data lcdata_content = init_lcore_data();
+    packet_descriptor_t pd_content;
+
+    struct lcore_data* lcdata = &lcdata_content;
+    packet_descriptor_t* pd = &pd_content;
+
+    if (!lcdata->is_valid) {
+        debug("lcore data is invalid, exiting\n");
+        return false;
     }
 
-    packet_descriptor_t pd;
-    init_dataplane(&pd, lcdata.conf->state.tables);
+    init_dataplane(pd, lcdata->conf->state.tables);
 
-    while (core_is_working(&lcdata)) {
-        main_loop_pre_rx(&lcdata);
-
-        do_rx(&lcdata, &pd);
-
-        main_loop_post_rx(&lcdata);
+    while (core_is_working(LCPARAMS_IN)) {
+        main_loop_pre_rx(LCPARAMS_IN);
+        do_rx(LCPARAMS_IN);
+        main_loop_post_rx(LCPARAMS_IN);
     }
 
-    return lcdata.is_valid;
+    return lcdata->is_valid;
 }
 
 
@@ -251,25 +174,31 @@ int main(int argc, char** argv)
     initialize_nic();
 
     int launch_count2 = launch_count();
-    for (int i = 0; i < launch_count2; ++i) {
+    for (int idx = 0; idx < launch_count2; ++idx) {
         debug("Init execution\n");
 
         init_tables();
         init_storage();
 
         init_memories();
-        debug(" " T4LIT(::::,incoming) " Init control plane connection\n");
-        init_control_plane();
+        #ifndef T4P4S_NO_CONTROL_PLANE
+            debug(" " T4LIT(::::,incoming) " Init control plane connection\n");
+            init_control_plane();
+        #else
+            debug(" :::: (Control plane inactive)\n");
+        #endif
 
-        t4p4s_pre_launch(i);
+        init_table_default_actions();
+
+        t4p4s_pre_launch(idx);
 
         int retval = launch_dpdk();
         if (retval < 0) {
-            t4p4s_abnormal_exit(retval, i);
+            t4p4s_abnormal_exit(retval, idx);
             return retval;
         }
 
-        t4p4s_post_launch(i);
+        t4p4s_post_launch(idx);
 
         flush_tables();
     }

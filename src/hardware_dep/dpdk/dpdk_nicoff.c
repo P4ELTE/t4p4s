@@ -1,22 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
-#include <netinet/ether.h> 
+#include <netinet/ether.h>
 
 #include "dpdk_lib.h"
-#include "util.h"
 #include "dpdk_nicoff.h"
+
+#include "util_debug.h"
+#include "util_packet.h"
 
 extern int get_socketid(unsigned lcore_id);
 
@@ -83,7 +74,7 @@ testcase_t* current_test_case;
 // ------------------------------------------------------
 // Helpers
 
-fake_cmd_t get_cmd(struct lcore_data* lcdata) {
+fake_cmd_t get_cmd(LCPARAMS) {
     return (*(current_test_case->steps))[rte_lcore_id()][lcdata->idx];
 }
 
@@ -122,7 +113,7 @@ int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
 }
 
 
-struct rte_mbuf* fake_packet(struct lcore_data* lcdata, const char* texts[MAX_SECTION_COUNT]) {
+struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     int byte_count = total_fake_byte_count(texts);
 
     debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
@@ -147,7 +138,7 @@ void abort_on_strict() {
 #endif
 }
 
-void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_port) {
+void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
     if (cmd.out_port == egress_port)    return;
 
     char port_designation_egress[256];
@@ -156,11 +147,11 @@ void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_por
     char port_designation_cmd[256];
     port_designation_cmd[0] = '\0';
 
-    if (egress_port == 100) {
+    if (egress_port == T4P4S_BROADCAST_PORT) {
         strcpy(port_designation_egress, " (broadcast)");
     }
 
-    if (cmd.out_port == 100) {
+    if (cmd.out_port == T4P4S_BROADCAST_PORT) {
         strcpy(port_designation_cmd, " (broadcast)");
     }
 
@@ -172,7 +163,11 @@ void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_por
     abort_on_strict();
 }
 
-bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
+    if (pd->wrapper == 0) {
+        rte_exit(1, "Error: packet was not created in memory, " T4LIT(aborting,error) "\n");
+    }
+
     struct rte_mbuf* mbuf = (struct rte_mbuf*)pd->wrapper;
 
     int expected_byte_count = total_fake_byte_count(cmd.out);
@@ -189,7 +184,7 @@ bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descript
     return true;
 }
 
-int get_wrong_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+int get_wrong_byte_count(fake_cmd_t cmd, LCPARAMS) {
     int wrong_byte_count = 0;
 
     int byte_idx = 0;
@@ -217,7 +212,7 @@ int get_wrong_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descr
 
 #define MSG_MAX_LEN 4096
 
-void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd, int wrong_byte_count) {
+void print_wrong_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
     char msg[MSG_MAX_LEN];
     char* msgptr = msg;
 
@@ -255,7 +250,7 @@ void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descrip
     debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", msg);
 }
 
-void print_expected_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd, int wrong_byte_count) {
+void print_expected_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
     char msg[MSG_MAX_LEN];
     char* msgptr = msg;
 
@@ -296,12 +291,12 @@ void print_expected_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_desc
     debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(tmpmsgptr), "", msg);
 }
 
-void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
-    int wrong_byte_count = get_wrong_byte_count(lcdata, cmd, pd);
+void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
+    int wrong_byte_count = get_wrong_byte_count(cmd, LCPARAMS_IN);
 
     if (wrong_byte_count != 0) {
-        print_wrong_bytes(lcdata, cmd, pd, wrong_byte_count);
-        print_expected_bytes(lcdata, cmd, pd, wrong_byte_count);
+        print_wrong_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
+        print_expected_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
         lcdata->is_valid = false;
         abort_on_strict();
     }
@@ -309,17 +304,17 @@ void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_des
 
 bool encountered_error = false;
 
-void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port) {
-    fake_cmd_t cmd = get_cmd(lcdata);
+void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
+    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
 
-    check_egress_port(lcdata, cmd, egress_port);
-    bool is_ok = check_byte_count(lcdata, cmd, pd);
+    check_egress_port(cmd, egress_port, LCPARAMS_IN);
+    bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
-        check_packet_contents(lcdata, cmd, pd);
+        check_packet_contents(cmd, LCPARAMS_IN);
     }
 
     if (lcdata->is_valid) {
-        debug( "   :: " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
     } else {
         debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
         encountered_error = true;
@@ -329,17 +324,17 @@ void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int e
 // ------------------------------------------------------
 // TODO
 
-bool core_is_working(struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action != FAKE_END;
+bool core_is_working(LCPARAMS) {
+    return get_cmd(LCPARAMS_IN).action != FAKE_END;
 }
 
-bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
-    fake_cmd_t cmd = get_cmd(lcdata);
+bool receive_packet(unsigned pkt_idx, LCPARAMS) {
+    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
 
         if (got_packet) {
-            pd->wrapper = fake_packet(lcdata, cmd.in);
+            pd->wrapper = fake_packet(cmd.in, LCPARAMS_IN);
             pd->data    = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         }
 
@@ -362,47 +357,47 @@ bool receive_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned
     return false;
 }
 
-void free_packet(packet_descriptor_t* pd) {
+void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 }
 
-bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action == FAKE_PKT;
+bool is_packet_handled(LCPARAMS) {
+    return get_cmd(LCPARAMS_IN).action == FAKE_PKT;
 }
 
-void main_loop_pre_rx(struct lcore_data* lcdata) {
-
-}
-
-void main_loop_post_rx(struct lcore_data* lcdata) {
+void main_loop_pre_rx(LCPARAMS) {
 
 }
 
-void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet) {
-    if (get_cmd(lcdata).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
+void main_loop_post_rx(LCPARAMS) {
+
+}
+
+void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+    if (get_cmd(LCPARAMS_IN).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
 
     ++lcdata->idx;
 }
 
-uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx) {
-    return get_cmd(lcdata).in_port;
+uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
+    return get_cmd(LCPARAMS_IN).in_port;
 }
 
-void main_loop_rx_group(struct lcore_data* lcdata, unsigned queue_idx) {
+void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 
 }
 
-unsigned get_pkt_count_in_group(struct lcore_data* lcdata) {
+unsigned get_pkt_count_in_group(LCPARAMS) {
     return 1;
 }
 
-unsigned get_queue_count(struct lcore_data* lcdata) {
+unsigned get_queue_count(LCPARAMS) {
     return 1;
 }
 
-void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone) {
+void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
-    check_sent_packet(lcdata, pd, egress_port, ingress_port);
+    check_sent_packet(egress_port, ingress_port, LCPARAMS_IN);
 }
 
 bool storage_already_inited = false;
