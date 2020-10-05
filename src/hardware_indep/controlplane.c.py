@@ -173,17 +173,18 @@ hidden_table_count = len(hlir.tables.filter(lambda t: t.is_hidden))
 #[     #else
 #[         bool show_hidden_tables = false;
 #}     #endif
-#} #endif
 
-#{ void debug_show_possible_tables() {
-#[     if (possible_tables_already_shown)   return;
-#{     if (show_hidden_tables) {
-#[         debug("   !! Possible table names: $all_keyed_table_names\n");
-#[     } else {
-#[         debug("   !! Possible table names: $common_keyed_table_names and " T4LIT(%d) " hidden tables\n", $hidden_table_count);
+#{     void debug_show_possible_tables() {
+#[         if (possible_tables_already_shown)   return;
+#{         if (show_hidden_tables) {
+#[             debug("   !! Possible table names: $all_keyed_table_names\n");
+#[         } else {
+#[             debug("   !! Possible table names: $common_keyed_table_names and " T4LIT(%d) " hidden tables\n", $hidden_table_count);
+#}         }
+#[         possible_tables_already_shown = true;
 #}     }
-#[     possible_tables_already_shown = true;
-#} }
+
+#} #endif
 
 #{ void ctrl_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
 for table in hlir.tables:
@@ -192,7 +193,9 @@ for table in hlir.tables:
     #[     return;
     #} }
 #[     debug(" $$[warning]{}{!!!! Table add entry}: $$[warning]{}{unknown table name} $$[table]{}{%s}\n", ctrl_m->table_name);
-#[     debug_show_possible_tables();
+#{     #ifdef T4P4S_DEBUG
+#[         debug_show_possible_tables();
+#}     #endif
 #} }
 
 
@@ -206,7 +209,9 @@ for table in hlir.tables:
     #} }
 
 #[     debug(" $$[warning]{}{!!!! Table set default}: $$[warning]{}{unknown table name} $$[table]{}{%s}\n", ctrl_m->table_name);
-#[     debug_show_possible_tables();
+#{     #ifdef T4P4S_DEBUG
+#[         debug_show_possible_tables();
+#}     #endif
 #} }
 
 

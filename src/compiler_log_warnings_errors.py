@@ -153,6 +153,7 @@ def get_traceback_txts():
         # uses the backtrace module to prettify output
         return [f"    {line}" for line in get_backtrace_lines(tb)]
     else:
+        import traceback
         return traceback.format_list(tb)
 
 def make_msg(where, msg_prefix, msg, use_traceback, show_details):

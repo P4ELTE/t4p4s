@@ -140,7 +140,7 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool sen
 
 // ------------------------------------------------------
 
-void init_queues(LCPARAMS) {
+void init_queues(struct lcore_data* lcdata) {
     for (unsigned i = 0; i < lcdata->conf->hw.n_rx_queue; i++) {
         unsigned portid = lcdata->conf->hw.rx_queue_list[i].port_id;
         uint8_t queueid = lcdata->conf->hw.rx_queue_list[i].queue_id;
@@ -211,7 +211,7 @@ void init_storage() {
 }
 
 void main_loop_pre_rx(LCPARAMS) {
-    tx_burst_queue_drain(lcdata);
+    tx_burst_queue_drain(LCPARAMS_IN);
 }
 
 void main_loop_post_rx(LCPARAMS) {
@@ -226,7 +226,7 @@ uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
 
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
     uint8_t queue_id = lcdata->conf->hw.rx_queue_list[queue_idx].queue_id;
-    lcdata->nb_rx = rte_eth_rx_burst((uint8_t) get_portid(lcdata, queue_idx), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
+    lcdata->nb_rx = rte_eth_rx_burst((uint8_t) get_portid(queue_idx, LCPARAMS_IN), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
 }
 
 unsigned get_pkt_count_in_group(LCPARAMS) {

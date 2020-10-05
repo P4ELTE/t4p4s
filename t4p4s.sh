@@ -756,10 +756,13 @@ if [ "$(optvalue run)" != off ]; then
         exit_on_error "$?" "Controller compilation $(cc 2)failed$nn"
         cd - >/dev/null
 
+        command -v gnome-terminal >/dev/null 2>/dev/null
+        HAS_TERMINAL=$?
+
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
             stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
-        elif [ "$(optvalue ctrterm)" != off -a `command -v gnome-terminal` ]; then
+        elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
             TERMWIDTH=${TERMWIDTH-72}
             TERMHEIGHT=${TERMHEIGHT-36}
             gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
