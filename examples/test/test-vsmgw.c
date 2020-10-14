@@ -42,7 +42,7 @@ fake_cmd_t t4p4s_testcase_arp[][RTE_MAX_LCORE] = {
 fake_cmd_t t4p4s_testcase_arp_ipv4[][RTE_MAX_LCORE] = {
     {
         FSLEEP(200),
-        {FAKE_PKT, 0, 1, ARP_IPV4(ETH01, ETH1A), 0, 11, ARP_IPV4(ETH01, ETH1A)},
+        {FAKE_PKT, 0, 1, ARP_IPV4(ETH01, ETH1A, "0000000000000000000000000000000000000000"), 0, 11, ARP_IPV4(ETH01, ETH1A, "0000000000000000000000000000000000000000")},
         FEND,
     },
     {
@@ -53,7 +53,7 @@ fake_cmd_t t4p4s_testcase_arp_ipv4[][RTE_MAX_LCORE] = {
 fake_cmd_t t4p4s_testcase_icmp[][RTE_MAX_LCORE] = {
     {
         FSLEEP(200),
-        {FAKE_PKT, 0, 1, ICMP(ETH01, "00000000", ETH1A, "00000000"), 0, 11, ICMP(ETH01, "00000000", ETH1A, "00000000")},
+        {FAKE_PKT, 0, 1, ICMP(ETH01, "00000000", ETH1A, "00000000", "00000000"), 0, 11, ICMP(ETH01, "00000000", ETH1A, "00000000", "00000000")},
         FEND,
     },
     {
@@ -64,7 +64,7 @@ fake_cmd_t t4p4s_testcase_icmp[][RTE_MAX_LCORE] = {
 fake_cmd_t t4p4s_testcase_gtp[][RTE_MAX_LCORE] = {
     {
         FSLEEP(200),
-        {FAKE_PKT, 0, 1, GTP(ETH01, "00000000", ETH1A, "00000000"), 0, 11, GTP(ETH01, "00000000", ETH1A, "00000000")},
+        {FAKE_PKT, 0, 1, GTP(ETH01, "00000000", ETH1A, "00000000", "00000000"), 0, 11, GTP(ETH01, "00000000", ETH1A, "00000000", "00000000")},
         FEND,
     },
     {
