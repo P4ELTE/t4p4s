@@ -99,10 +99,6 @@ for table in hlir.tables:
         offsets = ["+".join(["0"] + [f'{ksize}' for ksize in key_sizes[0:idx]]) for idx, ksize in enumerate(key_sizes)]
         varinfos = [make_var(key, ksize) for key, ksize in zip(keys, key_sizes)]
 
-        for key, ksize in zip(keys, key_sizes):
-            if ksize % 8 != 0:
-                addError("determining const entry key size", f"Key size for {key.name} is not a multiple of 8 bits")
-
         for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos):
             #[ uint8_t ${const_var}[] = {$hex_content};
 
