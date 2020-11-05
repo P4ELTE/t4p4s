@@ -38,7 +38,8 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width);
 
 // Modify operations
 
-#define MODIFY_BYTEBUF_BYTEBUF_PACKET(pd , h, f, src, srclen) MODIFY_BYTEBUF_BYTEBUF(handle(header_desc_ins(pd , h), f), src, srclen);
+void MODIFY_BYTEBUF_BYTEBUF_PACKET(packet_descriptor_t* pd, header_instance_t hdr, field_instance_t fld, void* src, int srclen);
+
 #define MODIFY_BYTEBUF_BYTEBUF_BUFFER(buf, w, f, src, srclen) MODIFY_BYTEBUF_BYTEBUF(handle(header_desc_buf(buf, w), f), src, srclen);
 
 #define MODIFY_INT32_BYTEBUF_PACKET(pd , h, f, src, srclen) MODIFY_INT32_BYTEBUF(handle(header_desc_ins(pd , h), f), src, srclen);
