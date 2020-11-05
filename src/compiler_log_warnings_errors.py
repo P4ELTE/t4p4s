@@ -42,12 +42,13 @@ def insert_line_srcfile(code):
     line = line_from_file(file, lineno)
     return file, line, lineno
 
-def add_referred_tb_lines(tb):
+def add_referred_tb_lines(tb, show_original=False):
     for filename, lineno, module, code in tb:
         codefile, codeline, codelineno = insert_line_srcfile(code)
         if codefile:
-            yield codefile, codelineno, '...', codeline.rstrip()
-        yield os.path.relpath(filename), lineno, module, code
+            yield codefile, codelineno, module, codeline.rstrip()
+        if show_original:
+            yield os.path.relpath(filename), lineno, module, code
 
 # TODO unify this with functionality in compiler_exception_handling
 def get_simplified_traceback():
@@ -102,7 +103,7 @@ def coloured_line(lineno, space1, filename, space2, module, space3, code, has_co
         code = highlight(code, pygments_lexer, colorama_formatter)
         # cut the line end character that pygments adds on
         code = code[:-1]
-    return f'{Style.BRIGHT}{Fore.YELLOW}{filename}{Fore.RESET}@{Fore.GREEN}{lineno}{space1}{space2}{Fore.GREEN}{module}{space3}{Style.RESET_ALL}-->{code}'
+    return f'{Style.BRIGHT}{Fore.YELLOW}{filename}{Fore.RESET}:{Fore.GREEN}{lineno}{space1}{space2}{Fore.GREEN}{module}{space3}{Style.RESET_ALL}-->{code}'
 
 
 def reformat_lines(txt, use_colorama=True):
