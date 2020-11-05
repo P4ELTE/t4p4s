@@ -12,24 +12,43 @@ Find out more [about the P4 language](https://p4.org/).
 
 ### Preparation
 
-To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it with the following command. It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it in the following way.
+The script installs all necessary libraries ([DPDK](https://www.dpdk.org/) and [P4C](https://github.com/p4lang/p4c)) and T₄P₄S itself, and sets up environment variables.
 
+    wget https://raw.githubusercontent.com/P4ELTE/t4p4s/master/bootstrap-t4p4s.sh
+    chmod +x bootstrap-t4p4s.sh
     . ./bootstrap-t4p4s.sh
 
-The script installs all necessary software including T₄P₄S itself, and sets up environment variables.
+Notes.
 
-- Note: without the `.` at the beginning of the line, the environment variables will not be usable immediately.
-    - In that case, you can either start a new terminal, or run `. ./t4p4s_environment_variables.sh`
+- Without the `.` at the beginning of the line, the environment variables will not be usable immediately.
+    - In that case, you can either open a new terminal, or run `. ./t4p4s_environment_variables.sh`
+
+- The script is intended to work on recent Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+    - Legacy systems such as Ubuntu 18.04 and 16.04 are not supported by the script, as they do not come with out-of-the-box support for sufficiently recent libraries (such as Meson 0.47.1 or newer required for building DPDK, or Python 3.8 or newer required for building T₄P₄S).
+    - Even on legacy systems, the script may still be useful to you. You may disable stages of the script, and manually install the software.
+
+    INSTALL_STAGE2_DPDK=no INSTALL_STAGE3_PROTOBUF=no INSTALL_STAGE4_P4C=no . ./bootstrap-t4p4s.sh
+
+- To see all possible options (including available stages), run the script the following way.
+
+    ./bootstrap-t4p4s.sh showenvs
+
+- To download T₄P₄S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+    - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
+
+- At this stage, T₄P₄S will not compile and run all P4 programs properly. In particular, header stacks are not supported currently.
+
 
 Overriding defaults.
 
-- To increase efficiency, the script runs jobs on all cores on the system in parallel. Should you experience any problems (for example, your system may run out of memory), you can override the number of jobs.
+- To increase efficiency, the script runs jobs on all cores of the system in parallel. Should you experience any problems (for example, your system may run out of memory), you can override the number of jobs.
 
     MAX_MAKE_JOBS=4 . ./bootstrap-t4p4s.sh
 
 - By default, the script runs downloads in parallel. You can force it to work sequentially.
 
-    PARALLEL_INSTALL=0 . ./bootstrap-t4p4s.sh
+    PARALLEL_INSTALL=no . ./bootstrap-t4p4s.sh
 
 - The script installs the newest versions of DPDK and P4C unless overridden by the user.
 
@@ -39,12 +58,6 @@ Overriding defaults.
 - The script will use `clang` by default if it is installed. Using another target like `gcc` is possible, too.
 
     RTE_TARGET=x86_64-native-linuxapp-gcc . ./bootstrap-t4p4s.sh
-
-To download T₄P₄S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
-
-- When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
-
-Note: at this stage, not all P4 programs will compile and run properly. In particular, header stacks are not supported currently.
 
 
 ### Options
@@ -161,6 +174,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd verbose`
     - Verbose output for the switch
         `./t4p4s.sh :l2fwd dbg`
+    - In addition, statistics can be displayed at the end
+        `./t4p4s.sh :l2fwd dbg stats`
     - Suppress EAL messages from the switch output
         `./t4p4s.sh :l2fwd noeal`
     - No output at all (both terminal and switch) except for errors
@@ -232,7 +247,7 @@ To see detailed output about compilation and execution, use the following option
 To run all available test cases, execute `./run_tests.sh`.
 You can also give this script any number of additional options.
 
-    ./run_tests.sh verbose dbg
+    ./run_tests.sh verbose dbg stats
 
 As its name implies, `run_tests.sh` runs each test case in the offline (`nicoff`, meaning no NIC present) mode.
 You may set the `PREFIX` and `POSTFIX` environment variables to make the script start `t4p4s.sh` with a different setup for the test case.
