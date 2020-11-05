@@ -62,7 +62,7 @@ parser IngressParserImpl(packet_in packet,
     state start {
         packet.extract(hdr.dummy);
         transition select(hdr.dummy.f1) {
-            1w0 : parse_continue;
+            1w1 : parse_continue;
             _ : reject;
         }
     }
@@ -83,9 +83,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { 
-	ostd.egress_port = (PortId_t)12345;
-    }
+    apply { }
 }
 
 parser EgressParserImpl(packet_in buffer,

@@ -2,7 +2,7 @@
 #include <psa.p4>
 
 // In:  0_0_00_00_00
-// Out: 1_1_10_11_11
+// Out: 1_1_11_10_11
 
 header dummy_t {
     bit<1> f1;
@@ -56,9 +56,9 @@ control egress(inout headers hdr,
     apply {
        hdr.dummy.f1 = max(hdr.dummy.f1, 1w1);
        hdr.dummy.f2 = max(1w1, hdr.dummy.f2);
-       hdr.dummy.f3 = max2(2w1, 2w2);
-       hdr.dummy.f4 = max2(hdr.dummy.f3, 2w3);
-       hdr.dummy.f5 = max2(2w3, 2w0);
+       hdr.dummy.f3 = max2(2w3, 2w0);
+       hdr.dummy.f4 = max2(2w1, 2w2);
+       hdr.dummy.f5 = max2(hdr.dummy.f4, 2w3);
     }
 }
 

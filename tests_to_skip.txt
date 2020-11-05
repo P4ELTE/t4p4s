@@ -7,18 +7,19 @@ Lines can be commented out using #
 
 
 Action out headers are not supported yet
-    test-action
+    %test-action=test
+    %test-action-2=test
 
 Slice copying not implemented yet
     test-bit2
 
 Arithmetic operations are only supported on int<8>, int<16> and int<32>.
-    test-arithmetics
+    %test-arithmetics-nonbyte=test
 
 Header stacks and unions are not supported
-    test-header-stacks
-    test-header-union-1
-    test-header-union-2
+    %test-header-stacks=test
+    %test-header-union-1=test
+    %test-header-union-2=test
 
 Complex variable assignments are only partially supported
     test-compound-assignment

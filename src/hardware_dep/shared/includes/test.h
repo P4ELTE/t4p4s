@@ -59,38 +59,69 @@ typedef struct testcase_s {
 
 #define UNKNOWN_PKT(src, dst, ...)        {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__), WAIT_CONTROLPLANE_REPLY,    0, ETH(src, dst, ##__VA_ARGS__)}
 #define LEARNED_PKT(port, src, dst, ...)  {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__),                       0, port, ETH(src, dst, ##__VA_ARGS__)}
-#define NO_OUTPUT -1
 
-#define _ETHERTYPE_IPV4 "0800"
-#define _ETHERTYPE_ARP "0806"
-#define _ETHERTYPE_VLAN "8100"
+#define IPPROTOCOL_ICMP "01"
+#define IPPROTOCOL_IPv4 "04"
+#define IPPROTOCOL_TCP  "06"
+#define IPPROTOCOL_UDP  "11"
 
-#define _IPPROTO_ICMP "01"
-#define _IPPROTO_IPv4 "04"
-#define _IPPROTO_TCP "06"
-#define _IPPROTO_UDP "11"
+#define UDP_PORT_GTPC  "084B" /* 2123 */
+#define UDP_PORT_GTPU  "0868" /* 2152 */
+#define UDP_PORT_VXLAN "12B5" /* 4789 */
+#define UDP_DPORT_RLC  "FF4F" /* 65359 */
 
-#define _GTP_UDP_PORT "0868"
+#define ARP_HTYPE_ETHERNET "0001"
 
-#define _ARP_HTYPE_ETHERNET "0001"
-#define _ARP_PTYPE_IPV4     "0800"
-#define _ARP_HLEN_ETHERNET  "06"
-#define _ARP_PLEN_IPV4      "04"
+#define cIPV4     "0800"
+#define cARP      "0806"
+#define cIPV6     "86dd"
+#define cVLAN     "8100"
+#define cBAAS     "abef"
+#define cRLC      "0101"
 
-#define ETH(dst, src, ...) FDATA(dst, src, _ARP_PTYPE_IPV4, ##__VA_ARGS__)
-#define IPV4(dsteth, dstip, srceth, srcip, ...) FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000000000", srcip, dstip, ##__VA_ARGS__)
-#define ICMP(dsteth, dstip, srceth, srcip, ...) FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_ICMP, "0000", srcip, dstip, ##__VA_ARGS__)
-#define UDP(dsteth, dstip, dstport, srceth, srcip, srcport, ...) FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, srcport, dstport, "00000000", ##__VA_ARGS__)
-#define GTP(dsteth, dstip, srceth, srcip, ...)          FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", ##__VA_ARGS__)
-#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", (tFlag?"280":"200"), "00000000000000", ##__VA_ARGS__)
-#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) FDATA(dsteth, srceth, _ETHERTYPE_IPV4, "000000000000000000", _IPPROTO_UDP, "0000", srcip, dstip, _GTP_UDP_PORT, _GTP_UDP_PORT, "00000000", (tFlag?"480":"400"), "00000000000000", ##__VA_ARGS__)
+#define ARP_HLEN_ETHERNET  "06"
+#define ARP_PLEN_IPV4      "04"
 
-#define ARP(dsteth, srceth, ...) FDATA(dsteth, srceth, _ETHERTYPE_ARP, "0000000000000000", ##__VA_ARGS__)
-#define ARP_IPV4(dsteth, srceth, ...) FDATA(dsteth, srceth, _ETHERTYPE_ARP, _ARP_HTYPE_ETHERNET, _ARP_PTYPE_IPV4, _ARP_HLEN_ETHERNET, _ARP_PLEN_IPV4, "0000", ##__VA_ARGS__)
+#define hETH(dsteth, srceth, tag)                  dsteth, srceth, tag
+#define hETH4(dsteth, srceth)                      dsteth, srceth, cIPV4
+#define hETH6(dsteth, srceth)                      dsteth, srceth, cIPV6
+#define hICMPv4(srcip, dstip)                      "050000000000000000", IPPROTOCOL_ICMP, "0000", srcip, dstip
+#define hIPv4(srcip, dstip)                        "050000000000000000", IPPROTOCOL_IPv4, "0000", srcip, dstip
+#define hTCPv4(srcip, dstip)                       "050000000000000000", IPPROTOCOL_TCP, "0000", srcip, dstip
+#define hUDPv4(srcip, dstip)                       "050000000000000000", IPPROTOCOL_UDP, "0000", srcip, dstip
+#define hIPv6(next_hdr, srcip, dstip)              "6" "00" "00000" "0000" next_hdr "00", srcip, dstip
+#define hUDP(src_port, dst_port, length, checksum) src_port dst_port length checksum
+// TODO more details/args
+#define hARP()                                     ARP_HTYPE_ETHERNET, cIPV4, ARP_HLEN_ETHERNET, ARP_PLEN_IPV4, "0000"
+#define hVXLAN() "0000000000000000"
+#define hBAAS() "0000000000000000"
+#define hGTP() "0000000000000000"
+#define hRLC() "00000000000000000000000000"
+#define hPDCPbefore() "00000000000000000000000000000000000000000000000000000000000000000000"
+#define hPDCP() "0000000000"
 
-#define VLAN(dsteth, srceth, ...) FDATA(dsteth, srceth, _ETHERTYPE_VLAN, ##__VA_ARGS__)
+#define ETH(dsteth, srceth, ...)        FDATA(dsteth, srceth, cIPV4, ##__VA_ARGS__)
+#define ETH6(dsteth, srceth, ...)       FDATA(dsteth, srceth, cIPV6, ##__VA_ARGS__)
+#define ARP(dsteth, srceth, ...)        FDATA(dsteth, srceth, cARP, ##__VA_ARGS__)
+#define VLAN(dsteth, srceth, ...)       FDATA(dsteth, srceth, cVLAN, ##__VA_ARGS__)
+
+#define ETH_IPv4(dsteth, srceth, protocol, srcip, dstip, ...)    FDATA(hETH4(dsteth, srceth), hIPv4(protocol, srcip, dstip), ##__VA_ARGS__)
+#define ETH_IPv6(dsteth, dstip6, srceth, srcip6, next_hdr, ...)  FDATA(hETH6(dsteth, srceth), hIPv6(next_hdr, srcip6, dstip6), ##__VA_ARGS__)
+
+#define IPV4(dsteth, dstip, srceth, srcip, ...)                  FDATA(hETH4(dsteth, srceth), hIPv4v4(srcip, dstip), ##__VA_ARGS__)
+#define ICMP(dsteth, dstip, srceth, srcip, ...)                  FDATA(hETH4(dsteth, srceth), hICMPv4(srcip, dstip), ##__VA_ARGS__)
+#define UDP(dsteth, dstip, srceth, srcip, len, chksm, ...)       FDATA(hETH4(dsteth, srceth),  hUDPv4(srcip, dstip), hUDP(srcip, dstip, len, chksm), ##__VA_ARGS__)
+
+#define ARP_IPV4(dsteth, srceth, ...)   FDATA(hETH(dsteth, srceth, cARP), hARP(), ##__VA_ARGS__)
+
+#define VXLAN(dsteth, srceth, srcip, ...)               UDP(dsteth, UDP_PORT_VXLAN, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
+#define GTP(dsteth, srceth, srcip, ...)                 UDP(dsteth,  UDP_PORT_GTPU, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
+#define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"28":"20"), ##__VA_ARGS__)
+#define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"48":"40"), ##__VA_ARGS__)
 
 
+
+#define IPV6_0000 "00000000000000000000000000000000"
 
 #define IPV4_0000 "0000000000000000000000000000000000000000"
 #define IPV4_FFFF "00000000000000000000ffff0000000000000000"
