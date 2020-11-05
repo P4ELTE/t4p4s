@@ -1,4 +1,0 @@
-FROM t4p4s
-
-WORKDIR /root/t4p4s
-CMD ["./t4p4s.sh", ":l2fwd"]
