@@ -121,7 +121,7 @@ void do_rx(LCPARAMS)
     }
 }
 
-bool dpdk_main_loop()
+void dpdk_main_loop()
 {
     struct lcore_data lcdata_content = init_lcore_data();
     packet_descriptor_t pd_content;
@@ -130,8 +130,7 @@ bool dpdk_main_loop()
     packet_descriptor_t* pd = &pd_content;
 
     if (!lcdata->is_valid) {
-        debug("lcore data is invalid, exiting\n");
-        return false;
+        return;
     }
 
     init_dataplane(pd, lcdata->conf->state.tables);
@@ -141,16 +140,14 @@ bool dpdk_main_loop()
         do_rx(LCPARAMS_IN);
         main_loop_post_rx(LCPARAMS_IN);
     }
-
-    return lcdata->is_valid;
 }
 
 
 static int
 launch_one_lcore(__attribute__((unused)) void *dummy)
 {
-    bool success = dpdk_main_loop();
-    return success ? 0 : -1;
+    dpdk_main_loop();
+    return 0;
 }
 
 int launch_dpdk()
