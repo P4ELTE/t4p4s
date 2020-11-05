@@ -1,5 +1,23 @@
-CC=ccache gcc
+
+ifeq ($(CC),)
+CLANG_EXISTS := $(shell command -v clang 2> /dev/null)
+
+#ifdef CLANG_EXISTS
+CC="ccache clang"
+#else
+CC="ccache gcc"
+#fi
+endif
+
+ifeq ($(LD),)
+LLD_EXISTS := $(shell command -v ld.lld 2> /dev/null)
+#ifdef LLD_EXISTS
 LD=ld.lld
+#else
+LD=ld.bfd
+#fi
+endif
+
 CFLAGS=-Wall -pthread -std=c99
 LIB=
 
