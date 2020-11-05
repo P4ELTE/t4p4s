@@ -188,13 +188,13 @@ def is_control_local_var(var_name):
 var_name_counter = 0
 generated_var_names = set()
 
-def generate_var_name(var_name_part = "var", var_id = None):
+def generate_var_name(var_name_part, var_id = None):
     global var_name_counter
     global generated_var_names
 
     var_name_counter += 1
 
-    var_name = f"{var_name_part}_{var_name_counter}"
+    var_name = f"{var_name_part}_{var_name_counter:04d}"
     if var_id is not None:
         simpler = f"{var_name_part}_{var_id}"
         var_name = simpler
