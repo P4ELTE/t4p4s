@@ -9,6 +9,7 @@ from compiler_common import unique_everseen
 
 #[ #include "dataplane.h"
 #[ #include "common.h"
+#[ #include "gen_include.h"
 
 #[ #include "util_packet.h"
 
@@ -63,13 +64,14 @@ non_ctr_locals = ('counter', 'direct_counter', 'meter')
 
 for ctl in hlir.controls:
     #{ typedef struct control_locals_${ctl.name}_s {
-    for local_var_decl in ctl.controlLocals.filter('node_type', ('Declaration_Variable', 'Declaration_Instance')).filterfalse('urtype.name', non_ctr_locals):
-        #[ ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
+    for local_var_decl in ctl.local_var_decls:
+        #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
 
     # TODO is there a more appropriate way to store registers?
     for reg in hlir.registers:
-        #[ ${format_type(reg.type, resolve_names = False)} ${reg.name};
+        #[     ${format_type(reg.type, resolve_names = False)} register_${reg.name};
 
     #} } control_locals_${ctl.name}_t;
+    #[
 
 #[ #endif
