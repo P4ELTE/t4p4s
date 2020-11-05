@@ -18,9 +18,9 @@ def gen_make_smem_code(smem, table = None):
             signed = "int" if smem.is_signed else "uint"
             size = 8 if smem.size <= 8 else 16 if smem.size <= 16 else 32 if smem.size <= 32 else 64
             c['vartype'] = f"register_{signed}{size}_t"
-            #[     lock_t lock_$cname[${smem.amount}];
-            #[     ${c['vartype']} $cname[${smem.amount}];
-            #[     int ${cname}_amount;
+            #[     lock_t lock_${smem.smem_type}_$cname[${smem.amount}];
+            #[     ${c['vartype']} ${smem.smem_type}_$cname[${smem.amount}];
+            #[     int ${smem.smem_type}_${cname}_amount;
         elif table:
             sname = f"{cname}_{table.name}"
 
@@ -41,6 +41,7 @@ def gen_make_smem_code(smem, table = None):
 #[ #include "common.h"
 #[ #include "aliases.h"
 #[ #include "dpdk_smem.h"
+#[ #include "gen_include.h"
 
 #{ typedef struct global_state_s {
 for table, smem in hlir.all_meters + hlir.all_counters:

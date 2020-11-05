@@ -31,10 +31,10 @@ for table, smem in hlir.all_meters + hlir.all_counters:
 for smem in hlir.registers:
     for c in smem.components:
         #{ for (int idx = 0; idx < ${smem.amount}; ++idx) {
-        #[     strcpy(global_smem.${smem.name}[idx].name, "${smem.name}");
+        #[     strcpy(global_smem.${smem.smem_type}_${smem.name}[idx].name, "${smem.name}");
         #} }
 
-        #[ global_smem.${smem.name}_amount = ${smem.amount};
+        #[ global_smem.${smem.smem_type}_${smem.name}_amount = ${smem.amount};
 
     #[
 

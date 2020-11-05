@@ -7,6 +7,9 @@
 #include "actions.h"
 #include "util_debug.h"
 
+#include "dpdk_lib.h"
+#include "stateful_memory.h"
+
 extern struct all_metadatas_t all_metadatas;
 
 void InternetChecksum_t_init() {
@@ -77,4 +80,23 @@ void verify_checksum_with_payload(bool condition, struct uint8_buffer_s data, bi
 
 void update_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(update_checksum_with_payload,extern) "\n");
+}
+
+
+extern void do_counter_count(counter_t* counter, int index, uint32_t value);
+
+void extern_counter_count(uint32_t counter_array_size, enum_PSA_CounterType_t ct, uint32_t index, counter_t* counter) {
+    do_counter_count(counter, index, 1);
+}
+
+void extern_meter_execute_meter(uint32_t index, enum_PSA_MeterType_t b, uint32_t c, uint8_t d, meter_t e) {
+    debug("    : Executing extern_meter_execute_meter#" T4LIT(%d) "\n", index);
+}
+
+void extern_register_read(uint32_t index, uint32_t a, uint32_t b, register_t c) {
+    debug("    : Executing extern_register_read#" T4LIT(%d) "\n", index);
+}
+
+void extern_register_write(uint32_t index, uint32_t a, uint32_t b, register_t* c) {
+    debug("    : Executing extern_register_write#" T4LIT(%d) "\n", index);
 }

@@ -28,7 +28,7 @@ void apply_direct_smem_rte_atomic32_t(rte_atomic32_t* smem, uint32_t value, char
 }
 
 
-void extern_counter_count(counter_t* counter, int index, uint32_t value) {
+void do_counter_count(counter_t* counter, int index, uint32_t value) {
     rte_atomic32_add(&(counter->value), value);
     #ifdef T4P4S_DEBUG
         debug("    : Increased counter by " T4LIT(%3d) ": " T4LIT(%s[%d],smem) " = " T4LIT(%d,bytes) "\n", value, counter->name, index, rte_atomic32_read(&(counter->value)));
@@ -37,9 +37,7 @@ void extern_counter_count(counter_t* counter, int index, uint32_t value) {
 
 
 void extern_Counter_count(counter_t* counter, int index, uint32_t value) {
-    debug("    : Executing extern_Counter_count#" T4LIT(%d) "\n", index);
-    // TODO put back
-    // extern_counter_count(counter, index, value);
+    do_counter_count(counter, index, value);
 }
 
 
@@ -63,7 +61,6 @@ void extern_direct_meter_read_uint8_t(uint8_t* result, uint32_t index) {
 void extern_direct_meter_read_uint32_t(uint32_t* result, uint32_t index) {
     debug("    : Executing extern_direct_meter_read_uint32_t#" T4LIT(%d) "\n", index);
 }
-
 
 // Register: init
 

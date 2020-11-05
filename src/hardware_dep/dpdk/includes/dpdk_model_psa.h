@@ -14,6 +14,10 @@
 #define EGRESS_INIT_VALUE   0
 #define EGRESS_DROP_VALUE   true
 
+typedef struct InternetChecksum_s {
+	// TODO
+} InternetChecksum;
+
 void verify_checksum(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS);
 void update_checksum(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS);
 void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS);
