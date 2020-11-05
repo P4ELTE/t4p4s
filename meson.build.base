@@ -1,0 +1,74 @@
+
+project_description = meson.project_name()
+
+project_headers = [
+    'srcgen/actions.h',
+    'srcgen/common.h',
+    'srcgen/parser.h',
+    'srcgen/stateful_memory.h',
+    'srcgen/tables.h',
+
+    '../../src/hardware_dep/dpdk/includes/aliases.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_lib.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_model_psa.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_model_v1model.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_nicoff.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_nicon.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_primitives.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_primitives_impl.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_smem.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_smem_reg.h',
+    '../../src/hardware_dep/dpdk/includes/dpdk_tables.h',
+    '../../src/hardware_dep/dpdk/includes/main.h',
+
+    '../../src/hardware_dep/shared/ctrl_plane/ctrl_plane_backend.h',
+
+    '../../src/hardware_dep/shared/includes/backend.h',
+    '../../src/hardware_dep/shared/includes/dataplane.h',
+    '../../src/hardware_dep/shared/includes/dataplane_callback.h',
+    '../../src/hardware_dep/shared/includes/dataplane_hdr_fld_pkt.h',
+    '../../src/hardware_dep/shared/includes/dataplane_lookup.h',
+    '../../src/hardware_dep/shared/includes/ternary_naive.h',
+    '../../src/hardware_dep/shared/includes/test.h',
+    '../../src/hardware_dep/shared/includes/util_debug.h',
+    '../../src/hardware_dep/shared/includes/util_packet.h',
+
+    'srcgen/gen_include.h',
+]
+
+project_source_files = [
+    'srcgen/dataplane.c',
+    'srcgen/tables.c',
+    'srcgen/parser.c',
+    'srcgen/actions.c',
+    'srcgen/controlplane.c',
+    'srcgen/common.c',
+
+    '../../src/hardware_dep/dpdk/main.c',
+
+    '../../src/hardware_dep/shared/ctrl_plane/ctrl_plane_backend.c',
+    '../../src/hardware_dep/shared/ctrl_plane/fifo.c',
+    '../../src/hardware_dep/shared/ctrl_plane/handlers.c',
+    '../../src/hardware_dep/shared/ctrl_plane/messages.c',
+    '../../src/hardware_dep/shared/ctrl_plane/sock_helpers.c',
+    '../../src/hardware_dep/shared/ctrl_plane/threadpool.c',
+
+    '../../src/hardware_dep/dpdk/data_plane/dpdk_lib.c',
+    '../../src/hardware_dep/dpdk/data_plane/dpdk_tables.c',
+    '../../src/hardware_dep/dpdk/data_plane/dpdk_primitives_impl.c',
+
+    '../../src/hardware_dep/shared/data_plane/ternary_naive.c',
+
+    '../../src/hardware_dep/shared/util_debug.c',
+]
+
+build_args = [
+    '-Wno-parentheses-equality',
+]
+
+include_dirs = include_directories(
+    'srcgen',
+    '../../src/hardware_dep/dpdk/includes',
+    '../../src/hardware_dep/shared/includes',
+    '../../src/hardware_dep/shared/ctrl_plane',
+)
