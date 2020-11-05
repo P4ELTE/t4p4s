@@ -5,6 +5,7 @@ from utils.codegen import format_type
 
 #[ #pragma once
 
+#[ #include <stdbool.h>
 #[ #include <stdint.h>
 #[ #include "parser.h"
 
@@ -40,3 +41,28 @@ for struct in hlir.news.data.filter(lambda n: not any(t.node_type == 'Type_Heade
 
 for typedef in hlir.typedefs:
     #[ typedef ${format_type(typedef.type)} ${typedef.name};
+
+
+#{ #ifdef T4P4S_STATS
+#{ typedef struct t4p4s_stats_s {
+parser = hlir.parsers[0]
+for s in parser.states:
+    #[     bool parser_state__${s.name};
+
+#[
+
+for table in hlir.tables:
+    #[         bool table_apply__${table.name};
+
+    if 'key' in table:
+        #[         bool table_hit__${table.name};
+        #[         bool table_miss__${table.name};
+    else:
+        #[         bool table_used__${table.name};
+
+
+    for action_name in table.actions.map('expression.method.path.name'):
+        #[         bool table_action_used__${table.name}_${action_name};
+
+#} } t4p4s_stats_t;
+#} #endif

@@ -56,3 +56,5 @@ void init_table_default_actions();
 
 uint32_t get_port_mask();
 uint8_t get_port_count();
+
+void t4p4s_print_stats();

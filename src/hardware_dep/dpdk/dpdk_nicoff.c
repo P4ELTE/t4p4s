@@ -116,15 +116,19 @@ int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
 struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     int byte_count = total_fake_byte_count(texts);
 
-    debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
-
+    // debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
     struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
-    uint8_t*         p2 = (uint8_t*)rte_pktmbuf_prepend(p, byte_count);
+    uint8_t*         p2 = (uint8_t*)rte_pktmbuf_append(p, byte_count);
+
+    if (p2 == NULL) {
+        rte_exit(3, "Could not allocate space for fake packet\n");
+    }
+
     while (strlen(*texts) > 0) {
         uint8_t* dst = p2;
         p2 = str2bytes(*texts, p2);
 
-        dbg_bytes(dst, strlen(*texts) / 2, " :::: " T4LIT(%2zd) " bytes: ", strlen(*texts) / 2);
+        // dbg_bytes(dst, strlen(*texts) / 2, " :::: " T4LIT(%2zd) " bytes: ", strlen(*texts) / 2);
 
         ++texts;
     }
@@ -160,21 +164,11 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
           cmd.out_port, port_designation_cmd,
           egress_port, port_designation_egress);
     lcdata->is_valid = false;
-    
-    abort_on_strict();
-}
-
-void check_is_dropped(fake_cmd_t cmd, LCPARAMS) {
-    if (cmd.out_port == NO_OUTPUT && GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD) == EGRESS_DROP_VALUE)    return;
-
-    lcdata->is_valid = false;
-    
     abort_on_strict();
 }
 
 bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
-	
-	if (pd->wrapper == 0) {
+    if (pd->wrapper == 0) {
         rte_exit(1, "Error: packet was not created in memory, " T4LIT(aborting,error) "\n");
     }
 
@@ -182,7 +176,6 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
 
     int expected_byte_count = total_fake_byte_count(cmd.out);
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
-    
     if (expected_byte_count != actual_byte_count) {
         debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
@@ -369,17 +362,6 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
 }
 
 void free_packet(LCPARAMS) {
-	fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
-	
-	check_is_dropped(cmd, LCPARAMS_IN);
-    
-    if (lcdata->is_valid) {
-        debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is dropped : " T4LIT(test success,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-    } else {
-        debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is dropped, but output was expected " T4LIT(test failure,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-        encountered_error = true;
-    }
-    
     rte_free(pd->wrapper);
 }
 
@@ -449,6 +431,8 @@ void initialize_nic() {
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
+    t4p4s_print_stats();
+
     if (launch_count() == 1) {
         debug(T4LIT(Abnormal exit,error) ", code " T4LIT(%d) ".\n", retval);
     } else {
@@ -465,6 +449,8 @@ void t4p4s_after_launch(int idx) {
 }
 
 int t4p4s_normal_exit() {
+    t4p4s_print_stats();
+
     if (encountered_error) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
         return 3;
