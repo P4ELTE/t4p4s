@@ -5,7 +5,6 @@
 # Copyright 2019 Eotvos Lorand University, Budapest, Hungary
 
 import hlir16.hlir
-from hlir16.hlir_attrs import set_additional_attrs
 from compiler_log_warnings_errors import *
 
 from subprocess import call
@@ -36,7 +35,6 @@ def is_cache_file_loadable(path):
 def import_modules(required_modules):
     for modname in required_modules:
         if not pkgutil.find_loader(modname):
-            print(f"missing {modname}")
             return None
 
     return [importlib.import_module(modname) for modname in required_modules]
@@ -50,8 +48,11 @@ def load_cache(filename, is_compressed, required_modules, loader):
         return None
 
     if is_compressed:
-        with open(filename, 'rb') as cache_file:
-            return loader(cache_file, None)
+        try:
+            with open(filename, 'rb') as cache_file:
+                return loader(cache_file, None)
+        except:
+            return None
 
 
 def write_cache(cache, required_modules, saver, data):
@@ -76,6 +77,15 @@ def load_simdjson(file, data):
         return simdjson.load(f)
 
 
+def load_orjson(file, data):
+    import orjson
+    if file is not None:
+        return orjson.load(file)
+
+    with open(data, 'r') as f:
+        return orjson.load(f)
+
+
 def load_ujson(file, data):
     import ujson
     if file is not None:
@@ -86,6 +96,7 @@ def load_ujson(file, data):
 
 
 def load_json(file, data):
+    import json
     if file is not None:
         return json.load(file)
 
@@ -142,17 +153,24 @@ def continue_stages(stages, stage_idx, data):
         compiler_common.current_compilation = { 'from': f"(cached) {stage['filename']}", 'to': "(generated content)", 'stage': stage }
 
         new_data = None
+        last_exception = None
         for required_modules, loader in stage['loaders']:
             if import_modules(required_modules) is None:
                 continue
 
-            new_data = loader(None, data)
+            try:
+                new_data = loader(None, data)
+            except Exception as e:
+                last_exception = e
+                continue
 
             if new_data is not None:
                 break
 
         if new_data is None:
-            return None
+            if last_exception is not None:
+                raise last_exception
+            raise Exception(f'Stage {stage["name"]} could not load data')
 
         data = new_data
 
@@ -201,7 +219,7 @@ def stage_load_json(filename, p4cache):
         'name': 'stage_load_json',
         'msgfmt': "HLIR (cached: JSON) {}",
         'filename': f"{p4cache}.json.cached",
-        'loaders': [(['simdjson'], load_simdjson), (['ujson'], load_ujson), ([], load_json)],
+        'loaders': [(['simdjson'], load_simdjson), (['orjson'], load_orjson), (['ujson'], load_ujson), ([], load_json)],
         # This detects if the loaded JSON does not contain "main".
         'is_valid': lambda json_root: json_root['Node_ID'] is not None,
     }
@@ -221,7 +239,7 @@ def stage_hlir_add_attributes(filename, p4cache):
         'name': 'stage_hlir_add_attributes',
         'msgfmt': "HLIR (cached: stage hlir_add_attributes) {}",
         'filename': f"{p4cache}.hlir.attributed.cached",
-        'loaders': [cache_loader(lambda hlir: set_additional_attrs(hlir, filename, args['p4v']))],
+        'loaders': [cache_loader(lambda hlir: hlir16.hlir_attrs.set_additional_attrs(hlir, filename, args['p4v']))],
         'saver': cache_saver(),
     }
 
