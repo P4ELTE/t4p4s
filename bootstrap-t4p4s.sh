@@ -38,12 +38,18 @@ PROTOBUF_USE_RC=${PROTOBUF_USE_RC-yes}
 TODAY=`date +%F`
 P4C_COMMIT_DATE=${P4C_COMMIT_DATE-$TODAY}
 
-if [ "$INSTALL_STAGE1_APTGET" != "yes" ] || [ "$INSTALL_STAGE2_DPDK" != "yes" ] || [ "$INSTALL_STAGE3_PROTOBUF" != "yes" ] || [ "$INSTALL_STAGE4_P4C" != "yes" ] || [ "$INSTALL_STAGE5_T4P4S" != "yes" ]; then
-    FRESH="no"
-    CLEANUP="no"
+if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
+    P4C_APPROX_KB_PER_JOB=1200
+
+    MEM_FREE_KB=`cat /proc/meminfo | grep MemFree | grep -Eo '[0-9]+'`
+    JOBS_BY_MEM_FREE=$(($MEM_FREE_KB / $P4C_APPROX_KB_PER_JOB / 1024))
+    MAX_MAKE_JOBS_P4C=$(($JOBS_BY_MEM_FREE<$MAX_MAKE_JOBS ? $JOBS_BY_MEM_FREE : $MAX_MAKE_JOBS))
+    MAX_MAKE_JOBS_P4C=$(($MAX_MAKE_JOBS_P4C == 0 ? 1 : $MAX_MAKE_JOBS_P4C))
+    echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs in general, $cc$MAX_MAKE_JOBS_P4C$nn for ${cc}p4c$nn compilation"
+else
+    echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
 fi
 
-echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
 echo Requesting root access...
 sudo echo -n ""
 echo Root access granted, starting...
@@ -80,6 +86,22 @@ FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
 
 SKIP_CHECK=${SKIP_CHECK-no}
 
+
+T4P4S_CC=${T4P4S_CC-gcc}
+which clang >/dev/null
+[ $? -eq 0 ] && T4P4S_CC=clang
+
+T4P4S_CXX=${T4P4S_CXX-g++}
+which clang++ >/dev/null
+[ $? -eq 0 ] && T4P4S_CXX=clang++
+
+T4P4S_LD=${T4P4S_LD-bfd}
+which ld.lld >/dev/null
+[ $? -eq 0 ] && T4P4S_LD=lld
+
+echo -e "Using compilers CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn"
+
+
 if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
     echo -e "You seem to have $cc$FREE_MB MB$nn of free space on the current drive"
@@ -102,8 +124,8 @@ fi
 
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
     if [ "$PROTOBUF_TAG" == "" ]; then
-        [ "$PROTOBUF_USE_RC" == "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf | grep -ve "[-]rc" | tail -1 | cut -f3 -d'/'`
-        [ "$PROTOBUF_USE_RC" != "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf                    | tail -1 | cut -f3 -d'/'`
+        [ "$PROTOBUF_USE_RC" != "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf | grep -ve "[-]rc" | tail -1 | cut -f3 -d'/'`
+        [ "$PROTOBUF_USE_RC" == "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf                    | tail -1 | cut -f3 -d'/'`
     fi
     PROTOBUF_TAG=${PROTOBUF_TAG-$NEWEST_PROTOBUF_TAG}
 
@@ -142,15 +164,8 @@ fi
 if [ "$RTE_TARGET" != "" ]; then
     echo -e "Using ${cc}DPDK target$nn RTE_TARGET=$cc$RTE_TARGET$nn"
 else
-    T4P4S_CC=${T4P4S_CC-gcc}
-    which clang >/dev/null
-    [ $? -eq 0 ] && T4P4S_CC=clang
-
-    echo -e "DPDK will be compiled using ${cc}$T4P4S_CC$nn"
     export RTE_TARGET=${RTE_TARGET-"x86_64-native-linuxapp-$T4P4S_CC"}
 fi
-
-T4P4S_LD=${T4P4S_LD-lld}
 
 
 echo -e "Using ${cc}p4c$nn commit from ${cc}$P4C_COMMIT_DATE$nn"
@@ -238,20 +253,21 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
     export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
 
     cd "$RTE_SDK"
-    CC=${T4P4S_CC} CC_LD=${T4P4S_LD} $MESON build
+    CC=${T4P4S_CC} CC_LD=${T4P4S_LD} $MESON build -Dtests=false
     $NINJA -C build
     sudo $NINJA -C build install
     sudo ldconfig
     cd "$WORKDIR"
 fi
 
+
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_PROTOBUF"
 
-    cd protobuf
-    ./autogen.sh
-    ./configure CC=${T4P4S_CC} LD=${T4P4S_LD}
-    sudo make install -j ${MAX_MAKE_JOBS}
+    mkdir -p protobuf/cmake/build
+    cd protobuf/cmake/build
+    cmake .. -DCMAKE_C_FLAGS="-fuse-ld=${T4P4S_LD} -fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -fuse-ld=${T4P4S_LD} -fPIC" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja  -DBUILD_TESTS=OFF -DBUILD_CONFORMANCE=OFF -DBUILD_EXAMPLES=OFF
+    sudo ninja install -j ${MAX_MAKE_JOBS}
     sudo ldconfig
     cd "$WORKDIR"
 fi
@@ -261,11 +277,10 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
 
     export P4C=`pwd`/p4c
 
-    cd p4c
-    ./bootstrap.sh
-    cd build
-    CC=$T4P4S_CC LD=$T4P4S_LD cmake .. -DENABLE_BMV2=OFF -DENABLE_EBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF
-    sudo make install -j ${MAX_MAKE_JOBS}
+    mkdir p4c/build
+    cd p4c/build
+    cmake .. -DCMAKE_C_FLAGS="-fuse-ld=${T4P4S_LD} -fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -fuse-ld=${T4P4S_LD} -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_BMV2=OFF -DENABLE_EBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF
+    sudo ninja install -j ${MAX_MAKE_JOBS_P4C}
     cd "$WORKDIR"
 fi
 
