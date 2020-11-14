@@ -59,7 +59,7 @@ void init_print_table_info()
             continue;
         }
         ++common_count;
-        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.name);
+        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.canonical_name);
     }
 
     if (hidden_count > 0) {

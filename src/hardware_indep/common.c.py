@@ -4,6 +4,9 @@
 #[ #include "common.h"
 #[ #include "dpdk_lib.h"
 
+#[ extern char* action_canonical_names[];
+#[ extern char* action_names[];
+
 parser = hlir.parsers[0]
 
 known_parser_state_names = ('start', 'accept', 'reject')
@@ -91,8 +94,14 @@ for table in hlir.tables:
         #[     is_hidden  = ${"true" if table.is_hidden else "false"};
         #[     cond = !(is_used ^ is_on) && !(hidden ^ is_hidden);
         #{     if (cond) {
-        #[         printout += sprintf(printout, "$$[action]{action_name}@$$[table]{table.name}, ");
-        #[         ++stats_counter;
+        #{         for (int i = 0; ; ++i) {
+        #[             // note: looking up canonical name by "usual" name
+        #{             if (!strcmp(action_names[i], "${action_name}")) {
+        #[                 printout += sprintf(printout, T4LIT(%s,action) "@$$[table]{table.canonical_name}, ", action_canonical_names[i]);
+        #[                 ++stats_counter;
+        #[                 break; // the action is found, the lookup is done
+        #}             }
+        #}         }
         #}     }
 
 #[         if (stats_counter == 0 && !is_on)    return;

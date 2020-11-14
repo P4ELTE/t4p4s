@@ -22,12 +22,12 @@ from compiler_common import unique_everseen
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
 
-#{ enum actions {
+#{ typedef enum actions_e {
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     action_${action.action_object.name},
 #[      action_,
-#} };
+#} } actions_t;
 
 for ctl in hlir.controls:
     for act in ctl.actions:

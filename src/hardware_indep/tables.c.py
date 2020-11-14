@@ -21,7 +21,6 @@ for table in hlir.tables:
     tmt = table.matchType.name
     ks  = table.key_length_bytes
     #[ {
-    #[  .name= "${table.name}",
     #[  .id = TABLE_${table.name},
     #[  .type = LOOKUP_$tmt,
 
@@ -41,6 +40,10 @@ for table in hlir.tables:
 
     #[  .min_size = 0,
     #[  .max_size = 250000,
+
+    #{  #ifdef T4P4S_DEBUG
+    #[      .canonical_name= "${table.canonical_name}",
+    #}  #endif
     #[ },
 #[ };
 

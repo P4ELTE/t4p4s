@@ -1,5 +1,5 @@
-TRANSLATION smac smac_0
-TRANSLATION dmac dmac_0
+TRANSLATION smac .smac
+TRANSLATION dmac .dmac
 TRANSLATION forward forward_2
 SET-DEFAULT smac mac_learn
 SET-DEFAULT dmac bcast

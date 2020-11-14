@@ -25,7 +25,7 @@ void fill_table(uint8_t addr, uint8_t dd)
 
     h = create_p4_header(buffer, 0, 2048);
     te = create_p4_add_table_entry(buffer,0,2048);
-    strcpy(te->table_name, "t_0");
+    strcpy(te->table_name, "ingress.t");
 
     exact = add_p4_field_match_exact(te, 2048);
     strcpy(exact->header.name, "dummy.addr");
@@ -82,7 +82,7 @@ void dhf(void* b) {
 
 void init() {
     printf("Set default actions.\n");
-    set_table_default_action("t", "t_0", "learn");
+    set_table_default_action("t", "ingress.t", "learn");
     notify_controller_initialized();
 }
 

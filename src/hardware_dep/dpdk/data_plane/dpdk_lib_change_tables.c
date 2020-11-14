@@ -40,7 +40,7 @@ extern char* get_entry_action_name(void* entry);
 #define FORALL_PRINTOUT(txt1, txt2, b, should_print) \
     ++state[socketid].tables[tableid][0]->init_entry_count; \
     if (should_print) { \
-        dbg_bytes(key, state[socketid].tables[tableid][0]->entry.key_size, " " T4LIT(ctl>,incoming) " #" T4LIT(txt1,action) " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) " <- ", table_config[tableid].name, get_entry_action_name(value)); \
+        dbg_bytes(key, state[socketid].tables[tableid][0]->entry.key_size, " " T4LIT(ctl>,incoming) " #" T4LIT(txt1,action) " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) " <- ", table_config[tableid].canonical_name, get_entry_action_name(value)); \
     }
 #else
 #define FORALL_PRINTOUT(txt1, txt2, b, should_print)
@@ -58,7 +58,7 @@ extern char* get_entry_action_name(void* entry);
     for (int socketid = 0; socketid < NB_SOCKETS; socketid++) \
         if (state[socketid].tables[0][0] != NULL) { \
             if (socketid == 0 && !table_config[tableid].is_hidden) { \
-                debug("    : " T4LIT(txt1,action) " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "\n", table_config[tableid].name, get_entry_action_name(value)); \
+                debug("    : " T4LIT(txt1,action) " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "\n", table_config[tableid].canonical_name, get_entry_action_name(value)); \
             } \
             b \
         }

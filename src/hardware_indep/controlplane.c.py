@@ -134,8 +134,8 @@ for table in hlir.tables:
 
         #} } else
 
-    valid_actions = ", ".join([f'" T4LIT({a.action_object.name},action) "' for a in table.actions])
-    #[     debug(" $$[warning]{}{!!!! Table add entry} on table $$[table]{table.name}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", ctrl_m->action_name);
+    valid_actions = ", ".join([f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions])
+    #[     debug(" $$[warning]{}{!!!! Table add entry} on table $$[table]{table.canonical_name}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", ctrl_m->action_name);
     #} }
     #[
 
@@ -151,20 +151,20 @@ for table in hlir.tables:
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.urtype.size+7)//8});
 
         #{     if (${"false" if table.is_hidden else "true"}) {
-        #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.name}: $$[action]{action.action_object.name}\n");
+        #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.canonical_name}: $$[action]{action.action_object.canonical_name}\n");
         #}     }
         #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
         #} } else
 
-    valid_actions = ", ".join(["\" T4LIT(f{a.action_object.name},action) \"" for a in table.actions])
+    valid_actions = ", ".join([f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions])
     #[ debug(" $$[warning]{}{!!!! Table setdefault} on table $$[table]{table.name}: action name $$[warning]{}{mismatch} ($$[action]{}{%s}), expected one of ($valid_actions)\n", ctrl_m->action_name);
     #} }
     #[
 
 
-all_keyed_table_names = ", ".join((f'"T4LIT({table.name},table)"' for table in hlir.tables))
-common_keyed_table_names = ", ".join((f'"T4LIT({table.name},table)"' for table in hlir.tables.filter(lambda t: not t.is_hidden)))
-hidden_table_count = len(hlir.tables.filter(lambda t: t.is_hidden))
+all_keyed_table_names = ", ".join((f'"T4LIT({table.canonical_name},table)"' for table in hlir.tables))
+common_keyed_table_names = ", ".join((f'"T4LIT({table.canonical_name},table)"' for table in hlir.tables.filterfalse('is_hidden')))
+hidden_table_count = len(hlir.tables.filter('is_hidden'))
 
 #{ #ifdef T4P4S_DEBUG
 #[     bool possible_tables_already_shown = false;
@@ -188,7 +188,7 @@ hidden_table_count = len(hlir.tables.filter(lambda t: t.is_hidden))
 
 #{ void ctrl_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
 for table in hlir.tables:
-    #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
+    #{ if (strcmp("${table.canonical_name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_add_table_entry(ctrl_m);
     #[     return;
     #} }
@@ -203,7 +203,7 @@ for table in hlir.tables:
 
 #{ void ctrl_setdefault(struct p4_ctrl_msg* ctrl_m) {
 for table in hlir.tables:
-    #{ if (strcmp("${table.name}", ctrl_m->table_name) == 0) {
+    #{ if (strcmp("${table.canonical_name}", ctrl_m->table_name) == 0) {
     #[     ${table.name}_set_default_table_action(ctrl_m);
     #[     return;
     #} }
@@ -212,6 +212,21 @@ for table in hlir.tables:
 #{     #ifdef T4P4S_DEBUG
 #[         debug_show_possible_tables();
 #}     #endif
+#} }
+
+#{ uint32_t* read_counter_value_by_name(char* counter_name){
+for counter in hlir.counters:
+    table, counter_decl = counter
+    name = counter_decl.name
+
+    pob = counter_decl.packets_or_bytes
+    # TODO properly use packets_and_bytes
+    pob = 'bytes' if pob == 'packets_and_bytes' else pob
+
+    #{ if (strcmp("$name", counter_name) == 0) {
+    #[   return (uint32_t*)global_smem.counter_${name}_${pob};
+    #} }
+#[ return 0x0;
 #} }
 
 
@@ -232,21 +247,37 @@ for table in hlir.tables:
 #[         ctrl_setdefault(ctrl_m);
 #[     } else if (ctrl_m->type == P4T_CTRL_INITIALIZED) {
 #[         ctrl_initialized();
+#[     } else if (ctrl_m->type == P4T_READ_COUNTER) {
+#[         ctrl_m->xid = *read_counter_value_by_name(ctrl_m->table_name);
+#{         //TODO:SEND BACK;
 #}     }
 #} }
 
 
 #[ ctrl_plane_backend bg;
-#[ void init_control_plane()
-#[ {
-#[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
-#[     launch_backend(bg);
+
+#{ #ifdef T4P4S_P4RT
+#[     void init_control_plane()
+#{     {
+#[         bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
+#[         launch_backend(bg);
+#[         dev_mgr_init_with_t4p4s(dev_mgr_ptr, recv_from_controller, read_counter_value_by_name, 1);
+#[         PIGrpcServerRunAddrGnmi("127.0.0.1:50051", 0);
+#[         PIGrpcServerRun();
+#}     }
+#[ #else
+#[     void init_control_plane()
+#{     {
+#[         bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
+#[         launch_backend(bg);
 #[
-#[     #ifdef T4P4S_DEBUG
-#[     for (int i = 0; i < NB_TABLES; i++) {
-#[         lookup_table_t t = table_config[i];
-#[         if (state[0].tables[t.id][0]->init_entry_count > 0)
-#[             debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->name, state[0].tables[t.id][0]->init_entry_count);
-#[         }
-#[     #endif
-#[ }
+#{         #ifdef T4P4S_DEBUG
+#{         for (int i = 0; i < NB_TABLES; i++) {
+#[             lookup_table_t t = table_config[i];
+#[             if (state[0].tables[t.id][0]->init_entry_count > 0)
+#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->canonical_name, state[0].tables[t.id][0]->init_entry_count);
+#}             }
+#{         #endif
+#}     }
+#} #endif
+

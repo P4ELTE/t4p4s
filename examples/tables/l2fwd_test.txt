@@ -1,5 +1,5 @@
-TRANSLATION smac smac_0
-TRANSLATION dmac dmac_0
+TRANSLATION smac .smac
+TRANSLATION dmac .dmac
 SET-DEFAULT smac mac_learn
 SET-DEFAULT dmac bcast
 MAC-FWD 00:00:01:00:00:00 11

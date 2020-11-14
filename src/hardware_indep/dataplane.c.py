@@ -21,6 +21,7 @@ from compiler_common import types
 #[ uint32_t ingress_pkt_len;
 
 #[ extern ctrl_plane_backend bg;
+#[ extern char* action_canonical_names[];
 #[ extern char* action_names[];
 
 #[ extern void parse_packet(STDPARAMS);
@@ -43,7 +44,7 @@ pipeline_elements = hlir.news.main.arguments
 
 #{ struct apply_result_s {
 #[     bool hit;
-#[     enum actions action_run;
+#[     actions_t action_run;
 #} };
 
 for ctl in hlir.controls:
@@ -136,7 +137,7 @@ for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').fil
 
 
 for table in hlir.tables:
-    table_info = table.name + ("/hidden" if table.is_hidden else "")
+    table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
 
     #[ struct apply_result_s ${table.name}_apply(STDPARAMS)
     #{ {
@@ -148,9 +149,14 @@ for table in hlir.tables:
             #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}]->default_val;
             #[     bool hit = false;
 
-            #[     debug(" " T4LIT(XXXX,status) " Lookup on keyless table $$[table]{table_info}/" T4LIT(${table.matchType.name}) ": $$[action]{}{%s} (default)\n",
-            #[               action_names[entry->action.action_id]
-            #[               );
+            if table.is_hidden or len(table.actions) == 1:
+                #[     debug(" " T4LIT(XXXX,status) " Performing action $$[action]{}{%s} (lookup on $$[table]{table_info})\n",
+                #[               action_canonical_names[entry->action.action_id]
+                #[               );
+            else:
+                #[     debug(" " T4LIT(XXXX,status) " Lookup on $$[table]{table_info}: $$[action]{}{%s} (default)\n",
+                #[               action_canonical_names[entry->action.action_id]
+                #[               );
         else:
             #[     dbg_bytes(key, table_config[TABLE_${table.name}].entry.key_size,
             #[               " " T4LIT(????,table) " Table lookup $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": %s",
@@ -334,7 +340,16 @@ pkt_name_indent = " " * longest_hdr_name_len
 
 #[ void store_headers_for_emit(STDPARAMS)
 #{ {
-#[     debug("   :: Preparing $${}{%d} header instance%s for storage...\n", pd->emit_hdrinst_count, pd->emit_hdrinst_count > 1 ? "s" : "");
+#{     #ifdef T4P4S_DEBUG
+#[         int skips = 0;
+#{         for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
+#[             header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
+#[             if (unlikely(hdr.pointer == NULL))    ++skips;
+#}         }
+#[         int emits = pd->emit_hdrinst_count - skips;
+#[         debug("   :: Preparing $${}{%d} header instance%s for storage, skipping " T4LIT(%d) " header%s...\n",
+#[               emits, emits != 1 ? "s" : "", skips, skips != 1 ? "s" : "");
+#}     #endif
 
 #[     pd->emit_headers_length = 0;
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
@@ -343,16 +358,15 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[
 #{         #if T4P4S_EMIT != 1
 #{             if (unlikely(hdr.pointer == NULL)) {
-#[                 debug("        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = " T4LIT(skipping invalid header,warning) "\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
 #[                 continue;
 #}             }
 #}         #endif
 
 #{         if (likely(hdr.was_enabled_at_initial_parse)) {
-#[             dbg_bytes(hdr.pointer, hdr.length, "        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = %s", pd->header_reorder[i] + 1, hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
+#[             dbg_bytes(hdr.pointer, hdr.length, "        :  " T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = %s", pd->header_reorder[i] + 1, hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
 #[             memcpy(pd->header_tmp_storage + hdr_infos[hdr.type].byte_offset, hdr.pointer, hdr.length);
 #[         } else {
-#[             debug("        : " T4LIT(#%d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} was created in-place (not present at ingress)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#[             dbg_bytes(hdr.pointer, hdr.length, "        : +" T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = ", pd->header_reorder[i] + 1, hdr.name, hdr.length);
 #}         }
 #[
 #[         pd->emit_headers_length += hdr.length;
