@@ -31,6 +31,9 @@ rte_eth_addr_t ports_eth_addr[RTE_MAX_ETHPORT_COUNT];
 uint16_t t4p4s_nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
+#ifndef T4P4S_RTE_RSS_HF
+#define T4P4S_RTE_RSS_HF (ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX)
+#endif
 
 struct rte_eth_conf port_conf = {
     .rxmode = {
@@ -38,7 +41,10 @@ struct rte_eth_conf port_conf = {
         .max_rx_pkt_len = RTE_ETH_MAX_LEN,
         .split_hdr_size = 0,
 #if RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
-        .offloads = DEV_RX_OFFLOAD_CHECKSUM,
+	#ifndef T4P4S_RTE_OFFLOADS
+	#define T4P4S_RTE_OFFLOADS DEV_RX_OFFLOAD_CHECKSUM
+	#endif
+        .offloads = T4P4S_RTE_OFFLOADS,
 #elif RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
         .offloads = DEV_RX_OFFLOAD_CRC_STRIP | DEV_RX_OFFLOAD_CHECKSUM,
 #else
@@ -52,10 +58,7 @@ struct rte_eth_conf port_conf = {
     .rx_adv_conf = {
         .rss_conf = {
             .rss_key = NULL,
-            .rss_hf = 
-		// 0x38d34,
-		ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX,
-		// ETH_RSS_IP, // 0xa38c
+            .rss_hf = T4P4S_RTE_RSS_HF,
         },
     },
     .txmode = {
@@ -227,7 +230,7 @@ void dpdk_init_rx_queue(uint8_t queue, unsigned lcore_id, struct lcore_conf* qco
 
     int socketid = get_socketid(lcore_id);
 
-    debug("rxq=%d,%d,%d ", portid, queueid, socketid);
+    debug("rxq=" T4LIT(%d,port) "," T4LIT(%d,queue) "," T4LIT(%d,socket) "\n", portid, queueid, socketid);
     fflush(stdout);
 
     int ret = rte_eth_rx_queue_setup(portid, queueid, t4p4s_nb_rxd,
