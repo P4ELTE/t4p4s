@@ -265,7 +265,7 @@ change_hugepages() {
 # Only (over)write $1 if the generated content differs from the existing one
 overwrite_on_difference() {
     cmp -s "/tmp/$1.tmp" "$2/$1"
-    [ "$?" -ne 0 ] && sudo mv "/tmp/$1.tmp" "$2/$1"
+    [ "$?" -ne 0 ] && cp "/tmp/$1.tmp" "$2/$1"
     sudo rm -f "/tmp/$1.tmp"
 }
 
@@ -389,7 +389,7 @@ sleep 0.1
 # --------------------------------------------------------------------
 # Set defaults
 
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port smem socket status success table testcase warning)
+ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port queue smem socket status success table testcase warning)
 
 # --------------------------------------------------------------------
 # Set defaults
@@ -567,7 +567,8 @@ T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"$T4P4S_TARGET_DIR/srcgen"}
 T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
 T4P4S_GEN_INCLUDE="gen_include.h"
 
-T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(dirname $(dirname ${OPTS[executable]}))/log}
+T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath $(dirname $(dirname ${OPTS[executable]})))/log}
+mkdir -p "${T4P4S_LOG_DIR}"
 
 EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
 
@@ -586,14 +587,11 @@ T4P4S_LD=${T4P4S_LD-bfd}
 which lld >/dev/null
 [ $? -eq 0 ] && T4P4S_LD=lld
 
-MESON=${MESON-meson}
-NINJA=${NINJA-ninja}
-
 [ "$(optvalue silent)" != off ] && addopt makeopts ">/dev/null" " "
 
 # Generate directories and files
 mkdir -p "$T4P4S_COMPILE_DIR"
-rm -f "$T4P4S_TARGET_DIR"
+rm -rf "$T4P4S_TARGET_DIR"
 ln -s "`realpath "$T4P4S_COMPILE_DIR"`" "$T4P4S_TARGET_DIR"
 mkdir -p $T4P4S_SRCGEN_DIR
 
@@ -675,7 +673,7 @@ if [ "$(optvalue c)" != off ]; then
     overwrite_on_difference "${T4P4S_GEN_INCLUDE}" "${T4P4S_GEN_INCLUDE_DIR}"
 
 
-    sudo cat <<EOT >"/tmp/meson.build.tmp"
+    cat <<EOT >"/tmp/meson.build.tmp"
 project(
     '${OPTS[example]}',
     'c',
@@ -687,6 +685,20 @@ project(
 EOT
 
     sudo cat "meson.build.base" >>"/tmp/meson.build.tmp"
+
+    if [ "$(optvalue p4rt)" != off ]; then
+        [ "${GRPC}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPC$nn is not"
+        [ "${P4PI}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$P4PI$nn is not"
+        [ "${GRPCPP}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPCPP$nn is not"
+
+        sudo cat <<EOT >>"/tmp/meson.build.tmp"
+grpc = '$GRPC'
+p4pi = '$P4PI'
+grpcpp = '$GRPCPP'
+EOT
+
+        sudo cat "meson.build.p4rt" >>"/tmp/meson.build.tmp"
+    fi
 
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
         TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
@@ -715,10 +727,7 @@ executable(
     c_args                : build_args,
     gnu_symbol_visibility : 'hidden',
     include_directories   : include_dirs,
-    dependencies : [
-        dependency('libdpdk'),
-        dependency('threads'),
-    ],
+    dependencies          : all_dependencies,
 )
 EOT
 
@@ -730,17 +739,17 @@ EOT
 
     if [ ! -d ${T4P4S_TARGET_DIR}/build ];  then
         cd ${T4P4S_TARGET_DIR}
-        CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" $MESON build >/dev/null 2>/dev/null
-        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn"
+
+        CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" meson build >>$T4P4S_LOG_DIR/20_meson.txt 2>&1
+        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn (see $(cc 1)$T4P4S_LOG_DIR/20_meson.txt$nn)"
 
         cd - >/dev/null
     fi
 
+    echo "" >$T4P4S_LOG_DIR/21_ninja.txt
     cd ${T4P4S_TARGET_DIR}/build
-    sudo $NINJA  >/dev/null 2>/dev/null
-    [ "$(optvalue c)" == "rebuild" ] && sudo $NINJA clean
-    sudo $NINJA
-    exit_on_error "$?" "C compilation using ninja $(cc 2)failed$nn"
+    sudo ninja
+    exit_on_error "$?" "C compilation using ninja $(cc 2)failed (see $(cc 1)$T4P4S_LOG_DIR/21_ninja.txt$nn)"
     cd - >/dev/null
 fi
 
@@ -813,7 +822,6 @@ if [ "$(optvalue run)" != off ]; then
 
     verbosemsg "Options    : $(print_cmd_opts "${EXEC_OPTS}")"
 
-    mkdir -p ${T4P4S_LOG_DIR}
     echo "Executed at $(date +"%Y%m%d %H:%M:%S")" >${T4P4S_LOG_DIR}/last.txt
     echo >>${T4P4S_LOG_DIR}/last.txt
     if [ "${OPTS[eal]}" == "off" ]; then

@@ -1,0 +1,21 @@
+
+build_args += [
+    '-l' + 'p4rt',
+    '-L' + (grpcpp / 'static_lib'),
+]
+
+include_dirs += include_directories(
+    grpcpp,
+    grpcpp / 'include',
+    grpc / 'include',
+    p4pi / 'proto/server',
+)
+
+all_dependencies += [
+    dependency('grpc++'),
+    dependency('grpc'),
+    dependency('protobuf'),
+
+    meson.get_compiler('c').find_library('p4rt', dirs: grpcpp / 'static_lib'),
+    meson.get_compiler('c').find_library('stdc++'),
+]
