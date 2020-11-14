@@ -9,6 +9,8 @@
 #include "util_debug.h"
 #include "util_packet.h"
 
+#include "main.h"
+
 extern int get_socketid(unsigned lcore_id);
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
