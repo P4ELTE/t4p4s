@@ -12,6 +12,12 @@
 #[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool should_print);
 #[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool should_print);
 
+#{ #ifdef T4P4S_P4RT
+#[     #include "PI/proto/pi_server.h"
+#[     #include "p4rt/device_mgr.h"
+#[     extern device_mgr_t *dev_mgr_ptr;
+#} #endif
+
 
 for table in hlir.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c

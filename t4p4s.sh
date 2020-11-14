@@ -567,9 +567,6 @@ T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"$T4P4S_TARGET_DIR/srcgen"}
 T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
 T4P4S_GEN_INCLUDE="gen_include.h"
 
-T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath $(dirname $(dirname ${OPTS[executable]})))/log}
-mkdir -p "${T4P4S_LOG_DIR}"
-
 EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
 
 # By default use all three phases
@@ -594,6 +591,9 @@ mkdir -p "$T4P4S_COMPILE_DIR"
 rm -rf "$T4P4S_TARGET_DIR"
 ln -s "`realpath "$T4P4S_COMPILE_DIR"`" "$T4P4S_TARGET_DIR"
 mkdir -p $T4P4S_SRCGEN_DIR
+
+T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath ${T4P4S_BUILD_DIR})/log}
+mkdir -p "${T4P4S_LOG_DIR}"
 
 # --------------------------------------------------------------------
 # Checks before execution of phases begins
@@ -740,16 +740,15 @@ EOT
     if [ ! -d ${T4P4S_TARGET_DIR}/build ];  then
         cd ${T4P4S_TARGET_DIR}
 
-        CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" meson build >>$T4P4S_LOG_DIR/20_meson.txt 2>&1
+        CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" meson build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
         exit_on_error "$?" "Meson invocation $(cc 2)failed$nn (see $(cc 1)$T4P4S_LOG_DIR/20_meson.txt$nn)"
 
         cd - >/dev/null
     fi
 
-    echo "" >$T4P4S_LOG_DIR/21_ninja.txt
     cd ${T4P4S_TARGET_DIR}/build
     sudo ninja
-    exit_on_error "$?" "C compilation using ninja $(cc 2)failed (see $(cc 1)$T4P4S_LOG_DIR/21_ninja.txt$nn)"
+    exit_on_error "$?" "C compilation using ninja $(cc 2)failed"
     cd - >/dev/null
 fi
 

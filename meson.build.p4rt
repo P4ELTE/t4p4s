@@ -4,7 +4,13 @@ build_args += [
     '-L' + (grpcpp / 'static_lib'),
 ]
 
-include_dirs += include_directories(
+# note: this variable is reassigned because the += operator is not supported here
+include_dirs = include_directories(
+    srcg,
+    hdep / 'dpdk/includes',
+    hdep / 'shared/includes',
+    hdep / 'shared/ctrl_plane',
+
     grpcpp,
     grpcpp / 'include',
     grpc / 'include',
