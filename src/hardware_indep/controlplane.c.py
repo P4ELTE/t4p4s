@@ -113,7 +113,7 @@ for table in hlir.tables:
             #[ uint16_t field_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
 
     for action in table.actions:
-        #{ if(strcmp("${action.action_object.name}", ctrl_m->action_name)==0) {
+        #{ if(strcmp("${action.action_object.canonical_name}", ctrl_m->action_name)==0) {
         #[     ${table.name}_action_t action;
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
@@ -148,7 +148,7 @@ for table in hlir.tables:
 for table in hlir.tables:
     #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     for action in table.actions:
-        #{ if(strcmp("${action.action_object.name}", ctrl_m->action_name)==0) {
+        #{ if(strcmp("${action.action_object.canonical_name}", ctrl_m->action_name)==0) {
         #[     ${table.name}_action_t action;
         #[     action.action_id = action_${action.action_object.name};
 
