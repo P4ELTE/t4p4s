@@ -4,8 +4,7 @@
 from utils.codegen import format_type
 from compiler_common import unique_everseen
 
-#[ #ifndef __ACTIONS_H__
-#[ #define __ACTIONS_H__
+#[ #pragma once
 
 #[ #include "dataplane.h"
 #[ #include "common.h"
@@ -41,14 +40,14 @@ for ctl in hlir.controls:
         #} } action_${act.name}_params_t;
 
 for table in hlir.tables:
-    #{ struct ${table.name}_action {
+    #{ typedef struct ${table.name}_action_s {
     #[     int action_id;
     #{     union {
     for action in table.actions:
         action_method_name = action.expression.method.path.name
         #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
-    #} };
+    #} } ${table.name}_action_t;
 
 
 
@@ -73,5 +72,3 @@ for ctl in hlir.controls:
 
     #} } control_locals_${ctl.name}_t;
     #[
-
-#[ #endif

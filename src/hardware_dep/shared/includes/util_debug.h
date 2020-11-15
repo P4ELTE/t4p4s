@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <rte_common.h>
 #include <pthread.h>
-#include "gen_include.h"
+#include "gen_light.h"
 
 #define T4COLOR(color)    "\e[" color "m"
 

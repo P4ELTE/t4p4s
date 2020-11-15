@@ -33,8 +33,8 @@ for table in hlir.tables:
 
     #[      .key_size = $ks,
 
-    #[      .entry_size = sizeof(struct ${table.name}_action) + sizeof(entry_validity_t),
-    #[      .action_size   = sizeof(struct ${table.name}_action),
+    #[      .entry_size = sizeof(${table.name}_action_t) + sizeof(entry_validity_t),
+    #[      .action_size   = sizeof(${table.name}_action_t),
     #[      .validity_size = sizeof(entry_validity_t),
     #[  },
 
@@ -108,7 +108,7 @@ for table in hlir.tables:
         for key, ksize, offset, (const_var, hex_content) in zip(keys, key_sizes, offsets, varinfos):
             #[ memcpy(${key_var} + ((${offset} +7)/8), &${const_var}, ${(ksize+7)//8});
 
-        #{ struct ${table.name}_action ${action_var} = {
+        #{ ${table.name}_action_t ${action_var} = {
         #[     .action_id = action_${action_id},
         #{     .${action_id}_params = {
         for param, value_expr in zip(params, args):
@@ -146,7 +146,7 @@ for table in hlir.tables:
 
 for table in hlir.tables:
     #{ void ${table.name}_setdefault(uint8_t action_id) {
-    #[     struct ${table.name}_action action;
+    #[     ${table.name}_action_t action;
     #[     action.action_id = action_id;
     #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
     #} }

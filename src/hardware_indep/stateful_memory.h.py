@@ -35,8 +35,7 @@ def gen_make_smem_code(smem, table = None):
         #[
 
 
-#[ #ifndef __STATEFUL_MEMORY_H_
-#[ #define __STATEFUL_MEMORY_H_
+#[ #pragma once
 
 #[ #include "common.h"
 #[ #include "aliases.h"
@@ -84,6 +83,3 @@ for ctl in hlir.controls:
 
 #[ static lock_t ingress_lock;
 #[ static lock_t egress_lock;
-
-
-#[ #endif

@@ -85,7 +85,7 @@ uint8_t* make_table_entry_on_socket(lookup_table_t* t, uint8_t* value) {
     int length = t->entry.entry_size;
     uint8_t* entry = rte_malloc_socket("uint8_t", sizeof(uint8_t)*length, 0, t->socketid);
     if (unlikely(entry == NULL)) {
-        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->name);
+        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->canonical_name);
     }
     make_table_entry(entry, value, t);
     return entry;
@@ -110,7 +110,7 @@ void create_ext_table(lookup_table_t* t, void* rte_table, int socketid)
     ext->size = 0;
     ext->content = rte_malloc_socket("uint8_t*", sizeof(uint8_t*)*t->max_size, 0, socketid);
     if (unlikely(ext->content == NULL)) {
-        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->name);
+        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->canonical_name);
     }
     t->table = ext;
 }

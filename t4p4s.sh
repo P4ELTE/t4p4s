@@ -565,6 +565,7 @@ OPTS[executable]="$T4P4S_TARGET_DIR/build/${OPTS[example]}"
 
 T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"$T4P4S_TARGET_DIR/srcgen"}
 T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
+T4P4S_GEN_LIGHT="gen_light.h"
 T4P4S_GEN_INCLUDE="gen_include.h"
 
 EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
@@ -592,7 +593,7 @@ rm -rf "$T4P4S_TARGET_DIR"
 ln -s "`realpath "$T4P4S_COMPILE_DIR"`" "$T4P4S_TARGET_DIR"
 mkdir -p $T4P4S_SRCGEN_DIR
 
-T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath ${T4P4S_BUILD_DIR})/log}
+T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath ${T4P4S_TARGET_DIR})/log}
 mkdir -p "${T4P4S_LOG_DIR}"
 
 # --------------------------------------------------------------------
@@ -655,15 +656,20 @@ fi
 
 # Phase 2: C compilation
 if [ "$(optvalue c)" != off ]; then
-    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_LIGHT}.tmp"
 
     unset colour
     for colour in ${ALL_COLOUR_NAMES[@]}; do
         COLOUR_MACRO=""
         [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && COLOUR_MACRO="\"${OPTS["${OPTS[T4LIGHT_$colour]}"]-${OPTS[T4LIGHT_$colour]}}\"  // ${OPTS[T4LIGHT_$colour]}"
         [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && [ "$COLOUR_MACRO" == "\"\"" ] && [ "$colour" != "default" ] && COLOUR_MACRO="T4LIGHT_default"
-        sudo echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+        sudo echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_LIGHT}.tmp"
     done
+
+    overwrite_on_difference "${T4P4S_GEN_LIGHT}" "${T4P4S_GEN_INCLUDE_DIR}"
+
+
+    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
 
     IFS=" "
     for hdr in ${OPTS[include-hdrs]}; do

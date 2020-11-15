@@ -1,6 +1,5 @@
 
 build_args += [
-    '-l' + 'p4rt',
     '-L' + (grpcpp / 'static_lib'),
 ]
 

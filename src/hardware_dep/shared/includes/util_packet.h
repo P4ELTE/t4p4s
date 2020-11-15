@@ -25,12 +25,6 @@ typedef struct bitfield_handle_s {
 } bitfield_handle_t;
 
 
-typedef struct packet_descriptor_s packet_descriptor_t;
-typedef struct header_descriptor_s header_descriptor_t;
-typedef struct header_reference_s  header_reference_t;
-typedef struct field_reference_s   field_reference_t;
-
-
 typedef struct uint8_buffer_s {
        int      buffer_size;
        uint8_t* buffer;

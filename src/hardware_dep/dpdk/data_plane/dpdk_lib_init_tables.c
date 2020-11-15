@@ -44,6 +44,7 @@ void create_tables_on_lcore(unsigned lcore_id)
     }
 }
 
+#ifdef T4P4S_DEBUG
 void init_print_table_info()
 {
     char table_names[64*NB_TABLES+256];
@@ -71,6 +72,7 @@ void init_print_table_info()
 
     debug("%s\n", table_names);
 }
+#endif
 
 void init_tables()
 {

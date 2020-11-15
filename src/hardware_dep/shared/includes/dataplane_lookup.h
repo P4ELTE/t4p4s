@@ -34,6 +34,9 @@ typedef struct lookup_table_entry_info_s {
 } lookup_table_entry_info_t;
 
 typedef struct lookup_table_s {
+    char* name;
+    char* canonical_name;
+
     unsigned id;
     uint8_t type;
     bool is_hidden;
@@ -49,8 +52,6 @@ typedef struct lookup_table_s {
 
     lookup_table_entry_info_t entry;
 #ifdef T4P4S_DEBUG
-    char* name;
-    char* canonical_name;
     int init_entry_count;
 #endif
 } lookup_table_t;

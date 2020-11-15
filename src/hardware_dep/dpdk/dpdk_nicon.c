@@ -4,8 +4,10 @@
 #include <rte_ethdev.h>
 
 #include "dpdk_nicon.h"
+#include "dataplane_hdr_fld_pkt.h"
 
 #include "util_packet.h"
+#include "util_debug.h"
 
 extern int get_socketid(unsigned lcore_id);
 

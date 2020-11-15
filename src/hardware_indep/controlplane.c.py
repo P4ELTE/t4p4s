@@ -59,7 +59,7 @@ for table in hlir.tables:
         if k.matchType == "lpm":
             #[ uint8_t field_${k.header.name}_${k.field_name}_prefix_length,
 
-    #}     struct ${table.name}_action action, bool has_fields)
+    #}     ${table.name}_action_t action, bool has_fields)
     #{ {
 
     #[     uint8_t key[${table.key_length_bytes}];
@@ -114,7 +114,7 @@ for table in hlir.tables:
 
     for action in table.actions:
         #{ if(strcmp("${action.action_object.name}", ctrl_m->action_name)==0) {
-        #[     struct ${table.name}_action action;
+        #[     ${table.name}_action_t action;
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* bitmap_${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
@@ -149,7 +149,7 @@ for table in hlir.tables:
     #{ void ${table.name}_set_default_table_action(struct p4_ctrl_msg* ctrl_m) {
     for action in table.actions:
         #{ if(strcmp("${action.action_object.name}", ctrl_m->action_name)==0) {
-        #[     struct ${table.name}_action action;
+        #[     ${table.name}_action_t action;
         #[     action.action_id = action_${action.action_object.name};
 
         for j, p in enumerate(action.action_object.parameters.parameters):

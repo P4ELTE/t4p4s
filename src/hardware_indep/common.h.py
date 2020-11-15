@@ -10,6 +10,9 @@ from utils.codegen import format_type
 #[ #include "parser.h"
 
 
+#[ #define NB_TABLES ${len(hlir.tables)}
+
+
 def short_name(name):
     return name[:-2] if name.endswith('_t') else name
 
