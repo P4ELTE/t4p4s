@@ -66,7 +66,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4],uint8_t prefix, uint32_t nhgrp)
     lpm->prefix_length = prefix;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "set_nhop");
+    strcpy(a->description.name, ".set_nhop");
 
     printf("add nhgrp\n");
     ap = add_p4_action_parameter(h, a, 2048);	

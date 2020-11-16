@@ -34,7 +34,7 @@ void fill_smac_table(uint32_t port, uint8_t mac[6])
     exact->length = 6*8+0;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "_nop");
+    strcpy(a->description.name, "._nop");
 
     netconv_p4_header(h);
     netconv_p4_add_table_entry(te);
