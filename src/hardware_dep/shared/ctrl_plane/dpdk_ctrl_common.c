@@ -79,7 +79,7 @@ int send_lpm_entry(uint8_t ip[4], uint16_t prefix_length, const char* table_name
     lpm->prefix_length = prefix_length;
 
     struct p4_action* a = add_p4_action(h, 2048);
-    strcpy(a->description.name, action_name);
+    strcpy(a->description.name, translate(action_name));
 
     struct p4_action_parameter* ap1 = add_p4_action_parameter(h, a, 2048);
     memcpy(ap1->bitmap, &i1, 4);

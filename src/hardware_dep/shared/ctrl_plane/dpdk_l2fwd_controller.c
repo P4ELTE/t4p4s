@@ -75,7 +75,7 @@ int process_set_default(const char* line) {
     int matches = sscanf(line, "%*s %s %s", table_name, default_action_name);
     if (2 != matches) return -1;
 
-    set_table_default_action(table_name, translate(table_name), default_action_name);
+    set_table_default_action(table_name, table_name, default_action_name);
     return 0;
 }
 

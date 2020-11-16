@@ -1,7 +1,12 @@
 TRANSLATION smac .smac
 TRANSLATION dmac .dmac
-SET-DEFAULT smac mac_learn
-SET-DEFAULT dmac bcast
+TRANSLATION forward .forward
+TRANSLATION mac_learn .mac_learn
+TRANSLATION bcast .bcast
+TRANSLATION _nop ._nop
+TRANSLATION NoAction .NoAction
+SET-DEFAULT smac .mac_learn
+SET-DEFAULT dmac .bcast
 MAC-FWD 00:00:01:00:00:00 11
 MAC-FWD 00:00:02:00:00:00 22
 MAC-FWD 00:00:03:00:00:00 33
