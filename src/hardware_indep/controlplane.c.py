@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
+from compiler_common import unique_everseen
+
 #[ #include <unistd.h>
 
 #[ #include "dpdk_lib.h"
@@ -220,20 +222,44 @@ for table in hlir.tables:
 #}     #endif
 #} }
 
-#{ uint32_t* read_counter_value_by_name(char* counter_name){
-for counter in hlir.counters:
-    table, counter_decl = counter
-    name = counter_decl.name
+hack_i = 0
+for smem in unique_everseen([smem for table, smem in hlir.all_counters]):
+    for target in smem.smem_for:
+        if not smem.smem_for[target]:
+            continue
+        hack_i += 1
+        if hack_i%2==1:
+            for c in smem.components:
+                cname = c['name']
+                if smem.smem_type not in ["register", "direct_counter", "direct_meter"]:
+                    #[ uint32_t ctrl_${cname}[${smem.amount}];
 
-    pob = counter_decl.packets_or_bytes
-    # TODO properly use packets_and_bytes
-    pob = 'bytes' if pob == 'packets_and_bytes' else pob
+#{ uint32_t* read_counter_value_by_name(char* counter_name, int* size, bool is_bytes){
+#[ int i;
+hack_i = 0
+for smem in unique_everseen([smem for table, smem in hlir.all_counters]):
+    for target in smem.smem_for:
+        if not smem.smem_for[target]:
+            continue
+        hack_i += 1
+        if hack_i%2==0:
+            continue
 
-    #{ if (strcmp("$name", counter_name) == 0) {
-    #[   return (uint32_t*)global_smem.counter_${name}_${pob};
-    #} }
-#[ return 0x0;
+        for c in smem.components:
+            cname = c['name']
+            pre_bytes = ''
+            if c['for'] == "packets":
+                pre_bytes = '!'
+            if smem.smem_type not in ["register", "direct_counter", "direct_meter"]:
+                #{ if ((strcmp("${smem.canonical_name}", counter_name) == 0) && (${pre_bytes}is_bytes)) {
+                #[   *size = ${smem.amount};
+                #[   for (i=0;i<${smem.amount};++i) ctrl_${cname}[i] = global_smem.${cname}[i].value.cnt;
+                #[   return ctrl_${cname};
+                #} }
+#[   *size = -1;
+#[   return 0;
 #} }
+
 
 
 #[ extern struct socket_state state[NB_SOCKETS];
@@ -254,7 +280,7 @@ for counter in hlir.counters:
 #[     } else if (ctrl_m->type == P4T_CTRL_INITIALIZED) {
 #[         ctrl_initialized();
 #[     } else if (ctrl_m->type == P4T_READ_COUNTER) {
-#[         ctrl_m->xid = *read_counter_value_by_name(ctrl_m->table_name);
+#[         //ctrl_m->xid = *read_counter_value_by_name(ctrl_m->table_name);
 #{         //TODO:SEND BACK;
 #}     }
 #} }
