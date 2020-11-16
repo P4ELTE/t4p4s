@@ -129,7 +129,9 @@ for table in hlir.tables:
             return f'{prefix}{val}'
 
         def make_key(key, value):
-            return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "=" T4LIT({make_value(value)}) "'
+            if 'header_name' in key:
+                return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "=" T4LIT({make_value(value)}) "'
+            return f'" T4LIT({key.expression.path.name}) "=" T4LIT({make_value(value)}) "'
 
         def make_param(param, value_expr):
             return f'" T4LIT({param.name},field) "=" T4LIT({make_value(value_expr.expression)}) "'
