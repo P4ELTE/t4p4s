@@ -358,6 +358,11 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[
 #{         #if T4P4S_EMIT != 1
 #{             if (unlikely(hdr.pointer == NULL)) {
+#{                 #ifdef T4P4S_DEBUG
+#{                     if (hdr.was_enabled_at_initial_parse) {
+#[                         debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#}                     }
+#}                 #endif
 #[                 continue;
 #}             }
 #}         #endif
