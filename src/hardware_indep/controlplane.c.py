@@ -2,6 +2,7 @@
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
 from compiler_common import unique_everseen
+from utils.codegen import format_expr, format_type
 
 #[ #include <unistd.h>
 
@@ -30,17 +31,12 @@ max_bytes = max([0] + [t.key_length_bytes for t in hlir.tables])
 
 # Variable width fields are not supported
 def get_key_byte_width(k):
-    # for special functions like isValid
-    if 'header' not in k:
-        return 0
+    if 'size' in k:
+        return (k.size+7)//8
 
     if k.header.urtype('is_vw', False):
         return 0
 
-    if 'size' in k:
-        return (k.size+7)//8
-
-    # reaching this point, k can only come from metadata
     return (k.header.type.size+7)//8
 
 
@@ -48,45 +44,39 @@ for table in hlir.tables:
     #[ // note: ${table.name}, ${table.matchType.name}, ${table.key_length_bytes}
     #{ void ${table.name}_add(
     for k in table.key.keyElements:
-        # TODO should properly handle specials (isValid etc.)
         if 'header' not in k:
-            continue
+            varname = k.expression.path.name
+            #[ ${format_type(k.expression.urtype)} $varname,
+            # TODO mask?
+        else:
+            byte_width = get_key_byte_width(k)
+            #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
 
-        byte_width = get_key_byte_width(k)
-        #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
-
-        # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
-        if k.matchType == "ternary":
-            #[ uint8_t ${k.field_name}_mask[$byte_width],
-        if k.matchType == "lpm":
-            #[ uint8_t field_${k.header.name}_${k.field_name}_prefix_length,
+            # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
+            if k.matchType == "ternary":
+                #[ uint8_t ${k.field_name}_mask[$byte_width],
+            if k.matchType == "lpm":
+                #[ uint8_t field_${k.header.name}_${k.field_name}_prefix_length,
 
     #}     ${table.name}_action_t action, bool has_fields)
     #{ {
-
     #[     uint8_t key[${table.key_length_bytes}];
 
     byte_idx = 0
     for k in sorted((k for k in table.key.keyElements), key = lambda k: k.match_order):
-        # TODO should properly handle specials (isValid etc.)
-        if 'header' not in k:
-            continue
-
         byte_width = get_key_byte_width(k)
-        #[ memcpy(key+$byte_idx, field_${k.header.name}_${k.field_name}, $byte_width);
+        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
+        #[ memcpy(key+$byte_idx, ${target_name}, $byte_width);
         byte_idx += byte_width
 
     if table.matchType.name == "lpm":
+        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
-            # TODO should properly handle specials (isValid etc.)
-            if 'header' not in k:
-                continue
-
             if k.matchType == "exact":
                 #[ prefix_length += ${get_key_byte_width(k)};
             if k.matchType == "lpm":
-                #[ prefix_length += field_${k.header.name}_${k.field_name}_prefix_length;
+                #[ prefix_length += ${target_name}_prefix_length;
         #[ int c, d;
         #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
         #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
@@ -100,19 +90,17 @@ for table in hlir.tables:
 for table in hlir.tables:
     #{ void ${table.name}_add_table_entry(struct p4_ctrl_msg* ctrl_m) {
     for i, k in enumerate(table.key.keyElements):
-        # TODO should properly handle specials (isValid etc.)
-        if 'header' not in k:
-            continue
+        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
 
         if k.matchType.path.name == "exact":
-            #[ uint8_t* field_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint8_t* ${target_name} = (uint8_t*)(((struct p4_field_match_exact*)ctrl_m->field_matches[${i}])->bitmap);
         if k.matchType.path.name == "lpm":
-            #[ uint8_t* field_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
-            #[ uint16_t field_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
+            #[ uint8_t* ${target_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint16_t ${target_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
         if k.matchType.path.name == "ternary":
             # TODO are these right?
-            #[ uint8_t* field_${k.header.name}_${k.field_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
-            #[ uint16_t field_${k.header.name}_${k.field_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
+            #[ uint8_t* ${target_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
+            #[ uint16_t ${target_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
 
     for action in table.actions:
         #{ if(strcmp("${action.action_object.canonical_name}", ctrl_m->action_name)==0) {
@@ -124,12 +112,11 @@ for table in hlir.tables:
 
         params = []
         for i, k in enumerate(table.key.keyElements):
-            if 'header' not in k:
-                continue
+            target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
 
-            params.append(f'field_{k.header.name}_{k.field_name}')
+            params.append(target_name)
             if k.matchType == "lpm":
-                params.append(f"field_{k.header.name}_{k.field_name}_prefix_length")
+                params.append(f"{target_name}_prefix_length")
             if k.matchType == "ternary":
                 params.append("0 /* TODO ternary dstPort_mask */")
 
