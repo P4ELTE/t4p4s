@@ -59,6 +59,7 @@ typedef struct testcase_s {
 
 #define UNKNOWN_PKT(src, dst, ...)        {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__), WAIT_CONTROLPLANE_REPLY,    0, ETH(src, dst, ##__VA_ARGS__)}
 #define LEARNED_PKT(port, src, dst, ...)  {FAKE_PKT, 0, 0, ETH(src, dst, ##__VA_ARGS__),                       0, port, ETH(src, dst, ##__VA_ARGS__)}
+#define NO_OUTPUT -1
 
 #define IPPROTOCOL_ICMP "01"
 #define IPPROTOCOL_IPv4 "04"
