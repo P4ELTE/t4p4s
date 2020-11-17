@@ -46,7 +46,8 @@ for table in hlir.tables:
     for k in table.key.keyElements:
         if 'header' not in k:
             varname = k.expression.path.name
-            #[ ${format_type(k.expression.urtype)} $varname,
+            #[ uint8_t* $varname,
+            # ${format_type(k.expression.urtype)} $varname,
             # TODO mask?
         else:
             byte_width = get_key_byte_width(k)
@@ -66,7 +67,7 @@ for table in hlir.tables:
     for k in sorted((k for k in table.key.keyElements), key = lambda k: k.match_order):
         byte_width = get_key_byte_width(k)
         target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
-        #[ memcpy(key+$byte_idx, ${target_name}, $byte_width);
+        #[ memcpy(key+$byte_idx, (uint8_t*)${target_name}, $byte_width);
         byte_idx += byte_width
 
     if table.matchType.name == "lpm":
