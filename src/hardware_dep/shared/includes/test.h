@@ -93,7 +93,7 @@ typedef struct testcase_s {
 #define hIPv6(next_hdr, srcip, dstip)              "6" "00" "00000" "0000" next_hdr "00", srcip, dstip
 #define hUDP(src_port, dst_port, length, checksum) src_port dst_port length checksum
 // TODO more details/args
-#define hARP()                                     ARP_HTYPE_ETHERNET, cIPV4, ARP_HLEN_ETHERNET, ARP_PLEN_IPV4, "0000"
+#define hARP(oper)                                     ARP_HTYPE_ETHERNET, cIPV4, ARP_HLEN_ETHERNET, ARP_PLEN_IPV4, oper
 #define hVXLAN() "0000000000000000"
 #define hBAAS() "0000000000000000"
 #define hGTP() "0000000000000000"
@@ -113,7 +113,7 @@ typedef struct testcase_s {
 #define ICMP(dsteth, dstip, srceth, srcip, ...)                  FDATA(hETH4(dsteth, srceth), hICMPv4(srcip, dstip), ##__VA_ARGS__)
 #define UDP(dsteth, dstip, srceth, srcip, len, chksm, ...)       FDATA(hETH4(dsteth, srceth),  hUDPv4(srcip, dstip), hUDP(srcip, dstip, len, chksm), ##__VA_ARGS__)
 
-#define ARP_IPV4(dsteth, srceth, ...)   FDATA(hETH(dsteth, srceth, cARP), hARP(), ##__VA_ARGS__)
+#define ARP_IPV4(dsteth, srceth, arp_oper, ...)   FDATA(hETH(dsteth, srceth, cARP), hARP(arp_oper), ##__VA_ARGS__)
 
 #define VXLAN(dsteth, srceth, srcip, ...)               UDP(dsteth, UDP_PORT_VXLAN, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
 #define GTP(dsteth, srceth, srcip, ...)                 UDP(dsteth,  UDP_PORT_GTPU, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
