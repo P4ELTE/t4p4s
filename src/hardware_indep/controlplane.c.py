@@ -52,11 +52,11 @@ for table in hlir.tables:
         else:
             byte_width = get_key_byte_width(k)
             #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
-
+            #[ /* ${dir(k.matchType)} */
             # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
-            if k.matchType == "ternary":
+            if k.matchType.path.name == "ternary": # TODO: LS Check!
                 #[ uint8_t ${k.field_name}_mask[$byte_width],
-            if k.matchType == "lpm":
+            if k.matchType.path.name == "lpm": # TODO: LS Check!
                 #[ uint8_t field_${k.header.name}_${k.field_name}_prefix_length,
 
     #}     ${table.name}_action_t action, bool has_fields)
@@ -74,9 +74,9 @@ for table in hlir.tables:
         target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
-            if k.matchType == "exact":
+            if k.matchType.path.name == "exact": # TODO: LS Check!
                 #[ prefix_length += ${get_key_byte_width(k)};
-            if k.matchType == "lpm":
+            if k.matchType.path.name == "lpm": # TODO: LS Check!
                 #[ prefix_length += ${target_name}_prefix_length;
         #[ int c, d;
         #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
@@ -116,9 +116,9 @@ for table in hlir.tables:
             target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
 
             params.append(target_name)
-            if k.matchType == "lpm":
+            if k.matchType.path.name == "lpm":
                 params.append(f"{target_name}_prefix_length")
-            if k.matchType == "ternary":
+            if k.matchType.path.name == "ternary":
                 params.append("0 /* TODO ternary dstPort_mask */")
 
         has_fields = "false" if len(action.action_object.parameters.parameters) == 0 else "true"
