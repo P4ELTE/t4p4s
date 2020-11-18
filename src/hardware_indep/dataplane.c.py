@@ -172,7 +172,7 @@ for table in hlir.tables:
 #{ void show_params_by_action_id(char* out, int table_id, int action_id, const void* entry) {
 for table in hlir.tables:
     if 'key' not in table or table.key_length_bits == 0:
-        #[     if (table_id == TABLE_${table.name}) { sprintf(out, ""); return; }
+        #[     if (table_id == TABLE_${table.name}) { sprintf(out, "%s", ""); return; }
         continue
 
     #{     if (table_id == TABLE_${table.name}) {
