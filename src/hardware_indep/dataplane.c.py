@@ -143,7 +143,7 @@ for table in hlir.tables:
 
     table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
 
-    #{ void ${table.name}_apply_show_hit_info(const uint8_t* key, bool hit, table_entry_${table.name}_t* entry, STDPARAMS) {
+    #{ void ${table.name}_apply_show_hit_info(const uint8_t* key[${table.key_length_bytes}], bool hit, table_entry_${table.name}_t* entry, STDPARAMS) {
     for dbg_action in table.actions:
         dbg_action_name = dbg_action.expression.method.path.name
         #{ if (entry != 0 && !strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
@@ -167,7 +167,7 @@ for table in hlir.tables:
         #[               " %s Lookup on $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": $$[action]{}{%s}${params_str}%s <- %s ",
         #[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
         #[               ${table.key_length_bytes},
-        #[               action_names[entry->action.action_id],
+        #[               action_canonical_names[entry->action.action_id],
         for param in params:
             if param.urtype.size <= 32:
                 #[               *(entry->action.${dbg_action.action_object.name}_params.${param.name}), // decimal
