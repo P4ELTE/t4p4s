@@ -10,11 +10,6 @@ from utils.codegen import format_expr, format_type
 #[ #include "actions.h"
 #[ #include "tables.h"
 
-#[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
-#[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value, bool should_print);
-#[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool should_print);
-#[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool should_print);
-
 #{ #ifdef T4P4S_P4RT
 #[     #include "PI/proto/pi_server.h"
 #[     #include "p4rt/device_mgr.h"
@@ -81,10 +76,10 @@ for table in hlir.tables:
         #[ int c, d;
         #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
         #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
-        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, has_fields);
+        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, false, has_fields);
 
     if table.matchType.name == "exact":
-        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action, has_fields);
+        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action, false, has_fields);
 
     #} }
 
