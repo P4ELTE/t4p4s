@@ -14,7 +14,7 @@ void change_replica(int socketid, int tid, int replica) {
         qconf->state.tables[tid] = state[socketid].tables[tid][replica]; // TODO should this be atomic?
         state[socketid].active_replica[tid] = replica;
 
-        // debug("    : " T4LIT(%d,core) "@" T4LIT(%d,socket) " uses table replica " T4LIT(%s,table) "#" T4LIT(%d) "\n", lcore_id, socketid, state[socketid].tables[tid][replica]->name, replica);
+        // debug("    : " T4LIT(%d,core) "@" T4LIT(%d,socket) " uses table replica " T4LIT(%s,table) "#" T4LIT(%d) "\n", lcore_id, socketid, state[socketid].tables[tid][replica]->canonical_name, replica);
     }
 }
 

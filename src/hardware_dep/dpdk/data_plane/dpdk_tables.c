@@ -8,6 +8,7 @@
 #include "tables.h"
 
 extern char* action_names[];
+extern char* action_canonical_names[];
 
 // ============================================================================
 // LOOKUP TABLE IMPLEMENTATIONS
@@ -30,7 +31,7 @@ extern char* action_names[];
 // but all of them have to start with an int, the action id.
 char* get_entry_action_name(void* entry) {
     int action_id = *((int*)entry);
-    return action_names[action_id];
+    return action_canonical_names[action_id];
 }
 
 // Computes the location of the validity field of the entry.
