@@ -141,12 +141,9 @@ for table in hlir.tables:
     if 'key' not in table or table.key_length_bits == 0:
         continue
 
-    table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
-
-    #{ void ${table.name}_apply_show_hit_info(const uint8_t* key[${table.key_length_bytes}], bool hit, table_entry_${table.name}_t* entry, STDPARAMS) {
     for dbg_action in table.actions:
-        dbg_action_name = dbg_action.expression.method.path.name
-        #{ if (entry != 0 && !strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
+        aoname = dbg_action.action_object.name
+        #{ void ${table.name}_show_params_${aoname}(char* out, const action_${aoname}_params_t* actpar) {
         params = dbg_action.expression.method.type.parameters.parameters
 
         def make_value(value):
@@ -163,15 +160,53 @@ for table in hlir.tables:
         if params_str != "":
             params_str = f'({params_str})'
 
+        #[ sprintf(out, "${params_str}%s",
+        for param in params:
+            if param.urtype.size <= 32:
+                #[               *(actpar->${param.name}), // decimal
+                #[               *(actpar->${param.name}), // hex
+        #[ "");
+        #} }
+        #[
+
+#{ void show_params_by_action_id(char* out, int table_id, int action_id, const void* entry) {
+for table in hlir.tables:
+    if 'key' not in table or table.key_length_bits == 0:
+        #[     if (table_id == TABLE_${table.name}) { sprintf(out, ""); return; }
+        continue
+
+    #{     if (table_id == TABLE_${table.name}) {
+    for dbg_action in table.actions:
+        aoname = dbg_action.action_object.name
+        #{         if (action_id == action_${aoname}) {
+        #[             ${table.name}_show_params_${aoname}(out, (action_${aoname}_params_t*)entry);
+        #[             return;
+        #}         }
+    #}     }
+#} }
+
+
+for table in hlir.tables:
+    if 'key' not in table or table.key_length_bits == 0:
+        continue
+
+    table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
+
+    #{ void ${table.name}_apply_show_hit_info(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
+    for dbg_action in table.actions:
+        aoname = dbg_action.action_object.name
+        dbg_action_name = dbg_action.expression.method.path.name
+        #{ if (entry != 0 && !strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
+
+        #[     char params_txt[1024];
+        #[     ${table.name}_show_params_${aoname}(params_txt, &(entry->action.${aoname}_params));
+
         #[     dbg_bytes(key, table_config[TABLE_${table.name}].entry.key_size,
-        #[               " %s Lookup on $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": $$[action]{}{%s}${params_str}%s <- %s ",
+        #[               " %s Lookup on $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
         #[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
         #[               ${table.key_length_bytes},
         #[               action_canonical_names[entry->action.action_id],
-        for param in params:
-            if param.urtype.size <= 32:
-                #[               *(entry->action.${dbg_action.action_object.name}_params.${param.name}), // decimal
-                #[               *(entry->action.${dbg_action.action_object.name}_params.${param.name}), // hex
+        #[               params_txt,
         #[               hit ? "" : " (default)",
         #[               hit ? T4LIT(hit,success) : T4LIT(miss,status)
         #[               );
