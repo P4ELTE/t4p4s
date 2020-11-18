@@ -183,7 +183,7 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
 
     if (f != 0) {
         fldT fld = f[0];
-        debug("    " T4LIT(=,field) " Modifying field " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%d) "b (" T4LIT(%d) "B) = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
+        debug("    " T4LIT(=,field) " Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%d) "b (" T4LIT(%d) "B) = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
               header_instance_names[fld.hdr],
               field_names[fld.fld],
               bit_width,
