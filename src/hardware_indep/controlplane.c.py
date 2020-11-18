@@ -52,7 +52,6 @@ for table in hlir.tables:
         else:
             byte_width = get_key_byte_width(k)
             #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
-            #[ /* ${dir(k.matchType)} */
             # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
             if k.matchType.path.name == "ternary": # TODO: LS Check!
                 #[ uint8_t ${k.field_name}_mask[$byte_width],
