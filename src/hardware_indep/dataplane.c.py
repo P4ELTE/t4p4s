@@ -155,7 +155,9 @@ for table in hlir.tables:
             val = '_'.join(val[::-1][i:i+split_places] for i in range(0, len(val), split_places))[::-1]
             return f'{prefix}{val}'
 
-        param_fmts = (f'" T4LIT(%d) "=" T4LIT(%0{(sz+3)//4}x) "' if sz <= 32 else f'(" T4LIT({(sz+7)//8}b) ")' for param in params for sz in [param.urtype.size])
+        fmt_long_param = lambda sz: ('%02x%02x ' * (sz//2) + ('%02x' if sz%2 == 1 else '')).strip()
+
+        param_fmts = (f'" T4LIT(%d) "=" T4LIT(%0{(sz+3)//4}x,bytes) "' if sz <= 32 else f'(" T4LIT({fmt_long_param((sz+7)//8)},bytes) ")' for param in params for sz in [param.urtype.size])
         params_str = ", ".join((f'" T4LIT({param.name},field) "/" T4LIT({param.urtype.size}b) "={fmt}' for param, fmt in zip(params, param_fmts)))
         if params_str != "":
             params_str = f'({params_str})'
@@ -165,6 +167,9 @@ for table in hlir.tables:
             if param.urtype.size <= 32:
                 #[               *(actpar->${param.name}), // decimal
                 #[               *(actpar->${param.name}), // hex
+            else:
+                for i in range((param.urtype.size+7)//8):
+                    #[               (actpar->${param.name})[$i],
         #[ "");
         #} }
         #[
