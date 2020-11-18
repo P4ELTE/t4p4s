@@ -66,9 +66,9 @@ for table in hlir.tables:
         byte_idx += byte_width
 
     if table.matchType.name == "lpm":
-        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
+            target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
             if k.matchType.path.name == "exact": # TODO: LS Check!
                 #[ prefix_length += ${get_key_byte_width(k)};
             if k.matchType.path.name == "lpm": # TODO: LS Check!
