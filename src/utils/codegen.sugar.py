@@ -286,13 +286,13 @@ def is_atomic_block(blckstmt):
 
 
 def needs_defererencing(dst, src):
-    if 'needs_dereferencing' in src.urtype:
-        return src.urtype.needs_dereferencing
+    if 'needs_dereferencing' in src.urtype and src.urtype.needs_dereferencing:
+        return True
 
     src_dst_differ = src.node_type != dst.node_type
-    simple_type = src.node_type in ('Constant', 'Member')
+    complex_type = src.node_type not in ('Constant', 'Member')
     large_type = src.urtype.size > 32
-    return (src_dst_differ and not simple_type) # and large_type
+    return (src_dst_differ and complex_type) # and large_type
 
 
 def gen_do_assignment(dst, src):
