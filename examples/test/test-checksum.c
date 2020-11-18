@@ -31,7 +31,7 @@
 #define PAYLOAD04   "1a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4"
 
 
-extern void ipv4_fib_lpm_0_setdefault(struct ipv4_fib_lpm_0_action action);
+extern void ipv4_fib_lpm_0_setdefault(ipv4_fib_lpm_0_action_t action);
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
