@@ -80,7 +80,7 @@ void fill_nexthops_table(uint32_t nhgroup, uint8_t port, uint8_t smac[6], uint8_
     exact->length = 4*8+0;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "forward");
+    strcpy(a->description.name, ".forward");
 
     ap = add_p4_action_parameter(h, a, 2048);	
     strcpy(ap->name, "dmac");
@@ -124,7 +124,7 @@ void set_default_action_nexthops()
     strcpy(sda->table_name, ".nexthops");
 
     a = &(sda->action);
-    strcpy(a->description.name, "_drop_2");
+    strcpy(a->description.name, "._drop");
 
     netconv_p4_header(h);
     netconv_p4_set_default_action(sda);
@@ -148,7 +148,7 @@ void set_default_action_ipv4_lpm()
     strcpy(sda->table_name, ".ipv4_lpm");
 
     a = &(sda->action);
-    strcpy(a->description.name, "_drop");
+    strcpy(a->description.name, "._drop");
 
     netconv_p4_header(h);
     netconv_p4_set_default_action(sda);

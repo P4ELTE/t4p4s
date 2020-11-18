@@ -111,10 +111,10 @@ void fill_m_filter_table(uint8_t color, uint8_t mode) {
   a = add_p4_action(h, 2048);
   if (mode == 2) {
     printf("add mode _nop\n");
-    strcpy(a->description.name, "NoAction_5");
+    strcpy(a->description.name, ".NoAction");
   } else {
     printf("add mode _drop\n");
-    strcpy(a->description.name, "drop_6");
+    strcpy(a->description.name, ".drop");
   }
 
   netconv_p4_header(h);
@@ -136,7 +136,7 @@ void fill_ipv4_lpm_table(uint8_t ip[4], uint8_t prefix, uint8_t nhgrp) {
   printf("ipv4_lpm_0 %d.%d.%d.%d / %d\n", ip[0], ip[1], ip[2], ip[3], prefix);
   h = create_p4_header(buffer, 0, 2048);
   te = create_p4_add_table_entry(buffer, 0, 2048);
-  strcpy(te->table_name, "ipv4_lpm_0");
+  strcpy(te->table_name, ".ipv4_lpm");
 
   lpm = add_p4_field_match_lpm(te, 2048);
   strcpy(lpm->header.name, "ipv4.dstAddr");
@@ -367,11 +367,11 @@ char * fn;
 void init_complex() {
   // set_table_default_action("smac", "smac", "mac_learn");
   // set_table_default_action("dmac", "dmac", "bcast");
-  set_table_default_action("ue_lpm", "ue_selector_0", "drop");
+  set_table_default_action("ue_lpm", ".ue_selector", ".drop");
   // set_table_default_action("tteid_rate_limiter", "teid_rate_limiter", "_drop_3");
   // set_table_default_action("m_filter", "m_filter", "_drop_4");
-  set_table_default_action("nexthops", "ipv4_forward_0", "drop_8");
-  set_table_default_action("ipv4_lpm", "ipv4_lpm_0", "drop_7");
+  set_table_default_action("nexthops", ".ipv4_forward", ".drop");
+  set_table_default_action("ipv4_lpm", ".ipv4_lpm", ".drop");
 
   int retval = read_config_from_file(fn);
   if (retval == -1) {
