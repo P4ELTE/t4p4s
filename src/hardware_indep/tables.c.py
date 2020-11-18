@@ -14,8 +14,6 @@ from compiler_common import generate_var_name, prepend_statement
 #[ #include "util_debug.h"
 #[
 
-#[ extern void exact_add_promote(int tableid, uint8_t* key, uint8_t* value, bool should_print);
-
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir.tables:
     tmt = table.matchType.name
@@ -65,12 +63,11 @@ for table in hlir.tables:
     #} }
 #} }
 
-#{ void init_table_const_entries() {
 for table in hlir.tables:
     if 'entries' not in table:
-        #[ // table ${table.name} does not have const entries
         continue
 
+    #{ void init_table_const_entries_${table.name}() {
     for entry in table.entries.entries:
         if any((component.urtype.node_type == 'Type_Dontcare' for component in entry.keys.components)):
             addWarning("adding const entry", f"Underscore entry for const entry for table {table.name} not supported yet")
@@ -80,44 +77,54 @@ for table in hlir.tables:
 
         action_id = entry.action.method.path.name
 
-        key_total_size = (sum((key.urtype.size for key in entry.keys.components))+7) // 8
+        key_total_size = (sum((key._left.urtype.size for key in entry.keys.components))+7) // 8
 
+        # note: _left is for lpm and ternary that may have a mask
         key_var = generate_var_name("key", f"{table.name}__{action_id}")
         action_var = generate_var_name("action", f"{table.name}__{action_id}")
 
         params = entry.action.method.type.parameters.parameters
         args = entry.action.arguments
 
-        #[ ${utils.codegen.pre_statement_buffer}
+        #[     ${utils.codegen.pre_statement_buffer}
 
-        #[ uint8_t ${key_var}[${key_total_size}];
+        #[     uint8_t ${key_var}[${key_total_size}];
 
         def make_var(key, ksize):
-            name, hex_content = make_const(key)
+            name, hex_content = make_const(key._left)
             const_var = generate_var_name(f"const{ksize}", name)
             return const_var, hex_content
 
         keys = entry.keys.components
-        key_sizes = [key.urtype.size for key in keys]
+        key_sizes = [key._left.urtype.size for key in keys]
         offsets = ["+".join(["0"] + [f'{ksize}' for ksize in key_sizes[0:idx]]) for idx, ksize in enumerate(key_sizes)]
         varinfos = [make_var(key, ksize) for key, ksize in zip(keys, key_sizes)]
 
         for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos):
-            #[ uint8_t ${const_var}[] = {$hex_content};
+            #[     uint8_t ${const_var}[] = {$hex_content};
 
         for key, ksize, offset, (const_var, hex_content) in zip(keys, key_sizes, offsets, varinfos):
-            #[ memcpy(${key_var} + ((${offset} +7)/8), &${const_var}, ${(ksize+7)//8});
+            #[     memcpy(${key_var} + ((${offset} +7)/8), &${const_var}, ${(ksize+7)//8});
 
-        #{ ${table.name}_action_t ${action_var} = {
-        #[     .action_id = action_${action_id},
-        #{     .${action_id}_params = {
+        #{     ${table.name}_action_t ${action_var} = {
+        #[         .action_id = action_${action_id},
+        #{         .${action_id}_params = {
         for param, value_expr in zip(params, args):
             _, hex_content = make_const(value_expr.expression)
-            #[ .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
-        #}     },
-        #} };
+            #[             .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
+        #}         },
+        #}     };
 
-        #[ exact_add_promote(TABLE_${table.name}, ${key_var}, (uint8_t*)&${action_var}, false);
+        mt = table.matchType.name
+        if mt == 'exact':
+            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, (uint8_t*)&${action_var}, true, false);
+        elif mt == 'lpm':
+            # TODO: if there are exact fields as well as an lpm field, make sure that the exact fields are in front
+            lpm_depth = sum((f'{key.right.value:b}'.count('1') if key.node_type == 'Mask' else ksize for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos)))
+            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${lpm_depth}, (uint8_t*)&${action_var}, true, false);
+        elif mt == 'ternary':
+            ternary_expr = keys[0].right
+            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${format_expr(ternary_expr)}, (uint8_t*)&${action_var}, true, false);
 
         def make_value(value):
             is_hex = value.base == 16
@@ -129,9 +136,18 @@ for table in hlir.tables:
             return f'{prefix}{val}'
 
         def make_key(key, value):
+            value_str = f'" T4LIT({make_value(value._left)}) "'
+            mask_str = ''
+            if value.node_type == 'Mask':
+                if mt == 'lpm':
+                    depth = f'{value.right.value:b}'.count('1')
+                    mask_str = f'/" T4LIT({depth}b) "'
+                if mt == 'ternary':
+                    mask_str = ' &&& " T4LIT({make_value(value.right)}) "'
+
             if 'header_name' in key:
-                return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "=" T4LIT({make_value(value)}) "'
-            return f'" T4LIT({key.expression.path.name}) "=" T4LIT({make_value(value)}) "'
+                return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "={value_str}{mask_str}'
+            return f'" T4LIT({key.expression.path.name}) "={value_str}{mask_str}'
 
         def make_param(param, value_expr):
             return f'" T4LIT({param.name},field) "=" T4LIT({make_value(value_expr.expression)}) "'
@@ -141,9 +157,19 @@ for table in hlir.tables:
         if params_str != "":
             params_str = f'({params_str})'
 
-        #[ debug("   :: Table $$[table]{table.name}: const entry (${key_str}) -> $$[action]{action_id}${params_str}\n");
+        #[     debug("   :: Table $$[table]{table.name}/$${}{%s}: const entry (${key_str}) -> $$[action]{action_id}${params_str}\n", "$mt");
 
         utils.codegen.pre_statement_buffer = ""
+    #} }
+    #[
+
+
+#{ void init_table_const_entries() {
+for table in hlir.tables:
+    if 'entries' not in table:
+        #[     // table ${table.name} does not have const entries
+        continue
+    #[     init_table_const_entries_${table.name}();
 #} }
 
 for table in hlir.tables:
