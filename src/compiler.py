@@ -92,7 +92,7 @@ def adjust_indentation(indenter, line_idx, indent, file):
     # #{ starts a new indentation level from the next line
     # also, #} unindents starting this line
     if indenter == '{' and compiler_common.file_indentation_level == 0:
-        addError("Compiler", f"Too much unindent in {file}:{line_index}")
+        addError("Compiler", f"Too much unindent in {file}:{line_idx}")
 
 
 def escape_slash(s):
