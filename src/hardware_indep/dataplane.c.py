@@ -91,8 +91,8 @@ for table in hlir.tables:
 
     if table.matchType.name == "lpm":
         #[ key -= ${table.key_length_bytes};
-        #[ for(int c = ${table.key_length_bytes-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(int c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
+        # #[ for(int c = ${table.key_length_bytes-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
+        # #[ for(int c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
     #} }
 
 ################################################################################
