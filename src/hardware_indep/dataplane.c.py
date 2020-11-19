@@ -21,7 +21,7 @@ from compiler_common import types
 #[ uint32_t ingress_pkt_len;
 
 #[ extern ctrl_plane_backend bg;
-#[ extern char* action_canonical_names[];
+#[ extern char* action_short_names[];
 #[ extern char* action_names[];
 
 #[ extern void parse_packet(STDPARAMS);
@@ -44,7 +44,6 @@ pipeline_elements = hlir.news.main.arguments
 
 #{ typedef struct apply_result_s {
 #[     bool hit;
-#[     // actions_t action_run;
 #} } apply_result_t;
 
 for ctl in hlir.controls:
@@ -56,6 +55,9 @@ for ctl in hlir.controls:
 # Table key calculation
 
 for table in hlir.tables:
+    if 'key' not in table or table.key_length_bits == 0:
+        continue
+
     #{ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
     sortedfields = sorted(table.key.keyElements, key=lambda k: k.match_order)
     #TODO variable length fields
@@ -88,11 +90,8 @@ for table in hlir.tables:
             else:
                 addWarning("table key computation", f"Skipping unsupported key component {f.expression.path.name} ({f.size} bits): it is over 32 bits long and not byte aligned")
 
-
     if table.matchType.name == "lpm":
         #[ key -= ${table.key_length_bytes};
-        # #[ for(int c = ${table.key_length_bytes-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        # #[ for(int c = 0; c < ${table.key_length_bytes}; c++) *(key+c) = *(reverse_buffer+c);
     #} }
 
 ################################################################################
@@ -191,13 +190,13 @@ for table in hlir.tables:
 #} }
 
 
-for table in hlir.tables:
+table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
+
+for table, table_info in table_infos:
     if 'key' not in table or table.key_length_bits == 0:
         continue
 
-    table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
-
-    #{ void ${table.name}_apply_show_hit_info(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
+    #{ void ${table.name}_apply_show_hit_with_key(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
     for dbg_action in table.actions:
         aoname = dbg_action.action_object.name
         dbg_action_name = dbg_action.expression.method.path.name
@@ -210,7 +209,7 @@ for table in hlir.tables:
         #[               " %s Lookup on $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
         #[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
         #[               ${table.key_length_bytes},
-        #[               action_canonical_names[entry->action.action_id],
+        #[               action_short_names[entry->action.action_id],
         #[               params_txt,
         #[               hit ? "" : " (default)",
         #[               hit ? T4LIT(hit,success) : T4LIT(miss,status)
@@ -220,84 +219,100 @@ for table in hlir.tables:
     #[
 #} #endif
 
-for table in hlir.tables:
-    table_info = table.canonical_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")
-
-    #[ apply_result_t ${table.name}_apply(STDPARAMS)
-    #{ {
-    if 'key' in table:
-        #[     uint8_t* key[${table.key_length_bytes}];
-        #[     table_${table.name}_key(pd, (uint8_t*)key);
-
-        if table.key_length_bits == 0:
-            #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}]->default_val;
-            #[     bool hit = false;
-
-            if table.is_hidden or len(table.actions) == 1:
-                #[     debug(" ~~~~ Action $$[action]{}{%s} (lookup on $$[table]{table_info})\n",
-                #[               action_canonical_names[entry->action.action_id]
-                #[               );
-            else:
-                #[     debug(" " T4LIT(XXXX,status) " Lookup on $$[table]{table_info}: $$[action]{}{%s} (default)\n",
-                #[               action_canonical_names[entry->action.action_id]
-                #[               );
+for table, table_info in table_infos:
+    #{ void ${table.name}_apply_show_hit(int action_id, STDPARAMS) {
+    if 'key' not in table:
+        #[     debug(" :::: Lookup on " T4LIT(${table_info},table) ", default action is " T4LIT(%s,action) "\n", action_short_names[action_id]);
+    elif table.key_length_bits == 0:
+        if table.is_hidden or len(table.actions) == 1:
+            #[     debug(" ~~~~ Action $$[action]{}{%s}\n",
+            #[               action_short_names[action_id]
+            #[               );
         else:
-            #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${table.matchType.name}_lookup(tables[TABLE_${table.name}], (uint8_t*)key);
-            #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
-            #{     if (unlikely(!hit)) {
-            #[         entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}]->default_val;
-            #}     }
+            #[     debug(" " T4LIT(XXXX,status) " Lookup on $$[table]{table_info}: $$[action]{}{%s} (default)\n",
+            #[               action_short_names[action_id]
+            #[               );
+    #} }
+    #[
 
-            #{ #ifdef T4P4S_DEBUG
-            #[     ${table.name}_apply_show_hit_info(key, hit, entry, STDPARAMS_IN);
-            #} #endif
+for table, table_info in table_infos:
+    if len(table.direct_meters + table.direct_counters) == 0:
+        continue
 
-            #{ #ifdef T4P4S_STATS
-            #[     t4p4s_stats.table_hit__${table.name} = hit || t4p4s_stats.table_hit__${table.name};
-            #[     t4p4s_stats.table_miss__${table.name} = !hit || t4p4s_stats.table_miss__${table.name};
-            #} #endif
+    #{ void ${table.name}_apply_smems(STDPARAMS) {
+    #{     if (likely(hit)) {
+    #[         // applying direct counters and meters
+    for smem in table.direct_meters + table.direct_counters:
+        for comp in smem.components:
+            value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
+            type = comp['type']
+            name  = comp['name']
+            #[         extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
+            #[         apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
+    #}     }
+    #} }
+    #[
 
-            if len(table.direct_meters + table.direct_counters) > 0:
-                #{     if (likely(hit)) {
-                #[         // applying direct counters and meters
-                for smem in table.direct_meters + table.direct_counters:
-                    for comp in smem.components:
-                        value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
-                        type = comp['type']
-                        name  = comp['name']
-                        #[         extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
-                        #[         apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
-                #}    }
-    else:
-        if 'default_action' in table:
-            #[    table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}][rte_lcore_id()].default_val;
-            #[    debug(" :::: Lookup on " T4LIT(${table_info},table) ", default action is " T4LIT(%s,action) "\n", action_names[entry->action.action_id]);
-            #[    bool hit = true;
-        else:
-            #[    debug(" :::: Lookup on " T4LIT(${table_info},table) ", " T4LIT(no default action,action) "\n");
-            #[    table_entry_${table.name}_t* entry = (struct ${table.name}_action*)0;
-            #[    bool hit = false;
-
+for table, table_info in table_infos:
+    #{ void ${table.name}_stats(int action_id, STDPARAMS) {
     #{     #ifdef T4P4S_STATS
     #[         t4p4s_stats.table_apply__${table.name} = true;
 
     for stat_action in table.actions:
         stat_action_name = stat_action.expression.method.path.name
-        #{         if (entry != 0 && !strcmp("${stat_action_name}", action_names[entry->action.action_id])) {
+        #{         if (action_${stat_action_name} == action_id) {
         #[             t4p4s_stats.table_action_used__${table.name}_${stat_action_name} = true;
         #}         }
     #}     #endif
+    #} }
+    #[
 
+for table, table_info in table_infos:
+    #[ apply_result_t ${table.name}_apply(STDPARAMS)
+    #{ {
+    if 'key' not in table or table.key_length_bits == 0:
+        #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}][rte_lcore_id()].default_val;
+        #[     bool hit = false;
+        #[     ${table.name}_apply_show_hit(entry->action.action_id, STDPARAMS_IN);
+    else:
+        #[     uint8_t* key[${table.key_length_bytes}];
+        #[     table_${table.name}_key(pd, (uint8_t*)key);
+
+        #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${table.matchType.name}_lookup(tables[TABLE_${table.name}], (uint8_t*)key);
+        #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
+        #{     if (unlikely(!hit)) {
+        #[         entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}]->default_val;
+        #}     }
+
+        #{ #ifdef T4P4S_DEBUG
+        #[     ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
+        #} #endif
+
+        #{ #ifdef T4P4S_STATS
+        #[     t4p4s_stats.table_hit__${table.name} = hit || t4p4s_stats.table_hit__${table.name};
+        #[     t4p4s_stats.table_miss__${table.name} = !hit || t4p4s_stats.table_miss__${table.name};
+        #} #endif
+
+    if len(table.direct_meters + table.direct_counters) > 0:
+        #{     if (likely(hit)) {
+        #[         ${table.name}_apply_smems(STDPARAMS_IN);
+        #}    }
+
+    #[     if (entry != 0)    ${table.name}_stats(entry->action.action_id, STDPARAMS_IN);
 
     # ACTIONS
     #[     if (likely(entry != 0)) {
-    #{       switch (entry->action.action_id) {
-    for action in table.actions:
-        action_name = action.action_object.name
-        #{         case action_${action_name}:
-        #[           action_code_${action_name}(entry->action.${action_name}_params, SHORT_STDPARAMS_IN);
-        #}           return (apply_result_t) { hit };
-    #[       }
+    if len(table.actions) == 1:
+        action_name = table.actions[0].action_object.name
+        #[         action_code_${action_name}(entry->action.${action_name}_params, SHORT_STDPARAMS_IN);
+    else:
+        #{       switch (entry->action.action_id) {
+        for action in table.actions:
+            action_name = action.action_object.name
+            #{         case action_${action_name}:
+            #[           action_code_${action_name}(entry->action.${action_name}_params, SHORT_STDPARAMS_IN);
+            #}           return (apply_result_t) { hit };
+        #[       }
     #}     }
 
     #[     return (apply_result_t) { hit }; // unreachable
@@ -309,7 +324,7 @@ for table in hlir.tables:
 
 #{ void reset_headers(SHORT_STDPARAMS) {
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
-    #[ pd->headers[HDR(${hdr.name})].pointer = NULL;
+    #[     pd->headers[HDR(${hdr.name})].pointer = NULL;
 
 #[     // reset metadatas
 #[     memset(pd->headers[HDR(all_metadatas)].pointer, 0, hdr_infos[HDR(all_metadatas)].byte_width * sizeof(uint8_t));
@@ -323,9 +338,9 @@ for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
     #[     .length = hdr_infos[HDR(${hdr.name})].byte_width,
     #[     .pointer = NULL,
     #[     .var_width_field_bitwidth = 0,
-    #[ #ifdef T4P4S_DEBUG
-    #[     .name = "${hdr.name}",
-    #[ #endif
+    #[     #ifdef T4P4S_DEBUG
+    #[         .name = "${hdr.name}",
+    #[     #endif
     #} };
 
 #[     // init metadatas
@@ -430,16 +445,14 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
 
 #[
-#{         #if T4P4S_EMIT != 1
-#{             if (unlikely(hdr.pointer == NULL)) {
-#{                 #ifdef T4P4S_DEBUG
-#{                     if (hdr.was_enabled_at_initial_parse) {
-#[                         debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
-#}                     }
-#}                 #endif
-#[                 continue;
-#}             }
-#}         #endif
+#{         if (unlikely(hdr.pointer == NULL)) {
+#{             #ifdef T4P4S_DEBUG
+#{                 if (hdr.was_enabled_at_initial_parse) {
+#[                     debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#}                 }
+#}             #endif
+#[             continue;
+#}         }
 
 #{         if (likely(hdr.was_enabled_at_initial_parse)) {
 #[             dbg_bytes(hdr.pointer, hdr.length, "        :  " T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = %s", pd->header_reorder[i] + 1, hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
