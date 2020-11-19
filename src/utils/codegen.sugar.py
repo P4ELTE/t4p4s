@@ -286,8 +286,8 @@ def is_atomic_block(blckstmt):
 
 
 def needs_defererencing(dst, src):
-    if 'needs_dereferencing' in src.urtype and src.urtype.needs_dereferencing:
-        return True
+    if 'needs_dereferencing' in src.urtype: 
+        return src.urtype.needs_dereferencing
 
     src_dst_differ = src.node_type != dst.node_type
     complex_type = src.node_type not in ('Constant', 'Member')
