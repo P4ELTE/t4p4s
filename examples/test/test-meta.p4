@@ -4,21 +4,40 @@
 // In: 00000000
 // Out: 10000000
 
-header dummy_t {
-    bool f1;
+header in1_t {
     bit<7> padding;
+    bool f1;
+}
+
+header set_after_meta_cond_t {
+    bit<7> padding;
+    bool f1;
+}
+
+header meta_set_in_action_t {
+    bit<7> padding;
+    bool f1;
+}
+
+header bit1_set_in_action_t {
+    bit<7> padding;
+    bit<1> f1;
 }
 
 struct empty_metadata_t {
 }
 
 struct metadata {
-	bit<1> send;
+    bit<1> send;
 }
 
 struct headers {
-    dummy_t dummy;
+    in1_t                 in1;
+    set_after_meta_cond_t out1;
+    meta_set_in_action_t  out2;
+    bit1_set_in_action_t  out3;
 }
+
 parser IngressParserImpl(packet_in packet,
                          out headers hdr,
                          inout metadata meta,
@@ -26,7 +45,10 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_ethernet {
-        packet.extract(hdr.dummy);
+        packet.extract(hdr.in1);
+        packet.extract(hdr.out1);
+        packet.extract(hdr.out2);
+        packet.extract(hdr.out3);
         transition accept;
     }
     state start {
@@ -40,11 +62,20 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     action set_f1() {
-		meta.send = 1;
+        meta.send = 1;
     }
+
     apply {
-	   set_f1();
-       if (meta.send == 1) {hdr.dummy.f1 = true;}
+        set_f1();
+
+        if (meta.send == 1) {
+            hdr.out1.f1 = true;
+        }
+
+        hdr.out2.f1 = (bool)meta.send;
+        hdr.out3.f1 = meta.send;
+
+        hdr.in1.setInvalid();
     }
 }
 
@@ -54,7 +85,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { 
+    apply {
          ostd.egress_port = (PortId_t)12345;
     }
 }
@@ -81,7 +112,9 @@ control IngressDeparserImpl(packet_out buffer,
                             in psa_ingress_output_metadata_t istd)
 {
     apply {
-        buffer.emit(hdr.dummy);
+        buffer.emit(hdr.out1);
+        buffer.emit(hdr.out2);
+        buffer.emit(hdr.out3);
     }
 }
 
