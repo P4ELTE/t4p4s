@@ -143,7 +143,7 @@ void fill_t_fwd_table(uint16_t inport, uint16_t port, uint8_t mac[6], int wmac)
         strcpy(te->table_name, "t_fwd_0");
 
         exact = add_p4_field_match_exact(te, 2048);
-        strcpy(exact->header.name, "standard_metadata.ingress_port");
+        strcpy(exact->header.name, "all_metadatas.ingress_port");
         memcpy(exact->bitmap, &inport , 2);
         exact->length = 2*8+0;
 

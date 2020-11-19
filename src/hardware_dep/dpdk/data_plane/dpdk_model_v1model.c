@@ -102,7 +102,7 @@ void mark_to_drop(SHORT_STDPARAMS) {
     uint32_t res32;
     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_DROP_VALUE)
 
-    debug("       : " T4LIT(standard_metadata,header) "." T4LIT(EGRESS_META_FLD,field) " = " T4LIT(EGRESS_DROP_VALUE,bytes) "\n");
+    debug("       : " T4LIT(all_metadatas,header) "." T4LIT(EGRESS_META_FLD,field) " = " T4LIT(EGRESS_DROP_VALUE,bytes) "\n");
 }
 
 void verify(bool check, error_error_t toSignal, SHORT_STDPARAMS) {
