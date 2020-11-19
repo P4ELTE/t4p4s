@@ -246,21 +246,23 @@ def is_primitive(typenode):
 
 
 def gen_format_statement_fieldref_short(dst, src, dst_width, dst_is_vw, dst_bytewidth, dst_name, dst_hdr_name, dst_fld_name):
-    varname = 'value32'
+    bitlen = 8 if dst.urtype.size <= 8 else 16 if dst.urtype.size <= 16 else 32
+    varname = generate_var_name(f'value{bitlen}b')
     if src.node_type == 'PathExpression':
         indirection = "&" if is_primitive(src.type) else ""
         var_name = src.path.name
         refbase = "local_vars->" if is_control_local_var(src.decl_ref.name) else 'parameters.'
+
+        #[ uint${bitlen}_t ${varname};
         if refbase == "local_vars->":
             #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
-            #[ ${varname} = rte_cpu_to_be_32(${varname});
+            if bitlen > 8:
+                #[ ${varname} = rte_cpu_to_be_${bitlen}(${varname});
         else:
             #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
     else:
-        #[ $varname = ${format_expr(src)};
+        #[ uint${bitlen}_t $varname = ${format_expr(src)};
 
-
-    #[ // _INT32_INT32_AUTO_PACKET(pd, $dst_hdr_name, $dst_fld_name, $varname)
     #[ set_field((fldT[]){{pd, $dst_hdr_name, $dst_fld_name}}, 0, $varname, $dst_width);
 
 
@@ -290,7 +292,7 @@ def is_atomic_block(blckstmt):
 
 
 def needs_defererencing(dst, src):
-    if 'needs_dereferencing' in src.urtype: 
+    if 'needs_dereferencing' in src.urtype:
         return src.urtype.needs_dereferencing
 
     src_dst_differ = src.node_type != dst.node_type
@@ -760,8 +762,7 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
 
 def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_variable=False):
     if 'hdr_ref' in e:
-        # TODO do both individual meta fields and metadata instance fields
-        if e.hdr_ref.name == 'metadata':
+        if e.hdr_ref.urtype.is_metadata:
             #[ pd->fields.FLD(${e.expr.member},${e.member})
         else:
             #[ HDR(${e.expr.member})
@@ -771,7 +772,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})))
         else:
             hdrname = "all_metadatas" if hdr.urtype('is_metadata', False) else hdr.name
-            #[ FLD($hdrname, ${e.member})
+            #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${e.member})))
     else:
         if e.type.node_type in {'Type_Enum', 'Type_Error'}:
             #[ ${e.type.members.get(e.member).c_name}
