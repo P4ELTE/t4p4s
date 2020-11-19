@@ -111,7 +111,7 @@ typedef struct testcase_s {
 
 #define IPV4(dsteth, dstip, srceth, srcip, ...)                  FDATA(hETH4(dsteth, srceth), hIPv4(srcip, dstip), ##__VA_ARGS__)
 #define ICMP(dsteth, dstip, srceth, srcip, ...)                  FDATA(hETH4(dsteth, srceth), hICMPv4(srcip, dstip), ##__VA_ARGS__)
-#define UDP(dsteth, dstip, srceth, srcip, len, chksm, ...)       FDATA(hETH4(dsteth, srceth),  hUDPv4(srcip, dstip), hUDP(srcip, dstip, len, chksm), ##__VA_ARGS__)
+#define UDP(dsteth, dstip, srceth, srcip, len, chksm, ...)       FDATA(hETH4(dsteth, srceth), hUDPv4(srcip, dstip), hUDP(srcip, dstip, len, chksm), ##__VA_ARGS__)
 
 #define ARP_IPV4(dsteth, srceth, arp_oper, ...)   FDATA(hETH(dsteth, srceth, cARP), hARP(arp_oper), ##__VA_ARGS__)
 
