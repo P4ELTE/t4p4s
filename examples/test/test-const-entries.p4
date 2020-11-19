@@ -4,9 +4,13 @@
 struct metadata {
 }
 
+header dummy_t {
+	bit<32> addr;
+}
+
 struct headers {
     ethernet_t ethernet;
-    hdr1_t     h1;
+    dummy_t    h1;
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
@@ -19,7 +23,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     action nop() {}
-    action action1() { hdr.h1.byte1 = hdr.h1.byte1 | 1; }
+    action action1(bit<32> data) { hdr.h1.addr = data; }
     action action2() {}
     action action3(bit<9> x) { standard_metadata.egress_port = x; }
 
@@ -39,15 +43,14 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = nop;
 
         const entries = {
-            123 : action1;
-            _   : action2;
+            0x001234567890 : action1(0x0000000000000001);
+            _              : action2();
         }
     }
 
     table t2 {
         actions = {
             nop;
-            action1;
             action2;
             action3;
         }
@@ -62,7 +65,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         default_action = nop;
 
         const entries = {
-            (0x12345678, 0x9ABCDEF0) : action1;
+            (0x12345678, 0x9ABCDEF0) : action2;
             (100, 200)               : action2;
             (300, 400)               : action3(500);
             (_, _)                   : action3(123);
