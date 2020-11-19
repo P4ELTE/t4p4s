@@ -60,8 +60,8 @@
         #define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
     #else
         // no filename/line number printout
-        #define lcore_debug(M, ...)   fprintf(stderr, "CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-        #define no_core_debug(M, ...) fprintf(stderr, "NO-CORE " M "", ##__VA_ARGS__)
+        #define lcore_debug(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+        #define no_core_debug(M, ...) fprintf(stderr, "---- " M "", ##__VA_ARGS__)
     #endif
 
 
