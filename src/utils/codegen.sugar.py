@@ -251,7 +251,11 @@ def gen_format_statement_fieldref_short(dst, src, dst_width, dst_is_vw, dst_byte
         indirection = "&" if is_primitive(src.type) else ""
         var_name = src.path.name
         refbase = "local_vars->" if is_control_local_var(src.decl_ref.name) else 'parameters.'
-        #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
+        if refbase == "local_vars->":
+            #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
+            #[ ${varname} = rte_cpu_to_be_32(${varname});
+        else:
+            #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
     else:
         #[ $varname = ${format_expr(src)};
 
