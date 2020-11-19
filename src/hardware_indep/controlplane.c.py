@@ -72,9 +72,6 @@ for table in hlir.tables:
                 #[ prefix_length += ${get_key_byte_width(k)};
             if k.matchType.path.name == "lpm": # TODO: LS Check!
                 #[ prefix_length += ${target_name}_prefix_length;
-        #[ int c, d;
-        #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
         #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, false, has_fields);
 
     if table.matchType.name == "exact":
