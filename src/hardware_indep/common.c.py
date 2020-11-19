@@ -4,7 +4,7 @@
 #[ #include "common.h"
 #[ #include "dpdk_lib.h"
 
-#[ extern char* action_canonical_names[];
+#[ extern char* action_short_names[];
 #[ extern char* action_names[];
 
 parser = hlir.parsers[0]
@@ -97,7 +97,7 @@ for table in hlir.tables:
         #{         for (int i = 0; ; ++i) {
         #[             // note: looking up canonical name by "usual" name
         #{             if (!strcmp(action_names[i], "${action_name}")) {
-        #[                 printout += sprintf(printout, T4LIT(%s,action) "@$$[table]{table.canonical_name}, ", action_canonical_names[i]);
+        #[                 printout += sprintf(printout, T4LIT(%s,action) "@$$[table]{table.short_name}, ", action_short_names[i]);
         #[                 ++stats_counter;
         #[                 break; // the action is found, the lookup is done
         #}             }

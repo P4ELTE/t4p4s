@@ -41,6 +41,7 @@ for table in hlir.tables:
 
     #{  #ifdef T4P4S_DEBUG
     #[      .canonical_name= "${table.canonical_name}",
+    #[      .short_name= "${table.short_name}",
     #}  #endif
     #[ },
 #[ };

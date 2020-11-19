@@ -14,7 +14,7 @@ void change_replica(int socketid, int tid, int replica) {
         qconf->state.tables[tid] = state[socketid].tables[tid][replica]; // TODO should this be atomic?
         state[socketid].active_replica[tid] = replica;
 
-        // debug("    : " T4LIT(%d,core) "@" T4LIT(%d,socket) " uses table replica " T4LIT(%s,table) "#" T4LIT(%d) "\n", lcore_id, socketid, state[socketid].tables[tid][replica]->canonical_name, replica);
+        // debug("    : " T4LIT(%d,core) "@" T4LIT(%d,socket) " uses table replica " T4LIT(%s,table) "#" T4LIT(%d) "\n", lcore_id, socketid, state[socketid].tables[tid][replica]->short_name, replica);
     }
 }
 
@@ -47,7 +47,7 @@ extern void show_params_by_action_id(char* out, int table_id, int action_id, con
         int action_id = get_entry_action_id(value); \
         char params_str[1024]; \
         show_params_by_action_id(params_str, tcfg.id, action_id, value); \
-        dbg_bytes(key, entry_info.key_size, " " T4LIT(ctl>,incoming) " " txt1 " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "%s <- ", tcfg.canonical_name, get_entry_action_name(value), params_str); \
+        dbg_bytes(key, entry_info.key_size, " " T4LIT(ctl>,incoming) " " txt1 " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "%s <- ", tcfg.short_name, get_entry_action_name(value), params_str); \
     }
 #else
 #define FORALL_PRINTOUT(txt1, txt2, b, is_const_entry, should_print)
@@ -64,7 +64,7 @@ extern void show_params_by_action_id(char* out, int table_id, int action_id, con
     for (int socketid = 0; socketid < NB_SOCKETS; socketid++) \
         if (state[socketid].tables[0][0] != NULL) { \
             if (socketid == 0 && !table_config[tableid].is_hidden) { \
-                debug("    : " txt1 " " T4LIT(%s,table) ": " T4LIT(%s,action) "\n", table_config[tableid].canonical_name, get_entry_action_name(value)); \
+                debug("    : " txt1 " " T4LIT(%s,table) ": " T4LIT(%s,action) "\n", table_config[tableid].short_name, get_entry_action_name(value)); \
             } \
             b \
         }

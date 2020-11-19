@@ -138,7 +138,7 @@ for table in hlir.tables:
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.urtype.size+7)//8});
 
         #{     if (${"false" if table.is_hidden else "true"}) {
-        #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.canonical_name}: $$[action]{action.action_object.canonical_name}\n");
+        #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.short_name}: $$[action]{action.action_object.short_name}\n");
         #}     }
         #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
         #} } else
@@ -286,7 +286,7 @@ for smem in unique_everseen([smem for table, smem in hlir.all_counters]):
 #{         for (int i = 0; i < NB_TABLES; i++) {
 #[             lookup_table_t t = table_config[i];
 #[             if (state[0].tables[t.id][0]->init_entry_count > 0)
-#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->canonical_name, state[0].tables[t.id][0]->init_entry_count);
+#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
 #}             }
 #{         #endif
 #}     }

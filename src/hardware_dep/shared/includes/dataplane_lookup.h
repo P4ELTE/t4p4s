@@ -53,5 +53,6 @@ typedef struct lookup_table_s {
     lookup_table_entry_info_t entry;
 #ifdef T4P4S_DEBUG
     int init_entry_count;
+    char* short_name;
 #endif
 } lookup_table_t;

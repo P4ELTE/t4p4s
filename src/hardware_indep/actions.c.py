@@ -28,6 +28,12 @@ for table in hlir.tables:
         #[     "${action.action_object.canonical_name}",
 #} };
 
+#{ char* action_short_names[] = {
+for table in hlir.tables:
+    for action in unique_everseen(table.actions):
+        #[     "${action.action_object.short_name}",
+#} };
+
 
 for ctl in hlir.controls:
     for act in ctl.actions:
