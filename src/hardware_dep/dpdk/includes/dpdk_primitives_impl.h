@@ -193,8 +193,8 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
 
         int res32;
-	if (bit_width==16) value32 = (uint32_t)rte_cpu_to_be_16((uint16_t)value32);
-	else if (bit_width==32) value32 = rte_cpu_to_be_32(value32);
+	//if (bit_width==16) value32 = (uint32_t)rte_cpu_to_be_16((uint16_t)value32);
+	//else if (bit_width==32) value32 = rte_cpu_to_be_32(value32);
         MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
         return res32;
     }
