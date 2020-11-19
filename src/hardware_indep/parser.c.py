@@ -79,7 +79,7 @@ for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata)
             #[ pd->fields.ATTRFLD(${hdr.name},${fld.name}) = NOT_MODIFIED;
 
     #[     dbg_bytes(hdr->pointer, hdr->length,
-    #[               "   :: Extracted ${"variable width " if is_vw else ""}header instance " T4LIT(#%d) " $$[header]{hdr.name}/$${}{%dB}: ", hdr_infos[HDR(${hdr.name})].idx, hdr->length);
+    #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " $$[header]{hdr.name}/$${}{%dB}: ", hdr_infos[HDR(${hdr.name})].idx, hdr->length);
 
     #[     pd->parsed_length += hdrlen;
     #[     pd->extract_ptr += hdrlen;
@@ -89,7 +89,7 @@ for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata)
     #} }
 
 
-# TODO find a less convoluted way to get to the header instance
+# TODO find a less convoluted way to get to the header
 def get_hdrinst(arg0, component):
     if 'path' in arg0:
         hdrinst_name = arg0.path.name
@@ -104,7 +104,7 @@ def get_hdrinst(arg0, component):
                 # note: it is defined as a local variable
                 return dvar.urtype
             else:
-                addError("Finding header instance", f"There is no single header instance that corresponds to {hdrtype.name}")
+                addError("Finding header", f"There is no single header that corresponds to {hdrtype.name}")
         else:
             return hlir.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.urtype.name == hdrtype.name)
     elif 'hdr_ref' in (mexpr := component.methodCall.method.expr):
@@ -135,7 +135,25 @@ for s in parser.states:
     #[     uint32_t value32; (void)value32;
     #[     uint32_t res32; (void)res32;
     #[     parser_state_t* local_vars = pstate;
-    #[     debug(" :::: Parser state $$[parserstate]{s.name}\n");
+
+    if s.name == 'accept':
+        #[     pd->payload_length = packet_length(pd) - (pd->extract_ptr - (void*)pd->data);
+
+        #{     if (pd->payload_length > 0) {
+        #[         dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_length, pd->payload_length);
+        #[     } else {
+        #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_length);
+        #}     }
+        #} }
+        continue
+
+    if s.name == 'reject':
+        #[     debug(" " T4LIT(%%%%%%%%,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
+        #[     drop_packet(STDPARAMS_IN);
+        #} }
+        continue
+
+    #[     debug(" %%%%%%%% Parser state $$[parserstate]{s.name}\n");
 
     for component in s.components:
         if 'call' not in component:

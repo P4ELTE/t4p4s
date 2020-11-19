@@ -13,13 +13,20 @@ Find out more [about the P4 language](https://p4.org/).
 ### Preparation
 
 To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it in the following way.
-The script installs all necessary libraries ([DPDK](https://www.dpdk.org/), [P4C](https://github.com/p4lang/p4c), `P4Runtime`) and T₄P₄S itself, and sets up environment variables.
+The script installs all necessary libraries ([DPDK](https://www.dpdk.org/), [P4C](https://github.com/p4lang/p4c), `P4Runtime` and more) and T₄P₄S itself, and sets up environment variables.
 
     wget https://raw.githubusercontent.com/P4ELTE/t4p4s/master/bootstrap-t4p4s.sh
     chmod +x bootstrap-t4p4s.sh
     . ./bootstrap-t4p4s.sh
 
 Notes.
+
+- ⚠ The purpose of the script is to setup a convenient environment for you if you're just starting out.
+  Therefore, you *only need to execute it once*.
+  If you already have a working environment, you *don't need to run the script again*, and you *probably shouldn't*.
+
+    - To get T₄P₄S only without the third party libraries: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+    - To update a previous T₄P₄S checkout, execute this command in its directory: `git pull --recurse-submodules`
 
 - Without the `.` at the beginning of the line, the environment variables will not be usable immediately.
     - In that case, you can either open a new terminal, or run `. ./t4p4s_environment_variables.sh`
@@ -37,9 +44,6 @@ Notes.
 - To see all possible options (including available stages), run the script the following way.
 
     ./bootstrap-t4p4s.sh showenvs
-
-- To download T₄P₄S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
-    - When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
 
 - If you happen to have some of the dependencies locally checked out, you can speed up the installation process by letting the script clone them locally.
 

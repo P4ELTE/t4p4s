@@ -232,7 +232,7 @@ def gen_format_statement_fieldref_wide(dst, src, dst_width, dst_is_vw, dst_bytew
     #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, $dst_hdr_name, $dst_fld_name, $src_pointer, $dst_bytewidth);
 
     #[ dbg_bytes($src_pointer, $dst_bytewidth,
-    #[      "    " T4LIT(=,field) " Modifying field " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%db) " (" T4LIT(%d) "B) = ",
+    #[      "    " T4LIT(=,field) " Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%db) " (" T4LIT(%d) "B) = ",
     #[      header_instance_names[$dst_hdr_name],
     #[      field_names[$dst_fld_name], // $dst_fld_name
     #[      $dst_bytewidth*8,
@@ -251,12 +251,16 @@ def gen_format_statement_fieldref_short(dst, src, dst_width, dst_is_vw, dst_byte
         indirection = "&" if is_primitive(src.type) else ""
         var_name = src.path.name
         refbase = "local_vars->" if is_control_local_var(src.decl_ref.name) else 'parameters.'
-        #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
+        if refbase == "local_vars->":
+            #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
+            #[ ${varname} = rte_cpu_to_be_32(${varname});
+        else:
+            #[ memcpy(&$varname, $indirection($refbase${var_name}), $dst_bytewidth);
     else:
         #[ $varname = ${format_expr(src)};
 
 
-    #[ // MODIFY_INT32_INT32_AUTO_PACKET(pd, $dst_hdr_name, $dst_fld_name, $varname)
+    #[ // _INT32_INT32_AUTO_PACKET(pd, $dst_hdr_name, $dst_fld_name, $varname)
     #[ set_field((fldT[]){{pd, $dst_hdr_name, $dst_fld_name}}, 0, $varname, $dst_width);
 
 
@@ -286,13 +290,13 @@ def is_atomic_block(blckstmt):
 
 
 def needs_defererencing(dst, src):
-    if 'needs_dereferencing' in src.urtype:
+    if 'needs_dereferencing' in src.urtype: 
         return src.urtype.needs_dereferencing
 
     src_dst_differ = src.node_type != dst.node_type
-    simple_type = src.node_type in ('Constant', 'Member')
+    complex_type = src.node_type not in ('Constant', 'Member')
     large_type = src.urtype.size > 32
-    return (src_dst_differ and not simple_type) # and large_type
+    return (src_dst_differ and complex_type) # and large_type
 
 
 def gen_do_assignment(dst, src):
@@ -301,7 +305,7 @@ def gen_do_assignment(dst, src):
         dst_hdr_name = dst.path.name if dst.node_type == 'PathExpression' else dst.member
 
         #[ memcpy(pd->headers[HDR(${dst_hdr_name})].pointer, pd->headers[HDR(${src_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width);
-        #[ dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : " T4LIT(dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT(src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
+        #[ dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : Set " T4LIT(dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT(src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
     elif dst.type.node_type == 'Type_Bits':
         # TODO refine the condition to find out whether to use an assignment or memcpy
         requires_memcpy = src.type.size > 32 or 'decl_ref' in dst
@@ -315,7 +319,6 @@ def gen_do_assignment(dst, src):
                 if dst("expr.hdr_ref.urtype.is_metadata") or dst("hdr_ref.urtype.is_metadata"):
                     fldname = dst.member if dst("expr.hdr_ref.urtype.is_metadata") else dst.field_name
                     #[ set_field((fldT[]){{pd, HDR(all_metadatas), FLD(all_metadatas,$fldname)}}, 0, ($dereference(${format_expr(src, expand_parameters=True)})), ${dst.urtype.size});
-                    #[ debug("       : " T4LIT(all_metadatas,header) "." T4LIT($fldname,field) "/" T4LIT(%d) " = " T4LIT(%d,bytes) " (" T4LIT(%${(src.type.size+7)//8}x,bytes) ")\n", ${dst.urtype.size}, $dereference(${format_expr(src, expand_parameters=True)}), (unsigned int)$dereference(${format_expr(src, expand_parameters=True)}));
                 elif dst.node_type == 'Slice':
                     #[ // TODO assignment to slice
                 else:
@@ -350,11 +353,11 @@ def gen_do_assignment(dst, src):
         else:
             srcexpr = format_expr(src, expand_parameters=True, needs_variable=True)
             with SugarStyle('no_comment'):
-                dsttxt = gen_format_expr(dst)
-                srctxt = gen_format_expr(src, expand_parameters=True)
+                dsttxt = gen_format_expr(dst).strip()
+                srctxt = gen_format_expr(src, expand_parameters=True).strip()
             size = (dst.type.size+7)//8
             #[ memcpy(&(${format_expr(dst)}), &($srcexpr), $size);
-            #[ dbg_bytes(&($srcexpr), $size, "    : " T4LIT(%s,header) "/" T4LIT(%dB) " =" T4LIT(%s,header) " = ", "$dsttxt", $size, "$srctxt");
+            #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$dsttxt", $size, "$srctxt");
     elif dst.node_type == 'Member':
         tmpvar = generate_var_name('assign_member')
         hdrname = dst.expr.hdr_ref.name
@@ -465,18 +468,18 @@ def gen_setValid(hdr_name):
     #{ if (likely(pd->headers[HDR($hdr_name)].pointer == NULL)) {
     #[    pd->headers[HDR($hdr_name)].pointer = (pd->header_tmp_storage + hdr_infos[HDR($hdr_name)].byte_offset);
     #[    pd->is_emit_reordering = true;
-    #[    debug("   :: Header instance $$[header]{hdr_name}/" T4LIT(%dB) " set as $$[success]{}{valid}\n", pd->headers[HDR($hdr_name)].length);
+    #[    debug("   :: Header $$[header]{hdr_name}/" T4LIT(%dB) " set as $$[success]{}{valid}\n", pd->headers[HDR($hdr_name)].length);
     #[ } else {
-    #[    debug("   " T4LIT(!!,warning) " Trying to set header instance $$[header]{hdr_name} to $$[success]{}{valid}, but it is already $$[success]{}{valid}\n");
+    #[    debug("   " T4LIT(!!,warning) " Trying to set header $$[header]{hdr_name} to $$[success]{}{valid}, but it is already $$[success]{}{valid}\n");
     #} }
 
 def gen_setInvalid(hdr_name):
     #{ if (likely(pd->headers[HDR($hdr_name)].pointer != NULL)) {
     #[    pd->headers[HDR($hdr_name)].pointer = NULL;
     #[    pd->is_emit_reordering = true;
-    #[    debug("   :: Header instance $$[header]{hdr_name}/" T4LIT(%dB) " set as $$[status]{}{invalid}\n", pd->headers[HDR($hdr_name)].length);
+    #[    debug("   :: Header $$[header]{hdr_name}/" T4LIT(%dB) " set as $$[status]{}{invalid}\n", pd->headers[HDR($hdr_name)].length);
     #[ } else {
-    #[    debug("   " T4LIT(!!,warning) " Trying to set header instance $$[header]{hdr_name} to $$[success]{}{valid}, but it is already $$[success]{}{valid}\n");
+    #[    debug("   " T4LIT(!!,warning) " Trying to set header $$[header]{hdr_name} to $$[success]{}{valid}, but it is already $$[success]{}{valid}\n");
     #} }
 
 def gen_emit(mcall):
@@ -522,6 +525,22 @@ def gen_fmt_methodcall_extern(m, mcall):
         #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple)
 
 
+def gen_smem_expr(e, packets_or_bytes):
+    if e.type.node_type == 'Type_Specialized':
+        #= format_expr(e)
+    else:
+        smem_name = e.urtype.name
+        prefix = '' if smem_name == 'Digest' else f'{smem_name}_'
+        pob = packets_or_bytes or ('packets_or_bytes' in e and e.packets_or_bytes)
+        postfix = f'_{pob}' if smem_name in ('counter', 'meter') else ''
+        #[ &(global_smem.${prefix}${e.name}${postfix})
+
+def replace_pob(m, funargs_pre, packets_or_bytes):
+    pob_arg_pos = 1
+    smem_type = m.expr.decl_ref.arguments[pob_arg_pos].expression.type
+    prefix = f'enum_{smem_type.name}'
+    return [f'{prefix}_{packets_or_bytes}' if idx == pob_arg_pos else arg for idx, arg in enumerate(funargs_pre)]
+
 def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_or_bytes = None):
     extern_name = m.expr.urtype.name
     if (m.expr.decl_ref.urtype.name, mcall.method.member) == ('packet_in', 'advance'):
@@ -537,20 +556,13 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
                 return f'parameters.{e.path.name}'
             return format_expr(e)
 
-        def smem_expr(e):
-            if e.type.node_type == 'Type_Specialized':
-                return format_expr(e)
-
-            smem_name = e.urtype.name
-            prefix = '' if smem_name == 'Digest' else f'{smem_name}_'
-            pob = packets_or_bytes or ('packets_or_bytes' in e and e.packets_or_bytes)
-            postfix = f'_{pob}' if smem_name in ('counter', 'meter') else ''
-            return f'&(global_smem.{prefix}{e.name}{postfix})'
-
         args = dref.arguments + mcall.arguments
         argexprs = args.map('expression')
-        funargs = ", ".join(argexprs.map(format_expr) + [smem_expr(dref)])
-        argtypes = ", ".join(argexprs.map('urtype').map(format_type) + [f'{format_type(dref.urtype)}*'])
+        funargs_pre = argexprs.map(format_expr) + [gen_smem_expr(dref, packets_or_bytes), 'SHORT_STDPARAMS_IN']
+        if packets_or_bytes is not None:
+            funargs_pre = replace_pob(m, funargs_pre, packets_or_bytes)
+        funargs = ", ".join(funargs_pre)
+        argtypes = ", ".join(argexprs.map('urtype').map(format_type) + [f'{format_type(dref.urtype)}*', 'SHORT_STDPARAMS'])
 
         funname = f'extern_{extern_name}_{m.member}'
 

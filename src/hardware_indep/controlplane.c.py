@@ -10,11 +10,6 @@ from utils.codegen import format_expr, format_type
 #[ #include "actions.h"
 #[ #include "tables.h"
 
-#[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
-#[ extern void exact_add_promote  (int tableid, uint8_t* key, uint8_t* value, bool should_print);
-#[ extern void lpm_add_promote    (int tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool should_print);
-#[ extern void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool should_print);
-
 #{ #ifdef T4P4S_P4RT
 #[     #include "PI/proto/pi_server.h"
 #[     #include "p4rt/device_mgr.h"
@@ -52,7 +47,6 @@ for table in hlir.tables:
         else:
             byte_width = get_key_byte_width(k)
             #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
-            #[ /* ${dir(k.matchType)} */
             # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
             if k.matchType.path.name == "ternary": # TODO: LS Check!
                 #[ uint8_t ${k.field_name}_mask[$byte_width],
@@ -71,20 +65,17 @@ for table in hlir.tables:
         byte_idx += byte_width
 
     if table.matchType.name == "lpm":
-        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
         #[ uint8_t prefix_length = 0;
         for k in table.key.keyElements:
+            target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
             if k.matchType.path.name == "exact": # TODO: LS Check!
                 #[ prefix_length += ${get_key_byte_width(k)};
             if k.matchType.path.name == "lpm": # TODO: LS Check!
                 #[ prefix_length += ${target_name}_prefix_length;
-        #[ int c, d;
-        #[ for(c = ${byte_idx-1}, d = 0; c >= 0; c--, d++) *(reverse_buffer+d) = *(key+c);
-        #[ for(c = 0; c < ${byte_idx}; c++) *(key+c) = *(reverse_buffer+c);
-        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, has_fields);
+        #[ lpm_add_promote(TABLE_${table.name}, (uint8_t*)key, prefix_length, (uint8_t*)&action, false, has_fields);
 
     if table.matchType.name == "exact":
-        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action, has_fields);
+        #[ exact_add_promote(TABLE_${table.name}, (uint8_t*)key, (uint8_t*)&action, false, has_fields);
 
     #} }
 

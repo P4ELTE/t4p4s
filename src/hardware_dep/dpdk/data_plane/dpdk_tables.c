@@ -8,6 +8,7 @@
 #include "tables.h"
 
 extern char* action_names[];
+extern char* action_canonical_names[];
 
 // ============================================================================
 // LOOKUP TABLE IMPLEMENTATIONS
@@ -28,9 +29,15 @@ extern char* action_names[];
 // Returns the action id stored in the table entry parameter.
 // Table entries have different types (${table.name}_action),
 // but all of them have to start with an int, the action id.
-char* get_entry_action_name(void* entry) {
-    int action_id = *((int*)entry);
-    return action_names[action_id];
+int get_entry_action_id(const void* entry) {
+    return *((int*)entry);
+}
+
+// Returns the action id stored in the table entry parameter.
+// Table entries have different types (${table.name}_action),
+// but all of them have to start with an int, the action id.
+char* get_entry_action_name(const void* entry) {
+    return action_canonical_names[get_entry_action_id(entry)];
 }
 
 // Computes the location of the validity field of the entry.

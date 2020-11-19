@@ -20,3 +20,9 @@ for table in hlir.tables:
     #[ TABLE_${table.name},
 #[ TABLE_,
 #} };
+
+
+#[ void exact_add_promote(int tableid, uint8_t* key, uint8_t* value, bool is_const_entry, bool should_print);
+#[ void lpm_add_promote(int tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool is_const_entry, bool should_print);
+#[ void ternary_add_promote(int tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool is_const_entry, bool should_print);
+#[ void table_setdefault_promote(int tableid, uint8_t* value);

@@ -123,18 +123,18 @@ void update_checksum_with_payload(bool condition, struct uint8_buffer_s data, bi
 
 extern void do_counter_count(counter_t* counter, int index, uint32_t value);
 
-void extern_counter_count(uint32_t counter_array_size, enum_CounterType_t ct, uint32_t index, counter_t* counter) {
-    do_counter_count(counter, index, 1);
+void extern_counter_count(uint32_t counter_array_size, enum_CounterType_t ct, uint32_t index, counter_t* counter, SHORT_STDPARAMS) {
+    do_counter_count(counter, index, ct == enum_CounterType_packets ? 1 : packet_length(pd));
 }
 
-void extern_meter_execute_meter(uint32_t index, enum_MeterType_t b, uint32_t c, uint8_t d, meter_t e) {
+void extern_meter_execute_meter(uint32_t index, enum_MeterType_t b, uint32_t c, uint8_t d, meter_t e, SHORT_STDPARAMS) {
     debug("    : Executing extern_meter_execute_meter#" T4LIT(%d) "\n", index);
 }
 
-void extern_register_read(uint32_t index, uint32_t a, uint32_t b, register_t c) {
+void extern_register_read(uint32_t index, uint32_t a, uint32_t b, register_t c, SHORT_STDPARAMS) {
     debug("    : Executing extern_register_read#" T4LIT(%d) "\n", index);
 }
 
-void extern_register_write(uint32_t index, uint32_t a, uint32_t b, register_t* c) {
+void extern_register_write(uint32_t index, uint32_t a, uint32_t b, register_t* c, SHORT_STDPARAMS) {
     debug("    : Executing extern_register_write#" T4LIT(%d) "\n", index);
 }
