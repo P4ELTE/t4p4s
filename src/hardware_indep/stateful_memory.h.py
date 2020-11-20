@@ -44,10 +44,10 @@ def gen_make_smem_code(smem, table = None):
 
 #{ typedef struct global_state_s {
 for table, smem in hlir.all_meters + hlir.all_counters:
-    if smem.smem_type not in ["direct_counter", "direct_meter"]:
+    if not smem.is_direct:
         continue
     #= gen_make_smem_code(smem, table)
-for smem in unique_everseen([smem for table, smem in hlir.all_meters + hlir.all_counters if smem.smem_type not in ["direct_counter", "direct_meter"]]):
+for smem in unique_everseen((smem for table, smem in hlir.all_meters + hlir.all_counters if not smem.is_direct)):
     #= gen_make_smem_code(smem)
 for smem in hlir.registers:
     #= gen_make_smem_code(smem)

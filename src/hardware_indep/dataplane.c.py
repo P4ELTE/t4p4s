@@ -249,16 +249,14 @@ for table, table_info in table_infos:
         continue
 
     #{ void ${table.name}_apply_smems(STDPARAMS) {
-    #{     if (likely(hit)) {
-    #[         // applying direct counters and meters
+    #[     // applying direct counters and meters
     for smem in table.direct_meters + table.direct_counters:
         for comp in smem.components:
             value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
             type = comp['type']
             name  = comp['name']
-            #[         extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
-            #[         apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
-    #}     }
+            #[     extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
+            #[     apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
     #} }
     #[
 
@@ -303,9 +301,7 @@ for table, table_info in table_infos:
         #} #endif
 
     if len(table.direct_meters + table.direct_counters) > 0:
-        #{     if (likely(hit)) {
-        #[         ${table.name}_apply_smems(STDPARAMS_IN);
-        #}    }
+        #[     if (likely(hit))    ${table.name}_apply_smems(STDPARAMS_IN);
 
     #[     if (entry != 0)    ${table.name}_stats(entry->action.action_id, STDPARAMS_IN);
 
