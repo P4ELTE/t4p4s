@@ -358,8 +358,16 @@ def gen_do_assignment(dst, src):
                 dsttxt = gen_format_expr(dst).strip()
                 srctxt = gen_format_expr(src, expand_parameters=True).strip()
             size = (dst.type.size+7)//8
-            #[ memcpy(&(${format_expr(dst)}), &($srcexpr), $size);
-            #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$dsttxt", $size, "$srctxt");
+            if dst.node_type == 'Member':
+                hdrname = dst.expr.hdr_ref.name
+                fldname = dst.member
+                tmpvar = generate_var_name('assignment')
+                #[ ${format_type(dst.type)} $tmpvar = (${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)});
+                #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$hdrname", "$fldname", $size, "$srctxt");
+                #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${fldname}), &$tmpvar, $size);
+            else:
+                #[ memcpy(&(${format_expr(dst)}), &($srcexpr), $size);
+                #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$dsttxt", $size, "$srctxt");
     elif dst.node_type == 'Member':
         tmpvar = generate_var_name('assign_member')
         hdrname = dst.expr.hdr_ref.name
