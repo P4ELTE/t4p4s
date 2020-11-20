@@ -17,6 +17,12 @@ from compiler_common import types
 #[ #include "tables.h"
 #[ #include "gen_include.h"
 
+#{ #ifdef T4P4S_P4RT
+#[     #include "PI/proto/pi_server.h"
+#[     #include "p4rt/device_mgr.h"
+#[     extern device_mgr_t *dev_mgr_ptr;
+#} #endif
+
 #[ uint8_t* emit_addr;
 #[ uint32_t ingress_pkt_len;
 
@@ -117,19 +123,22 @@ for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').fil
     digest = mcall.typeArguments[0]
     funname = f'{mcall.method.path.name}__{digest.path.name}'
 
-    #{ ${format_type(mcall.urtype)} $funname(ctrl_plane_backend bg, ${digest.path.name}_t digest, SHORT_STDPARAMS) {
-    #[     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(%d,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(digest,extern) "\n", STD_DIGEST_RECEIVER_ID);
+    #{ ${format_type(mcall.urtype)} $funname(ctrl_plane_backend bg, ctrl_plane_digest cpd, SHORT_STDPARAMS) {
+    #[     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(%d,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(cpd,extern) "\n", STD_DIGEST_RECEIVER_ID);
 
-    #[     ctrl_plane_digest cpd = create_digest(bg, "digest");
+    #[    /* ctrl_plane_digest cpd = create_digest(bg, "digest");
 
     for fld in digest.urtype.fields:
         if fld.urtype.size > 32:
-            #[     dbg_bytes(&(digest.${fld.name}), (${fld.urtype.size}+7)/8, "       : $[field]{fld.name}/" T4LIT(${fld.urtype.size}) " = ");
-            #[     add_digest_field(cpd, &(digest.${fld.name}), ${fld.urtype.size});
+            #[     dbg_bytes(digest.${fld.name}, (${fld.urtype.size}+7)/8, "       : $[field]{fld.name}/" T4LIT(${fld.urtype.size}) " = ");
+            #[     add_digest_field(cpd, digest.${fld.name}, ${fld.urtype.size});
         else:
             #[     debug("       : " T4LIT(ingress_port,field) "/" T4LIT(${fld.urtype.size}) " = " T4LIT(%x) "\n", digest.${fld.name});
             #[     add_digest_field(cpd, &(digest.${fld.name}), ${fld.urtype.size});
-
+    #[ */
+    #{ #ifdef T4P4S_P4RT
+    #[        dev_mgr_send_digest(dev_mgr_ptr, (struct p4_digest*)(((Digest_t*)cpd)->ctrl_plane_digest), STD_DIGEST_RECEIVER_ID);
+    #} #endif   
     #[     send_digest(bg, cpd, STD_DIGEST_RECEIVER_ID);
     #[     sleep_millis(DIGEST_SLEEP_MILLIS);
     #} }
