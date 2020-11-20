@@ -20,6 +20,14 @@
 
 #include "backend.h"
 
+#ifdef T4P4S_P4RT
+
+#include "PI/proto/pi_server.h"
+#include "p4rt/device_mgr.h"
+extern device_mgr_t *dev_mgr_ptr;
+
+#endif
+
 #define P4_BG_MEM_CELL_SIZE 2048
 #define P4_BG_QUEUE_SIZE 1024
 
@@ -122,7 +130,7 @@ void input_processor(void *bg)
 void output_processor(void *bg)
 {
     backend_t* bgt = (backend_t*)bg;
-        mem_cell_t* mem_cell;
+    mem_cell_t* mem_cell;
 
     while ( 1 )
     {
@@ -131,9 +139,14 @@ void output_processor(void *bg)
 
         if (bgt->shutdown==1) break;
         if (mem_cell==0) continue;
-    
-        write_p4_msg(bgt->controller_sock, mem_cell->data, mem_cell->length);
 
+#ifdef T4P4S_P4RT
+        dev_mgr_send_digest(dev_mgr_ptr, (struct p4_digest*)(mem_cell->data), 1);
+#endif
+
+#ifndef T4P4S_P4RT
+        write_p4_msg(bgt->controller_sock, mem_cell->data, mem_cell->length);
+#endif
         detouch_mem_cell( bgt, mem_cell );
     }
 }
@@ -228,6 +241,7 @@ void launch_backend(ctrl_plane_backend bg)
     backend_t *bgt = (backend_t*) bg;
     ctrl_is_initialized = 0;
 
+#ifndef T4P4S_P4RT
     if( connect( bgt->controller_sock, (struct sockaddr *) &(bgt->controller_addr), sizeof(struct sockaddr_in) ) == -1 )
     {
         return;
@@ -237,11 +251,14 @@ void launch_backend(ctrl_plane_backend bg)
 
     dispatch(bgt->tpool, backend_processor, (void*)bgt);
     dispatch(bgt->tpool, input_processor, (void*)bgt);
+#endif
     dispatch(bgt->tpool, output_processor, (void*)bgt);
 
+#ifndef T4P4S_P4RT
     while (!ctrl_is_initialized) {
         usleep(CTRL_INIT_TIMEOUT);
     }
+#endif
 }
 
 void stop_backend(ctrl_plane_backend bg)
