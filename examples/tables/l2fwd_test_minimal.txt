@@ -1,6 +1,9 @@
-TRANSLATION smac .smac
-TRANSLATION dmac .dmac
-TRANSLATION forward forward_2
+TRANSLATION smac MyIngress.smac
+TRANSLATION dmac MyIngress.dmac
+TRANSLATION forward MyIngress.forward
+TRANSLATION _nop MyIngress._nop
+TRANSLATION mac_learn MyIngress.mac_learn
+TRANSLATION bcast MyIngress.bcast
 SET-DEFAULT smac mac_learn
 SET-DEFAULT dmac bcast
 MAC-FWD 00:00:01:00:00:00 11
