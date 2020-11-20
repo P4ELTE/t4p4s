@@ -39,9 +39,9 @@ control egress(inout headers hdr,
                in    psa_egress_input_metadata_t  istd,
                inout psa_egress_output_metadata_t ostd)
 {
-    action action1(bit<32> data) { hdr.dummy.addr1 = data; }
+    action action1(bit<32> data) { hdr.dummy.addr1 = data + 32w1; }
     action action2() {meta.addr1 = 0x12345678; }
-    action action3(bit<32> data) {hdr.dummy.addr1 = data; }
+    action action3(bit<32> data) { hdr.dummy.addr1 = data + 32w1; }
     action action4() {meta.addr1 = 0x12345678; }
     
     table t1 {
@@ -73,8 +73,6 @@ control egress(inout headers hdr,
         if (hdr.dummy.version==1 || hdr.dummy.version==3) {
 			hdr.dummy.addr1 = meta.addr1;
         }
-        
-        hdr.dummy.addr1 = hdr.dummy.addr1 + 32w1;
     }
 }
 
