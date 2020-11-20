@@ -39,19 +39,25 @@ for table in hlir.tables:
     #[ // note: ${table.name}, ${table.matchType.name}, ${table.key_length_bytes}
     #{ void ${table.name}_add(
     for k in table.key.keyElements:
+        target_name = f'{k.expression.path.name}' if 'header' not in k else f'field_{k.header.name}_{k.field_name}'
         if 'header' not in k:
             varname = k.expression.path.name
             #[ uint8_t* $varname,
             # ${format_type(k.expression.urtype)} $varname,
             # TODO mask?
+            if k.matchType.path.name == "ternary": # TODO: LS Check!
+                #[ uint8_t ${target_name}_mask[$byte_width],
+            if k.matchType.path.name == "lpm": # TODO: LS Check!
+                #[ uint8_t ${target_name}_prefix_length,
         else:
             byte_width = get_key_byte_width(k)
             #[ uint8_t field_${k.header.name}_${k.field_name}[$byte_width],
             # TODO have keys' and tables' matchType the same case (currently: LPM vs lpm)
             if k.matchType.path.name == "ternary": # TODO: LS Check!
-                #[ uint8_t ${k.field_name}_mask[$byte_width],
+                #[ uint8_t ${target_name}_mask[$byte_width],
             if k.matchType.path.name == "lpm": # TODO: LS Check!
-                #[ uint8_t field_${k.header.name}_${k.field_name}_prefix_length,
+                #[ uint8_t ${target_name}_prefix_length,
+
 
     #}     ${table.name}_action_t action, bool has_fields)
     #{ {
