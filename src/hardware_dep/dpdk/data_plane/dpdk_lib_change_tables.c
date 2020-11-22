@@ -46,7 +46,7 @@ extern void show_params_by_action_id(char* out, int table_id, int action_id, con
         lookup_table_t tcfg = table_config[tableid]; \
         int action_id = get_entry_action_id(value); \
         char params_str[1024]; \
-        show_params_by_action_id(params_str, tcfg.id, action_id, value); \
+        show_params_by_action_id(params_str, tcfg.id, action_id, value + 4); \
         dbg_bytes(key, entry_info.key_size, " " T4LIT(ctl>,incoming) " " txt1 " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "%s <- ", tcfg.short_name, get_entry_action_name(value), params_str); \
     }
 #else
