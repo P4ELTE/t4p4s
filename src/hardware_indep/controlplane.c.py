@@ -7,6 +7,7 @@ from utils.codegen import format_expr, format_type
 #[ #include <unistd.h>
 
 #[ #include "dpdk_lib.h"
+#[ #include "dpdk_primitives.h" // TODO remove
 #[ #include "actions.h"
 #[ #include "tables.h"
 
@@ -106,6 +107,10 @@ for table in hlir.tables:
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* bitmap_${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
+#            if p.urtype.size < 32:
+#              #[ MODIFY_INT32_INT32_AUTO(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
+#           else:
+#               #[ memcpy(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
             #[ memcpy(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
 
         params = []
