@@ -543,7 +543,7 @@ def gen_smem_expr(e, packets_or_bytes):
         prefix = '' if smem_name == 'Digest' else f'{smem_name}_'
         pob = packets_or_bytes or ('packets_or_bytes' in e and e.packets_or_bytes)
         postfix = f'_{pob}' if smem_name in ('counter', 'meter') else ''
-        #[ &(global_smem.${prefix}${e.name}${postfix})
+        #[ &(global_smem.${prefix}${e.name}${postfix}[0])
 
 def replace_pob(m, funargs_pre, packets_or_bytes):
     pob_arg_pos = 1
@@ -1139,13 +1139,29 @@ def gen_format_call_digest(e):
     #pre[ #error "Generating digest when T4P4S_NO_CONTROL_PLANE is defined"
     #pre[ #endif
 
+    fldvars = {}
+
     #pre[ debug("    " T4LIT(<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(%d,port) "\n", ${e.arguments[0].expression.value});
     for hdrname, fldname, size in fld_infos(e):
-        #pre[ dbg_bytes(field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, (${size}+7)/8, "        : "T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
+        if size <= 32:
+            sz = ((size+7)//8) * 8
+            fldtxt = f'fld_{hdrname}_{fldname}'
+            fldvar = generate_var_name(fldtxt)
+            fldvars[fldtxt] = fldvar
+            #pre[ uint${sz}_t $fldvar = GET_INT32_AUTO_PACKET(pd,HDR($hdrname),FLD($hdrname,$fldname));
+            #pre[ dbg_bytes(&$fldvar, (${size}+7)/8, "        : "T4LIT(${hdrname},header)"."T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
+        else:
+            #pre[ dbg_bytes(field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, (${size}+7)/8, "        : "T4LIT(${hdrname},header)"."T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
 
     #pre[ ctrl_plane_digest $var = create_digest(bg, "$name");
     for hdrname, fldname, size in fld_infos(e):
-        #pre[ add_digest_field($var, field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, $size);
+        if size <= 32:
+            sz = ((size+7)//8) * 8
+            fldtxt = f'fld_{hdrname}_{fldname}'
+            fldvar = fldvars[fldtxt]
+            #pre[ add_digest_field($var, &$fldvar, $sz);
+        else:
+            #pre[ add_digest_field($var, field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, $size);
 
     name_postfix = "".join(e.method.type.typeParameters.parameters.filter('node_type', 'Type_Var').map('urtype.name').map(lambda n: f'__{n}'))
     funname = f'{e.method.path.name}{name_postfix}'
