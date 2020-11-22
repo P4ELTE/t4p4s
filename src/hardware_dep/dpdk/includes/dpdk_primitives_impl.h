@@ -193,7 +193,11 @@ static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
               bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
 
         int res32;
-        MODIFY_INT32_INT32_HTON(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
+        if ((handle(header_desc_ins(fld.pd , fld.hdr), fld.fld)).bytecount == 32) {
+            *(int*)((handle(header_desc_ins(fld.pd , fld.hdr), fld.fld)).byte_addr) = value32;
+        } else {
+            MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
+        }
         return res32;
     }
 
