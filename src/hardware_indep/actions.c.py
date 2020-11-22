@@ -11,6 +11,8 @@ from compiler_common import types, unique_everseen
 #[ #include "util_debug.h"
 #[ #include "util_packet.h"
 
+# [ #include "dpdk_primitives_impl.h" // TODO remove
+
 #[ extern ctrl_plane_backend bg;
 
 ################################################################################
