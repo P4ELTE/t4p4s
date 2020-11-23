@@ -84,7 +84,7 @@ def gen_format_type_mask(t):
             mask = hex((2 ** t.size) - 1)
             masksize = 8 if t.size <= 8 else 16 if t.size <= 16 else 32
             #pre[ uint${masksize}_t $var = $mask;
-            #[ $var &
+            #[ $var
         else:
             addError('formatting a type mask', f'Masked type is {t.size} bits, only 32 or less is supported')
     else:
@@ -312,8 +312,6 @@ def gen_do_assignment(dst, src):
                 elif dst.node_type == 'Slice':
                     #[ // TODO assignment to slice
                 else:
-                    #[ /* ${src.node_type} ${dst.node_type} */
-                    #[ ${format_expr(dst)} = (${format_type(dst.type)})(${format_expr(src, expand_parameters=True)}));
                     if dst.node_type == 'Member':
                         if dst.urtype('is_metadata', False):
                             # Note: the metadata header and field name is joined by underscores, separating them as best as possible
@@ -322,9 +320,23 @@ def gen_do_assignment(dst, src):
                         else:
                             hdrname = dst.expr._expr.path.name
                             fldname = dst.member
+
+                        if dst.urtype.size <= 32:
+                            # (${format_type(dst.type)})(${format_expr(src, expand_parameters=True)})
+                            srcbuf = casting(dst.type, format_expr(src, expand_parameters=True))
+                            #[ MODIFY_INT32_INT32_BITS_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), $srcbuf);
+                        else:
+                            pass
+
                         #[ debug("       : " T4LIT($hdrname,header) "." T4LIT($fldname,field) " = " T4LIT(%d,bytes) " (" T4LIT(%${(src.type.size+7)//8}x,bytes) ")\n", ${format_expr(dst)}, ${format_expr(dst)});
                     else:
                         #[ debug("       : " T4LIT(${format_expr(dst)},header) " = " T4LIT(%d,bytes) " (" T4LIT(%${(src.type.size+7)//8}x,bytes) ")\n", ${format_expr(dst)}, ${format_expr(dst)});
+
+                        if dst.urtype.size <= 32:
+                            #[ ${format_expr(dst)} = (${format_type(dst.type)})(${format_expr(src, expand_parameters=True)}));
+                        else:
+                            #TODO
+                            pass
             else:
                 if 'decl_ref' in dst:
                     addError("Assigning variable", f"Variable {dst.path.name} is larger than 32 bits, assignment currently unsupported")
@@ -491,19 +503,19 @@ def gen_emit(mcall):
     #[ ++pd->emit_hdrinst_count;
 
 def gen_fmt_methodcall(mcall, m):
+    specials = ('isValid', 'setValid', 'setInvalid')
     if is_emit(m):
         #= gen_emit(mcall)
     elif 'table_ref' in m.expr and m.member == 'apply':
         #[ ${gen_method_apply(mcall)};
+    elif m.member in specials:
+        hdr_name = m.expr._expr.path.name if m.expr.node_type == 'PathExpression' else m.expr.member
+        #= gen_${m.member}(hdr_name)
     elif 'member' not in m.expr:
         #= gen_fmt_methodcall_extern(m, mcall)
     else:
         hdr_name = m.expr.member
-        specials = ('isValid', 'setValid', 'setInvalid')
-        if m.member in specials:
-            #= gen_${m.member}(hdr_name)
-        else:
-            #= gen_methodcall(mcall)
+        #= gen_methodcall(mcall)
 
 def gen_fmt_methodcall_extern(m, mcall):
     # TODO treat smems and digests separately
@@ -654,49 +666,66 @@ def gen_method_setValid(e):
     #[ };
 
 
+def gen_casting(dst_type, expr_str):
+    dt   = format_type(dst_type)
+    varname = generate_var_name('casting')
+    #pre[ $dt $varname = ($dt)($expr_str);
+    #[ $varname
+
+def gen_masking(dst_type, expr_str):
+    dt   = format_type(dst_type)
+    mask = format_type_mask(dst_type)
+    varname = generate_var_name('masking')
+    #pre[ $dt $varname = ($dt)(${casting(dst_type, expr_str)});
+    #[ ($mask & $varname)
+
 def gen_fmt_Cast(e, format_as_value=True, expand_parameters=False, needs_variable=False):
     et = e.expr.type
     edt = e.destType
+    fe = format_expr(e.expr)
+    ft = format_type(edt)
     if (et.node_type, et.size, edt.node_type) == ('Type_Bits', 1, 'Type_Boolean') and not et.isSigned:
         #Cast from bit<1> to bool
-        return f"({format_expr(e.expr)})"
+        return f"({fe})"
     elif (et.node_type, edt.node_type, edt.size) == ('Type_Boolean', 'Type_Bits', 1) and not edt.isSigned:
         #Cast from bool to bit<1>
-        return f'({format_expr(e.expr)} ? 1 : 0)'
+        return f'({fe} ? 1 : 0)'
     elif et.node_type == 'Type_Bits' and edt.node_type == 'Type_Bits':
+        breakpoint()
         if et.isSigned == edt.isSigned:
             if not et.isSigned:                       #Cast from bit<w> to bit<v>
                 if et.size > edt.size:
-                    return f'({format_type_mask(edt)}{format_expr(e.expr)})'
+                    #[ ${masking(edt, fe)}
                 else:
-                    return format_expr(e.expr)
+                    #= fe
             else:                                              #Cast from int<w> to int<v>
-                return f'(({format_type(edt)}) {format_expr(e.expr)})'
+                #[ (($ft)$fe)
         elif et.isSigned and not edt.isSigned: #Cast from int<w> to bit<w>
-            return f'({format_type_mask(edt)}{format_expr(e.expr)})'
+            #[ ${masking(edt, fe)}
         elif not et.isSigned and edt.isSigned: #Cast from bit<w> to int<w>
             if edt.size in {8,16,32}:
-                return f'(({format_type(edt)}){format_expr(e.expr)})'
+                #[ (($ft)$fe)
             else:
                 addError('formatting an expression', f'Cast from bit<{et.size}> to int<{edt.size}> is not supported! (Only int<8>, int<16> and int<32> are supported.)')
-                return ''
-    #Cast from int to bit<w> and int<w> are performed by P4C
-    addError('formatting an expression', f'Cast from {pp_type_16(et)} to {pp_type_16(edt)} is not supported!')
-    return ''
+                #[ ERROR_invalid_cast_from_bit${et.size}_to_int${edt.size}
+    else:
+        #Cast from int to bit<w> and int<w> are performed by P4C
+        addError('formatting an expression', f'Cast from {pp_type_16(et)} to {pp_type_16(edt)} is not supported!')
+        #[ ERROR_invalid_cast
 
 def gen_fmt_ComplexOp(e, op, format_as_value=True, expand_parameters=False):
-    temp_expr = f'({format_expr(e.left)}{op}{format_expr(e.right)})'
+    et = e.type
+    op_expr = f'({format_expr(e.left)}{op}{format_expr(e.right)})'
     if e.type.node_type == 'Type_InfInt':
-        return temp_expr
+        #= op_expr
     elif e.type.node_type == 'Type_Bits':
         if not e.type.isSigned:
-            return f'({format_type_mask(e.type)}{temp_expr})'
+            #[ ${masking(e.type, op_expr)}
+        elif e.type.size in {8,16,32}:
+            #[ ((${format_type(e.type)})${op_expr})
         else:
-            if e.type.size in {8,16,32}:
-                return f'(({format_type(e.type)}){temp_expr})'
-            else:
-                addError('formatting an expression', f'Expression of type {e.node_type} is not supported on int<{e.type.size}>. (Only int<8>, int<16> and int<32> are supported.)')
-                return ''
+            addError('formatting an expression', f'Expression of type {e.node_type} is not supported on int<{e.type.size}>. (Only int<8>, int<16> and int<32> are supported.)')
+            #[ ERROR
 
 def get_select_conds(select_expr, case):
     cases_tmp = case.keyset.components if case.keyset.node_type == 'ListExpression' else [case.keyset]
@@ -946,16 +975,18 @@ def gen_fmt_Constant(e, format_as_value=True, expand_parameters=False, needs_var
 def gen_fmt_Operator(e, nt, format_as_value=True, expand_parameters=False):
     unary_ops = ('Neg', 'Cmpl', 'LNot')
     if nt in unary_ops:
-        expr = format_expr(e.expr)
+        fe = format_expr(e.expr)
         if nt == 'Neg':
             if e.type.node_type == 'Type_Bits' and not e.type.isSigned:
-                #[ (${format_type_mask(e.type)}(${2**e.type.size}-${expr}))
+                fe2 = f'{2**e.type.size}-({fe})'
+                #[ ${masking(e.type, fe2)}
             else:
-                #[ (-${expr})
+                #[ (-$fe)
         elif nt == 'Cmpl':
-            #[ (${format_type_mask(e.type)}(~${expr}))
+            fe2 = f'~({fe})'
+            #[ ${masking(e.type, fe2)}
         elif nt == 'LNot':
-            #[ (!${expr})
+            #[ (!$fe)
     else:
         left = format_expr(e.left)
         right = format_expr(e.right)
@@ -968,7 +999,8 @@ def gen_fmt_Operator(e, nt, format_as_value=True, expand_parameters=False):
                 #[ (($left) ${op} ($right))
         elif nt == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
             #Subtraction on unsigned values is performed by adding the negation of the second operand
-            #[ (${format_type_mask(e.type)}($left + (${2 ** e.type.size}-$right)))
+            expr_to_mask = f'{left} + ({2 ** e.type.size}-{right})'
+            #[ ${masking(e.type, expr_to_mask)}
         elif nt == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
             #Right shift on signed values is performed with a shift width check
             #[ ((${right}>${size}) ? 0 : (${left} >> ${right}))
@@ -994,7 +1026,8 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
         smem_name = e.urtype.name
         prefix = '' if smem_name == 'Digest' else f'{smem_name}_'
         postfix = f'_{e.packets_or_bytes}' if smem_name in ('counter', 'meter') else ''
-        #[ &(global_smem.${prefix}${e.name}${postfix})
+        deref = '' if smem_name == 'register' else '&'
+        #[ (${smem_name}_t*)${deref}(global_smem.${prefix}${e.name}${postfix})
     elif nt == 'Member' and 'fld_ref' in e:
         fldname = e.fld_ref.name
         # note: this special case is here because it uses #pre; it should be in 'gen_fmt_Member'
@@ -1053,8 +1086,8 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
         #pre[ int ${var_offset} = ${var_src} - (${var_end_offset} + ${var_dst});
         if dst_size <= 32:
             if src_size <= 32:
-                mask = format_type_mask(e.type)
-                #[ ($mask($src >> ${var_offset}))
+                slicexpr = f'{src} >> {var_offset}'
+                #[ ${masking(e.type, slicexpr)}
             elif dst_size % 8 == 0 and src_size % 8 == 0:
                 endian_conversion = "ntohs" if dst_size == 16 else "ntohl" if dst_size == 32 else ""
 
@@ -1185,6 +1218,14 @@ def format_type(t, varname = None, resolve_names = True, addon = ""):
 def format_expr(e, format_as_value=True, expand_parameters=False, needs_variable=False):
     with SugarStyle("inline_comment"):
         return gen_format_expr(e, format_as_value, expand_parameters, needs_variable)
+
+def masking(dst_type, e):
+    with SugarStyle("inline_comment"):
+        return gen_masking(dst_type, e)
+
+def casting(dst_type, e):
+    with SugarStyle("inline_comment"):
+        return gen_casting(dst_type, e)
 
 def format_statement(stmt, ctl=None):
     if ctl is not None:
