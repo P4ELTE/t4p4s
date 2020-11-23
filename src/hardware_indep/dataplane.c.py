@@ -123,7 +123,7 @@ for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').fil
     digest = mcall.typeArguments[0]
     funname = f'{mcall.method.path.name}__{digest.path.name}'
 
-    #{ ${format_type(mcall.urtype)} $funname(ctrl_plane_backend bg, ctrl_plane_digest cpd, SHORT_STDPARAMS) {
+    #{ ${format_type(mcall.urtype)} $funname(uint32_t /* ignored */ receiver, ctrl_plane_digest cpd, SHORT_STDPARAMS) {
     #[     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(%d,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(cpd,extern) "\n", STD_DIGEST_RECEIVER_ID);
 
     #[    /* ctrl_plane_digest cpd = create_digest(bg, "digest");
@@ -138,7 +138,7 @@ for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').fil
     #[ */
     #{ #ifdef T4P4S_P4RT
     #[        // dev_mgr_send_digest(dev_mgr_ptr, (struct p4_digest*)(((Digest_t*)cpd)->ctrl_plane_digest), STD_DIGEST_RECEIVER_ID);
-    #} #endif   
+    #} #endif
     #[     send_digest(bg, cpd, STD_DIGEST_RECEIVER_ID);
     #[     sleep_millis(DIGEST_SLEEP_MILLIS);
     #} }
@@ -166,17 +166,21 @@ for table in hlir.tables:
         fmt_long_param = lambda sz: ('%02x%02x ' * (sz//2) + ('%02x' if sz%2 == 1 else '')).strip()
 
         param_fmts = (f'" T4LIT(%d) "=" T4LIT(%0{(sz+3)//4}x,bytes) "' if sz <= 32 else f'(" T4LIT({fmt_long_param((sz+7)//8)},bytes) ")' for param in params for sz in [param.urtype.size])
-        params_str = ", ".join((f'" T4LIT({param.name},field) "/" T4LIT({param.urtype.size}b) "={fmt}' for param, fmt in zip(params, param_fmts)))
+        params_str = ", ".join((f'%s" T4LIT({param.name},field) "/" T4LIT({param.urtype.size}b) "={fmt}' for param, fmt in zip(params, param_fmts)))
         if params_str != "":
             params_str = f'({params_str})'
 
         #[ sprintf(out, "${params_str}%s",
         for param in params:
+            bytesz = (param.urtype.size+7)//8
             if param.urtype.size <= 32:
-                #[               *(actpar->${param.name}), // decimal
-                #[               *(actpar->${param.name}), // hex
+                #[               ${bytesz} > 1 ? "§" : "", // maybe cpu->BE conversion
+                converter = '' if bytesz == 1 else f'rte_cpu_to_be_{bytesz*8}'
+                #[               $converter(actpar->${param.name}), // decimal
+                #[               $converter(actpar->${param.name}), // hex
             else:
-                for i in range((param.urtype.size+7)//8):
+                #[               "", // no cpu->BE conversion
+                for i in range(bytesz):
                     #[               (actpar->${param.name})[$i],
         #[ "");
         #} }
