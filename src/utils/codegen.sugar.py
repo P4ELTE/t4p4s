@@ -291,16 +291,6 @@ def is_atomic_block(blckstmt):
         return False
 
 
-def needs_defererencing(dst, src):
-    if 'needs_dereferencing' in src.urtype:
-        return src.urtype.needs_dereferencing
-
-    src_dst_differ = src.node_type != dst.node_type
-    complex_type = src.node_type not in ('Constant', 'Member')
-    large_type = src.urtype.size > 32
-    return (src_dst_differ and complex_type) # and large_type
-
-
 def gen_do_assignment(dst, src):
     if dst.type.node_type == 'Type_Header':
         src_hdr_name = src.path.name if src.node_type == 'PathExpression' else src.member
@@ -315,17 +305,15 @@ def gen_do_assignment(dst, src):
         is_assignable = src.type.size <= 32
 
         if src.type.node_type == 'Type_Bits' and not requires_memcpy:
-            dereference = "*" if needs_defererencing(dst, src) else ""
-
             if is_assignable:
                 if dst("expr.hdr_ref.urtype.is_metadata") or dst("hdr_ref.urtype.is_metadata"):
                     fldname = dst.member if dst("expr.hdr_ref.urtype.is_metadata") else dst.field_name
-                    #[ set_field((fldT[]){{pd, HDR(all_metadatas), FLD(all_metadatas,$fldname)}}, 0, ($dereference(${format_expr(src, expand_parameters=True)})), ${dst.urtype.size});
+                    #[ set_field((fldT[]){{pd, HDR(all_metadatas), FLD(all_metadatas,$fldname)}}, 0, ${format_expr(src, expand_parameters=True)}, ${dst.urtype.size});
                 elif dst.node_type == 'Slice':
                     #[ // TODO assignment to slice
                 else:
                     #[ /* ${src.node_type} ${dst.node_type} */
-                    #[ ${format_expr(dst)} = (${format_type(dst.type)})($dereference(${format_expr(src, expand_parameters=True)}));
+                    #[ ${format_expr(dst)} = (${format_type(dst.type)})(${format_expr(src, expand_parameters=True)}));
                     if dst.node_type == 'Member':
                         if dst.urtype('is_metadata', False):
                             # Note: the metadata header and field name is joined by underscores, separating them as best as possible
@@ -588,10 +576,11 @@ def gen_methodcall(mcall):
     funname = f'{m.path.name}{name_postfix}'
 
     # TODO make this work well
-    is_good_type = lambda t: t.node_type != 'Type_Header' and ('is_metadata' not in t or not t.is_metadata)
+    # is_good_type = lambda t: t.node_type != 'Type_Header' and ('is_metadata' not in t or not t.is_metadata)
+    is_good_type = lambda t: t.node_type != 'Type_Header'
     argtypes = ", ".join(mcall.arguments.filter(lambda arg: not arg.is_vec()).map('expression._expr.urtype').filter(is_good_type).map(format_type) + ['SHORT_STDPARAMS'])
 
-    # pre[ extern ${format_type(mcall.urtype)} $funname($argtypes);
+    #pre[ extern ${format_type(mcall.urtype)} $funname($argtypes);
     #[ ${format_expr(mcall)};
 
 
@@ -1166,7 +1155,7 @@ def gen_format_call_digest(e):
     name_postfix = "".join(e.method.type.typeParameters.parameters.filter('node_type', 'Type_Var').map('urtype.name').map(lambda n: f'__{n}'))
     funname = f'{e.method.path.name}{name_postfix}'
 
-    #[ $funname(bg, $var, $receiver);
+    #[ $funname($receiver, $var, SHORT_STDPARAMS_IN);
     #[ sleep_millis(DIGEST_SLEEP_MILLIS);
 
 ################################################################################

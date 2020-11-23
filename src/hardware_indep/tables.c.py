@@ -112,7 +112,10 @@ for table in hlir.tables:
         #{         .${action_id}_params = {
         for param, value_expr in zip(params, args):
             _, hex_content = make_const(value_expr.expression)
-            #[             .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
+            if param.urtype.size <= 32:
+                #[             .${param.name} = ${value_expr.expression.value},
+            else:
+                #[             .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
         #}         },
         #}     };
 

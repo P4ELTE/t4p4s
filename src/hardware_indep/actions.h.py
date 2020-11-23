@@ -33,7 +33,7 @@ for ctl in hlir.controls:
         #{ typedef struct action_${act.name}_params_s {
         for param in act.parameters.parameters:
             paramtype = param.urtype
-            #[     FIELD(${param.name}, ${paramtype.size});
+            #[     ${format_type(param.urtype, varname = param.name)};
 
         if len(act.parameters.parameters) == 0:
             #[     FIELD(DUMMY_FIELD, 0);

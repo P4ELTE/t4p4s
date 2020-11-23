@@ -107,11 +107,7 @@ for table in hlir.tables:
         #[     action.action_id = action_${action.action_object.name};
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* bitmap_${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-#            if p.urtype.size < 32:
-#              #[ MODIFY_INT32_INT32_AUTO(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
-#           else:
-#               #[ memcpy(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
+            #[ memcpy(&action.${action.action_object.name}_params.${p.name}, bitmap_${p.name}, ${(p.urtype.size+7)//8});
 
         params = []
         for i, k in enumerate(table.key.keyElements):
@@ -146,7 +142,7 @@ for table in hlir.tables:
 
         for j, p in enumerate(action.action_object.parameters.parameters):
             #[ uint8_t* ${p.name} = (uint8_t*)((struct p4_action_parameter*)ctrl_m->action_params[$j])->bitmap;
-            #[ memcpy(action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.urtype.size+7)//8});
+            #[ memcpy(&action.${action.action_object.name}_params.${p.name}, ${p.name}, ${(p.urtype.size+7)//8});
 
         #{     if (${"false" if table.is_hidden else "true"}) {
         #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.short_name}: $$[action]{action.action_object.short_name}\n");
