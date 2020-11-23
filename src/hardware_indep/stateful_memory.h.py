@@ -65,12 +65,11 @@ for locname, loctype in all_locals:
     #[     $loctype $locname;
 
 
+smems = ('counter', 'direct_counter', 'meter', 'direct_meter', 'register')
+
 # Note: currently all control locals are put together into the global state
 for ctl in hlir.controls:
-    for local_var_decl in ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']:
-        if 'name' in local_var_decl.urtype and local_var_decl.urtype.name in ('counter', 'direct_counter', 'meter', 'direct_meter', 'register'):
-            continue
-
+    for local_var_decl in (ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']).filterfalse('urtype.node_type', 'Type_Header').filterfalse('urtype.name', smems):
         #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
 
 

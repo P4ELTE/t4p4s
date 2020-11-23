@@ -17,25 +17,20 @@ import functools
 #[     MODIFIED,
 #} } parsed_field_attr_t;
 
+all_fields = [(hdr, fld) for hdr in hlir.header_instances for fld in hdr.urtype.fields]
+parsed_fields = [(hdr, fld) for hdr, fld in all_fields if not fld.preparsed]
 
-# hirefs = [(hdr, f'{f"{hdr.enclosing_control.name}_" if "enclosing_control" in hdr else ""}{hdr.urtype.name}') for hdr in hlir.header_instances if not hdr.urtype.is_metadata]
-# hirefs = [(hdr, hdr.name) for hdr in hlir.header_instances if not hdr.urtype.is_metadata]
-hirefs = [(hdr, hdr.name) for hdr in hlir.header_instances]
-all_fields = [(hdr, hname, fld) for hdr, hname in hirefs for fld in hdr.urtype.fields]
-parsed_fields = [(hdr, hname, fld) for hdr, hname, fld in all_fields if not fld.preparsed]
-# parsed_fields = [(hdr, hname, fld) for hdr, hname, fld in all_fields if not fld.preparsed if fld.urtype.size <= 32]
-
-for hdr, hname in hirefs:
+for hdr in hlir.header_instances:
     if hdr.urtype.node_type == 'Type_HeaderUnion':
         raise NotImplementedError("Header unions are not supported")
 
 #{ typedef struct parsed_fields_s {
-for hdr, hname, fld in parsed_fields:
-    #[     uint32_t FLD(${hname},${fld._expression.name});
+for hdr, fld in parsed_fields:
+    #[     uint32_t FLD(${hdr.name},${fld._expression.name});
 #[
 
-for hdr, hname, fld in parsed_fields:
-    #[     parsed_field_attr_t FLD_ATTR(${hname},${fld._expression.name});
+for hdr, fld in parsed_fields:
+    #[     parsed_field_attr_t FLD_ATTR(${hdr.name},${fld._expression.name});
 #[
 #} } parsed_fields_t;
 
@@ -43,14 +38,14 @@ for hdr, hname, fld in parsed_fields:
 #[ // Header instance infos
 #[ // ---------------------
 
-#[ #define HEADER_COUNT ${max(len(hirefs), 1)}
+#[ #define HEADER_COUNT ${max(len(hlir.header_instances), 1)}
 #[ #define FIELD_COUNT ${max(len(all_fields), 1)}
 
 #[ extern const char* field_names[FIELD_COUNT];
 #[ extern const char* header_instance_names[HEADER_COUNT];
 
 # TODO maybe some more space needs to be added on for varlen headers?
-nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr, hname in hirefs])
+nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr in hlir.header_instances])
 #[ #define NONMETA_HDR_TOTAL_LENGTH ($nonmeta_hdrlens)
 
 
@@ -58,12 +53,12 @@ nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr, hname in hirefs]
 
 
 #{ typedef enum header_instance_e {
-for hdr, hname in hirefs:
+for hdr in hlir.header_instances:
     #[     HDR(${hdr.name}),
 #} } header_instance_t;
 
 #{ typedef enum field_instance_e {
-for hdr, hname in hirefs:
+for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
         #[   FLD(${hdr.name},${fld.name}),
 #} } field_instance_t;
@@ -98,7 +93,7 @@ for hdr, hname in hirefs:
 
 #{ static const struct hdr_info hdr_infos[HEADER_COUNT] = {
 byte_offsets = ["0"]
-for idx, (hdr, hname) in enumerate(hirefs):
+for idx, hdr in enumerate(hlir.header_instances):
     typ = hdr.urtype
     typ_bit_width = typ.bit_width if 'bit_width' in typ else 0
     typ_byte_width = typ.byte_width if 'byte_width' in typ else 0
@@ -122,7 +117,7 @@ if len(hlir.header_instances) == 0:
 
 
 #{ static const struct fld_info fld_infos[FIELD_COUNT] = {
-for hdr, hname in hirefs:
+for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
         #[     // field ${hdr.name}.${fld.name}
         #{     {
