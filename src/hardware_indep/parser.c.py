@@ -143,14 +143,14 @@ for s in parser.states:
         #[         dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_length, pd->payload_length);
         #[     } else {
         #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_length);
-        #}     }
+        #[     }
         #} }
         continue
 
     if s.name == 'reject':
         #[     debug(" " T4LIT(%%%%%%%%,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
         #[     drop_packet(STDPARAMS_IN);
-        #} }
+        #[ }
         continue
 
     #[     debug(" %%%%%%%% Parser state $$[parserstate]{s.name}\n");
