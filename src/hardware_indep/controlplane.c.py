@@ -208,31 +208,31 @@ for table in hlir.tables:
 #}     #endif
 #} }
 
-hack_i = 0
-for smem in unique_everseen([smem for table, smem in hlir.all_counters]):
+hack_i={}
+for table, smem in hlir.all_counters:
     for target in smem.smem_for:
         if not smem.smem_for[target]:
             continue
-        hack_i += 1
-        if hack_i%2==1:
-            for c in smem.components:
-                cname = c['name']
+        for c in smem.components:
+            cname = c['name']
+            if cname not in hack_i:
+                hack_i[cname] = 1
                 if smem.smem_type not in ["register", "direct_counter", "direct_meter"]:
                     #[ uint32_t ctrl_${cname}[${smem.amount}];
 
 #{ uint32_t* read_counter_value_by_name(char* counter_name, int* size, bool is_bytes){
 #[ int i;
-hack_i = 0
-for smem in unique_everseen([smem for table, smem in hlir.all_counters]):
+hack_i = {}
+for table, smem in hlir.all_counters:
     for target in smem.smem_for:
         if not smem.smem_for[target]:
-            continue
-        hack_i += 1
-        if hack_i%2==0:
             continue
 
         for c in smem.components:
             cname = c['name']
+            if cname in hack_i:
+                continue
+            hack_i[cname] = 1
             pre_bytes = ''
             if c['for'] == "packets":
                 pre_bytes = '!'
