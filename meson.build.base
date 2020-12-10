@@ -76,8 +76,4 @@ include_dirs = include_directories(
     hdep / 'shared/ctrl_plane',
 )
 
-all_dependencies = [
-    dependency('libdpdk'),
-    dependency('threads'),
-]
 

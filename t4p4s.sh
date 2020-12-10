@@ -726,6 +726,24 @@ EOT
     done
 
 
+    DEPENDENCY_EXTRA_ARGS=""
+    if [ "$(optvalue static)" == on ]; then
+        DEPENDENCY_EXTRA_ARGS=", static: true"
+        EXECUTABLE_LINK_ARGS="['-Wl,--whole-archive','-l:librte_mempool_ring.a']"
+    fi
+
+    sudo cat <<EOT >>"/tmp/meson.build.tmp"
+all_dependencies = [
+    dependency('libdpdk'$DEPENDENCY_EXTRA_ARGS),
+    dependency('threads'$DEPENDENCY_EXTRA_ARGS),
+]
+link_args = [
+    $EXECUTABLE_LINK_ARGS
+]
+EOT
+
+
+
     sudo cat <<EOT >>"/tmp/meson.build.tmp"
 executable(
     meson.project_name(),
@@ -734,15 +752,16 @@ executable(
     gnu_symbol_visibility : 'hidden',
     include_directories   : include_dirs,
     dependencies          : all_dependencies,
+    link_args             : link_args,
 )
 EOT
+
 
     overwrite_on_difference "meson.build" "${T4P4S_TARGET_DIR}"
 
 
     msg "[$(cc 0)COMPILE SWITCH$nn]"
     verbosemsg "C compiler options: $(cc 0)$(print_cmd_opts "${OPTS[cflags]}")${nn}"
-
     if [ ! -d ${T4P4S_TARGET_DIR}/build ];  then
         cd ${T4P4S_TARGET_DIR}
 
