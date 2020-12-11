@@ -280,8 +280,8 @@ for table, smem in hlir.all_counters:
 #[         bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
 #[         launch_backend(bg);
 #[         dev_mgr_init_with_t4p4s(dev_mgr_ptr, recv_from_controller, read_counter_value_by_name, 1);
-#[         PIGrpcServerRunAddrGnmi("127.0.0.1:50051", 0);
-#[         PIGrpcServerRun();
+#[         PIGrpcServerRunAddrGnmi("0.0.0.0:50051", 0);
+#[         //PIGrpcServerRun();
 #}     }
 #[ #else
 #[     void init_control_plane()
