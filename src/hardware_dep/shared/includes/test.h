@@ -70,6 +70,7 @@ typedef struct testcase_s {
 #define UDP_PORT_GTPU  "0868" /* 2152 */
 #define UDP_PORT_VXLAN "12B5" /* 4789 */
 #define UDP_DPORT_RLC  "FF4F" /* 65359 */
+#define UDP_PORT_BUFFER "303A" /*12346*/
 
 #define ARP_HTYPE_ETHERNET "0001"
 
@@ -116,10 +117,10 @@ typedef struct testcase_s {
 #define ARP_IPV4(dsteth, srceth, arp_oper, ...)   FDATA(hETH(dsteth, srceth, cARP), hARP(arp_oper), ##__VA_ARGS__)
 
 #define VXLAN(dsteth, srceth, srcip, ...)               UDP(dsteth, UDP_PORT_VXLAN, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
-#define GTP(dsteth, srceth, srcip, ...)                 UDP(dsteth,  UDP_PORT_GTPU, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
+#define GTP(dsteth, srceth, srcip, ...)                 UDP(dsteth, UDP_PORT_GTPU, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
 #define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"28":"20"), ##__VA_ARGS__)
 #define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"48":"40"), ##__VA_ARGS__)
-
+#define PHYS_BUFFER(dsteth, srceth, srcip, ...)         UDP(dsteth, UDP_PORT_BUFFER, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
 
 
 #define IPV6_0000 "00000000000000000000000000000000"
