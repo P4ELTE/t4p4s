@@ -121,6 +121,7 @@ typedef struct testcase_s {
 #define GTPv1(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"28":"20"), ##__VA_ARGS__)
 #define GTPv2(dsteth, dstip, srceth, srcip, tFlag, ...) GTP(dsteth, dstip, srceth, srcip, "00000000", (tFlag?"48":"40"), ##__VA_ARGS__)
 #define PHYS_BUFFER(dsteth, srceth, srcip, ...)         UDP(dsteth, UDP_PORT_BUFFER, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
+#define RLC(dsteth, srceth, srcip, ...)                 UDP(dsteth, UDP_DPORT_RLC, srceth, srcip, "0000", "0000", ##__VA_ARGS__)
 
 
 #define IPV6_0000 "00000000000000000000000000000000"
