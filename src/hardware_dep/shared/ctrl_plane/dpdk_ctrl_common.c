@@ -140,7 +140,7 @@ void fill_t_fwd_table(uint16_t inport, uint16_t port, uint8_t mac[6], int wmac)
 
         h = create_p4_header(buffer, 0, 2048);
         te = create_p4_add_table_entry(buffer,0,2048);
-        strcpy(te->table_name, "t_fwd_0");
+        strcpy(te->table_name, ".t_fwd");
 
         exact = add_p4_field_match_exact(te, 2048);
         strcpy(exact->header.name, "all_metadatas.ingress_port");
@@ -149,7 +149,7 @@ void fill_t_fwd_table(uint16_t inport, uint16_t port, uint8_t mac[6], int wmac)
 
         if (wmac) {
                 a = add_p4_action(h, 2048);
-                strcpy(a->description.name, "forward_rewrite");
+                strcpy(a->description.name, ".forward_rewrite");
         
                 ap = add_p4_action_parameter(h, a, 2048);        
                 strcpy(ap->name, "port");
@@ -169,7 +169,7 @@ void fill_t_fwd_table(uint16_t inport, uint16_t port, uint8_t mac[6], int wmac)
                 netconv_p4_action_parameter(ap2);
         } else {
                 a = add_p4_action(h, 2048);
-                strcpy(a->description.name, "forward");
+                strcpy(a->description.name, ".forward");
         
                 ap = add_p4_action_parameter(h, a, 2048);        
                 strcpy(ap->name, "port");

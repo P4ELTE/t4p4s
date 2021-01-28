@@ -77,7 +77,7 @@ int read_config_from_file(char *filename) {
 
 void init() {
         printf("Set default actions.\n");
-        set_table_default_action("t_fwd", "t_fwd_0", "_drop");
+        set_table_default_action(".t_fwd", ".t_fwd", "._drop");
 
         fill_t_fwd_table(uplink_inport, uplink_port, uplink_mac, uplink);
         fill_t_fwd_table(downlink_inport, downlink_port, downlink_mac, downlink);
