@@ -13,15 +13,11 @@ struct metadata {
 struct headers {
     @name(".ethernet") 
     ethernet_t ethernet;
-    ethernet_t ethernet2;
-    ethernet_t ethernet3;
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract(hdr.ethernet);
-        packet.extract(hdr.ethernet2);
-        packet.extract(hdr.ethernet3);
         transition accept;
     }
     @name(".start") state start {
@@ -50,7 +46,6 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         digest<mac_learn_digest>((bit<32>)1024, { hdr.ethernet.srcAddr, standard_metadata.ingress_port });
     }
     @name("._nop") action _nop() {
-        hdr.ethernet2.setInvalid();
     }
     @name("._nop") action testing(bit<32> arg1, bit<32> arg2) {
     }
@@ -95,8 +90,6 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 control DeparserImpl(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-//        packet.emit(hdr.ethernet2);
-        packet.emit(hdr.ethernet3);
     }
 }
 
