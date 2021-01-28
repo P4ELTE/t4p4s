@@ -25,8 +25,8 @@ from compiler_common import unique_everseen
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     action_${action.action_object.name},
-if len(table.actions) == 0:
-    #[      action_,
+    if len(table.actions) == 0:
+        #[     action_,
 #} } actions_t;
 
 for ctl in hlir.controls:
