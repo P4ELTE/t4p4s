@@ -1,3 +1,5 @@
+SET-DEFAULT .smac .mac_learn
+SET-DEFAULT .dmac .bcast
 MAC-FWD aa:cc:dd:cc:00:01 1
 MAC-FWD aa:cc:dd:cc:00:02 1
 MAC-FWD aa:cc:dd:cc:00:03 1
