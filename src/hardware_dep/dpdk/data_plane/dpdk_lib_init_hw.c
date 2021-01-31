@@ -36,6 +36,7 @@ uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 #endif
 
 struct rte_eth_conf port_conf = {
+#ifndef T4P4S_VETH_MODE
     .rxmode = {
         .mq_mode = ETH_MQ_RX_RSS,
         .max_rx_pkt_len = RTE_ETH_MAX_LEN,
@@ -64,6 +65,7 @@ struct rte_eth_conf port_conf = {
     .txmode = {
         .mq_mode = ETH_MQ_TX_NONE,
     },
+#endif
 };
 
 //=============================================================================
