@@ -531,6 +531,17 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
     done
 done
 
+
+if [ "$(optvalue verbose)" != off ]; then
+  echo "-------------------------"
+  echo "Configuration parameters (without colors and lights):"
+  for x in "${!OPTS[@]}"; do
+      if [ -z $(echo "$x"| grep -E "COLOUR|LIGHT") ]; then
+           printf "[%s]=%s\n" "$x" "${OPTS[$x]}"
+      fi
+  done
+fi
+
 verbosemsg "Python 3   is $(cc 0)$PYTHON$nn"
 verbosemsg "Debugger   is $(cc 0)$DEBUGGER$nn"
 verbosemsg "Parse port is $(cc 0)$PYTHON_PARSE_HELPER_PORT$nn"
