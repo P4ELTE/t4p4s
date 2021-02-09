@@ -350,6 +350,7 @@ def generate_code(file, genfile, localvars={}):
         localvars['generated_code'] = ""
         module_name = genfile
 
+        localvars['t4p4sdir'] = os.path.relpath(os.path.join(args['generated_dir'], '..', "gen"))
         exec(compile(code, module_name, 'exec'), localvars, localvars)
 
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
