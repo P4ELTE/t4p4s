@@ -17,8 +17,6 @@ typedef struct target_buf_s {
     enum field_instance_e fld;
 } bufT;
 
-static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width);
-
 #include "dpdk_primitives_impl.h"
 
 

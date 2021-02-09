@@ -15,25 +15,27 @@
    Auxiliary
 *******************************************************************************/
 
-#define FIELD_FIXED_WIDTH_HDESC(fld) (fld != hdr_infos[fld_infos[fld].header_instance].var_width_field)
-#define FIELD_FIXED_POS_HDESC(fld)   (fld <= hdr_infos[fld_infos[fld].header_instance].var_width_field || hdr_infos[fld_infos[fld].header_instance].var_width_field == -1)
+#define FLDINFOS(fld) (hdr_infos[fld_infos[fld].header_instance])
 
-#define FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, fld) (FIELD_FIXED_WIDTH_HDESC(fld) ? fld_infos[fld].bit_width : hdesc.var_width_field_bitwidth)
-#define FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, fld) (fld_infos[fld].byte_offset + (FIELD_FIXED_POS_HDESC(fld) ? 0 : (hdesc.var_width_field_bitwidth / 8)))
+#define FLD_IS_FIXED_WIDTH(fld) (fld != FLDINFOS(fld).var_width_field)
+#define FLD_IS_FIXED_POS(fld)   (FLDINFOS(fld).var_width_field == -1 || fld <= FLDINFOS(fld).var_width_field)
+
+#define FLD_BITWIDTH(hdesc, fld) (FLD_IS_FIXED_WIDTH(fld) ? fld_infos[fld].bit_width : hdesc.var_width_field_bitwidth)
+#define FLD_BYTEOFFSET(hdesc, fld) (fld_infos[fld].byte_offset + (FLD_IS_FIXED_POS(fld) ? 0 : (hdesc.var_width_field_bitwidth / 8)))
 
 #define handle(hdesc, fld) \
         ((bitfield_handle_t) \
         { \
-            .byte_addr   = (((uint8_t*)hdesc.pointer)+(FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, fld))), \
-            .meta        = hdr_infos[fld_infos[fld].header_instance].is_metadata, \
-            .bitwidth    = FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, fld), \
-            .bytewidth   = (FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, fld) + 7) / 8, \
-            .bitcount    = FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, fld) + fld_infos[fld].bit_offset, /* bitwidth + bitoffset */ \
-            .bytecount   = ((FIELD_DYNAMIC_BITWIDTH_HDESC(hdesc, fld) + 7 + fld_infos[fld].bit_offset) / 8), \
+            .byte_addr   = (((uint8_t*)hdesc.pointer)+(FLD_BYTEOFFSET(hdesc, fld))), \
+            .meta        = FLDINFOS(fld).is_metadata, \
+            .bitwidth    = FLD_BITWIDTH(hdesc, fld), \
+            .bytewidth   = (FLD_BITWIDTH(hdesc, fld) + 7) / 8, \
+            .bitcount    = FLD_BITWIDTH(hdesc, fld) + fld_infos[fld].bit_offset, /* bitwidth + bitoffset */ \
+            .bytecount   = ((FLD_BITWIDTH(hdesc, fld) + 7 + fld_infos[fld].bit_offset) / 8), \
             .bitoffset   = fld_infos[fld].bit_offset, \
-            .byteoffset  = FIELD_DYNAMIC_BYTEOFFSET_HDESC(hdesc, fld), \
+            .byteoffset  = FLD_BYTEOFFSET(hdesc, fld), \
             .mask        = fld_infos[fld].mask, \
-            .fixed_width = FIELD_FIXED_WIDTH_HDESC(fld), \
+            .fixed_width = FLD_IS_FIXED_WIDTH(fld), \
         })
 
 #define header_desc_buf(buf, w) ((header_descriptor_t) { -1, buf, -1, w })
@@ -80,17 +82,16 @@
 // Modifies a field in the packet by a uint32_t value (no byteorder conversion) [MAX 4 BYTES]
 // assuming `uint32_t res32' is in the scope
 #define MODIFY_INT32_INT32_BITS(dst_fd, value32) { \
+    res32 = (FIELD_BYTES(dst_fd) & ~FIELD_MASK(dst_fd)); \
     if (dst_fd.bytecount == 1) \
-        res32 = (FIELD_BYTES(dst_fd) & ~FIELD_MASK(dst_fd)) | (value32 << (8 - dst_fd.bitcount) & FIELD_MASK(dst_fd)); \
+        res32 |= (value32 << (8 - dst_fd.bitcount) & FIELD_MASK(dst_fd)); \
     else if (dst_fd.bytecount == 2) \
-        res32 = (FIELD_BYTES(dst_fd) & ~FIELD_MASK(dst_fd)) | \
-                (value32 &  BITS_MASK1(dst_fd)) | \
-               ((value32 & (BITS_MASK3(dst_fd) >> (16 - dst_fd.bitwidth))) << (16 - dst_fd.bitwidth)); \
+        res32 |=  (value32 &  BITS_MASK1(dst_fd)) | \
+                 ((value32 & (BITS_MASK3(dst_fd) >> (16 - dst_fd.bitwidth))) << (16 - dst_fd.bitwidth)); \
     else \
-        res32 = (FIELD_BYTES(dst_fd) & ~FIELD_MASK(dst_fd)) | \
-                (value32 &  BITS_MASK1(dst_fd)) | \
-               ((value32 & (BITS_MASK2(dst_fd) >> dst_fd.bitoffset)) << dst_fd.bitoffset) | \
-               ((value32 & (BITS_MASK3(dst_fd) >> (dst_fd.bytecount * 8 - dst_fd.bitwidth))) << (dst_fd.bytecount * 8 - dst_fd.bitwidth)); \
+        res32 |=  (value32 &  BITS_MASK1(dst_fd)) | \
+                 ((value32 & (BITS_MASK2(dst_fd) >> dst_fd.bitoffset)) << dst_fd.bitoffset) | \
+                 ((value32 & (BITS_MASK3(dst_fd) >> (dst_fd.bytecount * 8 - dst_fd.bitwidth))) << (dst_fd.bytecount * 8 - dst_fd.bitwidth)); \
     memcpy(dst_fd.byte_addr, &res32, dst_fd.bytecount); \
 }
 
@@ -167,43 +168,6 @@
 
 /*******************************************************************************/
 
-// TODO simplify all other interface macros, too
-static int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32) {
-    int res32;
-    MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd , h), f), value32);
-    return res32;
-}
+int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width);
 
-
-static int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
-#ifdef T4P4S_DEBUG
-    // exactly one of `f` and `b` have to be non-zero
-    assert((f == 0) != (b == 0));
-#endif
-
-    if (f != 0) {
-        fldT fld = f[0];
-        debug("    " T4LIT(=,field) " Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%d) "b (" T4LIT(%d) "B) = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
-              header_instance_names[fld.hdr],
-              field_names[fld.fld],
-              bit_width,
-              bit_width <= 8 ? 1 : bit_width <= 16 ? 2 : 4,
-              bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32,
-              (bit_width+7)/8*2,
-              bit_width <= 8 ? (uint8_t)value32 : bit_width <= 16 ? (uint16_t)value32 : value32);
-
-        int res32;
-        if ((handle(header_desc_ins(fld.pd , fld.hdr), fld.fld)).bytecount == 32) {
-            *(int*)((handle(header_desc_ins(fld.pd , fld.hdr), fld.fld)).byte_addr) = value32;
-        } else {
-            MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
-        }
-        return res32;
-    }
-
-    // TODO implement this case, too
-    if (b != 0)   rte_exit(2, "TODO unimplemented portion of set_field");
-
-    // TODO should never happen; exit
-    return -1;
-}
+int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32);
