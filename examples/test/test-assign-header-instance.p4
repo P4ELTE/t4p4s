@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Eotvos Lorand University, Budapest, Hungary
 
+#include <core.p4>
+#include <v1model.p4>
 #include "../include/std_headers.p4"
 
 struct metadata {
