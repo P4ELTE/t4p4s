@@ -187,8 +187,8 @@ def gen_extern_format_parameter(expr, par, packets_or_bytes_override = None):
             else:
                 #pre[ uint8_t $varname[${(int)((expr_width+7)//8)}];
                 if par.direction=="inout":
-                    #pre[ EXTRACT_BYTEBUF_PACKET(pd, HDR(${hdrname}), ${fldname}, $varname);
-                #aft[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR(${hdrname}), ${fldname}, $varname, ${expr_width});
+                    #pre[ EXTRACT_BYTEBUF_PACKET(pd, HDR($hdrname), ${fldname}, $varname);
+                #aft[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR($hdrname), ${fldname}, $varname, ${expr_width});
                 #[ $varname
 
 
@@ -323,7 +323,8 @@ def gen_do_assignment(dst, src):
 
                         if dst.urtype.size <= 32:
                             # (${format_type(dst.type)})(${format_expr(src, expand_parameters=True)})
-                            srcbuf = casting(dst.type, format_expr(src, expand_parameters=True))
+                            is_local = 'path' in src and 'name' in src.path and is_control_local_var(src.path.name)
+                            srcbuf = casting(dst.type, is_local, format_expr(src, expand_parameters=True))
                             #[ MODIFY_INT32_INT32_BITS_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), $srcbuf);
                         else:
                             pass
@@ -357,24 +358,29 @@ def gen_do_assignment(dst, src):
             with SugarStyle('no_comment'):
                 dsttxt = gen_format_expr(dst).strip()
                 srctxt = gen_format_expr(src, expand_parameters=True).strip()
+
             size = (dst.type.size+7)//8
+            pad_size = 4 if size == 3 else size
+
+            tmpvar = generate_var_name('assignment')
+
             if dst.node_type == 'Member':
                 hdrname = dst.expr.hdr_ref.name
                 fldname = dst.member
-                tmpvar = generate_var_name('assignment')
-                #[ ${format_type(dst.type)} $tmpvar = (${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)});
+                #[ ${format_type(dst.type)} $tmpvar = net2t4p4s_${pad_size}((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
                 #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$hdrname", "$fldname", $size, "$srctxt");
-                #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${fldname}), &$tmpvar, $size);
+                #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), &$tmpvar, $size);
             else:
-                #[ memcpy(&(${format_expr(dst)}), &($srcexpr), $size);
-                #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$dsttxt", $size, "$srctxt");
+                #[ ${format_type(dst.type)} $tmpvar = net2t4p4s_${pad_size}((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
+                #[ memcpy(&(${format_expr(dst)}), &($tmpvar), ${pad_size});
+                #[ dbg_bytes(&(${format_expr(dst)}), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = ", "$dsttxt", $size);
     elif dst.node_type == 'Member':
         tmpvar = generate_var_name('assign_member')
         hdrname = dst.expr.hdr_ref.name
         fldname = dst.member
 
         #pre[ ${format_type(dst.type)} $tmpvar = ${format_expr(src, expand_parameters=True)};
-        #[ MODIFY_INT32_BYTEBUF_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${fldname}), &$tmpvar, sizeof(${format_type(dst.type)}));
+        #[ MODIFY_INT32_BYTEBUF_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), &$tmpvar, sizeof(${format_type(dst.type)}));
     else:
         #[ ${format_expr(dst)} = ${format_expr(src, expand_parameters=True)};
 
@@ -489,7 +495,7 @@ def gen_setInvalid(hdr_name):
     #[    pd->is_emit_reordering = true;
     #[    debug("   :: Header $$[header]{hdr_name}/" T4LIT(%dB) " set as $$[status]{}{invalid}\n", pd->headers[HDR($hdr_name)].length);
     #[ } else {
-    #[    debug("   " T4LIT(!!,warning) " Trying to set header $$[header]{hdr_name} to $$[success]{}{valid}, but it is already $$[success]{}{valid}\n");
+    #[    debug("   " T4LIT(!!,warning) " Trying to set header $$[header]{hdr_name} to $$[status]{}{invalid}, but it is already $$[status]{}{invalid}\n");
     #} }
 
 def gen_emit(mcall):
@@ -555,9 +561,14 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
     extern_name = m.expr.urtype.name
     if (m.expr.decl_ref.urtype.name, mcall.method.member) == ('packet_in', 'advance'):
         size = mcall.arguments[0].expression.value
-        #[ pd->extract_ptr += $size;
+        if size % 8 != 0:
+            size2 = ( (size+7)//8 ) * 8
+            addWarning('Advancing', f'Asked to advance {size} bits which is not byte aligned, advancing {size2} bytes instead')
+            size = size2
+
+        #[ pd->extract_ptr += ($size+7) / 8;
         #[ pd->is_emit_reordering = true;
-        #[ debug("   :: Advancing packet by " T4LIT($size) " bytes\n");
+        #[ debug("   :: " T4LIT(Advancing packet,status) " by " T4LIT($size) " bits\n");
     else:
         dref = mcall.method.expr.decl_ref
 
@@ -591,6 +602,8 @@ def gen_methodcall(mcall):
     # is_good_type = lambda t: t.node_type != 'Type_Header' and ('is_metadata' not in t or not t.is_metadata)
     is_good_type = lambda t: t.node_type != 'Type_Header'
     argtypes = ", ".join(mcall.arguments.filter(lambda arg: not arg.is_vec()).map('expression._expr.urtype').filter(is_good_type).map(format_type) + ['SHORT_STDPARAMS'])
+
+    # breakpoint()
 
     #pre[ extern ${format_type(mcall.urtype)} $funname($argtypes);
     #[ ${format_expr(mcall)};
@@ -635,7 +648,6 @@ def gen_method_apply(e):
 
 def gen_method_lookahead(e):
     var = generate_var_name('lookahead')
-    varh = generate_var_name('lookahead_handle')
 
     arg0 = e.typeArguments[0]
     size = arg0.size
@@ -643,7 +655,12 @@ def gen_method_lookahead(e):
     if size > 32:
         addError('doing lookahead', f'Lookahead was called on a type that is {size} bits long; maximum supported length is 32')
 
-    #[ (*(${gen_format_type(arg0)}*)(pd->extract_ptr))
+    byte_size = (size+7) // 8
+    if byte_size == 3:
+        byte_size = 4
+
+    #pre[ ${gen_format_type(arg0)} $var = topbits_${byte_size}(*(${gen_format_type(arg0)}*)(pd->extract_ptr), ${size});
+    #[ $var
 
 def gen_method_setValid(e):
     hdr = e.method.expr.hdr_ref
@@ -666,17 +683,20 @@ def gen_method_setValid(e):
     #[ };
 
 
-def gen_casting(dst_type, expr_str):
+def gen_casting(dst_type, is_local, expr_str):
     dt   = format_type(dst_type)
     varname = generate_var_name('casting')
-    #pre[ $dt $varname = ($dt)($expr_str);
+    if is_local:
+        #pre[ $dt $varname = *($dt*)($expr_str);
+    else:
+        #pre[ $dt $varname = ($dt)($expr_str);
     #[ $varname
 
 def gen_masking(dst_type, expr_str):
     dt   = format_type(dst_type)
     mask = format_type_mask(dst_type)
     varname = generate_var_name('masking')
-    #pre[ $dt $varname = ($dt)(${casting(dst_type, expr_str)});
+    #pre[ $dt $varname = ($dt)(${casting(dst_type, False, expr_str)});
     #[ ($mask & $varname)
 
 def gen_fmt_Cast(e, format_as_value=True, expand_parameters=False, needs_variable=False):
@@ -761,7 +781,8 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
     for k in e.select.components:
         varname = gen_var_name(k)
         if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
-            #pre[ ${format_type(k.type)} $varname = ${format_expr(k)};
+            deref = "*" if is_control_local_var(k.path.name) else ""
+            #pre[ ${format_type(k.type)} $varname = $deref(${format_expr(k)});
         elif k.type.node_type == 'Type_Bits' and k.type.size % 8 == 0:
             #pre[ uint8_t $varname[${k.type.size/8}];
             #pre[ EXTRACT_BYTEBUF_PACKET(pd, ${format_expr(k, False)}, $varname);'
@@ -798,7 +819,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})))
         else:
             hdrname = "all_metadatas" if hdr.urtype('is_metadata', False) else hdr.name
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${e.member})))
+            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$emember})))
     else:
         if e.type.node_type in {'Type_Enum', 'Type_Error'}:
             #[ ${e.type.members.get(e.member).c_name}
@@ -913,7 +934,7 @@ def gen_fmt_ListExpression(e, format_as_value=True, expand_parameters=False, nee
 
                 neighbour_flds = list(takewhile(lam, enumerate(idxflds)))
                 width = '+'.join((f'field_desc(pd, FLD({hdrname},{fld.name})).bitwidth' for _, (_, fld) in neighbour_flds))
-                #pre[ memcpy(buffer${e.id} + (${offset}+7)/8, field_desc(pd, FLD(${hdrname}, ${fld0.name})).byte_addr, ((${width}) +7)/8);
+                #pre[ memcpy(buffer${e.id} + (${offset}+7)/8, field_desc(pd, FLD($hdrname, {fld0name})).byte_addr, ((${width}) +7)/8);
 
                 idxflds = idxflds[len(neighbour_flds):]
                 offset += f'+{width}'
@@ -1040,12 +1061,12 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             hdrname = e.expr.member
 
             #pre[ uint8_t ${var_name}[${byte_size}];
-            #pre[ EXTRACT_BYTEBUF_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${fldname}), ${var_name});
+            #pre[ EXTRACT_BYTEBUF_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), ${var_name});
 
             #= var_name
         else:
             hdrname = 'all_metadatas' if e.expr.hdr_ref.urtype.is_metadata else e.expr.member
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdrname}), FLD(${hdrname},${fldname})))
+            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname)))
     elif nt in complex_cases:
         case = complex_cases[nt]
         if nt == 'SelectExpression':
@@ -1173,7 +1194,7 @@ def gen_format_call_digest(e):
             #pre[ uint${sz}_t $fldvar = GET_INT32_AUTO_PACKET(pd,HDR($hdrname),FLD($hdrname,$fldname));
             #pre[ dbg_bytes(&$fldvar, (${size}+7)/8, "        : "T4LIT(${hdrname},header)"."T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
         else:
-            #pre[ dbg_bytes(field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, (${size}+7)/8, "        : "T4LIT(${hdrname},header)"."T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
+            #pre[ dbg_bytes(field_desc(pd, FLD($hdrname,$fldname)).byte_addr, (${size}+7)/8, "        : "T4LIT(${hdrname},header)"."T4LIT(${fldname},field)"/"T4LIT(${size})" = ");
 
     #pre[ ctrl_plane_digest $var = create_digest(bg, "$name");
     for hdrname, fldname, size in fld_infos(e):
@@ -1183,7 +1204,7 @@ def gen_format_call_digest(e):
             fldvar = fldvars[fldtxt]
             #pre[ add_digest_field($var, &$fldvar, $sz);
         else:
-            #pre[ add_digest_field($var, field_desc(pd, FLD(${hdrname},${fldname})).byte_addr, $size);
+            #pre[ add_digest_field($var, field_desc(pd, FLD($hdrname,$fldname)).byte_addr, $size);
 
     name_postfix = "".join(e.method.type.typeParameters.parameters.filter('node_type', 'Type_Var').map('urtype.name').map(lambda n: f'__{n}'))
     funname = f'{e.method.path.name}{name_postfix}'
@@ -1223,9 +1244,9 @@ def masking(dst_type, e):
     with SugarStyle("inline_comment"):
         return gen_masking(dst_type, e)
 
-def casting(dst_type, e):
+def casting(dst_type, is_local, e):
     with SugarStyle("inline_comment"):
-        return gen_casting(dst_type, e)
+        return gen_casting(dst_type, is_local, e)
 
 def format_statement(stmt, ctl=None):
     if ctl is not None:
