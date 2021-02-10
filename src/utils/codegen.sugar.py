@@ -361,17 +361,18 @@ def gen_do_assignment(dst, src):
 
             size = (dst.type.size+7)//8
             pad_size = 4 if size == 3 else size
+            net2t4p4s = '' if size > 4 else f'net2t4p4s_{pad_size}'
 
             tmpvar = generate_var_name('assignment')
 
             if dst.node_type == 'Member':
                 hdrname = dst.expr.hdr_ref.name
                 fldname = dst.member
-                #[ ${format_type(dst.type)} $tmpvar = net2t4p4s_${pad_size}((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
+                #[ ${format_type(dst.type)} $tmpvar = $net2t4p4s((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
                 #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$hdrname", "$fldname", $size, "$srctxt");
                 #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), &$tmpvar, $size);
             else:
-                #[ ${format_type(dst.type)} $tmpvar = net2t4p4s_${pad_size}((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
+                #[ ${format_type(dst.type)} $tmpvar = $net2t4p4s((${format_type(dst.type)})(${format_expr(src, expand_parameters=True, needs_variable=True)}));
                 #[ memcpy(&(${format_expr(dst)}), &($tmpvar), ${pad_size});
                 #[ dbg_bytes(&(${format_expr(dst)}), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = ", "$dsttxt", $size);
     elif dst.node_type == 'Member':
@@ -781,7 +782,7 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
     for k in e.select.components:
         varname = gen_var_name(k)
         if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
-            deref = "*" if is_control_local_var(k.path.name) else ""
+            deref = "" if 'path' not in k else "*" if is_control_local_var(k.path.name) else ""
             #pre[ ${format_type(k.type)} $varname = $deref(${format_expr(k)});
         elif k.type.node_type == 'Type_Bits' and k.type.size % 8 == 0:
             #pre[ uint8_t $varname[${k.type.size/8}];
@@ -819,7 +820,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})))
         else:
             hdrname = "all_metadatas" if hdr.urtype('is_metadata', False) else hdr.name
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$emember})))
+            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,${e.member})))
     else:
         if e.type.node_type in {'Type_Enum', 'Type_Error'}:
             #[ ${e.type.members.get(e.member).c_name}
