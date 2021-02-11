@@ -77,15 +77,18 @@ if [ "$FRESH" == "yes" ]; then
 fi
 
 if [ "$CLEANUP" == "yes" ]; then
-    echo Cleaning previously downloaded files and directories
-    sudo rm -rf dpdk*
-    sudo rm -rf protobuf
-    sudo rm -rf p4c
-    sudo rm -rf grpc
-    sudo rm -rf PI
-    sudo rm -rf P4Runtime_GRPCPP
-    sudo rm -rf t4p4s*
-    sudo rm -f t4p4s_environment_variables.sh
+    echo "Cleaning previously downloaded files and directories (move to backup folder named cleanup_archive)"
+
+    mkdir -p cleanup_archive
+
+    mv --backup=numbered dpdk* cleanup_archive/
+    mv --backup=numbered protobuf cleanup_archive/
+    mv --backup=numbered p4c cleanup_archive/
+    mv --backup=numbered grpc cleanup_archive/
+    mv --backup=numbered PI cleanup_archive/
+    mv --backup=numbered P4Runtime_GRPCPP cleanup_archive/
+    mv --backup=numbered t4p4s* cleanup_archive/
+    mv --backup=numbered t4p4s_environment_variables.sh cleanup_archive/
 fi
 
 APPROX_INSTALL_MB=0

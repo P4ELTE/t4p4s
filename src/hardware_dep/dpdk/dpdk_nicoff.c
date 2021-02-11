@@ -393,7 +393,7 @@ bool is_packet_handled(LCPARAMS) {
 }
 
 void main_loop_pre_rx(LCPARAMS) {
-
+    lcdata->is_valid = true;
 }
 
 void main_loop_post_rx(LCPARAMS) {

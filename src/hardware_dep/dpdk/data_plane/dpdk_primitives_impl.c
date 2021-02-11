@@ -47,3 +47,42 @@ void MODIFY_INT32_INT32_BITS_PACKET(packet_descriptor_t* pd, header_instance_t h
     MODIFY_INT32_INT32_BITS(handle(header_desc_ins(pd, hdr), fld), value32);
 }
 */
+
+// TODO simplify all other interface macros, too
+int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32) {
+    int res32;
+    MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd, h), f), value32);
+    return res32;
+}
+
+
+int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width) {
+#ifdef T4P4S_DEBUG
+    // exactly one of `f` and `b` have to be non-zero
+    assert((f == 0) != (b == 0));
+#endif
+
+    if (f != 0) {
+        fldT fld = f[0];
+        int byte_width = (bit_width+7)/8;
+
+        debug("    " T4LIT(=,field) " Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%d) "b (" T4LIT(%d) "B) = " T4LIT(%d) " (0x" T4LIT(%0*x) ")\n",
+              header_instance_names[fld.hdr],
+              field_names[fld.fld],
+              bit_width,
+              byte_width,
+              value32,
+              2 * byte_width,
+              value32);
+
+        int res32;
+        MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(fld.pd, fld.hdr), fld.fld), value32);
+        return value32;
+    }
+
+    // TODO implement this case, too
+    if (b != 0)   rte_exit(2, "TODO unimplemented portion of set_field");
+
+    // TODO should never happen; exit
+    return -1;
+}

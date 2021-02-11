@@ -19,8 +19,8 @@ void mac_learn_digest(void* digest) {
     digest_macport_t dig;
     undigest_macport(&dig, digest);
 
-    send_exact_entry(dig.port, dig.mac, ".dmac", "ethernet.dstAddr", ".forward", "port", 0);
-    send_exact_entry(dig.port, dig.mac, ".smac", "ethernet.srcAddr", "._nop", 0, 0);
+    send_exact_entry(dig.port, dig.mac, "dmac", "ethernet.dstAddr", "forward", "port", 0);
+    send_exact_entry(dig.port, dig.mac, "smac", "ethernet.srcAddr", "_nop", 0, 0);
 }
 
 void test_learn_ip(void* digest) {
@@ -58,7 +58,6 @@ void dhf(void* b) {
 int process_translation(const char* line) {
     char key[100];
     char value[100];
-
     int matches = sscanf(line, "%*s %s %s", key, value);
     if (2 != matches) return -1;
 
@@ -86,8 +85,8 @@ int process_mac_fwd(const char* line) {
     int matches = sscanf(line, "%*s %hhx:%hhx:%hhx:%hhx:%hhx:%hhx %hd", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5], &port);
     if (7 != matches) return -1;
 
-    send_exact_entry(port, mac, ".dmac", "ethernet.dstAddr", ".forward", "port", 0);
-    return send_exact_entry(port, mac, ".smac", "ethernet.srcAddr", "._nop", 0, 0);
+    send_exact_entry(port, mac, "dmac", "ethernet.dstAddr", "forward", "port", 0);
+    return send_exact_entry(port, mac, "smac", "ethernet.srcAddr", "_nop", 0, 0);
 }
 
 int process_exact(const char* line) {

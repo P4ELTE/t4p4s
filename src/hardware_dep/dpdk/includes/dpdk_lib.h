@@ -49,6 +49,16 @@
 #include "dpdk_lib_conf.h"
 
 //=============================================================================
+
+uint8_t topbits_1(uint8_t data, int bits);
+uint16_t topbits_2(uint16_t data, int bits);
+uint32_t topbits_4(uint32_t data, int bits);
+
+uint8_t net2t4p4s_1(uint8_t data);
+uint16_t net2t4p4s_2(uint16_t data);
+uint32_t net2t4p4s_4(uint32_t data);
+
+//=============================================================================
 // Timings
 
 #define TABCHANGE_SLEEP_MICROS 200

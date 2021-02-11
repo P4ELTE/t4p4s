@@ -4,6 +4,8 @@
 from compiler_common import unique_everseen
 from utils.codegen import format_expr, format_type
 
+import os
+
 #[ #include <unistd.h>
 
 #[ #include "dpdk_lib.h"
@@ -100,6 +102,13 @@ for table in hlir.tables:
             # TODO are these right?
             #[ uint8_t* ${target_name} = (uint8_t*)(((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->bitmap);
             #[ uint16_t ${target_name}_prefix_length = ((struct p4_field_match_lpm*)ctrl_m->field_matches[${i}])->prefix_length;
+
+    # with open(os.path.join(t4p4sdir, 'output_translate.txt'), 'w') as outf:
+    #     for action in table.actions:
+    #         if action.action_object.name == f'({action.action_object.canonical_name})':
+    #             continue
+    #         print(f"TRANSLATE {action.action_object.name} {action.action_object.canonical_name}")
+    #         outf.write(f"TRANSLATE {action.action_object.name} {action.action_object.canonical_name}")
 
     for action in table.actions:
         #{ if(strcmp("${action.action_object.canonical_name}", ctrl_m->action_name)==0) {

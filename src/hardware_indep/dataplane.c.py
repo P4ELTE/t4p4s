@@ -23,7 +23,6 @@ from compiler_common import types
 #[     extern device_mgr_t *dev_mgr_ptr;
 #} #endif
 
-#[ uint8_t* emit_addr;
 #[ uint32_t ingress_pkt_len;
 
 #[ extern ctrl_plane_backend bg;
@@ -571,7 +570,6 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     pd->is_emit_reordering = false;
 #[     parse_packet(STDPARAMS_IN);
 #[
-#[     emit_addr = pd->data;
 #[     pd->emit_hdrinst_count = 0;
 #[
 #[     process_packet(STDPARAMS_IN);
