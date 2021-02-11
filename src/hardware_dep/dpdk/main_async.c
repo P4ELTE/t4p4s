@@ -117,8 +117,9 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         rte_pktmbuf_adj(mbuf, sizeof(struct packet_descriptor_s*));
         //debug("Loading from async PD store! id is %d\n",async_pds_id);
         *pd = *async_pds_id;
-        rte_mempool_put_bulk(pd_pool, (void **) &async_pds_id, 1);
-
+        if(pd->program_state == 1) {
+            rte_mempool_put_bulk(pd_pool, (void **) &async_pds_id, 1);
+        }
         /*
         int async_pds_id = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
         rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
@@ -228,25 +229,25 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_typ
 void async_init_storage()
 {
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-    context_pool = rte_mempool_create("context_pool", (unsigned)1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    context_pool = rte_mempool_create("context_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
 #endif
     async_pool = rte_mempool_create("async_pool", (unsigned)1024*1024-1, sizeof(struct async_op), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (async_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create async op pool\n");
 #if ASYNC_MODE == ASYNC_MODE_PD
-    pd_pool = rte_mempool_create("pd_pool", (unsigned)1024-1, sizeof(struct packet_descriptor_s), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    pd_pool = rte_mempool_create("pd_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(struct packet_descriptor_s), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (pd_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create pd pool\n");
 #endif
 
-    context_buffer = rte_ring_create("context_ring", (unsigned)32*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    context_buffer = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
     for(int a=0;a<NUMBER_OF_CORES;a++) {
         char rxName[100];
         char txName[100];
         sprintf(rxName,"fake_crypto_rx_ring_%d",a);
         sprintf(txName,"fake_crypto_tx_ring_%d",a);
-        lcore_conf[a].fake_crypto_rx = rte_ring_create(rxName, (unsigned) 32*1024, SOCKET_ID_ANY,
+        lcore_conf[a].fake_crypto_rx = rte_ring_create(rxName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
                                                               0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-        lcore_conf[a].fake_crypto_tx = rte_ring_create(txName, (unsigned) 32*1024, SOCKET_ID_ANY,
+        lcore_conf[a].fake_crypto_tx = rte_ring_create(txName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
                                                               0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
 
         COUNTER_INIT(lcore_conf[a].async_drop_counter);
@@ -310,7 +311,10 @@ void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uns
             //TIME_MEASURE_START(lcdata->conf->async_main_time);
             pd->context = pd_store;
             //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
-            handler_function_with_params(lcdata, pd, port_id);
+
+            if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0) {
+                handler_function_with_params(lcdata, pd, port_id);
+            }
         }
     #endif
 

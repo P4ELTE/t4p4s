@@ -211,7 +211,12 @@ struct lcore_conf {
     #endif
 #endif
 
-
+#ifndef CRYPTO_CONTEXT_POOL_SIZE
+	#define CRYPTO_CONTEXT_POOL_SIZE 1
+#endif
+#ifndef CRYPTO_RING_SIZE
+	#define CRYPTO_RING_SIZE 32
+#endif
 #define DEBUG__COUNT_CONTEXT_MISSING_CAUSED_PACKET_DROP
 
 

@@ -210,13 +210,7 @@ void do_single_rx(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned q
                 COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
 
                 //TIME_MEASURE_START(lcdata->conf->async_main_time);
-                #if ASYNC_MODE == ASYNC_MODE_PD
-                    if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0){
-                        async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
-                    }
-                #else
-                    async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
-                #endif
+                async_handle_packet(lcdata, pd, pkt_idx, get_portid(lcdata, queue_idx), (void (*)(void))handler_function);
                 //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
             }
             else{
@@ -351,11 +345,6 @@ int launch_dpdk()
 
 int main(int argc, char** argv)
 {
-    RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
-    RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
-    RTE_LOG(INFO, P4_FWD, " -- NUMBER_OF_CORES: %u\n", NUMBER_OF_CORES);
-    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
-    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
     #ifdef  DEBUG__CRYPTO_EVERY_N
         RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
     #endif
@@ -366,7 +355,15 @@ int main(int argc, char** argv)
 
     initialize_args(argc, argv);
     initialize_nic();
-
+    
+    RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
+    RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
+    RTE_LOG(INFO, P4_FWD, " -- NUMBER_OF_CORES: %u\n", NUMBER_OF_CORES);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);
+    RTE_LOG(INFO, P4_FWD, " -- CRYPTO_RING_SIZE: %u\n", CRYPTO_RING_SIZE);
+    RTE_LOG(INFO, P4_FWD, " -- RTE_CYCLE_SIZE: %u\n", rte_get_timer_hz());
     int launch_count2 = launch_count();
     for (int i = 0; i < launch_count2; ++i) {
         debug("Initializing execution\n");

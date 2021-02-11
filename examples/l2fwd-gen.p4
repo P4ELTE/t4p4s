@@ -70,6 +70,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         smac.apply();
         dmac.apply();
+        do_encryption_async();
+        do_decryption_async();
     }
 }
 
