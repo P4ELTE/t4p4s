@@ -118,7 +118,7 @@ print_opts() {
         all_opts[$k]=1
     done
 
-    for optid in ${!all_opts[@]}; do
+    valuesList=$(for optid in ${!all_opts[@]}; do
         [[ $optid = [A-Z]*_* ]] && continue
 
         PREFIX="$(cc 0)"
@@ -126,7 +126,13 @@ print_opts() {
         [ "${IGNORE_OPTS[$optid]}" == "on" ] && PREFIX="$(cc 3 2)^"
         [ "${OPTS[$optid]}" != "" -a "${OPTS[$optid]}" != "on" ] && echo "$PREFIX$optid$nn=$(cc 1)${OPTS[$optid]}$nn" && continue
         echo "$PREFIX$optid$nn"
-    done | sort | tr '\n' ', '
+    done | sort)
+
+    if [ "$(optvalue verbose)" == "lines" ]; then
+      echo "\n$valuesList"
+    else
+      echo $valuesList | tr '\n' ', '
+    fi
 }
 
 setopt() {
@@ -530,17 +536,6 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
         fi
     done
 done
-
-
-if [ "$(optvalue verbose)" != off ]; then
-  echo "-------------------------"
-  echo "Configuration parameters (without colors and lights):"
-  for x in "${!OPTS[@]}"; do
-      if [ -z $(echo "$x"| grep -E "COLOUR|LIGHT") ]; then
-           printf "[%s]=%s\n" "$x" "${OPTS[$x]}"
-      fi
-  done
-fi
 
 verbosemsg "Python 3   is $(cc 0)$PYTHON$nn"
 verbosemsg "Debugger   is $(cc 0)$DEBUGGER$nn"

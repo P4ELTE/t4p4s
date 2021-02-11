@@ -123,7 +123,7 @@ The format of option definitions is the following.
     | %myexample=mytestcase   | example=**myexample** variant=test testcase=**mytestcase**              |
     | %myexample              | example=**myexample** variant=test testcase=test                        |
     | %%myexample=mytestcase  | example=**myexample** variant=test verbose dbg testcase=**mytestcase**  |
-    | %%myexample             | example=**myexample** variant=test verbose dbg suite                    |
+    | %%myexample             | example=**myexample** variant=test verbose=lines dbg suite                    |
 
 
 ### Execution
