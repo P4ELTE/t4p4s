@@ -1,43 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 // This file is included directly from `dpdk_lib.c`.
 
 
 extern void create_table(lookup_table_t* t, int socketid);
 extern void flush_table(lookup_table_t* t);
+extern void init_table_const_entries();
 
 void create_tables_on_socket(int socketid)
 {
-    debug(" :::: Initializing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("   :: Creating instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             state[socketid].tables[i][j] = malloc(sizeof(lookup_table_t));
             memcpy(state[socketid].tables[i][j], &t, sizeof(lookup_table_t));
             state[socketid].tables[i][j]->instance = j;
             create_table(state[socketid].tables[i][j], socketid);
+            #ifdef T4P4S_DEBUG
+                state[socketid].tables[i][j]->init_entry_count = 0;
+            #endif
         }
 
         state[socketid].active_replica[i] = 0;
     }
 }
 
-void create_table_on_lcore(unsigned lcore_id)
+void create_tables_on_lcore(unsigned lcore_id)
 {
     if (rte_lcore_is_enabled(lcore_id) == 0) return;
 
@@ -54,21 +44,54 @@ void create_table_on_lcore(unsigned lcore_id)
     }
 }
 
+#ifdef T4P4S_DEBUG
+void init_print_table_info()
+{
+    char table_names[64*NB_TABLES+256];
+    char* nameptr = table_names;
+    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): ", NB_REPLICA);
+
+    int common_count = 0;
+    int hidden_count = 0;
+    for (int i = 0; i < NB_TABLES; i++) {
+        lookup_table_t t = table_config[i];
+        if (t.is_hidden) {
+            ++hidden_count;
+            continue;
+        }
+        ++common_count;
+        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.short_name);
+    }
+
+    if (hidden_count > 0) {
+        if (common_count > 0) {
+            nameptr += sprintf(nameptr, " and ");
+        }
+        nameptr += sprintf(nameptr, T4LIT(%d) " hidden tables", hidden_count);
+    }
+
+    debug("%s\n", table_names);
+}
+#endif
+
 void init_tables()
 {
-    debug(" :::: Initializing stateful memories...\n");
+#ifdef T4P4S_DEBUG
+    init_print_table_info();
+#endif
+
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        create_table_on_lcore(lcore_id);
+        create_tables_on_lcore(lcore_id);
     }
+
+    init_table_const_entries();
 }
 
 void flush_tables_on_socket(int socketid)
 {
-    debug(" :::: Flushing tables on socket " T4LIT(%d,socket) "...\n", socketid);
     for (int i = 0; i < NB_TABLES; i++) {
         lookup_table_t t = table_config[i];
 
-        debug("   :: Flushing instances for table " T4LIT(%s,table) " (" T4LIT(%d) " copies)\n", t.name, NB_REPLICA);
         for (int j = 0; j < NB_REPLICA; j++) {
             flush_table(state[socketid].tables[i][j]);
         }
@@ -88,7 +111,7 @@ void flush_table_on_lcore(unsigned lcore_id)
 
 void flush_tables()
 {
-    debug(" :::: Flushing stateful memories...\n");
+    debug("Flushing tables on all cores\n");
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
         flush_table_on_lcore(lcore_id);
     }

@@ -1,0 +1,26 @@
+
+build_args += [
+    '-L' + (grpcpp / 'static_lib'),
+]
+
+# note: this variable is reassigned because the += operator is not supported here
+include_dirs = include_directories(
+    srcg,
+    hdep / 'dpdk/includes',
+    hdep / 'shared/includes',
+    hdep / 'shared/ctrl_plane',
+
+    grpcpp,
+    grpcpp / 'include',
+    grpc / 'include',
+    p4pi / 'proto/server',
+)
+
+all_dependencies += [
+    dependency('grpc++'),
+    dependency('grpc'),
+    dependency('protobuf'),
+
+    meson.get_compiler('c').find_library('p4rt', dirs: grpcpp / 'static_lib'),
+    meson.get_compiler('c').find_library('stdc++'),
+]

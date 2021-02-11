@@ -1,0 +1,25 @@
+You may list a test case on each line in this file.
+The test cases listed here will be skipped by run_tests.py
+  - the cases may be prefixed with a dash
+  - you can paste part or all of the summary output of run_tests.py
+    - a copy of its output is saved to ./build/all-run-logs/last_log.txt
+Lines can be commented out using #
+
+
+Action out headers are not supported yet
+    %test-action=test
+    %test-action-2=test
+
+Slice copying not implemented yet
+    test-bit2
+
+Arithmetic operations are only supported on int<8>, int<16> and int<32>.
+    %test-arithmetics-nonbyte=test
+
+Header stacks and unions are not supported
+    %test-header-stacks=test
+    %test-header-union-1=test
+    %test-header-union-2=test
+
+Complex variable assignments are only partially supported
+    test-compound-assignment

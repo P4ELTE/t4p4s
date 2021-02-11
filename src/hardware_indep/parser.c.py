@@ -1,195 +1,243 @@
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
-from utils.misc import addError, addWarning 
-from utils.codegen import format_expr, format_statement, statement_buffer_value, format_declaration
+from compiler_log_warnings_errors import addError, addWarning
+from utils.codegen import format_expr, format_statement, format_declaration
+from compiler_common import statement_buffer_value
 
 
 #[ #include "dpdk_lib.h"
+#[ #include "util_packet.h"
+#[ #include "gen_include.h"
 
-#[ extern int get_var_width_bitwidth();
-
-def header_bit_width(hdrtype):
-    return sum([f.size if not f.is_vw else 0 for f in hdrtype.valid_fields])
-
-def gen_extract_header_tmp(h):
-    #[ memcpy(pstate->${h.ref.name}, buf, ${h.type.byte_width});
-    #[ buf += ${h.type.byte_width};
-    #[ pd->parsed_length += ${h.type.byte_width};
-
-def gen_extract_header_tmp_2(hdrinst, hdrtype, w):
-    x = header_bit_width(hdrtype)
-    w = format_expr(w)
-    #[ int hdrlen = ((${w}+${x})/8);
-    #[ pd->parsed_length += hdrlen;
-    #[ memcpy(pstate->${hdrinst.ref.name}, buf, hdrlen);
-    #[ pstate->${hdrinst.ref.name}_var += ${w}+${x};
-    #[ buf += hdrlen;
-
-
-def gen_extract_header(hdrinst, hdrtype):
-    if hdrinst is None:
-        addError("extracting header", "no instance found for header type " + hdrtype.name)
-        return
-
-    #[ if((int)((uint8_t*)buf-(uint8_t*)(pd->data))+${hdrtype.byte_width} > pd->wrapper->pkt_len)
-    #[     ; // packet_too_short // TODO optimize this
-    #[ pd->headers[${hdrinst.id}].pointer = buf;
-    #[ pd->headers[${hdrinst.id}].length = ${hdrtype.byte_width};
-    #[ pd->parsed_length += ${hdrtype.byte_width};
-    #[ buf += pd->headers[${hdrinst.id}].length;
-    for f in hdrtype.valid_fields:
-        # TODO get rid of "f.get_attr('preparsed') is not None"
-        # TODO (f must always have a preparsed attribute)
-        if f.get_attr('preparsed') is not None and f.preparsed and f.size <= 32:
-            #[ EXTRACT_INT32_AUTO_PACKET(pd, ${hdrinst.id}, ${f.id}, value32)
-            #[ pd->fields.${f.id} = value32;
-            #[ pd->fields.attr_${f.id} = 0;
-
-def gen_extract_header_2(hdrinst, hdrtype, w):
-    if not hdrtype.is_vw:
-        addError("generating extract header call", "fixed-width header extracted with two-param extract")
-        return
-
-    x = header_bit_width(hdrtype)
-    w = format_expr(w)
-
-    #[ uint32_t hdrlen = ((${w}+${x})/8);
-
-    #[ if ((int)((uint8_t*)buf-(uint8_t*)(pd->data))+hdrlen > pd->wrapper->pkt_len)
-    #[     ; // packet_too_short // TODO optimize this
-    #[ if (hdrlen > ${hdrtype.byte_width})
-    #[     debug("    " T4LIT(!,warning) " header " T4LIT(${hdrinst.name},header) " is too long (" T4LIT(%d,warning) " bytes)\n", hdrlen);
-    #[ pd->headers[${hdrinst.id}].pointer = buf;
-    #[ pd->headers[${hdrinst.id}].length = hdrlen;
-    #[ pd->parsed_length += hdrlen;
-    #[ pd->headers[${hdrinst.id}].var_width_field_bitwidth = hdrlen * 8 - ${header_bit_width(hdrtype)};
-
+#{ #ifdef T4P4S_STATS
+#[     extern t4p4s_stats_t t4p4s_stats;
+#} #endif
 
 ################################################################################
 
-parser = hlir16.objects['P4Parser'][0]
+#{ void drop_packet(STDPARAMS) {
+#[     uint32_t value32; (void)value32;
+#[     uint32_t res32; (void)res32;
+#[     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_DROP_VALUE);
+#[     debug("    " T4LIT(:,status) " " T4LIT(Dropping package,status) "\n");
+#} }
 
-for l in parser.parserLocals:
-    #[ ${format_declaration(l)}
+
+# TODO more than one parser can be present
+parser = hlir.parsers[0]
+
+
+#{ void init_parser_state(parser_state_t* pstate) {
+for local in parser.parserLocals.filter('node_type', 'Declaration_Instance'):
+    #[ ${local.urtype.name}_t_init(pstate->${local.name});
+#} }
 
 for s in parser.states:
-    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate);
+    if s.is_reachable:
+        #[ static void parser_state_${s.name}(STDPARAMS);
+    else:
+        #[ // state ${s.name} is not reachable
 
-for s in parser.states:
-    if s.node_type != 'ParserState': continue
-
-    #[ static void parser_state_${s.name}(packet_descriptor_t* pd, uint8_t* buf, lookup_table_t** tables, parser_state_t* pstate) {
+for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata):
+    #{ static int parser_extract_${hdr.name}(STDPARAMS) {
     #[     uint32_t value32; (void)value32;
     #[     uint32_t res32; (void)res32;
-    #[     debug(" :::: Parser state $$[parserstate]{s.name}\n");
+    #[     parser_state_t* local_vars = pstate;
 
-    for c in s.components:
-        if hasattr(c, 'call'):
-            if c.call == 'extract_header':
-                hdrtype = c.header.type_ref if hasattr(c.header, 'type_ref') else c.header
+    hdrtype = hdr.urtype
 
-                # TODO find a more universal way to get to the header instance
-                if hasattr(c.methodCall.arguments[0].expression, 'path'):
-                    hdrinst_name = c.methodCall.arguments['Argument'][0].expression.path.name
-                    hdrinst = hlir16.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.type.type_ref.name == hdrtype.name)
-                elif hasattr(c.methodCall.method.expr, 'header_ref'):
-                    hdrinst = c.methodCall.method.expr.header_ref
-                else:
-                    if not hasattr(c.methodCall.arguments[0].expression, 'member'):
-                        import ipdb
-                        ipdb.set_trace()
-                        
-                    hdrinst_name = c.methodCall.arguments[0].expression.member
-                    hdrinst = hlir16.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.type.type_ref.name == hdrtype.name)
+    is_vw = hdrtype.is_vw
 
-                # TODO there should be no "secondary" hdrtype node
-                if not hasattr(hdrtype, 'bit_width'):
-                    hdrtype = hlir16.header_types.get(hdrtype.name, 'Type_Header')
-                    
-                bitwidth = hdrtype.bit_width if not c.is_vw else header_bit_width(hdrtype)
+    # TODO properly implement varwidth
 
-                if not c.is_tmp:
-                    if not c.is_vw:
-                        #[ ${gen_extract_header(hdrinst, hdrtype)}
-                    else:
-                        #[ ${gen_extract_header_2(hdrinst, hdrtype, c.width)}
-                    #[ dbg_bytes(pd->headers[${hdrinst.id}].pointer, pd->headers[${hdrinst.id}].length,
-                    #[           "   :: Extracted header $$[header]{hdrinst.name} ($${(bitwidth+7)/8}{ bytes}): ");
-                else:
-                    if not c.is_vw:
-                        #[ ${gen_extract_header_tmp(hdrinst)}
-                        #[ dbg_bytes(pstate->${hdrinst.ref.name}, ${hdrinst.type.byte_width},
-                        #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name} ($${bitwidth} bits, $${hdrinst.type.byte_width} bytes): ");
+    #[ uint32_t vwlen = 0;
+    #[ uint32_t hdrlen = (${hdr.urtype.size} + vwlen) / 8;
+    #{ if (unlikely(pd->parsed_length + hdrlen > pd->wrapper->pkt_len)) {
+    #{     #ifdef T4P4S_DEBUG
+    #{         if (pd->parsed_length == pd->wrapper->pkt_len) {
+    #[             debug("    " T4LIT(!,warning) " Missing ${"variable width " if is_vw else ""}header $$[header]{hdr.name}/" T4LIT(%d) "B @ offset " T4LIT(%d) "\n", hdrlen, pd->parsed_length);
+    #[         } else {
+    #[             debug("    " T4LIT(!,warning) " Trying to parse ${"variable width " if is_vw else ""}header $$[header]{hdr.name}/" T4LIT(%d) "B at offset " T4LIT(%d) ", " T4LIT(missing %d bytes,warning) "\n", hdrlen, pd->parsed_length, pd->parsed_length + hdrlen - pd->wrapper->pkt_len);
+    #}         }
+    #}     #endif
+    #[
+    #[     return -1; // parsed after end of packet
+    #} }
 
-                    else:
-                        #[ ${gen_extract_header_tmp_2(hdrinst, hdrtype, c.width)}
-                        hdr_width = header_bit_width(hdrtype)
-                        var_width = format_expr(c.width)
-                        #[ dbg_bytes(pstate->${hdrinst.ref.name}, (($hdr_width + $var_width)+7)/8,
-                        #[           "   :: Extracted header $$[header]{hdrinst.path.name} of type $${hdrinst.type.name}: ($${hdr_width}+$${}{%d} bits, $${}{%d} bytes): ",
-                        #[           $var_width, (($hdr_width + $var_width)+7)/8);
+    #[ header_descriptor_t* hdr = &(pd->headers[HDR(${hdr.name})]);
+
+    #[ hdr->pointer = pd->extract_ptr;
+    #[ hdr->was_enabled_at_initial_parse = true;
+    #[ hdr->length = hdrlen;
+    #[ hdr->var_width_field_bitwidth = vwlen;
+
+    for fld in hdrtype.fields:
+        if fld.preparsed and fld.size <= 32:
+            #[ EXTRACT_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), value32)
+            #[ pd->fields.FLD(${hdr.name},${fld.name}) = value32;
+            #[ pd->fields.ATTRFLD(${hdr.name},${fld.name}) = NOT_MODIFIED;
+
+    #[     dbg_bytes(hdr->pointer, hdr->length,
+    #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " $$[header]{hdr.name}/$${}{%dB}: ", hdr_infos[HDR(${hdr.name})].idx, hdr->length);
+
+    #[     pd->parsed_length += hdrlen;
+    #[     pd->extract_ptr += hdrlen;
+
+    #[     return hdrlen;
+
+    #} }
+
+
+# TODO find a less convoluted way to get to the header
+def get_hdrinst(arg0, component):
+    if 'path' in arg0:
+        hdrinst_name = arg0.path.name
+
+        hdrtype = component.header.urtype
+        dvar = parser.parserLocals.get(hdrinst_name, 'Declaration_Variable')
+        if dvar:
+            insts = [hi for hi in hlir.header_instances['StructField'] if hi.urtype.name == hdrtype.name]
+            if len(insts) == 1:
+                hdrinst = insts[0]
+            elif len(insts) == 0:
+                # note: it is defined as a local variable
+                return dvar.urtype
+            else:
+                addError("Finding header", f"There is no single header that corresponds to {hdrtype.name}")
         else:
-            #[ ${format_statement(c)}
+            return hlir.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.urtype.name == hdrtype.name)
+    elif 'hdr_ref' in (mexpr := component.methodCall.method.expr):
+        hdrinst = mexpr.hdr_ref
+        return hdrinst
+    else:
+        a0e = arg0.expression
+        if "member" in a0e:
+            hdrtype = component.header.urtype
+            hdrinst_name = a0e.member
+            hdrinst = hlir.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.urtype.name == hdrtype.name)
+        else:
+            hdrinst_name = a0e.hdr_ref.name
+            hdrinst = hlir.header_instances.get(hdrinst_name)
+        return hdrinst
 
-    if not hasattr(s, 'selectExpression'):
+
+for s in parser.states:
+    if not s.is_reachable:
+        continue
+
+    #{ static void parser_state_${s.name}(STDPARAMS) {
+
+    #{ #ifdef T4P4S_STATS
+    #[     t4p4s_stats.parser_state__${s.name} = true;
+    #} #endif
+
+    #[     uint32_t value32; (void)value32;
+    #[     uint32_t res32; (void)res32;
+    #[     parser_state_t* local_vars = pstate;
+
+    if s.name == 'accept':
+        #[     pd->payload_length = packet_length(pd) - (pd->extract_ptr - (void*)pd->data);
+
+        #{     if (pd->payload_length > 0) {
+        #[         dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_length, pd->payload_length);
+        #[     } else {
+        #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_length);
+        #[     }
+        #} }
+        continue
+
+    if s.name == 'reject':
+        #[     debug(" " T4LIT(%%%%%%%%,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
+        #[     drop_packet(STDPARAMS_IN);
+        #[ }
+        continue
+
+    #[     debug(" %%%%%%%% Parser state $$[parserstate]{s.name}\n");
+
+    for component in s.components:
+        if 'call' not in component:
+            #[ ${format_statement(component, parser)}
+            continue
+
+        if component.call != 'extract_header':
+            continue
+
+        arg0 = component.methodCall.arguments['Argument'][0]
+        hdr = get_hdrinst(arg0, component)
+        if hdr is None:
+            hdrt = arg0.expression.hdr_ref.urtype
+            if hdrt.size % 8 != 0:
+                addWarning('extracting underscore header', f'Extracting non-byte-aligned header type {hdrt.name}/{hdrt.size}b as noname header')
+            size = (hdrt.size+7)//8
+            #[ // extracting to underscore argument, $size bytes (${hdrt.size} bits)
+            #[ debug("   :: Extracting " T4LIT(${hdrt.name},header) "/" T4LIT($size) " as " T4LIT(noname header,header) "\n");
+            #[ pd->extract_ptr += $size;
+            #[ pd->is_emit_reordering = true; // a noname header cannot be emitted
+        else:
+            #[ int offset_${hdr.name} = parser_extract_${hdr.name}(STDPARAMS_IN);
+            #{ if (unlikely(offset_${hdr.name}) < 0) {
+            #[     drop_packet(STDPARAMS_IN);
+            #[     return;
+            #} }
+        #[ 
+
+
+    if 'selectExpression' not in s:
         if s.name == 'accept':
-            #[ debug("   :: Packet is $$[success]{}{accepted}\n");
-        if s.name == 'reject':
-            #[ debug("   :: Packet is $$[success]{}{dropped}\n");
-            #[ pd->dropped = 1;
+            #[ debug("   " T4LIT(::,success) " Packet is $$[success]{}{accepted}, total length of headers: " T4LIT(%d) " bytes\n", pd->parsed_length);
+
+            #[ pd->payload_length = packet_length(pd) - (pd->extract_ptr - (void*)pd->data);
+
+            #{ if (pd->payload_length > 0) {
+            #[     dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, "    : " T4LIT(Payload,header) " is $${}{%d} bytes: ", pd->payload_length);
+            #[ } else {
+            #[     debug("    " T4LIT(:,status) " " T4LIT(Payload,header) " is " T4LIT(empty,status) "\n");
+            #} }
+        elif s.name == 'reject':
+            #[ debug("   " T4LIT(::,status) " Packet is $$[status]{}{dropped}\n");
+            #[ drop_packet(STDPARAMS_IN);
     else:
         b = s.selectExpression
+
         if b.node_type == 'PathExpression':
-            x = "parser_state_" + format_expr(b) + "(pd, buf, tables, pstate);"
-        if b.node_type == 'SelectExpression':
-            x = format_expr(b)
+            #[ parser_state_${b.path.name}(STDPARAMS_IN);
+        elif b.node_type == 'SelectExpression':
+            bexpr = format_expr(b)
+            prebuf, postbuf = statement_buffer_value()
+            #[ $prebuf
+            #= bexpr
+            #[ $postbuf
+    #} }
+    #[
 
-        prebuf, postbuf = statement_buffer_value()
-
-        #[ $prebuf
-        #[ $x
-        #[ $postbuf
-    #[ }
-
-#[ void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate) {
-#[     parser_state_start(pd, pd->data, tables, pstate);
+#[ void parse_packet(STDPARAMS) {
+#[     pd->parsed_length = 0;
+#[     pd->extract_ptr = pd->data;
+#[     parser_state_start(STDPARAMS_IN);
 #[ }
+#[
 
 
-#{ const char* header_instance_names[HEADER_INSTANCE_COUNT] = {
-for hdr in hlir16.header_instances:
-    #[ "${hdr.name}", // header_instance_${hdr.name}
+#{ const char* header_instance_names[HEADER_COUNT] = {
+for hdr in hlir.header_instances:
+    #[ "${hdr.name}",
 #} };
 
 #{ const char* field_names[FIELD_COUNT] = {
-for hdr in hlir16.header_types:
-    for fld in hdr.valid_fields:
-        #[ "${fld.name}", // field_instance_${hdr.name}_${fld.name}
+for hdr in hlir.header_instances:
+    for fld in hdr.urtype.fields:
+        #[ "${fld.name}", // in header ${hdr.name}
 #} };
 
 
-#[ // Returns the sum of all collected variable widths,
-#[ // and resets all varwidth counters.
+#[ // Returns the sum of all collected variable widths.
 #{ int get_var_width_bitwidth(parser_state_t* pstate) {
 #[     int retval = 0
 for loc in parser.parserLocals:
-    #[ + pstate->${loc.name}_var
+    if 'is_vw' in loc.urtype and loc.urtype.is_vw:
+        #[ + pstate->${loc.name}_var
 #[     ;
-
-for loc in parser.parserLocals:
-    #[ pstate->${loc.name}_var = 0;
 
 #[ return retval;
 

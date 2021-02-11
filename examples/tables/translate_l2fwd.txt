@@ -1,0 +1,7 @@
+TRANSLATION smac .smac
+TRANSLATION dmac .dmac
+TRANSLATION forward .forward
+TRANSLATION mac_learn .mac_learn
+TRANSLATION bcast .bcast
+TRANSLATION _nop ._nop
+TRANSLATION NoAction .NoAction

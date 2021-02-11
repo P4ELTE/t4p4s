@@ -1,17 +1,5 @@
-// Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
 // This file is included directly from `dpdk_tables.c`.
 
@@ -32,7 +20,7 @@ struct rte_hash* hash_create(int socketid, const char* name, uint32_t keylen, rt
     hash_params.socket_id = socketid;
     struct rte_hash *h = rte_hash_create(&hash_params);
     if (h == NULL)
-        create_error(socketid, "hash", name);
+        rte_exit_with_errno("create exact table", name);
     return h;
 }
 
@@ -64,8 +52,6 @@ void exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
 
     ext->content[index%t->max_size] = make_table_entry_on_socket(t, value);
-
-    dbg_bytes(key, t->entry.key_size, "   :: Add " T4LIT(exact) " entry to " T4LIT(%s,table) " (hash " T4LIT(%d) "): " T4LIT(%s,action) " <- ", t->name, index, get_entry_action_name(value));
 }
 
 void exact_delete(lookup_table_t* t, uint8_t* key)

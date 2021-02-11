@@ -1,5 +1,5 @@
 
-# T<sub>4</sub>P<sub>4</sub>S, a multitarget P4<sub>16</sub> compiler
+# T₄P₄S, a multitarget P4<sub>16</sub> compiler
 
 This is an experimental compiler for P4<sub>16</sub> and P4<sub>14</sub> files.
 For publications and more, [see our homepage](http://p4.elte.hu/).
@@ -12,39 +12,65 @@ Find out more [about the P4 language](https://p4.org/).
 
 ### Preparation
 
-To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it with the following command. It should work on Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+To start working with the compiler, simply download the `bootstrap-t4p4s.sh` script and execute it in the following way.
+The script installs all necessary libraries ([DPDK](https://www.dpdk.org/), [P4C](https://github.com/p4lang/p4c), `P4Runtime` and more) and T₄P₄S itself, and sets up environment variables.
 
+    wget https://raw.githubusercontent.com/P4ELTE/t4p4s/master/bootstrap-t4p4s.sh
+    chmod +x bootstrap-t4p4s.sh
     . ./bootstrap-t4p4s.sh
 
-The script installs all necessary software including T<sub>4</sub>P<sub>4</sub>S itself, and sets up environment variables.
+Notes.
 
-- Note: without the `.` at the beginning of the line, the environment variables will not be usable immediately.
-    - In that case, you can either start a new terminal, or run `. ./t4p4s_environment_variables.sh`
+- ⚠ The purpose of the script is to setup a convenient environment for you if you're just starting out.
+  Therefore, you *only need to execute it once*.
+  If you already have a working environment, you *don't need to run the script again*, and you *probably shouldn't*.
+
+    - To get T₄P₄S only without the third party libraries: `git clone --recursive https://github.com/P4ELTE/t4p4s`
+    - To update a previous T₄P₄S checkout, execute this command in its directory: `git pull --recurse-submodules`
+
+- Without the `.` at the beginning of the line, the environment variables will not be usable immediately.
+    - In that case, you can either open a new terminal, or run `. ./t4p4s_environment_variables.sh`
+
+- The script is intended to work on recent Debian based systems, e.g. the latest LTS edition of Linux Mint or Ubuntu.
+    - Legacy systems such as Ubuntu 18.04 and 16.04 are not supported by the script, as they do not come with out-of-the-box support for sufficiently recent libraries (such as Meson 0.47.1 or newer required for building DPDK, or Python 3.8 or newer required for building T₄P₄S).
+    - Even on legacy systems, the script may still be useful to you. You may disable stages of the script, and manually install the software.
+
+    INSTALL_STAGE2_DPDK=no INSTALL_STAGE3_PROTOBUF=no INSTALL_STAGE4_P4C=no . ./bootstrap-t4p4s.sh
+
+    - It is also useful if you are not interested in using `P4Runtime` features.
+
+    INSTALL_STAGE5_P4RT=no . ./bootstrap-t4p4s.sh
+
+- To see all possible options (including available stages), run the script the following way.
+
+    ./bootstrap-t4p4s.sh showenvs
+
+- If you happen to have some of the dependencies locally checked out, you can speed up the installation process by letting the script clone them locally.
+
+    LOCAL_REPO_CACHE=/my/cache/dir . ./bootstrap-t4p4s.sh
+
+- At this stage of development, T₄P₄S will not compile and run all P4 programs properly. In particular, header stacks are not supported currently.
+
 
 Overriding defaults.
 
-- To increase efficiency, the script runs jobs on all cores on the system in parallel. Should you experience any problems (for example, your system may run out of memory), you can override the number of jobs.
+- To increase efficiency, the script runs jobs on all cores of the system in parallel. Should you experience any problems (for example, your system may run out of memory), you can override the number of jobs.
 
     MAX_MAKE_JOBS=4 . ./bootstrap-t4p4s.sh
 
 - By default, the script runs downloads in parallel. You can force it to work sequentially.
 
-    PARALLEL_INSTALL=0 . ./bootstrap-t4p4s.sh
+    PARALLEL_INSTALL=no . ./bootstrap-t4p4s.sh
 
 - The script installs the newest versions of DPDK and P4C unless overridden by the user.
-    
-    DPDK_VERSION=16.11 . ./bootstrap-t4p4s.sh
-    DPDK_VERSION=16.11 DPDK_FILEVSN=16.11.1 . ./bootstrap-t4p4s.sh
 
-- The script will use `clang` by default if it is installed. Using another target like `gcc` is possible, too.
+    DPDK_VERSION=20.05 . ./bootstrap-t4p4s.sh
+    DPDK_VERSION=20.05 DPDK_FILEVSN=20.05.0 . ./bootstrap-t4p4s.sh
+    P4C_COMMIT_DATE=20201101 . ./bootstrap-t4p4s.sh
 
-    RTE_TARGET=x86_64-native-linuxapp-gcc . ./bootstrap-t4p4s.sh
+- The script uses `clang`, `clang++` and `lld` by default if they are installed unless overridden. It also uses `ccache`.
 
-To download T<sub>4</sub>P<sub>4</sub>S only, make sure to get it with its submodule like this: `git clone --recursive https://github.com/P4ELTE/t4p4s`
-
-- When you pull further commits, you will need to update the submodules as well: `git submodule update --init --recursive` or `git submodule update --rebase --remote`
-
-Note: at this stage, not all P4 programs will compile and run properly. In particular, `typedef`s are not supported currently.
+    T4P4S_CC=gcc T4P4S_CXX=g++ T4P4S_LD=bfd . ./bootstrap-t4p4s.sh
 
 
 ### Options
@@ -178,6 +204,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd verbose`
     - Verbose output for the switch
         `./t4p4s.sh :l2fwd dbg`
+    - In addition, statistics can be displayed at the end
+        `./t4p4s.sh :l2fwd dbg stats`
     - Suppress EAL messages from the switch output
         `./t4p4s.sh :l2fwd noeal`
     - No output at all (both terminal and switch) except for errors
@@ -201,15 +229,43 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh %%l2fwd`
     - Stop the switch immediately upon encountering invalid data
         `./t4p4s.sh %l2fwd=payload strict`
+1. Redo
+    - `t4p4s.sh` saves the collected environment variables to `build/l2fwd-gen@test-test/redo.opts.txt` (when executed as `./t4p4s.sh %l2fwd`)
+    - This option loads the saved environment; can speed up rerunning test cases
+        - Mostly useful for development purposes
+    - Has to be the very first argument to `t4p4s.sh`
+    - `run_tests.sh` (see below) also uses this option
+        `./t4p4s.sh redo=%l2fwd`
+        `./t4p4s.sh redo=%l2fwd=test2`
+1. Hugepages
+    - `examples.cfg` sets the required number of hugepages for each example
+    - Set it to another value, e.g. make T₄P₄S use `1024 MB` of hugepages
+        `./t4p4s.sh %l2fwd hugemb=1024`
+    - You may specify the amount of hugepages instead of the desired size in megabytes, which is dependent on the size of the hugepages on your system
+        `./t4p4s.sh %l2fwd hugepages=1024`
+    - Instruct `t4p4s.sh` not to modify the current number of hugepages (may cause problems if it is less than required for the example)
+        `./t4p4s.sh %l2fwd hugepages=keep`
+    - Instruct `t4p4s.sh` to adjust the number of hugepages exactly to the requested amount (by default, the hugepage count is never decreased)
+        `./t4p4s.sh %l2fwd hugeopt=exact`
+1. Environment variables
+    - Many options can be overridden using environment variables.
+        `EXAMPLES_CONFIG_FILE="my_config.cfg" ./t4p4s.sh my_p4 @test`
+        `EXAMPLES_CONFIG_FILE="my_config.cfg" COLOUR_CONFIG_FILE="my_colors.txt" P4_SRC_DIR="../my_files" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh %my_p4 dbg verbose`
+    - Running this command gives you the list of environment variables available for customisation.
+    - To see which environment variables are available for customisation and what their default values are, run the following command.
+        `./t4p4s.sh showenvs`
+    - If `showenvs` is not the first argument, it prints the argument values after they have been fully computed/substituted
+        `./t4p4s.sh %l2fwd showenvs`
+1. Controller
+    - Set the controller manually
+        `./t4p4s.sh :l2fwd ctr=l2fwd`
+    - Let the output of the controller be shown in a separate window. For this to work, `gnome-terminal` is used, as the more general `x-terminal-emulator` does not seem to work properly.
+        `./t4p4s.sh %my_p4 ctrterm`
 1. Miscellaneous options
     - Specify the P4 version manually (usually decided by other options or P4 file extension)
         `./t4p4s.sh :l2fwd vsn=14`
-    - Set the controller manually
-        `./t4p4s.sh :l2fwd ctr=l2fwd`
-    - Many options can be overridden using environment variables
-        `EXAMPLES_CONFIG_FILE="my_config.cfg" ./t4p4s.sh my_p4 @test`
-        `EXAMPLES_CONFIG_FILE="my_config.cfg" COLOUR_CONFIG_FILE="my_colors.txt" P4_SRC_DIR="../my_files" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh %my_p4 dbg verbose`
-
+    - Pass a test option to the P4 compiler. This defines a macro called `T4P4S_TEST_1` that is available during P4 preprocessing.
+        `./t4p4s.sh %my_p4 p4testcase=1`
 
 ### Testing
 
@@ -218,18 +274,28 @@ To see detailed output about compilation and execution, use the following option
 
     ./t4p4s.sh %%l2fwd=payload
 
-To run all available test cases, execute `./run_all_tests.sh`.
+To run all available test cases, execute `./run_tests.sh`.
 You can also give this script any number of additional options.
 
-    ./run_all_tests.sh verbose dbg
+    ./run_tests.sh verbose dbg stats
 
-Once all test cases are run, the script prints a summary of successful and failed test cases,
-exits with the error code `0` if all tests ran successfully, and `1` if there were any errors.
+As its name implies, `run_tests.sh` runs each test case in the offline (`nicoff`, meaning no NIC present) mode.
+You may set the `PREFIX` and `POSTFIX` environment variables to make the script start `t4p4s.sh` with a different setup for the test case.
+For example, the following command tests whether the test cases compile in the online (`nicon`) mode, but it doesn't execute them.
+
+    PREFIX=: POSTFIX="" ./run_tests.sh ^run
+
+Once the test cases are run, the script prints a summary of successful and failed test cases,
+grouped by the types of failures.
+You may indicate which tests are to be skipped by listing them in a file.
+See the default skip file, `tests_to_skip.txt`, for further details.
+
+    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg
 
 
-# Using Docker with T<sub>4</sub>P<sub>4</sub>S
+# Using Docker with T₄P₄S
 
-You can also run `t4p4s-docker.sh` to run T<sub>4</sub>P<sub>4</sub>S in a Docker container.
+You can also run `t4p4s-docker.sh` to run T₄P₄S in a Docker container.
 
 - Docker Community Edition has to be configured on your system.
     - Usually it is available once you install the package `docker.io`.
@@ -246,104 +312,9 @@ You can also run `t4p4s-docker.sh` to run T<sub>4</sub>P<sub>4</sub>S in a Docke
 
 # Working with the compiler
 
-## Gathering data
+## HLIR
 
-The following parts presume that you are using `ipdb` for debugging.
-You can manually add a debug trigger the following way.
-
-~~~
-import ipdb; ipdb.set_trace()
-~~~
-
-A convenient place to start an investigation is at the end of `set_additional_attrs` in `hlir16_attrs.py`.
-
-You can search for all occurrences of a string/integer/etc.
-Typically you would start at the topmost node (called `hlir16`),
-but any node can be used as a starting point.
-
-~~~
-hl[TAB]
-hlir16.p[TAB]
-hlir16.paths_to('ethernet')
-hlir16.paths_to(1234567)
-~~~
-
-The result will look something like this.
-
-~~~
-  = .objects['Type_Header'][0]
-  < .objects['Type_Struct'][4].fields
-  ∈ .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].expr.type.fields
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].member
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-  < .objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.typeArguments['Type_Name'][0].path
-  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.expr.type.fields
-  < .objects['P4Parser'][0].states['ParserState'][0].selectExpression.select.components['Member'][0].expr.member
-...........
-~~~
-
-The first character indicates if the searched content is a perfect match (`=`), a prefix (`<`) or an infix (`∈`) of the result of the path.
-
-You can copy-paste a line of the result, and inspect the element there.
-
-~~~
-ipdb> hlir16.objects['P4Parser'][0].states['ParserState'][0].components['MethodCallStatement'][0].methodCall.arguments['Member'][0].type
-ethernet_t<Type_Header>[annotations, declid, fields, name]
-~~~
-
-You can give some options to `paths_to`.
-
-- `print_details` shows each node that each path traverses
-- `match` controls how the matching works (it is always textual)
-
-~~~
-hlir16.paths_to('intrinsic_metadata')
-hlir16.paths_to('intrinsic_metadata', print_details=False, match='prefix')
-hlir16.paths_to('intrinsic_metadata', match='prefix')
-hlir16.paths_to('intrinsic_metadata', match='infix')
-hlir16.paths_to('intrinsic_metadata', match='full')
-~~~
-
-
-## Attributes
-
-The nodes get their attributes in the following ways.
-
-1. At creation, see `p4node.py`.
-    - In the debugger, enter `hlir16.common_attrs` to see them.
-1. Most attributes are directly loaded from the JSON file.
-    - See `load_p4` in `hlir16.py`.
-    - The `.json` file is produced using the `--toJSON` option of the P4 frontend `p4test`.
-      By default, this is a temporary file that is deleted upon exit.
-1. Many attributes are set in `set_additional_attrs` in `hlir16.py`.
-   While the compiler is in the experimental stage,
-   they may be subject to change, but once it crystallizes,
-   they will be considered standard.
-1. You can manually add attributes using `add_attrs`, but those will be considered non-standard,
-   and will not be portable in general.
-
-The representation contains internal nodes (of type `P4Node`)
-and leaves (primitives like ints and strings).
-Internal nodes will sometimes be (ordered) vectors.
-
-Some of the more important attributes are the following.
-
-~~~
-hl[TAB].d[TAB]        # expands to...
-hlir16.objects   # these are the top-level objects in the program
-
-ds = hlir16.objects
-ds.is_vec()           # True
-ds[0]                 # indexes the vector; the first declaration in the program
-ds.b[TAB]             # expands to...
-ds.by_type('Type_Struct')   # gives you all 'Type_Struct' objects
-ds.by_type('Struct')        # shortcut; many things are called 'Type_...'
-ds.get('name')        # all elems in the vector with the name 'name'
-ds.get('ipv4_t', 'Type_Header')   # the same, limited to the given type
-
-any_node.name         # most nodes (but not all) have names
-any_node.xdir()       # names of the node's non-common attributes
-~~~
+For more details on how to work with HLIR attribures, see [the readme of the `hlir16` submodule](src/hlir16/README.md).
 
 ## Special markers
 
@@ -363,6 +334,7 @@ The compiler uses the `.py` files inside the `hardware_indep` directory to gener
             - `$$[mycolourname]{PyExpr}` uses `T4LIGHT_mycolourname` as the colour of highlighting; these colours are defined in `lights.cfg` and must be listed in `ALL_COLOURS` of `t4p4s.sh`
             - `$$[mycolourname]{PyExpr}{text}` is the same as above, but `text` (which is just plain text) also appears in the highlighted part
             - `$$[mycolourname][text1]{PyExpr}{text}` is the same as above, but `text1` (which is just plain text) also appears in the highlighted part
+        - The generated C code can also use highlighting: use `T4LIT(some text)` or `T4LIT(my header instance's name,hdrinst)`
 - The following capabilities are most useful inside the `.sugar.py` files, but are used in `hardware_indep` as well.
     - Functions whose name begin with `gen_` are considered helper functions in which the above markers are usable.
         - Technically, they will have a local `generated_code` variable that starts out empty, and they will return it at the end.

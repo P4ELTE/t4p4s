@@ -1,94 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 from utils.codegen import format_type
-from hlir16.hlir16_attrs import get_main
+from compiler_common import unique_everseen
 
-#[ #ifndef __ACTIONS_H__
-#[ #define __ACTIONS_H__
+#[ #pragma once
 
 #[ #include "dataplane.h"
+#[ #include "common.h"
+#[ #include "gen_include.h"
+
+#[ #include "util_packet.h"
+
+# Note: this is for Digest_t
+#[ #include "ctrl_plane_backend.h"
+
+# TODO this should not be here in the indep section
+#[ #include "dpdk_smem.h"
 
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
-def unique_stable(items):
-    """Returns only the first occurrence of the items in a list.
-    Equivalent to unique_everseen from Python 3."""
-    from collections import OrderedDict
-    return list(OrderedDict.fromkeys(items))
 
-#{ enum actions {
-for table in hlir16.tables:
-    for action in unique_stable(table.actions):
-        #[ action_${action.action_object.name},
-#[ action_,
-#} };
+#{ typedef enum actions_e {
+for table in hlir.tables:
+    for action in unique_everseen(table.actions):
+        #[     action_${action.action_object.name},
+    if len(table.actions) == 0:
+        #[     action_,
+#} } actions_t;
 
-# TODO remove this; instead:
-# TODO in set_additional_attrs, replace all type references with the referenced types
-def resolve_typeref(hlir16, f):
-    # resolving type reference
-    if f.type.node_type == 'Type_Name':
-        tref = f.type.type_ref
-        return hlir16.objects.get(tref.name)
+for ctl in hlir.controls:
+    for act in ctl.actions:
+        #{ typedef struct action_${act.name}_params_s {
+        for param in act.parameters.parameters:
+            paramtype = param.urtype
+            #[     ${format_type(param.urtype, varname = param.name)};
 
-    return f
+        if len(act.parameters.parameters) == 0:
+            #[     FIELD(DUMMY_FIELD, 0);
+        #} } action_${act.name}_params_t;
 
-for table in hlir16.tables:
-    for action in table.actions:
-        # if len(action.action_object.parameters) == 0:
-        #     continue
-
-        #{ struct action_${action.action_object.name}_params {
-        for param in action.action_object.parameters.parameters:
-            param = resolve_typeref(hlir16, param)
-            
-            #[ FIELD(${param.name}, ${param.type.size});
-        #[ FIELD(DUMMY_FIELD, 0);
-        #} };
-
-for table in hlir16.tables:
-    #{ struct ${table.name}_action {
+for table in hlir.tables:
+    #{ typedef struct ${table.name}_action_s {
     #[     int action_id;
     #{     union {
     for action in table.actions:
-        # TODO what if the action is not a method call?
-        # TODO what if there are more actions?
-        action_method_name = action.expression.method.ref.name
-        #[         struct action_${action.action_object.name}_params ${action_method_name}_params;
+        action_method_name = action.expression.method.path.name
+        #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
-    #} };
+    #} } ${table.name}_action_t;
 
 
 
-for table in hlir16.tables:
-    #[ void apply_table_${table.name}(packet_descriptor_t *pd, lookup_table_t** tables);
+for table in hlir.tables:
+    #[ void apply_table_${table.name}(SHORT_STDPARAMS);
     for action in table.actions:
         aname = action.action_object.name
-        mname = action.expression.method.ref.name
+        mname = action.expression.method.path.name
 
-        #[ void action_code_$aname(packet_descriptor_t *pd, lookup_table_t **tables, struct action_${mname}_params);
+        #[ void action_code_$aname(action_${mname}_params_t, SHORT_STDPARAMS);
 
+non_ctr_locals = ('counter', 'direct_counter', 'meter')
 
-# TODO: The controls shouldn't be accessed through an instance declaration parameter
-for pe in get_main(hlir16).arguments:
-    ctl = hlir16.objects.get(pe.expression.type.name, 'P4Control')
+for ctl in hlir.controls:
+    #{ typedef struct control_locals_${ctl.name}_s {
+    for local_var_decl in ctl.local_var_decls.filterfalse('urtype.node_type', 'Type_Header'):
+        #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
 
-    if ctl is not None:
-        #[ typedef struct control_locals_${pe.expression.type.name}_s {
-        for local_var_decl in ctl.controlLocals['Declaration_Variable']:
-            #[ ${format_type(local_var_decl.type, False)} ${local_var_decl.name};
-        #[ } control_locals_${pe.expression.type.name}_t;
+    # TODO is there a more appropriate way to store registers?
+    for reg in hlir.registers:
+        #[     ${format_type(reg.type, resolve_names = False)} register_${reg.name};
 
-#[ #endif
+    #} } control_locals_${ctl.name}_t;
+    #[

@@ -1,16 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 #include "dpdk_lib.h"
 #include "actions.h"
@@ -42,14 +31,15 @@
 #define PAYLOAD04   "1a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4"
 
 
-extern void ipv4_fib_lpm_0_setdefault(struct ipv4_fib_lpm_0_action action);
+extern void ipv4_fib_lpm_0_setdefault(ipv4_fib_lpm_0_action_t action);
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
         {FAKE_SETDEF, ipv4_fib_lpm_0_setdefault, 0, {"on_miss"}, 0, 0, {""} },
 
         FSLEEP(200),
-        {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01), 200,  0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01)},
+        {FAKE_PKT, 0, 0, {ETH01, ETH02, "0800", IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01, ""}, 200,  0, {ETH01, ETH02, "0800", IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01, ""}},
+        // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01), 200,  0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_02 IP4_02_OPTS                 PAYLOAD02), 200, 18, ETH(ETH01, ETH02, IP4_02 IP4_02_OPTS                 PAYLOAD02)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_03 IP4_03_OPTS                 PAYLOAD03), 200, 18, ETH(ETH01, ETH02, IP4_03 IP4_03_OPTS                 PAYLOAD03)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_04 IP4_04_OPTS TCP04 TCP04_OPTS PAYLOAD04), 200, 18, ETH(ETH01, ETH02, IP4_04 IP4_04_OPTS TCP04 TCP04_OPTS PAYLOAD04)},

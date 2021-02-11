@@ -15,6 +15,7 @@
 #define __HANDLERS_H__
 
 #include "messages.h"
+#include <stdbool.h>
 
 #define P4_MAX_NUMBER_OF_ACTION_PARAMETERS 10
 #define P4_MAX_NUMBER_OF_FIELD_MATCHES 10
@@ -31,6 +32,7 @@ struct p4_ctrl_msg {
 	struct p4_field_match_header* field_matches[P4_MAX_NUMBER_OF_FIELD_MATCHES];
 };
 
+typedef uint32_t* (*p4_cnt_read)(char*, int*, bool);
 typedef void (*p4_msg_callback)(struct p4_ctrl_msg*);
 
 int handle_p4_msg(char* buffer, int length, p4_msg_callback cb);

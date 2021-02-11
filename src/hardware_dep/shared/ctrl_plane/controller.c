@@ -1,16 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+
 #include "controller.h"
 #include <unistd.h>
 #include <stdio.h>
@@ -24,6 +14,8 @@
 #include "fifo.h"
 #include <sys/select.h>
 #include "threadpool.h"
+
+extern int usleep(__useconds_t usec);
 
 typedef struct msg_buf_st
 {
@@ -208,7 +200,7 @@ void execute_controller(controller c)
 			        ti->sock_fd = conn;
 
 					dispatch(ct->tpool, output_processor, (void*)ti);
-					sleep(1);
+					usleep(1000);
 				    dispatch(ct->tpool, input_processor, (void*)ti);
 					FD_SET(conn, &master);
 					maxfds = conn>maxfds?conn:maxfds;

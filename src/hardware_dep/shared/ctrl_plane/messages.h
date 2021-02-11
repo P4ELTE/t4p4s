@@ -53,7 +53,9 @@ enum p4_type {
 	P4T_REMOVE_AP_MEMBER = 109,
 
 	/* Digest passed */
-	P4T_DIGEST = 110
+	P4T_DIGEST = 110,
+	/* Counters*/
+	P4T_READ_COUNTER = 111,
 };
 
 struct p4_hello {

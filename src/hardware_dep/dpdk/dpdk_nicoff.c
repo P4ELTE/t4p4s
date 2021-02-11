@@ -1,30 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
-#include <netinet/ether.h> 
+#include <netinet/ether.h>
 
 #include "dpdk_lib.h"
-#include "util.h"
 #include "dpdk_nicoff.h"
 #include "dpdkx_crypto.h"
 
 // -----------------------------------------------------------------------------
 
+#include "util_debug.h"
+#include "util_packet.h"
+
+#include "main.h"
+
 extern int get_socketid(unsigned lcore_id);
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
-extern void sleep_millis(int millis);
 extern void dpdk_init_nic();
 
 extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
@@ -87,7 +79,7 @@ testcase_t* current_test_case;
 // ------------------------------------------------------
 // Helpers
 
-fake_cmd_t get_cmd(struct lcore_data* lcdata) {
+fake_cmd_t get_cmd(LCPARAMS) {
     return (*(current_test_case->steps))[rte_lcore_id()][lcdata->idx];
 }
 
@@ -126,18 +118,22 @@ int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
 }
 
 
-struct rte_mbuf* fake_packet(struct lcore_data* lcdata, const char* texts[MAX_SECTION_COUNT]) {
+struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     int byte_count = total_fake_byte_count(texts);
 
-    debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
-
+    // debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
     struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
-    uint8_t*         p2 = (uint8_t*)rte_pktmbuf_prepend(p, byte_count);
+    uint8_t*         p2 = (uint8_t*)rte_pktmbuf_append(p, byte_count);
+
+    if (p2 == NULL) {
+        rte_exit(3, "Could not allocate space for fake packet\n");
+    }
+
     while (strlen(*texts) > 0) {
         uint8_t* dst = p2;
         p2 = str2bytes(*texts, p2);
 
-        dbg_bytes(dst, strlen(*texts) / 2, " :::: " T4LIT(%2zd) " bytes: ", strlen(*texts) / 2);
+        // dbg_bytes(dst, strlen(*texts) / 2, " :::: " T4LIT(%2zd) " bytes: ", strlen(*texts) / 2);
 
         ++texts;
     }
@@ -151,23 +147,42 @@ void abort_on_strict() {
 #endif
 }
 
-void check_egress_port(struct lcore_data* lcdata, fake_cmd_t cmd, int egress_port) {
-    if (cmd.out_port != egress_port) {
-        debug(" " T4LIT(!!!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d,expected) ", got " T4LIT(%d,error) "\n",
-              lcdata->pkt_idx + 1, rte_lcore_id(),
-              cmd.out_port, egress_port);
-        lcdata->is_valid = false;
-        abort_on_strict();
+void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
+    if (cmd.out_port == egress_port)    return;
+
+    char port_designation_egress[256];
+    port_designation_egress[0] = '\0';
+
+    char port_designation_cmd[256];
+    port_designation_cmd[0] = '\0';
+
+    if (egress_port == T4P4S_BROADCAST_PORT) {
+        strcpy(port_designation_egress, " (broadcast)");
     }
+
+    if (cmd.out_port == T4P4S_BROADCAST_PORT) {
+        strcpy(port_designation_cmd, " (broadcast)");
+    }
+
+    debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
+          lcdata->pkt_idx + 1, rte_lcore_id(),
+          cmd.out_port, port_designation_cmd,
+          egress_port, port_designation_egress);
+    lcdata->is_valid = false;
+    abort_on_strict();
 }
 
-bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
+    if (pd->wrapper == 0) {
+        rte_exit(1, "Error: packet was not created in memory, " T4LIT(aborting,error) "\n");
+    }
+
     struct rte_mbuf* mbuf = (struct rte_mbuf*)pd->wrapper;
 
     int expected_byte_count = total_fake_byte_count(cmd.out);
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
     if (expected_byte_count != actual_byte_count) {
-        debug(" " T4LIT(!!!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
+        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
               expected_byte_count, actual_byte_count);
 
@@ -178,7 +193,7 @@ bool check_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descript
     return true;
 }
 
-int get_wrong_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
+int get_wrong_byte_count(fake_cmd_t cmd, LCPARAMS) {
     int wrong_byte_count = 0;
 
     int byte_idx = 0;
@@ -206,7 +221,7 @@ int get_wrong_byte_count(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descr
 
 #define MSG_MAX_LEN 4096
 
-void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd, int wrong_byte_count) {
+void print_wrong_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
     char msg[MSG_MAX_LEN];
     char* msgptr = msg;
 
@@ -241,46 +256,89 @@ void print_wrong_bytes(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descrip
     }
 
     msgptr[0] = 0;
-    debug(" " T4LIT(!!!!,error) " " T4LIT(%d) " wrong bytes found: %s\n", wrong_byte_count, msg);
+    debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", msg);
 }
 
-void check_packet_contents(struct lcore_data* lcdata, fake_cmd_t cmd, packet_descriptor_t* pd) {
-    int wrong_byte_count = get_wrong_byte_count(lcdata, cmd, pd);
+void print_expected_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
+    char msg[MSG_MAX_LEN];
+    char* msgptr = msg;
+
+    int byte_idx = 0;
+    int section_idx = 0;
+    const char** texts = cmd.out;
+    while (strlen(*texts) > 0) {
+        sprintf(msgptr, "[");
+        msgptr += 1;
+
+        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
+            uint8_t expected_byte;
+            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
+
+            uint8_t actual_byte = pd->data[byte_idx];
+            int written_bytes;
+            if (expected_byte != actual_byte) {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,success), expected_byte);
+            } else {
+                written_bytes = sprintf(msgptr, T4LIT(%02x,expected), expected_byte);
+            }
+            msgptr += written_bytes;
+
+            ++byte_idx;
+        }
+
+        sprintf(msgptr, "]");
+        msgptr += 1;
+
+        ++texts;
+        ++section_idx;
+    }
+
+    msgptr[0] = 0;
+    char tmpmsg[MSG_MAX_LEN];
+    char* tmpmsgptr = tmpmsg;
+    sprintf(tmpmsgptr, "%d", wrong_byte_count);
+    debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(tmpmsgptr), "", msg);
+}
+
+void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
+    int wrong_byte_count = get_wrong_byte_count(cmd, LCPARAMS_IN);
 
     if (wrong_byte_count != 0) {
-        print_wrong_bytes(lcdata, cmd, pd, wrong_byte_count);
+        print_wrong_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
+        print_expected_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
         lcdata->is_valid = false;
         abort_on_strict();
     }
 }
 
-void check_sent_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, int egress_port, int ingress_port) {
-    fake_cmd_t cmd = get_cmd(lcdata);
+bool encountered_error = false;
 
-    check_egress_port(lcdata, cmd, egress_port);
-    bool is_ok = check_byte_count(lcdata, cmd, pd);
+void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
+    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
+
+    check_egress_port(cmd, egress_port, LCPARAMS_IN);
+    bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
-        check_packet_contents(lcdata, cmd, pd);
+        check_packet_contents(cmd, LCPARAMS_IN);
     }
 
-#ifdef T4P4S_DEBUG
     if (lcdata->is_valid) {
-        debug( " :::: " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
     } else {
-        debug( " " T4LIT(!!!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+        encountered_error = true;
     }
-#endif
 }
 
 // ------------------------------------------------------
 // TODO
 
 #ifdef START_CRYPTO_NODE
-    bool core_stopped_running[RTE_MAX_LCORE];
+bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
-bool core_is_working(struct lcore_data* lcdata) {
-    bool ret = get_cmd(lcdata).action != FAKE_END || rte_ring_count(lcdata->conf->async_queue) > 0 || lcdata->conf->pending_crypto > 0;
+bool core_is_working(LCPARAMS) {
+    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END;
     #ifdef START_CRYPTO_NODE
         if(ret == false){
             core_stopped_running[rte_lcore_id()] = true;
@@ -297,13 +355,13 @@ bool core_is_working(struct lcore_data* lcdata) {
     return ret;
 }
 
-bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned pkt_idx) {
-    fake_cmd_t cmd = get_cmd(lcdata);
+bool receive_packet(unsigned pkt_idx, LCPARAMS) {
+    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
 
         if (got_packet) {
-            pd->wrapper = fake_packet(lcdata, cmd.in);
+            pd->wrapper = fake_packet(cmd.in, LCPARAMS_IN);
             pd->data    = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         }
 
@@ -326,51 +384,50 @@ bool fetch_packet(packet_descriptor_t* pd, struct lcore_data* lcdata, unsigned p
     return false;
 }
 
-void free_packet(packet_descriptor_t* pd) {
+void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 }
 
-bool is_packet_handled(packet_descriptor_t* pd, struct lcore_data* lcdata) {
-    return get_cmd(lcdata).action == FAKE_PKT;
+bool is_packet_handled(LCPARAMS) {
+    return get_cmd(LCPARAMS_IN).action == FAKE_PKT;
 }
 
-void main_loop_pre_rx(struct lcore_data* lcdata) {
-
-}
-
-void main_loop_post_rx(struct lcore_data* lcdata) {
+void main_loop_pre_rx(LCPARAMS) {
 
 }
 
-void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet) {
-    if (get_cmd(lcdata).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
+void main_loop_post_rx(LCPARAMS) {
+
+}
+
+void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+    if (get_cmd(LCPARAMS_IN).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
 
     ++lcdata->idx;
 }
 
-uint32_t get_portid(struct lcore_data* lcdata, unsigned queue_idx) {
-    return get_cmd(lcdata).in_port;
+uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
+    return get_cmd(LCPARAMS_IN).in_port;
 }
 
-unsigned do_rx_burst(struct lcore_data* lcdata, unsigned queue_idx) {
-    if(get_cmd(lcdata).action == FAKE_PKT)
+void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
+
+}
+
+unsigned get_pkt_count_in_group(LCPARAMS) {
+    if(get_cmd(LCPARAMS_IN).action == FAKE_PKT)
         return 1;
     else
         return 0;
 }
 
-unsigned get_queue_count(struct lcore_data* lcdata) {
+unsigned get_queue_count(LCPARAMS) {
     return 1;
 }
 
-void send_single_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, packet* pkt, int egress_port, int ingress_port, bool send_clone) {
+void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
-    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf),
-              "Emitting " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) " on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ",
-              lcdata->pkt_idx + 1, rte_lcore_id(),
-              egress_port, rte_pktmbuf_pkt_len(mbuf));
-
-    //check_sent_packet(lcdata, pd, egress_port, ingress_port);
+    check_sent_packet(egress_port, ingress_port, LCPARAMS_IN);
 }
 
 bool storage_already_inited = false;
@@ -415,6 +472,8 @@ void initialize_nic() {
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
+    t4p4s_print_stats();
+
     if (launch_count() == 1) {
         debug(T4LIT(Abnormal exit,error) ", code " T4LIT(%d) ".\n", retval);
     } else {
@@ -430,8 +489,16 @@ void t4p4s_after_launch(int idx) {
     }
 }
 
-void t4p4s_normal_exit() {
+int t4p4s_normal_exit() {
+    t4p4s_print_stats();
+
+    if (encountered_error) {
+        debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
+        return 3;
+    }
+
     debug(T4LIT(Normal exit.,success) "\n");
+    return 0;
 }
 
 void t4p4s_post_launch(int idx) {

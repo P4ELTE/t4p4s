@@ -1,18 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-// 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// 
-//     http://www.apache.org/licenses/LICENSE-2.0
-// 
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-#ifndef DPDK_TABLES_H
-#define DPDK_TABLES_H
+
+#pragma once
 
 #include <rte_version.h>    // for conditional compilation
 
@@ -29,6 +18,10 @@ typedef struct extended_table_s {
 } extended_table_t;
 
 //=============================================================================
+
+void rte_exit_with_errno(const char* table_type, const char* table_name);
+
+//=============================================================================
 // Table size limits
 
 #ifdef RTE_ARCH_X86_64
@@ -41,5 +34,3 @@ typedef struct extended_table_s {
 
 // #define TABLE_MAX 100000
 #define TABLE_MAX 250000
-
-#endif

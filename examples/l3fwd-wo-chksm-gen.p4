@@ -82,7 +82,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         meta.routing_metadata.nhgroup = nhgroup;
     }
     @name("._drop") action _drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     @name("._nop") action _nop() {
     }

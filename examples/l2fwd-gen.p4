@@ -47,15 +47,28 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
     @name("._nop") action _nop() {
     }
+    @name("._nop") action testing(bit<32> arg1, bit<32> arg2) {
+    }
     @name(".dmac") table dmac {
         actions = {
             forward;
             bcast;
+            testing;
         }
         key = {
             hdr.ethernet.dstAddr: exact;
         }
         size = 512;
+
+        #ifdef T4P4S_TEST_1
+            const entries = {
+                (0xD15EA5E): bcast();
+            }
+        #elif T4P4S_TEST_abc
+            const entries = {
+                (0xDEAD_10CC): testing(510, 0xffff_ffff);
+            }
+        #endif
     }
     @name(".smac") table smac {
         actions = {
@@ -70,9 +83,10 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         smac.apply();
         dmac.apply();
-        do_encryption_async();
-        do_decryption_async();
+        //do_encryption_async();
+        //do_decryption_async();
     }
+
 }
 
 control DeparserImpl(packet_out packet, in headers hdr) {

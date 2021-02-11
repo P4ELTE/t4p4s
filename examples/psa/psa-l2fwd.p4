@@ -58,7 +58,8 @@ control ingress(inout headers hdr,
         ostd.egress_port = (PortId_t)32w100;
     }
     action mac_learn() {
-	mac_learn_digest.pack({ hdr.ethernet.srcAddr, istd.ingress_port });
+    	mac_learn_digest.pack({ hdr.ethernet.srcAddr, istd.ingress_port });
+        ostd.egress_port = (PortId_t)32w100;
     }
     action _nop() {
     }
@@ -119,8 +120,8 @@ control EgressDeparserImpl(packet_out buffer,
                            out empty_metadata_t recirculate_meta,
                            inout headers hdr,
                            in metadata meta,
-                           in psa_egress_output_metadata_t istd,
-                           in psa_egress_deparser_input_metadata_t edstd)
+                           in psa_egress_output_metadata_t ostd,
+                           in psa_egress_deparser_input_metadata_t istd)
 {
     apply {
     }

@@ -1,40 +1,36 @@
 #!/bin/bash
 
-# --------------------------------------------------------------------
-# Set defaults
+declare -A KNOWN_COLOURS
+declare -A OPTS
+declare -A IGNORE_OPTS
 
-ERROR_CODE=1
-
-COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
-LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
-EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
-
-P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
-CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
-
-ARCH=${ARCH-dpdk}
-ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
-
-PYTHON=${PYTHON-python}
-DEBUGGER=${DEBUGGER-gdb}
-
-declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype off packet parserstate port smem socket status success table testcase warning)
+PYTHON_PARSE_HELPER_PROCESS=""
 
 # --------------------------------------------------------------------
-# Helpers
+# Show customisable environment values in this file
+
+if [ $# == 1 ] && [ "$1" == "showenvs" ]; then
+    escape_char=$(printf '\033')
+    colours=([0]="${escape_char}[1;32m" [1]="${escape_char}[1;33m" [2]="${escape_char}[1;31m")
+    nn="${escape_char}[0m"
+
+    echo "The ${colours[0]}$0$nn script uses the following ${colours[1]}default values$nn for ${colours[0]}environment variables$nn."
+    cat t4p4s.sh | grep -e '\([A-Z_]*\)=[$][{]\1-' | sed "s/[ ]*\([^=]*\)=[$][{]\1-\(.*\)[}]$/    ${colours[0]}\1$nn=${colours[1]}\2$nn/"
+    echo "Override them like this to customise the script's behaviour."
+    echo "    ${colours[0]}EXAMPLES_CONFIG_FILE$nn=${colours[1]}my_config.cfg$nn ${colours[0]}$0$nn ${colours[1]}:my_p4$nn"
+    echo "    ${colours[0]}EXAMPLES_CONFIG_FILE$nn=${colours[1]}my_config.cfg$nn ${colours[0]}COLOURS_CONFIG_FILE$nn=${colours[1]}my_favourite_colours.cfg$nn ${colours[0]}$0$nn ${colours[1]}%my_p4 dbg verbose p4testcase=1$nn"
+    exit
+fi
+
+# --------------------------------------------------------------------
+# Helper functions
 
 exit_program() {
     echo -e "$nn"
-    [ "${OPTS[ctr]}" != "" ] && verbosemsg "Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+    [ "${OPTS[ctr]}" != "" ] && verbosemsg "(Terminating controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn)" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+    [ "${PYTHON_PARSE_HELPER_PROCESS}" != "" ] && verbosemsg "(Terminating the $(cc 0)parse helper process$nn, port $(cc 1)$PYTHON_PARSE_HELPER_PORT$nn, pid $(cc 1)$PYTHON_PARSE_HELPER_PROCESS$nn)" && (echo "exit_parse_helper" | netcat localhost "${PYTHON_PARSE_HELPER_PORT}")
+    [ "$1" != "" ] && errmsg "$(cc 3)Error$nn: $*"
     exit $ERROR_CODE
-}
-
-print_usage_and_exit() {
-    (>&2 echo -e "Usage: $0 <options...>")
-    (>&2 echo -e "    - see $(cc 0)README.md$nn for details")
-
-    exit_program $ERROR_CODE
 }
 
 verbosemsg() {
@@ -56,17 +52,11 @@ errmsg() {
     done
 }
 
-errmsg_exit() {
-    errmsg "Error: $*"
-    print_usage_and_exit
-}
-
 exit_on_error() {
-    ERROR_CODE=$?
+    ERROR_CODE=$1
     [ "$ERROR_CODE" -eq 0 ] && return
 
-    errmsg "Error: $1 (error code: $ERROR_CODE)"
-    exit_program $ERROR_CODE
+    exit_program "$2 (error code: $(cc 2)$ERROR_CODE$nn)"
 }
 
 array_contains() {
@@ -79,6 +69,7 @@ array_contains() {
     echo "n"
 }
 
+
 # Return the first valid colour code in the args, or the neutral colour if no valid colour is found.
 cc() {
     [ "$(array_contains "${OPTS[bw]}" "on" "terminal")" == y ] && echo "$nn" && return
@@ -90,36 +81,14 @@ cc() {
     echo "$nn"
 }
 
-# Set lit terminal text to colour indicated by `$1`.
-set_term_light() {
-    OPTS[light]=$1
-    colours=()
-
-    [ "$1" == "0" ] && nn="" && return
-
-    IFS=',' read -r -a optparts <<< "$1"
-    for i in "${!optparts[@]}"; do 
-        COLOUR=${optparts[$i]}
-        COLOUR=${KNOWN_COLOURS[$COLOUR]-$COLOUR}
-
-        colours[$i]="\033[${COLOUR}m"
-    done
-    nn="\033[0m"
-}
-
-remove_name_markers() {
-    [[ "$1" == \?\?*     ]] && echo "${1#\?\?}" && return
-    [[ "$1" == \?*       ]] && echo "${1#\?}"   && return
-    [[ "$1" == \@*       ]] && echo "${1#\@}"   && return
-    [[ "$1" == \**       ]] && echo "${1#\*}"   && return
-
-    echo "$1"
+get_current_envs() {
+    ( set -o posix ; set ) | grep -v "PYTHON_PARSE_HELPER_PROCESS" | tr '\n' '\r' | sed "s/\r[^=]*='[^']*\r[^\r]*'\r/\r/g" | tr '\r' '\n'
 }
 
 print_cmd_opts() {
     IFS=' ' read -r -a cflags <<< "$1"
 
-    NEXT_IS_OPT=0    
+    NEXT_IS_OPT=0
     for cflag in ${cflags[@]}; do
         [ $NEXT_IS_OPT -eq 1 ] && NEXT_IS_OPT=0 && echo "$(cc 1)${cflag}$nn" && continue
 
@@ -176,106 +145,195 @@ optvalue() {
     echo "${OPTS[$1]}"
 }
 
+ctrl_c_handler() {
+    (>&2 echo -e "\nInterrupted, exiting...")
+    ERROR_CODE=254
+    exit_program
+}
+
+trap 'ctrl_c_handler' INT
+
+
+# Set lit terminal text to colour indicated by `$1`.
+set_term_light() {
+    OPTS[light]=$1
+    colours=()
+
+    [ "$1" == "0" ] && nn="" && return
+
+    IFS=',' read -r -a optparts <<< "$1"
+    for i in "${!optparts[@]}"; do
+        COLOUR=${optparts[$i]}
+        COLOUR=${KNOWN_COLOURS[$COLOUR]-$COLOUR}
+
+        colours[$i]="\033[${COLOUR}m"
+    done
+    nn="\033[0m"
+}
+
+remove_name_markers() {
+    [[ "$1" == \?\?*     ]] && echo "${1#\?\?}" && return
+    [[ "$1" == \?*       ]] && echo "${1#\?}"   && return
+    [[ "$1" == \@*       ]] && echo "${1#\@}"   && return
+    [[ "$1" == \**       ]] && echo "${1#\*}"   && return
+
+    echo "$1"
+}
+
 # --------------------------------------------------------------------
 
-# Unmounting /mnt/huge and removing directory
+# from $RTE_SDK/usertools/dpdk-setup.py
 remove_mnt_huge()
 {
     grep -s '/mnt/huge' /proc/mounts > /dev/null
-    [ $? -eq 0 ]     && sudo umount /mnt/huge
-    [ -d /mnt/huge ] && sudo rm -R /mnt/huge
+    if [ $? -eq 0 ] ; then
+        sudo umount /mnt/huge
+    fi
+
+    if [ -d /mnt/huge ] ; then
+        sudo rm -R /mnt/huge
+    fi
 }
 
-# Creating /mnt/huge and mounting as hugetlbfs
-create_mnt_huge()
-{
-    sudo mkdir -p /mnt/huge
-    grep -s '/mnt/huge' /proc/mounts > /dev/null
-    [ $? -ne 0 ] && sudo mount -t hugetlbfs nodev /mnt/huge
-}
-
-allocate_huge_pages() {
-    echo "echo $2 > /sys/kernel/mm/hugepages/hugepages-$1/nr_hugepages" > .echo_tmp
-    sudo sh .echo_tmp
-    rm -f .echo_tmp
-}
-
-# Removing currently reserved hugepages
-create_huge_pages()
-{
-    allocate_huge_pages $1 $2
-    create_mnt_huge
-}
-
-# Removing currently reserved hugepages
+# from $RTE_SDK/usertools/dpdk-setup.py
 clear_huge_pages()
 {
-    allocate_huge_pages $1 0
+    echo > .echo_tmp
+    for d in /sys/devices/system/node/node? ; do
+        echo "echo 0 > $d/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" >> .echo_tmp
+    done
+    sudo sh .echo_tmp
+    rm -f .echo_tmp
+
     remove_mnt_huge
 }
 
-reserve_hugepages() {
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+# from $RTE_SDK/usertools/dpdk-setup.py
+create_mnt_huge()
+{
+    sudo mkdir -p /mnt/huge
+
+    grep -s '/mnt/huge' /proc/mounts > /dev/null
+    if [ $? -ne 0 ] ; then
+        sudo mount -t hugetlbfs nodev /mnt/huge
+    fi
+}
+
+change_hugepages() {
+    [ "$(optvalue hugepages)" == keep ] && return
+
+    HUGEPGSZ=`cat /proc/meminfo | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
+    HUGE_FORMULA=`echo $HUGEPGSZ | sed -e 's/kB//' | sed -e 's/MB/*1024/' | sed -e 's/GB/*1024*1024/'`
+
     OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
 
-    [ $OLD_HUGEPAGES -eq $1 ] && verbosemsg "Using $(cc 0)$OLD_HUGEPAGES$nn hugepages (sufficient, as $(cc 0)$1$nn are needed)" && return
+    [ "$(optvalue hugepages)" == "off" ] && [ "$(optvalue hugemb)" != "off" ] && OPTS[hugepages]=$(($(optvalue hugemb)*1024/($HUGE_FORMULA) + (($(optvalue hugemb)*1024%($HUGE_FORMULA) > 0))))
 
-    if [ $OLD_HUGEPAGES -lt $1 ]; then
-        msg "Allocating $(cc 0)$1 hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
+    HUGE_UNIT=kB
+    HUGE_KB=$(($HUGE_FORMULA*OPTS[hugepages]))
+    HUGE_AMOUNT=$HUGE_KB
+    [ "$(($HUGE_KB % 1024))" -eq 0 ] && HUGE_UNIT=MB && HUGE_AMOUNT=$(($HUGE_KB / 1024))
+    [ "$(($HUGE_KB % 1048576))" -eq 0 ] && HUGE_UNIT=GB && HUGE_AMOUNT=$(($HUGE_KB / 1048576))
 
-        create_huge_pages $HUGEPGSZ $1
+    if [ $OLD_HUGEPAGES -eq 0 ]; then
+        verbosemsg "Allocating $(cc 0)${OPTS[hugepages]}$nn hugepages ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
+    elif [ $OLD_HUGEPAGES -lt ${OPTS[hugepages]} ]; then
+        verbosemsg "Increasing hugepage count from $(cc 1)$OLD_HUGEPAGES$nn to $(cc 0)${OPTS[hugepages]}$nn ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
+    elif [ "$(optvalue hugeopt)" == exact ] && [ $OLD_HUGEPAGES -gt ${OPTS[hugepages]} ]; then
+        verbosemsg "Reducing hugepage count from $(cc 1)$OLD_HUGEPAGES$nn to $(cc 0)${OPTS[hugepages]}$nn ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
+    elif [ $OLD_HUGEPAGES -eq ${OPTS[hugepages]} ]; then
+        verbosemsg "Keeping the previously reserved $(cc 0)$OLD_HUGEPAGES$nn hugepages ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
+        return
+    else
+        verbosemsg "Keeping $(cc 0)$OLD_HUGEPAGES$nn hugepages which is more than the requested $(cc 0)${OPTS[hugepages]}$nn ($(cc 0)$HUGE_AMOUNT$nn $HUGE_UNIT)"
         return
     fi
 
-    [ "$(optvalue keephuge)" != off ] && return
+    clear_huge_pages
+    echo "echo ${OPTS[hugepages]} > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
+    sudo sh .echo_tmp
+    rm -f .echo_tmp
+    create_mnt_huge
 
-    msg "Allocating $(cc 0)$1$nn hugepages (clearing $(cc 0)$OLD_HUGEPAGES$nn old hugepages)"
-    clear_huge_pages "$HUGEPGSZ"
-    allocate_huge_pages "$HUGEPGSZ" "$1"
+    NEW_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
+    [ $NEW_HUGEPAGES -lt ${OPTS[hugepages]} ] && exit_on_error "1" "Was asked to reserve $(cc 0)${OPTS[hugepages]}$nn hugepages, got $(cc 3)only ${NEW_HUGEPAGES}$nn"
 }
 
-reserve_hugepages2() {
-    HUGEPGSZ=`cat /proc/meminfo  | grep Hugepagesize | cut -d : -f 2 | tr -d ' '`
-    OLD_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
-    if [ $OLD_HUGEPAGES -lt ${OPTS[hugepages]} ]; then
-        verbosemsg "Reserving $(cc 0)${OPTS[hugepages]} hugepages$nn (previous size: $(cc 0)$OLD_HUGEPAGES$nn)"
-
-        echo "echo ${OPTS[hugepages]} > /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages" > .echo_tmp
-        sudo sh .echo_tmp
-        rm -f .echo_tmp
-    else
-        verbosemsg "Using $(cc 0)$OLD_HUGEPAGES hugepages$nn (sufficient, as $(cc 0)${OPTS[hugepages]}$nn are needed)"
-    fi
-}
+# --------------------------------------------------------------------
 
 # /tmp/$1.tmp is a file that has some (generated) contents; $2/$1 may or may not exist
 # Only (over)write $1 if the generated content differs from the existing one
 overwrite_on_difference() {
     cmp -s "/tmp/$1.tmp" "$2/$1"
-    [ "$?" -ne 0 ] && mv "/tmp/$1.tmp" "$2/$1"
-    rm -f "/tmp/$1.tmp"
+    [ "$?" -ne 0 ] && cp "/tmp/$1.tmp" "$2/$1"
+    sudo rm -f "/tmp/$1.tmp"
+}
+
+candidate_count() {
+    simple_count=$(find -L "$P4_SRC_DIR" -type f -name "$1.p4*" | wc -l)
+    if [ $simple_count -eq 1 ]; then
+        echo 1
+    else
+        echo $(find -L "$P4_SRC_DIR" -type f -regex ".*$1.*[.]p4\(_[0-9][0-9]*\)?" | wc -l)
+    fi
+}
+
+candidates() {
+    if [ $(candidate_count $1) -gt 0 ]; then
+        echo
+        find -L "$P4_SRC_DIR" -type f -regex ".*$1.*[.]p4\(_[0-9][0-9]*\)?" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
+    else
+        echo "(no candidates found)"
+    fi
 }
 
 # --------------------------------------------------------------------
 # Set defaults
 
-declare -A KNOWN_COLOURS
-declare -A OPTS
-declare -A IGNORE_OPTS
+ERROR_CODE=1
 
-colours=()
-nn="\033[0m"
+COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
+LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
+EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
 
-# Check if configuration is valid
-[ "${P4C}" == "" ] && errmsg_exit "Error: \$P4C not defined"
-[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && errmsg_exit "Error: \$RTE_SDK not defined"
+P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
+CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
+
+ARCH=${ARCH-dpdk}
+ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
+CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
+
+POSSIBLE_PYTHONS=(python3.10 python3.9 python3.8 python3)
+for found_python3 in "${POSSIBLE_PYTHONS[@]}"
+do
+    if [ `command -v "${found_python3}"` ]; then
+        PYTHON=${PYTHON-${found_python3}}
+        break
+    fi
+done
+DEBUGGER=${DEBUGGER-gdb}
+
+declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
 
 # --------------------------------------------------------------------
-# Parse opts from files and command line
 
-PYTHON_PARSE_OPT=$(cat <<END
-import re
+# Generating random ephemeral port
+while
+    PYTHON_PARSE_HELPER_PORT=$(shuf -n 1 -i 49152-65535)
+    netstat -atun | grep -q "$PYTHON_PARSE_HELPER_PORT"
+do
+    continue
+done
+
+PYTHON_PARSE_HELPER=$(cat <<END
+#!/usr/bin/env ${PYTHON}
+
+import socket
 import sys
+import re
+
+HOST = 'localhost'
+PORT = int(sys.argv[1])
 
 # To facilitate understanding, almost all named patterns of the regex are separated
 patterns = (
@@ -298,27 +356,56 @@ for pattern, replacement in patterns:
 
 rexp = re.compile(rexp)
 
-m = re.match(rexp, sys.argv[1])
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    s.bind((HOST, PORT))
+    s.listen()
 
-print 'ok', ('y' if m is not None else 'n')
-for gname in (p[0] for p in patterns):
-    print gname, '' if m is None else m.group(gname) or ''
+    while True:
+        conn, addr = s.accept()
+        with conn:
+            bline = conn.recv(1024)
+            line = bline.decode()
+            if line.startswith("exit_parse_helper"):
+                sys.exit()
+
+            m = re.match(rexp, line)
+
+            is_ok = 'y' if m else 'n'
+            conn.sendall(f'ok {is_ok}\n'.encode())
+            for gname in (p[0] for p in patterns):
+                opt = '' if not m else m.group(gname) or ''
+                conn.sendall(f'{gname} {opt}\n'.encode())
 END
-)
+    )
+
+$PYTHON -c "$PYTHON_PARSE_HELPER" "${PYTHON_PARSE_HELPER_PORT}" >&2>/dev/null &
+PYTHON_PARSE_HELPER_PROCESS="$!"
+
+unset PYTHON_PARSE_HELPER
+
+sleep 0.1
 
 
-candidates() {
-    if [ $(find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | wc -l) -gt 0 ]; then
-        echo
-        find "$P4_SRC_DIR" -type f -name "*$1*.p4*" | sed 's#^.*/\([^\.]*\).*$#    \1#g'
-    else
-        echo "(no candidates found)"
-    fi
-}
+# --------------------------------------------------------------------
+# Set defaults
+
+ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port queue smem socket status success table testcase warning)
+
+# --------------------------------------------------------------------
+# Set defaults
+
+colours=()
+nn="\033[0m"
+
+# Check if configuration is valid
+[ "${P4C}" == "" ] && exit_program "\$P4C not defined"
+[ "$ARCH" == "dpdk" ] && [ "${RTE_SDK}" == "" ] && exit_program "\$RTE_SDK not defined"
+
+# --------------------------------------------------------------------
+# Parse opts from files and command line
 
 OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
 
-CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
 declare -A OPTS=([cfgfiles]="$CFGFILES")
 
 
@@ -345,7 +432,20 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
                 IFS=' ' read -r -a optparts <<< "$opts"
 
                 for opt in ${optparts[@]}; do
-                    NEWOPTS+=("$opt")
+                    if [[ $opt == @* ]]; then
+                        collected_opts=""
+                        # option can refers to another option in the same file
+                        while read -r opts2; do
+                            IFS=' ' read -r -a optparts2 <<< `echo $opts2 | sed -e "s/^$opt//g"`
+
+                            # skip the first element, which is textually the same as $opt
+                            for opt2 in ${optparts2[@]}; do
+                                NEWOPTS+=("$opt2")
+                            done
+                        done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$opt\s" | sed -e "s/^[^ \t]+[ \t]*//g")
+                    else
+                        NEWOPTS+=("$opt")
+                    fi
                 done
             done < <(cat "${cfgfile#!varcfg!}" | grep -e "^$examplename\s" | sed -e "s/^[^ \t]+[ \t]*//g")
         else
@@ -360,27 +460,36 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
 
         # Process the options
         for opt in ${NEWOPTS[@]}; do
-            if [[ $opt == *.p4* ]] && [ -f "$opt" ]; then
+            if [[ "$opt" == *.p4* ]] && [ -f "$opt" ]; then
                 setopt example "$(basename ${opt%.*})"
                 setopt source "$opt"
                 continue
             fi
 
+
             # Split the option into its components along the above regex
+            unset groups
+            declare -A groups=()
             IFS=' '
-            declare -A groups=() && while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(python -c "$PYTHON_PARSE_OPT" "$opt")
+            while read -r grpid grptxt; do groups["$grpid"]="$grptxt"; done < <(echo "$opt" | netcat localhost "${PYTHON_PARSE_HELPER_PORT}" | grep -ve "^$")
+
             [ "${groups[ok]}" == n ] && [[ $opt = *\;* ]] && continue
             [ "${groups[ok]}" == n ] && echo -e "Cannot parse option $(cc 0)$opt$nn (origin: $OPT_ORIGIN)" && continue
 
             var="${groups[var]}"
-            value="${groups[letval]:-on}"
             [ "${groups[neg]}" != "" ] && OPTS[$var]=off && continue
 
             if [ "${groups[cond]}" != "" ]; then
                 expected_value="${groups[condval]}"
-                [ "$(optvalue "${groups[condvar]}")" == off ] && continue
+                [ "$(optvalue "${groups[condvar]}")" == off -a "$expected_value" != "off" ] && continue
                 [ "$expected_value" != "" -a "${OPTS[${groups[condvar]}]}" != "$expected_value" ] && continue
+
+                letval_cond=${groups[condvar]}
+                letval_value=$(optvalue ${groups[condvar]})
+                groups[letval]=`echo ${groups[letval]} | sed -e "s/[$][\{]${letval_cond}[\}]/${letval_value}/g"`
             fi
+
+            value="${groups[letval]:-on}"
 
             [[ $var == COLOUR_* ]] && KNOWN_COLOURS[${var#COLOUR_}]="$value"
             [ "$var" == "light" ] && set_term_light "$value" && continue
@@ -388,12 +497,13 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             [ "$var" == cfgfiles -a ! -f "$value" ] && echo -e "Config file $(cc 0)$value$nn cannot be found" && continue
 
             if [ "$(array_contains "${groups[prefix]}" ":" "::" "%" "%%")" == y ]; then
-                FIND_COUNT=`find "$P4_SRC_DIR" -type f -name "${var}.p4*" -printf '.' | wc -c`
-                [ $FIND_COUNT -gt 1 ] && errmsg_exit "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn"
-                [ $FIND_COUNT -eq 0 ] && errmsg_exit "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+                FIND_COUNT=$(candidate_count "${var}")
+                [ $FIND_COUNT -gt 1 ] && exit_program "Name is not unique: found $(cc 1)$FIND_COUNT$nn P4 files for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
+                [ $FIND_COUNT -eq 0 ] && exit_program "Could not find P4 file for $(cc 0)${var}$nn, candidates: $(cc 1)$(candidates ${var})$nn"
 
                 setopt example "$var"
-                setopt source "`find "$P4_SRC_DIR" -type f -name "${var}.p4*"`"
+                P4_SRC_FILE="`find -L "$P4_SRC_DIR" -type f -regex ".*/${var}[.]p4\(_[0-9][0-9]*\)?"`"
+                setopt source "$P4_SRC_FILE"
             fi
 
             [ "${groups[prefix]}" == ":"  ] && setopt example "$var" && continue
@@ -414,13 +524,16 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
         # Steps after processing the command line
         if [ "$cfgfile" == "!cmdline!" ]; then
             # The command line must specify an example to run
-            [ "$(optvalue example)" == off ] && errmsg_exit "No example to run"
+            [ "$(optvalue example)" == off ] && exit_program "No example to run"
             # The variant has to be determined before processing the config files.
             [ "$(optvalue variant)" == off ] && setopt variant std
         fi
     done
 done
 
+verbosemsg "Python 3   is $(cc 0)$PYTHON$nn"
+verbosemsg "Debugger   is $(cc 0)$DEBUGGER$nn"
+verbosemsg "Parse port is $(cc 0)$PYTHON_PARSE_HELPER_PORT$nn"
 
 [ "$(optvalue verbose)" == on ] && IGNORE_OPTS[silent]=on
 [ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
@@ -435,45 +548,89 @@ if [ "${OPTS[vsn]}" == "" ]; then
     P4_EXT="$(basename "${OPTS[source]}")"
     P4_EXT=${P4_EXT##*.}
     if [ "$(array_contains "${P4_EXT##*.}" ${!EXT_TO_VSN[@]})" == n ]; then
-        errmsg_exit "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+        exit_program "Cannot determine P4 version for the extension $(cc 0)${P4_EXT}$nn of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
     fi
     OPTS[vsn]="${EXT_TO_VSN["${P4_EXT##*.}"]}"
-    [ "${OPTS[vsn]}" == "" ] && errmsg_exit "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
-    verbosemsg "Determined P4 version to be $(cc 0)${OPTS[vsn]}$nn by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn"
+    [ "${OPTS[vsn]}" == "" ] && exit_program "Cannot determine P4 version for $(cc 0)${OPTS[example]}$nn"
+    verbosemsg "P4 version is $(cc 0)${OPTS[vsn]}$nn (by the extension of $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn)"
 fi
 
-OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
-OPTS[executable]="./build/${OPTS[choice]}/build/${OPTS[example]}"
+[ "$(optvalue testcase)" == off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
+[ "$(optvalue testcase)" != off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}-$(optvalue testcase)}
+T4P4S_BUILD_DIR=${T4P4S_BUILD_DIR-"./build"}
+T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}"}
+T4P4S_TARGET_DIR="${T4P4S_BUILD_DIR}/last"
 
-T4P4S_TARGET_DIR=${T4P4S_TARGET_DIR-"./build/${OPTS[choice]}"}
-T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"./build/${OPTS[choice]}/srcgen"}
+OPTS[executable]="$T4P4S_TARGET_DIR/build/${OPTS[example]}"
+
+T4P4S_SRCGEN_DIR=${T4P4S_SRCGEN_DIR-"$T4P4S_TARGET_DIR/srcgen"}
 T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
+T4P4S_GEN_LIGHT="gen_light.h"
 T4P4S_GEN_INCLUDE="gen_include.h"
-GEN_MAKEFILE_DIR="${T4P4S_TARGET_DIR}"
-GEN_MAKEFILE="Makefile"
 
-T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(dirname $(dirname ${OPTS[executable]}))/log}
+EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
 
 # By default use all three phases
-if [ "${OPTS[p4]}" != on ] && [ "${OPTS[c]}" != on ] && [ "${OPTS[run]}" != on ]; then
+if [ "$(optvalue p4)" == off ] && [ "$(optvalue c)" == off ] && [ "$(optvalue run)" == off ]; then
     OPTS[p4]=on
     OPTS[c]=on
     OPTS[run]=on
 fi
 
-# Generate directories and files
-mkdir -p $T4P4S_TARGET_DIR
-mkdir -p $T4P4S_SRCGEN_DIR
+T4P4S_CC=${T4P4S_CC-gcc}
+which clang >/dev/null
+[ $? -eq 0 ] && T4P4S_CC=clang
 
+T4P4S_LD=${T4P4S_LD-bfd}
+which lld >/dev/null
+[ $? -eq 0 ] && T4P4S_LD=lld
 
 [ "$(optvalue silent)" != off ] && addopt makeopts ">/dev/null" " "
 
+# Generate directories and files
+mkdir -p "$T4P4S_COMPILE_DIR"
+rm -rf "$T4P4S_TARGET_DIR"
+ln -s "`realpath "$T4P4S_COMPILE_DIR"`" "$T4P4S_TARGET_DIR"
+mkdir -p $T4P4S_SRCGEN_DIR
+
+T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath ${T4P4S_TARGET_DIR})/log}
+mkdir -p "${T4P4S_LOG_DIR}"
+
+# --------------------------------------------------------------------
+# Checks before execution of phases begins
+
+if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
+    if [ $(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
+        exit_program "No test input file found for example $(cc 0)${OPTS[example]}$nn under $(cc 0)$EXAMPLES_DIR$nn (expected filename: $(cc 0)test-${OPTS[example]##test-}.c$nn)"
+    fi
+fi
+
+# --------------------------------------------------------------------
+# Environment variable printout
+
+if [ "${OPTS[showenvs]}" != "" ]; then
+    echo -e "The following values have been computed for the $(cc 0)customisable environment variables$nn."
+    IFS=$'\n'
+    for envvar in `cat t4p4s.sh | grep -e '\([A-Z_]*\)=[$][{]\1-' | sed "s/[ ]*\([^=]*\)=[$][{]\1-\(.*\)[}]$/\1/"`; do
+        if [ -z "${!envvar}" ]; then
+            echo -e "    $(cc 0)$envvar$nn $(cc 2)is not set$nn"
+        else
+            echo -e "    $(cc 0)$envvar$nn=$(cc 1)${!envvar}$nn"
+        fi
+    done
+fi
 
 # --------------------------------------------------------------------
 
 verbosemsg "Options: $(print_opts)"
 
-# Phase 0: If a phase with root access is needed, ask for it now
+# Phase 0a: Check for required programs
+if [ "$(optvalue c)" != off -a ! -f "$P4C/build/p4test" ]; then
+    exit_program "cannot find P4C compiler at $(cc 1)\$P4C/build/p4test$nn"
+fi
+
+
+# Phase 0b: If a phase with root access is needed, ask for it now
 if [ "$(optvalue run)" != off ]; then
     verbosemsg "Requesting root access..."
     sudo echo -n ""
@@ -493,77 +650,112 @@ if [ "$(optvalue p4)" != off ]; then
 
     IFS=" "
     $PYTHON -B src/compiler.py ${OPTS[p4opts]}
-    exit_on_error "P4 to C compilation failed"
+    exit_on_error "$?" "P4 to C compilation $(cc 2)failed$nn"
 fi
 
 
 # Phase 2: C compilation
 if [ "$(optvalue c)" != off ]; then
-    cat <<EOT > "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
-#ifndef __GEN_INCLUDE_H_
-#define __GEN_INCLUDE_H_
-EOT
+    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_LIGHT}.tmp"
 
+    unset colour
     for colour in ${ALL_COLOUR_NAMES[@]}; do
         COLOUR_MACRO=""
-        [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && COLOUR_MACRO="\"${OPTS[${OPTS[T4LIGHT_$colour]}]-${OPTS[T4LIGHT_$colour]}}\"  // ${OPTS[T4LIGHT_$colour]}"
+        [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && COLOUR_MACRO="\"${OPTS["${OPTS[T4LIGHT_$colour]}"]-${OPTS[T4LIGHT_$colour]}}\"  // ${OPTS[T4LIGHT_$colour]}"
         [ "$(array_contains "${OPTS[bw]}" "on" "switch")" == n ] && [ "$COLOUR_MACRO" == "\"\"" ] && [ "$colour" != "default" ] && COLOUR_MACRO="T4LIGHT_default"
-        echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+        sudo echo "#define T4LIGHT_${colour} $COLOUR_MACRO" >> "/tmp/${T4P4S_GEN_LIGHT}.tmp"
     done
+
+    overwrite_on_difference "${T4P4S_GEN_LIGHT}" "${T4P4S_GEN_INCLUDE_DIR}"
+
+
+    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
 
     IFS=" "
     for hdr in ${OPTS[include-hdrs]}; do
-        echo "#include \"$hdr\"" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+        sudo echo "#include \"$hdr\"" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
     done
 
-    echo "#endif" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
     overwrite_on_difference "${T4P4S_GEN_INCLUDE}" "${T4P4S_GEN_INCLUDE_DIR}"
 
 
-    cat <<EOT >"/tmp/${GEN_MAKEFILE}.tmp"
-CDIR := \$(dir \$(lastword \$(MAKEFILE_LIST)))
-APP = ${OPTS[example]}
-include \$(CDIR)/../../makefiles/${ARCH}_backend_pre.mk
-include \$(CDIR)/../../makefiles/common.mk
-include \$(CDIR)/../../makefiles/hw_independent.mk
-VPATH += $(dirname ${OPTS[source]})
-EXTRA_CFLAGS += ${OPTS[extra-cflags]}
+    cat <<EOT >"/tmp/meson.build.tmp"
+project(
+    '${OPTS[example]}',
+    'c',
+    version : '1.0.0',
+    default_options : [
+        'warning_level=0'
+    ],
+)
 EOT
 
-    if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
-        TESTDIR="examples"
-        if [ $(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
-            errmsg_exit "Test data file $(cc 0)$TESTFILE$nn in $(cc 0)$TESTDIR$nn not found"
-        fi
-        TESTFILE=$(find "$TESTDIR" -type f -name "test-${OPTS[example]##test-}.c")
+    sudo cat "meson.build.base" >>"/tmp/meson.build.tmp"
 
-        [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=\"t4p4s_testcase_${OPTS[testcase]}\"" " "
-        echo "VPATH += \$(CDIR)/../../`dirname $TESTFILE`" >>"/tmp/${GEN_MAKEFILE}.tmp"
-        echo "SRCS-y += `basename $TESTFILE`" >>"/tmp/${GEN_MAKEFILE}.tmp"
+    if [ "$(optvalue p4rt)" != off ]; then
+        [ "${GRPC}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPC$nn is not"
+        [ "${P4PI}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$P4PI$nn is not"
+        [ "${GRPCPP}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPCPP$nn is not"
+
+        sudo cat <<EOT >>"/tmp/meson.build.tmp"
+grpc = '$GRPC'
+p4pi = '$P4PI'
+grpcpp = '$GRPCPP'
+EOT
+
+        sudo cat "meson.build.p4rt" >>"/tmp/meson.build.tmp"
+    fi
+
+    if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
+        TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
+
+        [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=t4p4s_testcase_${OPTS[testcase]}" " "
+
+        sudo echo >>"/tmp/meson.build.tmp"
+        sudo echo "project_source_files += ['../../$TESTFILE']" >>"/tmp/meson.build.tmp"
+        sudo echo >>"/tmp/meson.build.tmp"
     fi
 
     IFS=" "
     for src in ${OPTS[include-srcs]}; do
-        echo "SRCS-y += $src" >> "/tmp/${GEN_MAKEFILE}.tmp"
+        sudo echo "project_source_files += ['$src']" >> "/tmp/meson.build.tmp"
     done
 
-    echo "CFLAGS += ${OPTS[cflags]}" >> "/tmp/${GEN_MAKEFILE}.tmp"
-    echo "include \$(CDIR)/../../makefiles/${ARCH}_backend_post.mk" >> "/tmp/${GEN_MAKEFILE}.tmp"
+    for flag in ${OPTS[cflags]}; do
+        sudo echo "build_args += ['$flag']" >> "/tmp/meson.build.tmp"
+    done
 
-    overwrite_on_difference "${GEN_MAKEFILE}" "${GEN_MAKEFILE_DIR}"
+
+    sudo cat <<EOT >>"/tmp/meson.build.tmp"
+executable(
+    meson.project_name(),
+    project_source_files,
+    c_args                : build_args,
+    gnu_symbol_visibility : 'hidden',
+    include_directories   : include_dirs,
+    dependencies          : all_dependencies,
+    link_args             : ['/usr/local/lib/x86_64-linux-gnu/librte_bus_vdev.so']
+)
+EOT
+
+    overwrite_on_difference "meson.build" "${T4P4S_TARGET_DIR}"
 
 
     msg "[$(cc 0)COMPILE SWITCH$nn]"
     verbosemsg "C compiler options: $(cc 0)$(print_cmd_opts "${OPTS[cflags]}")${nn}"
 
-    cd ${T4P4S_TARGET_DIR}
-    if [ "$(optvalue silent)" != off ]; then
-        make -j >/dev/null
-    else
-        make -j
-    fi
-    exit_on_error "C compilation failed"
+    if [ ! -d ${T4P4S_TARGET_DIR}/build ];  then
+        cd ${T4P4S_TARGET_DIR}
 
+        CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" meson build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
+        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn (see $(cc 1)$T4P4S_LOG_DIR/20_meson.txt$nn)"
+
+        cd - >/dev/null
+    fi
+
+    cd ${T4P4S_TARGET_DIR}/build
+    sudo ninja
+    exit_on_error "$?" "C compilation using ninja $(cc 2)failed"
     cd - >/dev/null
 fi
 
@@ -581,26 +773,39 @@ if [ "$(optvalue run)" != off ]; then
 
         msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
 
+        for ctrcfg in ${OPTS[ctrcfg]}; do
+            [ ! -f $ctrcfg ] && exit_program "Controller config file $(cc 2)$ctrcfg$nn does not exist"
+        done
+
         verbosemsg "Controller log : $(cc 0)${CONTROLLER_LOG}$nn"
         verbosemsg "Controller opts: $(print_cmd_opts ${OPTS[ctrcfg]})"
 
         # Step 3A-1: Compile the controller
         cd $CTRL_PLANE_DIR
-        if [ "$(optvalue silent)" != off ]; then
-            make -s -j $CONTROLLER >/dev/null
+        if [ "$(optvalue verbose)" == on ]; then
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -j $CONTROLLER
+        elif [ "$(optvalue silent)" != off ]; then
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER
         else
-            make -s -j $CONTROLLER
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER >/dev/null
         fi
-        exit_on_error "Controller compilation failed"
+        exit_on_error "$?" "Controller compilation $(cc 2)failed$nn"
         cd - >/dev/null
+
+        command -v gnome-terminal >/dev/null 2>/dev/null
+        HAS_TERMINAL=$?
 
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
             stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+        elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
+            TERMWIDTH=${TERMWIDTH-72}
+            TERMHEIGHT=${TERMHEIGHT-36}
+            gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
         else
             (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
         fi
-        sleep 0.05
+        sleep 0.2
     fi
 fi
 
@@ -616,13 +821,13 @@ if [ "$(optvalue run)" != off ]; then
         sudo mount -t hugetlbfs nodev /mnt/huge
     fi
 
-    [ "$(optvalue hugepages)" != off ] && reserve_hugepages2 "${OPTS[hugepages]}"
+    change_hugepages
+
 
     [ "$ARCH" == "dpdk" ] && EXEC_OPTS="${OPTS[ealopts]} -- ${OPTS[cmdopts]}"
 
     verbosemsg "Options    : $(print_cmd_opts "${EXEC_OPTS}")"
 
-    mkdir -p ${T4P4S_LOG_DIR}
     echo "Executed at $(date +"%Y%m%d %H:%M:%S")" >${T4P4S_LOG_DIR}/last.txt
     echo >>${T4P4S_LOG_DIR}/last.txt
     if [ "${OPTS[eal]}" == "off" ]; then
@@ -647,15 +852,19 @@ if [ "$(optvalue run)" != off ]; then
     [ $ERROR_CODE -eq 255 ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
 
     [ $ERROR_CODE -eq 0 ] && msg "${nn}T4P4S switch exited $(cc 0)normally$nn"
-    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
+    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch running $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
     [ $ERROR_CODE -ne 0 ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
 
-    DBGWAIT=3
+    DBGWAIT=1
     if [ $ERROR_CODE -ne 0 ] && [ "$(optvalue autodbg)" != off ]; then
+        [ "${OPTS[ctr]}" != "" ] && verbosemsg "Restarting controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
+        (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &)
+
         msg "Running $(cc 1)debugger $DEBUGGER$nn in $(cc 0)$DBGWAIT$nn seconds"
         sleep $DBGWAIT
+        print "${OPTS[executable]}"
         sudo -E ${DEBUGGER} -q -ex run --args "${OPTS[executable]}" ${EXEC_OPTS}
     fi
 fi
 
-exit_program $ERROR_CODE
+exit_program

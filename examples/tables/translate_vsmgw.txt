@@ -1,0 +1,4 @@
+TRANSLATION .ue_selector MyIngress.smac
+TRANSLATION .ipv4_forward MyIngress.ipv4_forward
+TRANSLATION .ipv4_lpm MyIngress.ipv4_lpm
+TRANSLATION .dmac_0 MyIngress.dmac_0

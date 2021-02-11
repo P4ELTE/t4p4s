@@ -359,7 +359,7 @@ control MyIngress(inout headers hdr,
         hdr.arp_ipv4.sha     = OWN_MAC;
         hdr.arp_ipv4.spa     = meta.arp_metadata.dst_ipv4;
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action send_icmp_reply() {
@@ -377,16 +377,16 @@ control MyIngress(inout headers hdr,
         hdr.icmp.type        = ICMP_ECHO_REPLY;
         hdr.icmp.checksum    = 0; // For now
 
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        standard_metadata.egress_port = standard_metadata.ingress_port;
     }
 
     action forward(port_id_t port) {
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
 	    hdr.ethernet.srcAddr = OWN_MAC;
     }
 
     action bcast() {
-        standard_metadata.egress_spec = 100;
+        standard_metadata.egress_port = 100;
     }
 
    action gtp_encapsulate(bit<32> teid, bit<32> ip) {
@@ -436,7 +436,7 @@ control MyIngress(inout headers hdr,
     action pkt_send(mac_addr_t nhmac, port_id_t port) {
         hdr.ethernet.srcAddr = OWN_MAC; // simplified
         hdr.ethernet.dstAddr = nhmac;
-        standard_metadata.egress_spec = port;
+        standard_metadata.egress_port = port;
     }
 
 table smac {

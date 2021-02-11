@@ -1,111 +1,172 @@
-# Copyright 2016 Eotvos Lorand University, Budapest, Hungary
-# 
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-# 
-#     http://www.apache.org/licenses/LICENSE-2.0
-# 
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-from __future__ import print_function
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2016-2020 Eotvos Lorand University, Budapest, Hungary
 
 import argparse
-from hlir16.hlir16 import *
-from utils.misc import *
-import utils.misc
-from transform_hlir16 import *
+from hlir16.hlir import *
+from compiler_log_warnings_errors import *
+import compiler_log_warnings_errors
 
-from subprocess import call
+from compiler_load_p4 import load_from_p4
+
+from compiler_exception_handling import *
+import compiler_common
 
 import re
 import os
 import sys
-import traceback
 import pkgutil
-from os.path import isfile, join
 
 
 generate_code_files = True
-show_code = False
-cache_dir_name = "build/.cache"
 
 # Inside the compiler, these variables are considered singleton.
 args = []
 hlir = None
 
-indentation_level = 0
+
+def replace_insert2(insert):
+    simple = re.split(r'^\$([a-zA-Z_][a-zA-Z_0-9]*)$', insert)
+    if len(simple) == 3:
+        return ("{}", simple[1])
+
+    # replace $$[light][text1]{expr}{text2} inserts, where all parts except {expr} are optional
+    m = re.match(r'(?P<type>\$\$?)(\[(?P<light>[^\]]+)\])?(\[(?P<text1>[^\]]+)\])?{\s*(?P<expr>[^}]*)\s*}({(?P<text2>[^}]+)})?', insert)
+
+    light = m.group("light")
+    txt1  = m.group('text1') or ''
+    expr  = m.group('expr')
+    txt2  = m.group('text2') or ''
+
+    # no highlighting
+    if m.group("type") == '$':
+        fmt = f'{escape_brace(txt1)}{{}}{escape_brace(txt2)}'
+    else:
+        light_param = f",{light}" if light not in (None, "") else ""
+        fmt = f'" T4LIT({escape_brace(txt1)}{{}}{escape_brace(txt2)}{light_param}) "'
+
+    return (fmt, expr)
 
 
-def verbose_print(*txts):
-    if args['verbose']:
-        print(*txts)
+def replace_insert(insert):
+    simple = re.split(r'^\$([a-zA-Z_][a-zA-Z_0-9]*)$', insert)
+    if len(simple) == 3:
+        yield (simple[1],)
+        return
+
+    # replace $$[light][text1]{expr}{text2} inserts, where all parts except {expr} are optional
+    m = re.match(r'(?P<type>\$\$?)(\[(?P<light>[^\]]+)\])?(\[(?P<text1>[^\]]+)\])?{\s*(?P<expr>[^}]*)\s*}({(?P<text2>[^}]+)})?', insert)
+
+    light = m.group("light")
+    txt1  = m.group('text1') or ''
+    expr  = m.group('expr')
+    txt2  = m.group('text2') or ''
+
+    # no highlighting
+    if m.group("type") == '$':
+        yield escape_brace(txt1)
+        yield (fmt,)
+        yield escape_brace(txt2)
+    else:
+        light_param = f",{light}" if light not in (None, "") else ""
+        yield '" T4LIT("'
+        yield escape_brace(txt1)
+        yield (fmt,)
+        yield escape_brace(txt2)
+        if light:
+            yield f",{light}"
+        yield ') "'
+
+
+def adjust_indentation(indenter, line_idx, indent, file):
+    indent_levels = {
+        "[":  0,
+        "{": +1,
+        "}": -1,
+    }
+
+    compiler_common.file_indentation_level += indent_levels[indenter]
+
+    # #{ starts a new indentation level from the next line
+    # also, #} unindents starting this line
+    if indenter == '{' and compiler_common.file_indentation_level == 0:
+        addError("Compiler", f"Too much unindent in {file}:{line_idx}")
+
+
+def escape_slash(s):
+    return re.sub(r'(\\|")', r'\\\1', s)
+
+def escape_brace(s):
+    return re.sub(r'(\{|\})', r'\1\1', s)
+
+def split_and_translate(content, extra_content="", no_quote_allowed=False):
+    parts = re.split(r'(\$+(?:(?:\[[^\]]*\])*(?:\{[^\}]*\})+|[a-zA-Z_][a-zA-Z_0-9]*))', content)
+    return translate_line_main_content2(parts, extra_content, no_quote_allowed)
+
+
+def translate_line_main_content(parts, extra_content, no_quote_allowed):
+    replaceds = [repl for part in parts for repl in replace_insert(part)]
+    raws = [part[0] if type(part) is tuple else part for part in replaceds]
+
+    apostrophe_count = len("'" in raw for raw in raws)
+    quote_count = len('"' in raw for raw in raws)
+
+    if quote_count == 0:
+        content = "".join(f'{{{part[0]}}}' if type(part[0]) is tuple else part for part in replaceds)
+        return False, f'{content}'
+
+    if apostrophe_count == 0:
+        content = "".join(f'{{{part[0]}}}' if type(part[0]) is tuple else part for part in replaceds)
+        return False, f"f'{content}'"
+
+    return translate_line_main_content2(parts, extra_content, no_quote_allowed)
+
+
+def translate_line_main_content2(parts, extra_content, no_quote_allowed):
+    if len(parts) == 1:
+        if no_quote_allowed and '\\' not in parts[0] and '"' not in parts[0]:
+            return False, parts[0]
+        return True, f'"{escape_slash(parts[0])}"'
+
+    match_with_rests = [(replace_insert2(parts[1+2*i]), parts[2+2*i]) for i in range((len(parts)-1)//2)]
+
+    all_fmt = "".join(((re.sub(r'\{\}', '', fmt) if expr == "" else fmt) + escape_brace(txt) for (fmt, expr), txt in match_with_rests))
+    all_fmt = escape_slash(f'{escape_brace(parts[0])}{all_fmt}') + extra_content
+    if "'" not in all_fmt:
+        quote = "'"
+        all_fmt = re.sub(r'\\"', '"', all_fmt)
+    else:
+        quote = '"'
+
+    all_escapes_txt = ", ".join((escape_brace(expr) or '""' for (fmt, expr), txt in match_with_rests if expr != ""))
+
+    if all_escapes_txt == "":
+        if no_quote_allowed:
+            return False, f'{all_fmt}'.strip()
+        return True, f'{quote}{all_fmt}{quote}'
+    else:
+        return True, f'{quote}{all_fmt}{quote}.format({all_escapes_txt})'
 
 
 def translate_line_with_insert(file, line_idx, line, indent_str):
     """Gets a line that contains an insert
        and transforms it to a Python code section."""
-    # since Python code is generated, indentation has to be respected
-    indentation = re.sub(r'^([ \t]*)#[\[\{\}].*$', r'\1', line)
+    _empty, indent, maybe_pre, indenter, content, _empty2 = re.split(r'^([ \t]*)#(pre|aft)?([\[\{\}])(.*)$', line)
 
-    global indentation_level
-    pre_indentation_mod = ""
-    post_indentation_mod = ""
-    # #{ unindents starting this line
-    if '#}' in line:
-        if indentation_level == 0:
-            addError("Compiler", "Too much unindent in {}:{}".format(file, line_idx))
-        indentation_level -= 1
-        pre_indentation_mod = indentation + "file_indentation_level -= 1\n"
+    adjust_indentation(indenter, line_idx, indent, file)
+    prepend_append_funname = "prepend" if maybe_pre == "pre" else "append" if maybe_pre == "aft" else ""
+    extra_content = f" // ({prepend_append_funname}ed) {file}:{line_idx}\\n" if maybe_pre else ""
 
-    # #{ starts a new indentation level from the next line
-    if '#{' in line:
-        indentation_level += 1
-        post_indentation_mod = "\n" + indentation + "file_indentation_level += 1"
+    _is_escaped, line = split_and_translate(content, extra_content)
 
-    # get the #[ (or #{, or #}) part
-    content = re.sub(r'^[ \t]*#[\[\{\}]([ \t]*[^\n]*)[ \t]*', r'\1', line)
-    # escape sequences like \n may appear in #[ parts
-    content = re.sub(r'\\', r'\\\\', content)
-    # quotes may appear in #[ parts
-    content = re.sub(r'"', r'\"', content)
+    if maybe_pre:
+        return f'{indent}{prepend_append_funname}_statement({line})'
 
-    def replacer(m):
-        light = m.group("light")
-        txt1  = m.group('text1') or ''
-        expr  = m.group('expr')
-        txt2  = m.group('text2') or ''
-
-        # no highlighting
-        if m.group("type") == '$':
-            return '{}" + str({}) + "{}'.format(txt1, expr, txt2)
-
-        light_param = "," + light if light not in (None, "") else ""
-        return '\\" T4LIT({}" + str({}) + "{}{}) \\"'.format(txt1, expr, txt2, light_param)
-
-    # replace $$[light][text1]{expr}{text2} inserts, where all parts except {expr} are optional
-    content = re.sub(r'(?P<type>\$\$?)(\[(?P<light>[^\]]+)\])?(\[(?P<text1>[^\]]+)\])?{\s*(?P<expr>[^}]*)\s*}({(?P<text2>[^}]+)})?',
-                     replacer, content)
-
-    # replace $var inserts
-    content = re.sub(r'\$([a-zA-Z0-9_]*)', r'" + str(\1) + "', content)
-    # trim the line
-    content = content.strip()
-
-    # add a comment that shows where the line is generated at
-    is_nonempty_line = bool(content.strip())
-    if is_nonempty_line and line_idx is not None:
-        if args['desugar_info'] == "comment":
-            content += '" + sugar("{}", {}) + "'.format(os.path.basename(file), line_idx)
-        if args['desugar_info'] == "pragma":
-            content = '#line %d \\"%s\\"\\n%s' % (line_idx, "../../" + file, content)
-
-    return '{}{}generated_code += indent() + "{}"{}'.format(pre_indentation_mod, indentation, content, post_indentation_mod)
+    if line_idx is None:
+        return f'{indent}generated_code += add_code({line})'
+    return f'{indent}generated_code += add_code({line}, {line_idx})'
 
 
 def increase(idx):
@@ -177,87 +238,98 @@ def add_gen_in_def(code_lines, orig_file):
     return new_lines
 
 
-def translate_file_contents(file, code, indent_str="    ", prefix_lines="", add_lines=True):
+def translate_file_contents(file, genfile, code, prefix_lines="", add_lines=True, relpath=None):
     """Returns the code transformed into runnable Python code.
        Translated are #[generated_code, #=generator_expression and ${var} constructs."""
-    has_translatable_comment = re.compile(r'^[ \t]*#[\[\{\}][ \t]*.*$')
-
     global indentation_level
     indentation_level = 0
 
     new_lines = prefix_lines.splitlines()
     new_lines += """
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2019 Eotvos Lorand University, Budapest, Hungary
+
 # Autogenerated file (from {0}), do not modify directly.
 # Generator: T4P4S (https://github.com/P4ELTE/t4p4s/)
 
-global file_indentation_level
-file_indentation_level = 0
+import compiler_common
+import re
 
-# The last element is the innermost (current) style.
-file_sugar_style = ['line_comment']
+def add_code(line, lineno = None, file = "{0}"):
+    global generated_code
 
+    line_ends = {{
+        "line_comment": "\\n",
+        "inline_comment": "",
+        "no_comment": "",
+    }}
 
-def indent():
-    global file_indentation_level
-    return '{1}' * file_indentation_level
+    sugar_style = compiler_common.file_sugar_style[-1]
 
+    stripped_line = line.strip()
+    no_sugar_on_line = stripped_line.startswith('//') or stripped_line.startswith('# ') or stripped_line == ""
 
-class SugarStyle():
-    def __init__(self, sugar):
-        global file_sugar_style
-        file_sugar_style.append(sugar)
-
-    def __enter__(self):
-        global file_sugar_style
-        return file_sugar_style[-1]
-
-    def __exit__(self, type, value, traceback):
-        global file_sugar_style
-        file_sugar_style.pop()
+    indent = '{1}' * compiler_common.file_indentation_level
+    return indent + line + sugar(no_sugar_on_line, file, lineno, sugar_style) + line_ends[sugar_style]
 
 
-def sugar(file, line):
-    import re
-    global file_sugar_style
-    sugar_file = re.sub("[.].*$", "", file)
-    if file_sugar_style[-1] == 'line_comment':
-        # if file == "{2}":
-        #     return ' // @' + str(line) + '\\n'
-        return ' // ' + sugar_file + '@' + str(line) + '\\n'
-    if file_sugar_style[-1] == 'inline_comment':
-        # if file == "{2}":
-        #     return '\\n/* @' + str(line) + '*/'
-        return '\\n/* ' + sugar_file + '@' + str(line) + '*/'
-    return ''
+def sugar(no_sugar_on_line, file, lineno, sugar_style):
+    if no_sugar_on_line or file is None or lineno is None:
+        return ""
+
+    if sugar_style == 'line_comment':
+        return f" // {{file}}:{{lineno}}"
+    if sugar_style == 'inline_comment':
+        return f" /* {{file}}:{{lineno}} */"
+    return ""
 
 
-""".format(file, indent_str, os.path.basename(file)).splitlines()
+generated_code += "// Autogenerated file (from {0} via {2}), do not modify directly.\\n"
+generated_code += "// Generator: T4P4S (https://github.com/P4ELTE/t4p4s/)\\n"
+generated_code += "\\n"
+
+""".format(file, compiler_common.file_indent_str, os.path.relpath(file, relpath) if relpath is not None else file).splitlines()
 
     code_lines = enumerate(code.splitlines())
     code_lines = add_gen_in_def(code_lines, file)
+
     if add_lines:
         code_lines = add_empty_lines(code_lines)
+
+    has_translatable_comment = re.compile(r'^([ \t]*)#(pre|aft)?([\[\{\}])(.*)$')
 
     for idx, code_line in code_lines:
         new_line = code_line
         if has_translatable_comment.match(code_line):
-            new_line = translate_line_with_insert(file, idx, code_line, indent_str)
+            new_line = translate_line_with_insert(file, idx, code_line, compiler_common.file_indent_str)
         elif re.match(r'^[ \t]*#= .*$', code_line):
-            new_line = re.sub(r'^([ \t]*)#=(.*)$', r'\1generated_code += str(\2)', code_line)
+            line_regex = r'^([ \t]*)#=[ \t]*(.*)$'
+            with compiler_common.SugarStyle('no_comment'):
+                line_indent, line_content = re.match(line_regex, code_line).groups()
+                is_escaped, code_part = split_and_translate(line_content, no_quote_allowed=True)
+                if is_escaped:
+                    code_part = f'eval({code_part})'
+
+            new_indent = re.sub(line_regex, r'\1', code_line)
+            new_line = f'{line_indent}generated_code += {code_part}'
 
             if args['desugar_info'] == "comment":
-                sugar_filename = os.path.basename(file)
-                sugar_filename = re.sub("([.]sugar)?[.]py", "", sugar_filename)
-                new_line += " # {}@{}".format(sugar_filename, idx)
+                # sugar_filename = os.path.basename(file)
+                # sugar_filename = re.sub("([.]sugar)?[.]py", "", sugar_filename)
+                sugar_filename = file
+                new_line += f" ## {os.path.relpath(sugar_filename, '.')}:{idx}"
+
+        stripped = new_line.strip()
 
         # won't mark empty lines and continued lines
-        if new_line.strip() != "" and new_line.strip()[-1] != '\\':
-            new_line += " ## " + file + " " + str(idx)
+        if stripped != "" and new_line.strip()[-1] != '\\' and idx is not None and not stripped.startswith('generated_code +='):
+            # TODO idx is sometimes off by one?
+            new_line += f" ## {os.path.relpath(file, '.')}:{int(idx) + 1}"
 
         new_lines.append(new_line)
 
     if indentation_level != 0:
-        addError("Compiler", "Non-zero indentation level ({}) at end of file: {}".format(indentation_level, file))
+        addError("Compiler", f"Non-zero indentation level ({indentation_level}) at end of file: {file}")
 
     return '\n'.join(new_lines) + "\n"
 
@@ -270,32 +342,15 @@ def generate_code(file, genfile, localvars={}):
        Inside the comments, refer to Python variables as ${variable_name}."""
     with open(file, "r") as orig_file:
         code = orig_file.read()
-        code = translate_file_contents(file, code)
+        code = translate_file_contents(file, genfile, code, relpath="src/")
 
         if generate_code_files:
             write_file(genfile, code)
 
-        if show_code:
-            print(file + " -------------------------------------------------")
-            print(code)
-            print(file + " *************************************************")
-
         localvars['generated_code'] = ""
+        module_name = genfile
 
-        try:
-            exec(code, localvars, localvars)
-        except Exception as exc:
-            # exc_type, exc, tb = sys.exc_info()
-            if hasattr(exc, 'lineno'):
-                addError("{}:{}:{}".format(genfile, exc.lineno, exc.offset), exc.msg)
-            else:
-                # TODO better error output
-                print("Error: cannot compile file {}".format(genfile), file=sys.stderr)
-                if not pkgutil.find_loader('backtrace'):
-                    print("Exception: {}".format(str(exc)), file=sys.stderr)
-                    traceback.print_exc(file=sys.stderr)
-
-                raise
+        exec(compile(code, module_name, 'exec'), localvars, localvars)
 
         return re.sub(r'\n{3,}', '\n\n', localvars['generated_code'])
 
@@ -306,38 +361,37 @@ def generate_desugared_py():
     import glob
     for fromfile in glob.glob("src/utils/*.sugar.py"):
         tofile = re.sub("[.]sugar[.]py$", ".py", fromfile)
+        compiler_common.current_compilation = { 'from': fromfile, 'to': tofile }
         with open(fromfile, "r") as orig_file:
             code = orig_file.read()
             prefix_lines = "generated_code = \"\"\n"
-            code = translate_file_contents(fromfile, code, prefix_lines=prefix_lines, add_lines=False)
+            code = translate_file_contents(fromfile, tofile, code, prefix_lines=prefix_lines, add_lines=False, relpath="src/")
 
             write_file(tofile, code)
 
-
-def get_hlir():
-    global hlir
-    if hlir is not None:
-        return hlir
-    hlir = load_hlir()
-    return hlir
+    compiler_common.current_compilation = None
 
 
 def generate_desugared_c(filename, filepath):
-    hlir = get_hlir()
+    global hlir
 
-    genfile = join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.gen.py', filename))
-    outfile = join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
+    genfile = os.path.join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.gen.py', filename))
+    outfile = os.path.join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
 
-    utils.misc.filename = filename
-    utils.misc.filepath = filepath
-    utils.misc.genfile = genfile
-    utils.misc.outfile = outfile
+    compiler_common.current_compilation = { 'orig': filename, 'from': genfile, 'to': outfile }
 
-    code = generate_code(filepath, genfile, {'hlir16': hlir})
+    compiler_log_warnings_errors.filename = filename
+    compiler_log_warnings_errors.filepath = filepath
+    compiler_log_warnings_errors.genfile = genfile
+    compiler_log_warnings_errors.outfile = outfile
+
+    code = generate_code(filepath, genfile, {'hlir': hlir})
     write_file(outfile, code)
 
+    compiler_common.current_compilation = None
 
-def make_dirs():
+
+def make_dirs(cache_dir_name):
     """Makes directories if they do not exist"""
     if not os.path.isdir(args['compiler_files_dir']):
         print("Compiler files path is missing", file=sys.stderr)
@@ -345,11 +399,11 @@ def make_dirs():
 
     if not os.path.isdir(args['desugared_path']):
         os.makedirs(args['desugared_path'])
-        verbose_print(" GEN {0} (desugared compiler files)".format(args['desugared_path']))
+        args['verbose'] and print(" GEN {0} (desugared compiler files)".format(args['desugared_path']))
 
     if not os.path.isdir(args['generated_dir']):
         os.makedirs(args['generated_dir'])
-        verbose_print(" GEN {0} (generated files)".format(args['generated_dir']))
+        args['verbose'] and print(" GEN {0} (generated files)".format(args['generated_dir']))
 
     if cache_dir_name and not os.path.isdir(cache_dir_name):
         os.mkdir(cache_dir_name)
@@ -358,7 +412,7 @@ def make_dirs():
 def file_contains_exact_text(filename, text):
     """Returns True iff the file exists and it already contains the given text."""
     if not os.path.isfile(filename):
-        return
+        return False
 
     with open(filename, "r") as infile:
         intext = infile.read()
@@ -373,6 +427,9 @@ def write_file(filename, text):
     if file_contains_exact_text(filename, text):
         return
 
+    if filename.endswith(".gen.py"):
+        args['verbose'] and print("  P4", os.path.basename(filename))
+
     with open(filename, "w") as genfile:
         genfile.write(text)
 
@@ -384,181 +441,60 @@ def init_args():
     parser.add_argument('p4_file', help='The source file')
     parser.add_argument('-v', '--p4v', help='Use P4-14 (default is P4-16)', required=False, choices=[16, 14], type=int, default=16)
     parser.add_argument('-p', '--p4c_path', help='P4C path', required=False)
-    parser.add_argument('-c', '--compiler_files_dir', help='Source directory of the compiler\'s files', required=False, default=join("src", "hardware_indep"))
+    parser.add_argument('-c', '--compiler_files_dir', help='Source directory of the compiler\'s files', required=False, default=os.path.join("src", "hardware_indep"))
     parser.add_argument('-g', '--generated_dir', help='Output directory for hardware independent files', required=True)
-    parser.add_argument('-desugared_path', help='Output directory for the compiler\'s files', required=False, default=join("build", "util", "gen"))
+    parser.add_argument('-desugared_path', help='Output directory for the compiler\'s files', required=False, default=argparse.SUPPRESS)
     parser.add_argument('-desugar_info', help='Markings in the generated source code', required=False, choices=["comment", "pragma", "none"], default="comment")
     parser.add_argument('-verbose', help='Verbosity', required=False, default=False, action='store_const', const=True)
     parser.add_argument('-beautify', help='Beautification', required=False, default=False, action='store_const', const=True)
+    parser.add_argument('--p4dbg', help='Debugging', required=False, default=False, action='store_const', const=True)
+    parser.add_argument('--p4opt', help='Debug option passed to P4-to-JSON compiler', required=False, default=[], action='append')
 
-    global args
     args = vars(parser.parse_args())
 
+    if 'desugared_path' not in args:
+        args['desugared_path'] = os.path.relpath(os.path.join(args['generated_dir'], '..', "gen"))
 
-# TODO also reload if HLIR has changed
-def is_file_fresh(filename):
-    global p4time
-    filetime = os.path.getmtime(filename)
-    return p4time < filetime
+    cache_dir_name = os.path.relpath(os.path.join(args['generated_dir'], '..', "cache"))
 
-
-def load_json_from_cache(base_p4_file):
-    if not cache_dir_name:
-        return None
-
-    json_filename = base_p4_file + ".json"
-    json_filepath = os.path.join(cache_dir_name, json_filename)
-
-    if not os.path.isfile(json_filepath):
-        return None
-    if not is_file_fresh(json_filepath):
-        return None
-
-    verbose_print("JSON %s (cached)" % json_filename)
-    return json_filepath
+    return args, cache_dir_name
 
 
-def get_pickled_hlir_file(base_p4_file):
-    if not cache_dir_name:
-        return None
-
-    if not pkgutil.find_loader('dill'):
-        return None
-
-    pickle_filepath = os.path.join(cache_dir_name, base_p4_file + ".pickled")
-    if not os.path.isfile(pickle_filepath):
-        return None
-    if not is_file_fresh(pickle_filepath):
-        return None
-
-    return pickle_filepath
-
-
-def load_pickled_hlir(pickle_filepath):
-    if pickle_filepath is None:
-        return None
-
-    if not pkgutil.find_loader('dill'):
-        return None
-
-    import dill
-    import pickle
-
-    # the standard recursion limit of 1000 can be too restrictive in more complex cases
-    sys.setrecursionlimit(10000)
-
-    with open(pickle_filepath, 'r') as inf:
-        verbose_print("Found serialized HLIR in %s..." % pickle_filepath)
-        return pickle.load(inf)
-
-
-def save_pickled_hlir(hlir, base_p4_file):
-    if not cache_dir_name:
-        return None
-
-    if not pkgutil.find_loader('dill'):
-        return None
-
-    import dill
-    import pickle
-
-    # the standard recursion limit of 1000 can be too restrictive in more complex cases
-    sys.setrecursionlimit(10000)
-
-    with open(os.path.join(cache_dir_name, base_p4_file + ".pickled"), 'w') as outf:
-        pickled_hlir = pickle.dumps(hlir)
-        outf.write(pickled_hlir)
-
-
-def load_p4_file(filename):
-    global hlir
-
-    base_p4_file = os.path.basename(args['p4_file'])
-
-    pickle_filepath = get_pickled_hlir_file(base_p4_file)
-    hlir = load_pickled_hlir(pickle_filepath)
-    if hlir is not None:
-        return True
-
-    to_load = load_json_from_cache(base_p4_file) or args['p4_file']
-
-    hlir = load_p4(to_load, args['p4v'], args['p4c_path'], cache_dir_name)
-    success = type(hlir) is not int
-
-    if not success:
-        return False
-
-    verbose_print("HLIR " + filename)
-    transform_hlir16(hlir)
-
-    save_pickled_hlir(hlir, base_p4_file)
-
-    return True
-
-
-def check_file_exists(filename):
-    if os.path.isfile(filename) is False:
-        print("FILE NOT FOUND: %s" % filename, file=sys.stderr)
-        sys.exit(1)
-
-def check_file_extension(filename):
-    _, ext = os.path.splitext(filename)
-    if ext not in {'.p4', '.p4_14'}:
-        print("EXTENSION NOT SUPPORTED: %s" % ext, file=sys.stderr)
-        sys.exit(1)
-
-
-def setup_backtrace():
-    """If the backtrace module is installed, use it to print better tracebacks."""
-    if not pkgutil.find_loader('backtrace'):
-        return
-
-    import backtrace
-
-    backtrace.hook(
-        reverse=True,
-        align=True,
-        strip_path=True,
-        enable_on_envvar_only=False,
-        on_tty=False,
-        conservative=False,
-        styles={})
-
-
-def main():
-    setup_backtrace()
-    init_args()
-
-    filename = args['p4_file']
-
-    global p4time
-    p4time = os.path.getmtime(filename)
-
-    make_dirs()
-
-    check_file_exists(filename)
-    check_file_extension(filename)
-
-    success = load_p4_file(filename)
-
-    if not success:
-        print("P4 compilation failed for file %s" % (os.path.basename(__file__)), file=sys.stderr)
-        sys.exit(1)
-
+def generate_files():
     base = args['compiler_files_dir']
     exts = [".c.py", ".h.py"]
 
-    for filename in (f for f in os.listdir(base) if isfile(join(base, f)) for ext in exts if f.endswith(ext)):
-        verbose_print("  P4", filename)
-        generate_desugared_py()
-        generate_desugared_c(filename, join(base, filename))
+    generate_desugared_py()
+    for filename in (f for f in os.listdir(base) if os.path.isfile(os.path.join(base, f)) for ext in exts if f.endswith(ext)):
+        generate_desugared_c(filename, os.path.join(base, filename))
 
-    showErrors()
-    showWarnings()
+
+def main():
+    try:
+        global args
+        args, cache_dir_name = init_args()
+        make_dirs(cache_dir_name)
+
+        global hlir
+        hlir = load_from_p4(args, cache_dir_name)
+        generate_files()
+
+        showErrors()
+        showWarnings()
+    except T4P4SHandledException:
+        sys.exit(1)
+    except:
+        cuco = compiler_common.current_compilation
+        if cuco:
+            stagetxt = f"{cuco['stage']['name']}: " if 'stage' in cuco else ""
+            print(f"{stagetxt}Error during the compilation of {cuco['from']} to {cuco['to']}")
+        print_with_backtrace(sys.exc_info(), cuco['from'] if cuco else "(no compiler_common file)", args['p4dbg'])
+        sys.exit(1)
 
     global errors
     if len(errors) > 0:
         sys.exit(1)
+
 
 
 if __name__ == '__main__':

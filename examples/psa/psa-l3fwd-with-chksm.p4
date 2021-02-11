@@ -74,7 +74,7 @@ parser IngressParserImpl(packet_in packet,
         }
     }
     state parse_ipv4 {
-	packet.extract(hdr.ipv4);
+        packet.extract(hdr.ipv4);
         ck.clear();
         ck.add({hdr.ipv4.versionIhl, hdr.ipv4.diffserv, hdr.ipv4.totalLen, hdr.ipv4.identification, hdr.ipv4.fragOffset, hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr});
         verify(ck.get() == hdr.ipv4.hdrChecksum,

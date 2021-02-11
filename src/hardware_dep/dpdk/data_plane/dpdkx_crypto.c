@@ -16,7 +16,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <rte_dev.h>
-int rte_vdev_init(const char *name, const char *args);
+#include <rte_bus_vdev.h>
 #ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
 #include <rte_cryptodev_scheduler.h>
 #include <dataplane.h>

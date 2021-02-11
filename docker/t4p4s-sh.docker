@@ -1,5 +1,0 @@
-FROM t4p4s
-
-WORKDIR /root/t4p4s
-ENTRYPOINT ["./t4p4s.sh"]
-CMD []

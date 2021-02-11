@@ -1,17 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 
 // This file is included directly from `dpdk_lib.c`.
 
@@ -38,19 +26,26 @@ struct lcore_params lcore_params[MAX_LCORE_PARAMS];
 
 struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
-struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
+rte_eth_addr_t ports_eth_addr[RTE_MAX_ETHPORT_COUNT];
 
 uint16_t t4p4s_nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
+#ifndef T4P4S_RTE_RSS_HF
+#define T4P4S_RTE_RSS_HF (ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX)
+#endif
 
 struct rte_eth_conf port_conf = {
+#ifndef T4P4S_VETH_MODE
     .rxmode = {
         .mq_mode = ETH_MQ_RX_RSS,
-        .max_rx_pkt_len = ETHER_MAX_LEN,
+        .max_rx_pkt_len = RTE_ETH_MAX_LEN,
         .split_hdr_size = 0,
 #if RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
-        .offloads = DEV_RX_OFFLOAD_CHECKSUM,
+	#ifndef T4P4S_RTE_OFFLOADS
+	#define T4P4S_RTE_OFFLOADS DEV_RX_OFFLOAD_CHECKSUM
+	#endif
+        .offloads = T4P4S_RTE_OFFLOADS,
 #elif RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
         .offloads = DEV_RX_OFFLOAD_CRC_STRIP | DEV_RX_OFFLOAD_CHECKSUM,
 #else
@@ -64,15 +59,13 @@ struct rte_eth_conf port_conf = {
     .rx_adv_conf = {
         .rss_conf = {
             .rss_key = NULL,
-            .rss_hf = 
-		// 0x38d34,
-		ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX,
-		// ETH_RSS_IP, // 0xa38c
+            .rss_hf = T4P4S_RTE_RSS_HF,
         },
     },
     .txmode = {
         .mq_mode = ETH_MQ_TX_NONE,
     },
+#endif
 };
 
 //=============================================================================
@@ -108,20 +101,24 @@ bool is_port_disabled(uint8_t portid) {
 
 bool check_port_config(unsigned nb_ports)
 {
+    bool retval = true;
+
     for (uint16_t i = 0; i < nb_lcore_params; ++i) {
         unsigned portid = lcore_params[i].port_id;
 
-        if (is_port_disabled(portid)) {
-            debug("port %u is not enabled in port mask\n", portid);
-            return false;
+        if (portid >= nb_ports) {
+            debug(" " T4LIT(!!!!,error) " Port " T4LIT(%u,port) " is " T4LIT(not present,error) " on the board\n", portid);
+            retval = false;
+            continue;
         }
 
-        if (portid >= nb_ports) {
-            debug("port %u is not present on the board\n", portid);
-            return false;
+        if (is_port_disabled(portid)) {
+            debug(" " T4LIT(!!!!,error) " Port " T4LIT(%u,port) " is " T4LIT(not enabled,error) " in port mask\n", portid);
+            retval = false;
+            continue;
         }
     }
-    return true;
+    return retval;
 }
 
 //=============================================================================
@@ -133,7 +130,7 @@ int init_lcore_rx_queues()
         uint16_t nb_rx_queue = lcore_conf[lcore].hw.n_rx_queue;
 
         if (nb_rx_queue >= MAX_RX_QUEUE_PER_LCORE) {
-            debug("   :: Error: too many queues (%u) for lcore %u (max: %u)\n",
+            debug("   " T4LIT(!!,error) " Error: " T4LIT(too many queues,error) " (%u) for lcore %u (max: %u)\n",
                 (unsigned)nb_rx_queue + 1, (unsigned)lcore, MAX_RX_QUEUE_PER_LCORE);
             return -1;
         }
@@ -172,10 +169,10 @@ uint32_t min(uint32_t val1, uint32_t val2) {
     return val1 < val2 ? val1 : val2;
 }
 
-void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
+bool init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
 {
     if (rte_lcore_is_enabled(lcore_id) == 0)
-        return;
+        return false;
 
     uint8_t socketid = get_socketid(lcore_id);
 
@@ -193,6 +190,7 @@ void init_tx_on_lcore(unsigned lcore_id, uint8_t portid, uint16_t queueid)
 
     struct lcore_conf* qconf = &lcore_conf[lcore_id];
     qconf->hw.tx_queue_id[portid] = queueid;
+    return true;
 }
 
 // We have to initialize all ports - create membufs, tx/rx queues, etc.
@@ -202,7 +200,7 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
         return;
     }
 
-    debug(" :::: Initializing port %d\n", portid);
+    debug(" :::: Init port %d\n", portid);
     fflush(stdout);
 
     uint16_t nb_rx_queue = get_port_n_rx_queues(portid);
@@ -220,8 +218,9 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     print_port_mac((unsigned)portid, ports_eth_addr[portid].addr_bytes);
 
     uint16_t queueid = 0;
-    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++, queueid++) {
-        init_tx_on_lcore(lcore_id, portid, queueid);
+    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        if (init_tx_on_lcore(lcore_id, portid, queueid))
+            ++queueid;
     }
 
     debug("\n");
@@ -233,7 +232,7 @@ void dpdk_init_rx_queue(uint8_t queue, unsigned lcore_id, struct lcore_conf* qco
 
     int socketid = get_socketid(lcore_id);
 
-    debug("rxq=%d,%d,%d ", portid, queueid, socketid);
+    debug("rxq=" T4LIT(%d,port) "," T4LIT(%d,queue) "," T4LIT(%d,socket) "\n", portid, queueid, socketid);
     fflush(stdout);
 
     int ret = rte_eth_rx_queue_setup(portid, queueid, t4p4s_nb_rxd,
@@ -248,7 +247,7 @@ void dpdk_init_lcore(unsigned lcore_id) {
         return;
 
     struct lcore_conf* qconf = &lcore_conf[lcore_id];
-    debug(" :::: Initializing RX queues on lcore " T4LIT(%u,core) "...\n", lcore_id);
+    debug(" :::: Init RX queues on lcore " T4LIT(%u,core) "...\n", lcore_id);
     fflush(stdout);
 
     /* init RX queues */
@@ -299,6 +298,9 @@ void dpdk_init_nic()
         init_mbuf_pool(socketid);
     }
 
+    if (nb_ports > 0) {
+        debug(" :::: Init ports\n");
+    }
     for (uint8_t portid = 0; portid < nb_ports; portid++) {
         dpdk_init_port(nb_ports, nb_lcores, portid);
     }

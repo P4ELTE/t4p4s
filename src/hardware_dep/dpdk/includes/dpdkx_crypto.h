@@ -16,6 +16,7 @@
 #define DPDKX_CRYPTO_H
 
 #include <rte_cryptodev.h>
+#include "dpdk_lib.h"
 
 #define MAX_SESSIONS         2048
 #define NUM_MBUFS            2048
