@@ -83,6 +83,22 @@ fake_cmd_t get_cmd(LCPARAMS) {
     return (*(current_test_case->steps))[rte_lcore_id()][lcdata->idx];
 }
 
+fake_cmd_t get_command_object(LCPARAMS, unsigned idx){
+    return (*(current_test_case->steps))[rte_lcore_id()][idx];
+}
+
+fake_cmd_t get_cmd_to_verify(LCPARAMS) {
+    while(  get_command_object(LCPARAMS_IN, lcdata->verify_idx).action != FAKE_PKT ||
+            get_command_object(LCPARAMS_IN, lcdata->verify_idx).in_port == 0) {
+        lcdata->verify_idx++;
+    }
+    fprintf(stderr,"Verify object: actual idx:%d cmd:%d out_port: %d\n",lcdata->verify_idx,
+            get_command_object(LCPARAMS_IN, lcdata->verify_idx).action,
+            get_command_object(LCPARAMS_IN, lcdata->verify_idx).out_port
+    );
+    return get_command_object(LCPARAMS_IN, lcdata->verify_idx++);
+}
+
 
 uint8_t bytes[8*sizeof(struct ether_header)];
 
@@ -314,8 +330,7 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
 bool encountered_error = false;
 
 void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
-    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
-
+    fake_cmd_t cmd = get_cmd_to_verify(LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
@@ -338,7 +353,8 @@ bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
 bool core_is_working(LCPARAMS) {
-    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END;
+    fprintf(stderr,"Pending: %d\n",lcdata->conf->pending_crypto);
+    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0;
     #ifdef START_CRYPTO_NODE
         if(ret == false){
             core_stopped_running[rte_lcore_id()] = true;
@@ -451,14 +467,14 @@ void init_storage() {
 
 struct lcore_data init_lcore_data() {
     struct lcore_data data = (struct lcore_data) {
-        .conf     = &lcore_conf[rte_lcore_id()],
-        .is_valid = true,
-        .idx      = 0,
-        .pkt_idx  = 0,
+        .conf       = &lcore_conf[rte_lcore_id()],
+        .is_valid   = true,
+        .verify_idx = 0,
+        .idx        = 0,
+        .pkt_idx    = 0,
     };
     data.conf->mempool  = pktmbuf_pool[0];
     data.conf->crypto_pool = crypto_pool;
-
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data.conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed

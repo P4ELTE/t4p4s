@@ -14,6 +14,7 @@ struct lcore_data {
     bool                is_valid;
 
     unsigned            idx;
+    unsigned            verify_idx;
     unsigned            pkt_idx;
 
     struct rte_mempool* mempool;

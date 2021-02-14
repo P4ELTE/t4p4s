@@ -177,10 +177,12 @@ void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *cryp
 
 // defined in main_async.c
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
+void do_encryption(SHORT_STDPARAMS);
+void do_decryption(SHORT_STDPARAMS);
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
-void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void do_encryption_async(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
@@ -203,13 +205,13 @@ void do_encryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
     #elif ASYNC_MODE == ASYNC_MODE_OFF
-        do_encryption(pd,tables,pstate);
+        do_encryption(SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
     #endif
 }
 
-void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void do_decryption_async(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
@@ -227,7 +229,7 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         ;
     #elif ASYNC_MODE == ASYNC_MODE_OFF
-        do_decryption(pd,tables,pstate);
+        do_decryption(SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
     #endif
@@ -240,7 +242,7 @@ void do_decryption_async(packet_descriptor_t* pd, lookup_table_t** tables, parse
 
 // defined in main_async.c
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
-void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void do_encryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(run_blocking_encryption_counter[rte_lcore_id()] == 0){
@@ -255,7 +257,7 @@ void do_encryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_stat
     #endif
 }
 
-void do_decryption(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate)
+void do_decryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(run_blocking_encryption_counter[rte_lcore_id()] == 0) {

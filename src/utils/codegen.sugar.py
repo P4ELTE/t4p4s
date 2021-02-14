@@ -885,7 +885,7 @@ def gen_fmt_MethodCallExpression(e, format_as_value=True, expand_parameters=Fals
     if 'member' in m and (m.node_type, m.member) in special_methods:
         method = special_methods.get((m.node_type, m.member))
         #= method(e)
-    elif e.arguments.is_vec() and e.arguments.vec != []:
+    elif e.arguments.is_vec():
         mname = m.path.name
 
         if mname == 'digest':

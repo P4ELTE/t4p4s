@@ -112,7 +112,7 @@ void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx
 #endif
 }
 // defined in main_async.c
-void async_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, unsigned pkt_idx, uint32_t port_id, void (*handler_function)(void));
+void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void));
 void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
 void main_loop_fake_crypto(struct lcore_data* lcdata);
 
@@ -142,13 +142,13 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
             #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
                 if(PACKET_REQUIRES_ASYNC(pd)){
                     COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
-                    async_handle_packet(LCPARAMS_IN, pkt_idx, portid, (void (*)(void))handler_function);
+                    async_handle_packet(LCPARAMS_IN, portid, queue_idx, pkt_idx, (void (*)(void))handler_function);
                 }
                 else{
-                    handler_function(LCPARAMS_IN, portid, queue_idx,pkt_idx);
+                    handler_function(LCPARAMS_IN, portid, queue_idx, pkt_idx);
                 }
             #else
-                handler_function(LCPARAMS_IN, portid, queue_idx,pkt_idx);
+                handler_function(LCPARAMS_IN, portid, queue_idx, pkt_idx);
             #endif
         }
     }
@@ -185,7 +185,6 @@ void dpdk_main_loop()
 
     struct lcore_data* lcdata = &lcdata_content;
     packet_descriptor_t* pd = &pd_content;
-
     #ifdef START_CRYPTO_NODE
         if (!lcdata->is_valid && rte_lcore_id() != rte_lcore_count() - 1) {
                 debug("lcore data is invalid, exiting\n");
@@ -221,17 +220,20 @@ void dpdk_main_loop()
     while (core_is_working(LCPARAMS_IN)) {
         #ifdef START_CRYPTO_NODE
             if (lcore_id ==  rte_lcore_count() - 1){
-                main_loop_fake_crypto(&lcdata);
+                main_loop_fake_crypto(LCPARAMS_IN);
             }else{
                 main_loop_whole_process(LCPARAMS_IN);
             }
         #else
-                main_loop_whole_process(LCPARAMS_IN);
+            main_loop_whole_process(LCPARAMS_IN);
+            #if ASYNC_MODE != ASYNC_MODE_OFF
+                main_loop_async(LCPARAMS_IN);
+            #endif
         #endif
 
         #if ASYNC_MODE != ASYNC_MODE_OFF
             if (lcore_id != rte_lcore_count() - 1) {
-                main_loop_async(&lcdata, &pd);
+                main_loop_async(LCPARAMS_IN);
             }
         #endif
     }
