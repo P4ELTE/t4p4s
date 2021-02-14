@@ -353,7 +353,7 @@ bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
 bool core_is_working(LCPARAMS) {
-    fprintf(stderr,"Pending: %d\n",lcdata->conf->pending_crypto);
+    //fprintf(stderr,"Pending: %d\n",lcdata->conf->pending_crypto);
     bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0;
     #ifdef START_CRYPTO_NODE
         if(ret == false){

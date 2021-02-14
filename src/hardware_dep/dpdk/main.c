@@ -113,8 +113,8 @@ void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx
 }
 // defined in main_async.c
 void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void));
-void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
-void main_loop_fake_crypto(struct lcore_data* lcdata);
+void main_loop_async(LCPARAMS);
+void main_loop_fake_crypto(LCPARAMS);
 
 
 #ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET

@@ -32,7 +32,7 @@ struct rte_ring    *context_buffer;
 
 void async_init_storage();
 void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void));
-void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t* pd);
+void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
@@ -481,12 +481,9 @@ void main_loop_fake_crypto(LCPARAMS){
 
 uint64_t timer1 = 0;
 
-void main_loop_async(struct lcore_data* lcdata, packet_descriptor_t *pd)
+void main_loop_async(LCPARAMS)
 {
-    debug("----------------------------------------------------------------------- main_loop_async\n");
-    //TIME_MEASURE_ECHO(lcdata->conf->async_work_loop_time,"async work time: %" PRIu64 "\n");
-
-    debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_buffer), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+    //debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_buffer), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
     //wait_for_cycles(FAKE_CRYPTO_SLEEP_MULTIPLIER*1000);
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
