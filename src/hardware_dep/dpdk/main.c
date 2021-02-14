@@ -117,9 +117,6 @@ void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
 
 
-#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-int packet_required_counter[RTE_MAX_LCORE];
-#endif
 
 void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
@@ -140,7 +137,9 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
         if (likely(is_packet_handled(LCPARAMS_IN))) {
             int portid = get_portid(queue_idx, LCPARAMS_IN);
             #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-                if(PACKET_REQUIRES_ASYNC(pd)){
+                debug("CryptoCounter: %d\n",lcdata->conf->crypto_every_n_counter)
+                if(PACKET_REQUIRES_ASYNC(lcdata,pd)){
+                    debug("DO ASYNC\n")
                     COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
                     async_handle_packet(LCPARAMS_IN, portid, queue_idx, pkt_idx, (void (*)(void))handler_function);
                 }
@@ -284,7 +283,6 @@ int main(int argc, char** argv)
 
     RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
     RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
-    RTE_LOG(INFO, P4_FWD, " -- NUMBER_OF_CORES: %u\n", NUMBER_OF_CORES);
     RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
     RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
     RTE_LOG(INFO, P4_FWD, " -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);

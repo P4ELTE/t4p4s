@@ -235,17 +235,12 @@ void do_decryption_async(SHORT_STDPARAMS)
     #endif
 }
 
-#ifdef DEBUG__CRYPTO_EVERY_N
-    int run_blocking_encryption_counter[RTE_MAX_LCORE];
-#endif
-
-
 // defined in main_async.c
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 void do_encryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
-        if(run_blocking_encryption_counter[rte_lcore_id()] == 0){
+        if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
             COUNTER_STEP(lcore_conf[rte_lcore_id()].sent_to_crypto_packet);
             do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
@@ -260,10 +255,10 @@ void do_encryption(SHORT_STDPARAMS)
 void do_decryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
-        if(run_blocking_encryption_counter[rte_lcore_id()] == 0) {
+        if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0) {
             do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
         }
-        run_blocking_encryption_counter[rte_lcore_id()] = (run_blocking_encryption_counter[rte_lcore_id()] + 1) % DEBUG__CRYPTO_EVERY_N;
+        increase_with_rotation(lcore_conf[rte_lcore_id()].crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N);
     #else
         do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
     #endif

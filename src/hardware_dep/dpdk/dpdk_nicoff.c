@@ -464,7 +464,7 @@ void init_storage() {
     #endif
 
 }
-
+extern void init_async_data(struct lcore_data *data);
 struct lcore_data init_lcore_data() {
     struct lcore_data data = (struct lcore_data) {
         .conf       = &lcore_conf[rte_lcore_id()],
@@ -474,10 +474,7 @@ struct lcore_data init_lcore_data() {
         .pkt_idx    = 0,
     };
     data.conf->mempool  = pktmbuf_pool[0];
-    data.conf->crypto_pool = crypto_pool;
-    char str[15];
-    sprintf(str, "async_queue_%d", rte_lcore_id());
-    data.conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
+    init_async_data(&data);
 
     return data;
 }

@@ -156,6 +156,7 @@ void init_queues(struct lcore_data* lcdata) {
     }
 }
 
+extern void init_async_data(struct lcore_data *data);
 struct lcore_data init_lcore_data() {
     struct lcore_data lcdata = {
         .drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US,
@@ -167,11 +168,7 @@ struct lcore_data init_lcore_data() {
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
     lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
-    lcdata.conf->crypto_pool = crypto_pool;
-
-    char str[15];
-    sprintf(str, "async_queue_%d", rte_lcore_id());
-    lcdata.conf->async_queue = rte_ring_create(str, (unsigned)4*1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ); // TODO refine this if needed
+    init_async_data(&data);
 
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());

@@ -64,9 +64,6 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
     uint32_t async_pds_counter[RTE_MAX_LCORE];
 #endif
 
-#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-    extern int packet_required_counter[RTE_MAX_LCORE];
-#endif
 // -----------------------------------------------------------------------------
 // EXTERNS
 
@@ -146,7 +143,6 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         pd->context = context;
 
         DBG_CONTEXT_SWAP_TO_PACKET(context)
-        fprintf(stderr, "WRAPPER:%d %d\n",pd->wrapper,pd);
         swapcontext(&lcdata->conf->main_loop_context, context);
         debug("Swapped back to main context.\n");
 
@@ -256,35 +252,30 @@ void async_init_storage()
 #endif
 
     context_buffer = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-    for(int a=0;a<NUMBER_OF_CORES;a++) {
-        char rxName[100];
-        char txName[100];
-        sprintf(rxName,"fake_crypto_rx_ring_%d",a);
-        sprintf(txName,"fake_crypto_tx_ring_%d",a);
-        lcore_conf[a].fake_crypto_rx = rte_ring_create(rxName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                              0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-        lcore_conf[a].fake_crypto_tx = rte_ring_create(txName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                              0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-
-        COUNTER_INIT(lcore_conf[a].async_drop_counter);
-        //TIME_MEASURE_INIT(lcore_conf[a].async_work_loop_time);
-
-
-        #ifdef DEBUG__CRYPTO_EVERY_N
-            extern int run_blocking_encryption_counter[RTE_MAX_LCORE];
-            run_blocking_encryption_counter[a] = 0;
-        #endif
-        #ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-            extern int packet_required_counter[RTE_MAX_LCORE];
-            packet_required_counter[a] = -1;
-        #endif
-        //#if ASYNC_MODE == ASYNC_MODE_PD
-        //    async_pds_counter[a] = ASYNC_PDS_SIZE - 1;
-        //#endif
-    }
-    fprintf(stderr,"End async init\n");
 }
 
+
+void init_async_data(struct lcore_data *data){
+    data->conf->crypto_pool = crypto_pool;
+    char str[15];
+    sprintf(str, "async_queue_%d", rte_lcore_id());
+    data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
+
+    char rxName[32];
+    char txName[32];
+    sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
+    sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
+    data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        data->conf->crypto_every_n_counter = -1;
+    #endif
+    COUNTER_INIT(data->conf->async_drop_counter);
+    //TIME_MEASURE_INIT(lcore_conf[a].async_work_loop_time);
+}
 
 void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void))
 {
@@ -356,7 +347,6 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
         memcpy(standard_metadata,
                pd->headers[1].pointer,
                metadata_length);
-    fprintf(stderr, "WRAPPER:%d %d\n",pd->wrapper,pd);
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->context == NULL) return;
         extraInformationForAsyncHandling = pd->context;
@@ -374,10 +364,8 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
         void* context = extraInformationForAsyncHandling;
         // suspend processing of packet and go back to the main context
         DBG_CONTEXT_SWAP_TO_MAIN
-        fprintf(stderr, "WRAPPER:%d %d %d\n",pd->wrapper,pd,CONTEXT_STACKSIZE);
         swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
         debug("Swapped back to packet context %p.\n", context);
-        fprintf(stderr, "WRAPPER:%d %d\n",pd->wrapper,pd);
         reset_pd(pd);
         parse_packet(pd, 0, 0);
         // restoring standard metadata from context
@@ -453,7 +441,7 @@ wait_for_cycles(uint64_t cycles)
 }
 void main_loop_fake_crypto(LCPARAMS){
     unsigned lcore_id = rte_lcore_id();
-    for(int a=0;a<NUMBER_OF_CORES;a++){
+    for(int a=0;a<rte_lcore_count();a++){
         if(lcore_conf[a].fake_crypto_rx != NULL){
             unsigned int n = rte_ring_dequeue_burst(lcore_conf[a].fake_crypto_rx, (void*)enqueued_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
             if (n>0){

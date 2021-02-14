@@ -116,6 +116,9 @@ struct lcore_conf {
     occurence_counter_t async_packet;
 	occurence_counter_t processed_packet_num;
 
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        int crypto_every_n_counter;
+    #endif
 	//time_measure_t main_time;
 	//time_measure_t middle_time;
 	//time_measure_t middle_time2;
@@ -138,15 +141,6 @@ struct lcore_conf {
 	#define ASYNC_MODE ASYNC_MODE_OFF
 #endif
 
-#ifndef NUMBER_OF_CORES
-    #define NUMBER_OF_CORES 4
-#endif
-
-
-//#define DEBUG__CRYPTO_EVERY_N 1
-//#define DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET 1
-
-
 //#//define START_CRYPTO_NODE
 #define CRYPTO_NODE_MODE_OPENSSL 1
 #define CRYPTO_NODE_MODE_FAKE 2
@@ -160,18 +154,20 @@ struct lcore_conf {
 #endif
 
 
+#define increase_with_rotation(value,rotation_length) (value = (((value) >= (rotation_length-1)) ? ((value + 1) % (rotation_length)) : ((value) + 1)))
+
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-	#ifdef DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET
-		#define PACKET_REQUIRES_ASYNC(pd) (packet_required_counter[rte_lcore_id()] = (packet_required_counter[rte_lcore_id()] + 1) % DEBUG__CONTEXT_SWITCH_FOR_EVERY_N_PACKET) == 0
+	#ifdef DEBUG__CRYPTO_EVERY_N
+		#define PACKET_REQUIRES_ASYNC(lcdata,pd) (increase_with_rotation(lcdata->conf->crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N)) == 0
     #else
-		#define PACKET_REQUIRES_ASYNC(pd) true
+		#define PACKET_REQUIRES_ASYNC(lcdata,pd) true
     #endif
 
     #ifndef CRYPTO_BURST_SIZE
 	    #define CRYPTO_BURST_SIZE 64
     #endif
 #else
-	#define PACKET_REQUIRES_ASYNC(pd) false
+	#define PACKET_REQUIRES_ASYNC(lcdata,pd) false
     #ifndef CRYPTO_BURST_SIZE
     	#define CRYPTO_BURST_SIZE 1
     #endif
