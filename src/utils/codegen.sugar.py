@@ -820,6 +820,8 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
     #} }
 
 def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_variable=False):
+    from random import randint
+
     if 'hdr_ref' in e:
         if e.hdr_ref.urtype.is_metadata:
             #[ pd->fields.FLD(${e.expr.member},${e.member})
@@ -828,16 +830,32 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
     elif e.expr.node_type == 'PathExpression':
         hdr = e.expr.hdr_ref
         if e.expr.urtype.node_type == 'Type_Header':
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})))
+            size = hdr.urtype.fields.get(e.member).size
+            random_value = f'{randint(0, 2 ** size - 1):x}'
+            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT(${hdr.name},warning) "." T4LIT(${e.member},field) "\n");
+            #[ (is_header_valid(HDR(${hdr.name}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})) : (0x$random_value /* random $size bit value */))
         else:
-            hdrname = "all_metadatas" if hdr.urtype('is_metadata', False) else hdr.name
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,${e.member})))
+            is_meta = hdr.urtype('is_metadata', False)
+            hdrname = "all_metadatas" if is_meta else hdr.name
+            size = hdr.urtype.fields.get(e.member).size
+            random_value = 0 if is_meta else f'{randint(0, 2 ** size - 1):x}'
+            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT(${e.member},field) "\n");
+            #[ (is_header_valid(HDR(${hdrname}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,${e.member})) : (0x$random_value /* random $size bit value */))
     else:
         if e.type.node_type in {'Type_Enum', 'Type_Error'}:
             #[ ${e.type.members.get(e.member).c_name}
         elif e.expr('expr', lambda e2: e2.type.name == 'parsed_packet'):
-            #[ pd->fields.FLD(${e.expr.member},${e.member})
+            hdr = e.expr.member
+            fld = e.member
+            size = hdr.urtype.fields.get(e.member).size
+            random_value = f'{randint(0, 2 ** size - 1):x}'
+            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT($fld,field) "\n");
+            #[ (is_header_valid(HDR($hdr), pd) ? pd->fields.FLD($hdr,$fld) : (0x$random_value /* random $size bit value */))
+        elif e.expr.node_type == 'MethodCallExpression':
+            # note: this is an apply_result_t, it cannot be invalid
+            #[ ${format_expr(e.expr)}.${e.member}
         else:
+            addWarning('getting member', f'Unexpected expression of type {e.node_type}')
             #[ ${format_expr(e.expr)}.${e.member}
 
 ###########
@@ -1083,6 +1101,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             size = e.expr.fld_ref.urtype.size
             random_value = f'{randint(0, 2 ** size - 1):x}'
 
+            # TODO debug printout warning if invalid?
             #[ (is_header_valid(HDR(${hdrname}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname)) : (0x$random_value /* random $size bit value */))
     elif nt in complex_cases:
         case = complex_cases[nt]
