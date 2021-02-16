@@ -63,6 +63,7 @@ project_source_files = [
     hdep / 'shared/data_plane/ternary_naive.c',
 
     hdep / 'shared/util_debug.c',
+    hdep / 'shared/backend.c',
 ]
 
 build_args = [

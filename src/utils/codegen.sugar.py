@@ -1068,7 +1068,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             #= var_name
         else:
             hdrname = 'all_metadatas' if e.expr.hdr_ref.urtype.is_metadata else e.expr.member
-            #[ (GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname)))
+            #[ (is_header_valid(HDR(${hdrname}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname)) : 0)
     elif nt in complex_cases:
         case = complex_cases[nt]
         if nt == 'SelectExpression':

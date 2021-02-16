@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "dataplane_hdr_fld_pkt.h"
+
 #define SHORT_STDPARAMS packet_descriptor_t* pd, lookup_table_t** tables
 #define SHORT_STDPARAMS_IN pd, tables
 #define STDPARAMS SHORT_STDPARAMS, parser_state_t* pstate
@@ -29,3 +31,5 @@ typedef struct uint8_buffer_s {
        int      buffer_size;
        uint8_t* buffer;
 } uint8_buffer_t;
+
+bool is_header_valid(header_instance_t, packet_descriptor_t*);
