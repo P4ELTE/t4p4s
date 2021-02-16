@@ -306,7 +306,7 @@ def gen_do_assignment(dst, src):
         #[     debug("   " T4LIT(!!,warning) " Ignoring assignment from invalid header " T4LIT(%s,warning) "\n", hdr_infos[HDR(${src_hdr_name})].name);
         #[ } else {
         #[     memcpy(pd->headers[HDR(${dst_hdr_name})].pointer, pd->headers[HDR(${src_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width);
-        #[     dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : Set " T4LIT(dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT(src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
+        #[     dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : Set " T4LIT($dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT($src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
         #} }
     elif dst.type.node_type == 'Type_Bits':
         # TODO refine the condition to find out whether to use an assignment or memcpy
@@ -832,14 +832,18 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
         if e.expr.urtype.node_type == 'Type_Header':
             size = hdr.urtype.fields.get(e.member).size
             random_value = f'{randint(0, 2 ** size - 1):x}'
-            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT(${hdr.name},warning) "." T4LIT(${e.member},field) "\n");
+            #pre{ if (!is_header_valid(HDR(${hdr.name}), pd)) {
+            #pre[     debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT(${hdr.name},warning) "." T4LIT(${e.member},field) "\n");
+            #pre} }
             #[ (is_header_valid(HDR(${hdr.name}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${e.member})) : (0x$random_value /* random $size bit value */))
         else:
             is_meta = hdr.urtype('is_metadata', False)
             hdrname = "all_metadatas" if is_meta else hdr.name
             size = hdr.urtype.fields.get(e.member).size
             random_value = 0 if is_meta else f'{randint(0, 2 ** size - 1):x}'
-            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT(${e.member},field) "\n");
+            #pre{ if (!is_header_valid(HDR($hdrname), pd)) {
+            #pre[     debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT(${e.member},field) "\n");
+            #pre} }
             #[ (is_header_valid(HDR(${hdrname}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,${e.member})) : (0x$random_value /* random $size bit value */))
     else:
         if e.type.node_type in {'Type_Enum', 'Type_Error'}:
@@ -849,8 +853,10 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             fld = e.member
             size = hdr.urtype.fields.get(e.member).size
             random_value = f'{randint(0, 2 ** size - 1):x}'
-            #pre[ debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT($fld,field) "\n");
-            #[ (is_header_valid(HDR($hdr), pd) ? pd->fields.FLD($hdr,$fld) : (0x$random_value /* random $size bit value */))
+            #pre{ if (!is_header_valid(HDR($hdrname), pd)) {
+            #pre[     debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT($hdrname,warning) "." T4LIT($fld,field) "\n");
+            #pre} }
+            #[ (is_header_valid(HDR($hdrname), pd) ? pd->fields.FLD($hdr,$fld) : (0x$random_value /* random $size bit value */))
         elif e.expr.node_type == 'MethodCallExpression':
             # note: this is an apply_result_t, it cannot be invalid
             #[ ${format_expr(e.expr)}.${e.member}
@@ -1101,7 +1107,9 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             size = e.expr.fld_ref.urtype.size
             random_value = f'{randint(0, 2 ** size - 1):x}'
 
-            # TODO debug printout warning if invalid?
+            #pre{ if (!is_header_valid(HDR($hdrname), pd)) {
+            #pre[     debug("   " T4LIT(!!,warning) " Ignoring access to field in invalid header: " T4LIT(%s,warning) "." T4LIT(${e.member},field) "\n", hdr_infos[HDR($hdrname)].name);
+            #pre} }
             #[ (is_header_valid(HDR(${hdrname}), pd) ? GET_INT32_AUTO_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname)) : (0x$random_value /* random $size bit value */))
     elif nt in complex_cases:
         case = complex_cases[nt]
