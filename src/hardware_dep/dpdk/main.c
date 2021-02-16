@@ -100,7 +100,7 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
             int portid = get_portid(queue_idx, LCPARAMS_IN);
 
             init_parser_state(&(state.parser_state));
-            handle_packet(portid, STDPARAMS_IN);
+            handle_packet(portid, get_packet_idx(LCPARAMS_IN), STDPARAMS_IN);
             do_single_tx(queue_idx, pkt_idx, LCPARAMS_IN);
         }
     }

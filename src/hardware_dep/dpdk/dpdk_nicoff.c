@@ -19,6 +19,10 @@ extern void dpdk_init_nic();
 extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 // ------------------------------------------------------
+
+int packet_with_error_counter = 0;
+
+// ------------------------------------------------------
 // Exports
 
 uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
@@ -380,6 +384,8 @@ void main_loop_post_rx(LCPARAMS) {
 }
 
 void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+    if (!lcdata->is_valid)    ++packet_with_error_counter;
+
     if (get_cmd(LCPARAMS_IN).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
 
     ++lcdata->idx;
@@ -475,4 +481,8 @@ uint32_t get_port_mask() {
 // TODO make this parameterizable
 uint8_t get_port_count() {
     return __builtin_popcount(get_port_mask());
+}
+
+int get_packet_idx(LCPARAMS) {
+    return lcdata->pkt_idx + 1;
 }

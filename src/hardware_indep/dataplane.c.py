@@ -557,7 +557,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #}     }
 #} }
 
-#[ void handle_packet(uint32_t portid, STDPARAMS)
+#[ void handle_packet(uint32_t portid, int pkt_idx, STDPARAMS)
 #{ {
 #[     int value32;
 #[     int res32;
@@ -565,7 +565,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[     reset_headers(SHORT_STDPARAMS_IN);
 #[     set_handle_packet_metadata(pd, portid);
 #[
-#[     dbg_bytes(pd->data, packet_length(pd), "Handling packet (port " T4LIT(%d,port) ", $${}{%02dB}): ", extract_ingress_port(pd), packet_length(pd));
+#[     dbg_bytes(pd->data, packet_length(pd), "Handling packet " T4LIT(#%03d) " (port " T4LIT(%d,port) ", $${}{%02dB}): ", pkt_idx, extract_ingress_port(pd), packet_length(pd));
 #[
 #[     pd->parsed_length = 0;
 #[     pd->is_emit_reordering = false;

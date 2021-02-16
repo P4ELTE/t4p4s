@@ -31,9 +31,6 @@ int t4p4s_normal_exit();
 
 void init_control_plane();
 
-// defined in the generated file dataplane.c
-void handle_packet(uint32_t portid, STDPARAMS);
-
 // defined separately for each example
 bool core_is_working(LCPARAMS);
 bool receive_packet(unsigned pkt_idx, LCPARAMS);
@@ -53,6 +50,7 @@ struct lcore_data init_lcore_data();
 packet* clone_packet(packet* pd, struct rte_mempool* mempool);
 void init_parser_state(parser_state_t*);
 void init_table_default_actions();
+int get_packet_idx(LCPARAMS);
 
 uint32_t get_port_mask();
 uint8_t get_port_count();

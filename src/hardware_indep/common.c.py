@@ -108,8 +108,21 @@ for table in hlir.tables:
 #[         debug("    - %2d %s %sactions: %s\n", stats_counter, is_on ? "applied" : "unapplied", hidden ? "hidden " : "", stats_buf);
 #} }
 
+#{     #ifdef T4P4S_DEBUG
+#[         extern int packet_with_error_counter;
+#}     #endif
+
+#{     void t4p4s_print_stats_error_packets() {
+#{         #ifdef T4P4S_DEBUG
+#{             if (packet_with_error_counter > 0) {
+#[                 debug("    - " T4LIT(%2d,error) " error%s in packet processing\n", packet_with_error_counter, packet_with_error_counter > 1 ? "s" : "");
+#}             }
+#}         #endif
+#}     }
+
 #{     void t4p4s_print_stats() {
 #[         debug("Statistics:\n");
+#[         t4p4s_print_stats_error_packets();
 #[         t4p4s_print_stats_parser_states(true);
 
 #[         t4p4s_print_stats_tables(true, false, T4TABLE_APPLIED);
