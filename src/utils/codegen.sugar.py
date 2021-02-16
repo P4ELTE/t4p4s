@@ -300,8 +300,14 @@ def gen_do_assignment(dst, src):
         src_hdr_name = src.path.name if src.node_type == 'PathExpression' else src.member
         dst_hdr_name = dst.path.name if dst.node_type == 'PathExpression' else dst.member
 
-        #[ memcpy(pd->headers[HDR(${dst_hdr_name})].pointer, pd->headers[HDR(${src_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width);
-        #[ dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : Set " T4LIT(dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT(src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
+        #{ if (unlikely(!is_header_valid(HDR(${dst_hdr_name}), pd))) {
+        #[     debug("   " T4LIT(!!,warning) " Ignoring assignment to invalid header " T4LIT(%s,header) "\n", hdr_infos[HDR(${dst_hdr_name})].name);
+        #[ } else if (unlikely(!is_header_valid(HDR(${src_hdr_name}), pd))) {
+        #[     debug("   " T4LIT(!!,warning) " Ignoring assignment from invalid header " T4LIT(%s,header) "\n", hdr_infos[HDR(${src_hdr_name})].name);
+        #[ } else {
+        #[     memcpy(pd->headers[HDR(${dst_hdr_name})].pointer, pd->headers[HDR(${src_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width);
+        #[     dbg_bytes(pd->headers[HDR(${dst_hdr_name})].pointer, hdr_infos[HDR(${src_hdr_name})].byte_width, "    : Set " T4LIT(dst_hdr_name,header) "/" T4LIT(%dB) " = " T4LIT(src_hdr_name,header) " = ", hdr_infos[HDR(${src_hdr_name})].byte_width);
+        #} }
     elif dst.type.node_type == 'Type_Bits':
         # TODO refine the condition to find out whether to use an assignment or memcpy
         requires_memcpy = src.type.size > 32 or 'decl_ref' in dst
