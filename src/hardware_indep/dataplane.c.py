@@ -71,11 +71,12 @@ for table in hlir.tables:
         if 'header' in f:
             hi_name = "all_metadatas" if f.header.urtype.is_metadata else f.header.name
 
-            #{ #ifdef T4P4S_DEBUG
-            #{     if (unlikely(pd->headers[HDR(${hi_name})].pointer == NULL)) {
-            #[         debug(" " T4LIT(!!!!,error) " " T4LIT(Lookup on invalid header,error) " " T4LIT(${hi_name},header) "." T4LIT(${f.field_name},field) "\n");
-            #}     }
-            #} #endif
+            #{ if (unlikely(pd->headers[HDR(${hi_name})].pointer == NULL)) {
+            #{     #ifdef T4P4S_DEBUG
+            #[         debug(" " T4LIT(!!!!,error) " " T4LIT(Lookup on invalid header,error) " " T4LIT(${hi_name},header) "." T4LIT(${f.field_name},field) ", " T4LIT(it will contain an unspecified value,warning) "\n");
+            #}     #endif
+            #[     return;
+            #} }
             if f.size <= 32:
                 #[ EXTRACT_INT32_BITS_PACKET(pd, HDR(${hi_name}), FLD(${f.header.name},${f.field_name}), *(uint32_t*)key)
                 #[ key += sizeof(uint32_t);
