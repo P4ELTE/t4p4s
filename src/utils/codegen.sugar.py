@@ -372,7 +372,7 @@ def gen_do_assignment(dst, src):
                 #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT(%s,header) "." T4LIT(%s,field) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", "$hdrname", "$fldname", $size, "$srctxt");
                 #[ MODIFY_BYTEBUF_BYTEBUF_PACKET(pd, HDR($hdrname), FLD($hdrname,$fldname), &$tmpvar, $size);
             else:
-                deref = "*" if src.node_type in ("Constant", "Member") else ""
+                deref = "*" if src.node_type in ("Constant", "Member") and size <= 4 else ""
                 #[ ${format_type(dst.type)} $tmpvar = $net2t4p4s((${format_type(dst.type)})($deref(${format_expr(src, expand_parameters=True, needs_variable=True)})));
                 #[ memcpy(&(${format_expr(dst)}), &($tmpvar), ${pad_size});
                 #[ dbg_bytes(&(${format_expr(dst)}), $size, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = ", "$dsttxt", $size);
