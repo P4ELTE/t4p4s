@@ -266,7 +266,7 @@ def gen_format_statement_fieldref_short(dst, src, dst_width, dst_is_vw, dst_byte
     #{ if (likely(is_header_valid(${dst_hdr_name}, pd))) {
     #[     set_field((fldT[]){{pd, $dst_hdr_name, $dst_fld_name}}, 0, $varname, $dst_width);
     #[ } else {
-    #[     debug("   " T4LIT(!!,warning) " Ignoring assignment to field in invalid header: " T4LIT($dst_hdr_name,header) "." T4LIT($dst_fld_name,field) "\n");
+    #[     debug("   " T4LIT(!!,warning) " Ignoring assignment to field in invalid header: " T4LIT(%s,header) "." T4LIT(%s,field) "\n", hdr_infos[$dst_hdr_name].name, field_names[$dst_fld_name]);
     #} }
 
 
