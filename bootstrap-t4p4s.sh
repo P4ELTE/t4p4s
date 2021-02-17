@@ -77,18 +77,20 @@ if [ "$FRESH" == "yes" ]; then
 fi
 
 if [ "$CLEANUP" == "yes" ]; then
-    echo "Cleaning previously downloaded files and directories (move to backup folder named cleanup_archive)"
+    CLEANUP_DIR=cleanup_archive`date +%Y%m%d-%H%M`
 
-    mkdir -p cleanup_archive
+    mkdir -p $CLEANUP_DIR
 
-    mv --backup=numbered dpdk* cleanup_archive/
-    mv --backup=numbered protobuf cleanup_archive/
-    mv --backup=numbered p4c cleanup_archive/
-    mv --backup=numbered grpc cleanup_archive/
-    mv --backup=numbered PI cleanup_archive/
-    mv --backup=numbered P4Runtime_GRPCPP cleanup_archive/
-    mv --backup=numbered t4p4s* cleanup_archive/
-    mv --backup=numbered t4p4s_environment_variables.sh cleanup_archive/
+    mv --backup=numbered dpdk* $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered protobuf $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered p4c $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered grpc $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered PI $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered P4Runtime_GRPCPP $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered t4p4s* $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered t4p4s_environment_variables.sh $CLEANUP_DIR/ 2>/dev/null
+
+    [ "$(ls -A $CLEANUP_DIR)" ] && echo -e "Moved previously downloaded files and directories to backup folder ${cc}$CLEANUP_DIR$nn" || rmdir $CLEANUP_DIR
 fi
 
 APPROX_INSTALL_MB=0
@@ -103,20 +105,31 @@ FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
 SKIP_CHECK=${SKIP_CHECK-no}
 
 
-T4P4S_CC=${T4P4S_CC-gcc}
-which clang >/dev/null
-[ $? -eq 0 ] && T4P4S_CC=clang
+find_candidate() {
+    FIRST_CANDIDATE=$1
+    shift
+    for candidate in $*; do
+        which $candidate >/dev/null
+        [ $? -eq 0 ] && echo $candidate && return
+    done
+    echo $FIRST_CANDIDATE
+}
 
-T4P4S_CXX=${T4P4S_CXX-g++}
-which clang++ >/dev/null
-[ $? -eq 0 ] && T4P4S_CXX=clang++
+ALL_PYTHON3=`apt-cache search python3 | grep -e "^python3[.-][0-9]* " | cut -f 1 -d " " | sort -t "." -k 2,2nr`
+ALL_GCC=`apt-cache search gcc | grep -e "^gcc[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
+ALL_GXX=`apt-cache search g++ | grep -e "^g++[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
+ALL_CLANG=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
+ALL_CLANGXX=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed -e 's/clang/clang++/g'`
+ALL_LLD=`apt-cache search lld | grep -e "^lld[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed -e 's/lld/ld.lld/g'`
 
-T4P4S_LD=${T4P4S_LD-bfd}
-which ld.lld >/dev/null
-[ $? -eq 0 ] && T4P4S_LD=lld
+T4P4S_CC=${T4P4S_CC-$(find_candidate gcc $ALL_CLANG clang $ALL_GCC)}
+T4P4S_CXX=${T4P4S_CXX-$(find_candidate g++ $ALL_CLANGXX clang++ $ALL_GXX)}
+T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD ld.gold)}
+PYTHON3=${PYTHON3-$(find_candidate python3 $ALL_PYTHON3)}
 
-echo -e "Using compilers CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn"
+[ "$PYTHON3" == "" ] && echo -e "Could not find appropriate Python 3 version, exiting" && exit 1
 
+echo -e "Using compilers CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn, PYTHON3=${cc}${PYTHON3}$nn"
 
 if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
@@ -210,15 +223,8 @@ else
     export RTE_TARGET=${RTE_TARGET-"x86_64-native-linuxapp-$T4P4S_CC"}
 fi
 
-
 echo -e "Using ${cc}p4c$nn commit from ${cc}$P4C_COMMIT_DATE$nn"
 
-
-NEWEST_PYTHON=`apt-cache search python3 | grep -e "^python3.[0-9]* " | cut -f 1 -d " " | sort -t "." -k 2,2nr | head -1`
-PYTHON3=${PYTHON3-$NEWEST_PYTHON}
-[ "$PYTHON3" == "" ] && echo -e "Could not find appropriate Python 3 version, exiting" && exit 1
-[ "$NEWEST_PYTHON" == "$PYTHON3" ] && echo -e "Using the newest Python 3 version ${cc}${PYTHON3}$nn"
-[ "$NEWEST_PYTHON" != "$PYTHON3" ] && echo -e "Using Python 3 version ${cc}${PYTHON3}$nn (the newest one available is ${cc}${NEWEST_PYTHON}$nn)"
 
 PKGS_PYTHON="${PYTHON3} ${PYTHON3}-dev python3-scapy python3-ipaddr python3-dill python3-setuptools"
 PKGS_LIB="libtool libgc-dev libprotobuf-dev libprotoc-dev libnuma-dev libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev"
@@ -228,7 +234,7 @@ PKGS_GRPC=""
 REQUIRED_PACKAGES="$PKGS_PYTHON $PKGS_LIB $PKGS_MAKE $PKGS_GRPC g++ tcpdump"
 PIP_PACKAGES="pybind11 pysimdjson"
 if [ "$USE_OPTIONAL_PACKAGES" == "yes" ]; then
-    OPT_PACKAGES="python3-ipdb python3-termcolor python3-colored python3-pip python3-yaml python3-ujson python3-ruamel.yaml gnome-terminal"
+    OPT_PACKAGES="python3-ipdb python3-termcolor python3-colored python3-yaml python3-ujson python3-ruamel.yaml gnome-terminal"
     PIP_PACKAGES="$PIP_PACKAGES backtrace"
 fi
 
@@ -344,7 +350,7 @@ if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
     MESON_NEEDS_REINSTALL=0
     MESON_VSN=`meson --version 2>/dev/null`
     MESON_ERRCODE=$?
-    [ ${MESON_ERRCODE} -ne 0 ] && echo "There is a problem with executing ${cc}meson$nn (error code ${MESON_ERRCODE})" && MESON_NEEDS_REINSTALL=1
+    [ ${MESON_ERRCODE} -ne 0 ] && echo -e "There is a problem with executing ${cc}meson$nn (error code ${MESON_ERRCODE})" && MESON_NEEDS_REINSTALL=1
 
     if [ ${MESON_ERRCODE} -eq 0 ]; then
         MIN_REQ_MESON_VSN=0.53
@@ -353,7 +359,8 @@ if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
     fi
 
     if [ "$MESON_NEEDS_REINSTALL" == 1 ]; then
-        echo -e "Reinstalling ${cc}meson$nn"
+        echo -e "(Re)installing ${cc}pip$nn and ${cc}meson$nn"
+        sudo apt -y install python3-pip >$(logfile "python3" ".pip") 2>&1
         sudo ${PYTHON3} -m pip install meson >$(logfile "python3" ".meson") 2>&1
     fi
 fi
