@@ -7,6 +7,11 @@
 #include <rte_ethdev.h>
 
 
+#ifdef T4P4S_DEBUG
+    volatile int packet_counter = 0;
+#endif
+
+
 void get_broadcast_port_msg(char result[256], int ingress_port) {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
@@ -63,11 +68,11 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
         #ifdef T4P4S_DEBUG
             char ports_msg[256];
             get_broadcast_port_msg(ports_msg, ingress_port);
-            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%d) " bytes): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
+            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%dB) "): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
         #endif
         broadcast_packet(egress_port, ingress_port, LCPARAMS_IN);
     } else {
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%dB) "): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
         send_single_packet(pd->wrapper, egress_port, ingress_port, false, LCPARAMS_IN);
     }
 }
@@ -75,7 +80,6 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
 void do_single_tx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
     if (unlikely(GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD) == EGRESS_DROP_VALUE)) {
-        debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
         free_packet(LCPARAMS_IN);
     } else {
         debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Egressing,outgoing) " packet\n");
@@ -92,6 +96,10 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
     bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
 
     if (got_packet) {
+        #ifdef T4P4S_DEBUG
+            ++packet_counter;
+        #endif
+
         if (likely(is_packet_handled(LCPARAMS_IN))) {
             struct lcore_state state = lcdata->conf->state;
             lookup_table_t** tables = state.tables;
