@@ -18,14 +18,14 @@ def short_name(name):
 
 for err in hlir.errors:
     name = short_name(err.c_name)
-    #{ typedef enum enum_${name}_s {
+    #{ typedef enum {
     for member in err.members:
         #[     ${member.c_name},
     #} } ${name}_t;
 
 for enum in hlir.enums:
     name = short_name(enum.c_name)
-    #{ typedef enum enum_${name}_s {
+    #{ typedef enum {
     for m in enum.members:
         #[     ${m.c_name},
     #} } ${name}_t;
@@ -36,7 +36,7 @@ for enum in hlir.enums:
 for struct in hlir.news.data.filter(lambda n: not any(t.node_type == 'Type_Header' for t in n.fields.map('urtype'))):
     name = re.sub('_t$', '', struct.name)
 
-    #{ typedef struct ${name}_s {
+    #{ typedef struct {
     for field in struct.fields:
         #[     ${format_type(field.urtype, field.name)};
     #} } ${name}_t;
@@ -47,7 +47,7 @@ for typedef in hlir.typedefs:
 
 
 #{ #ifdef T4P4S_STATS
-#{ typedef struct t4p4s_stats_s {
+#{ typedef struct {
 parser = hlir.parsers[0]
 for s in parser.states:
     #[     bool parser_state__${s.name};

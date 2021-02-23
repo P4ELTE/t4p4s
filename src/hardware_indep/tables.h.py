@@ -9,7 +9,7 @@
 #[ typedef bool entry_validity_t;
 
 for table in hlir.tables:
-    #{ typedef struct table_entry_${table.name}_s {
+    #{ typedef struct {
     #[     ${table.name}_action_t  action;
     #[     entry_validity_t        is_entry_valid;
     #} } table_entry_${table.name}_t;

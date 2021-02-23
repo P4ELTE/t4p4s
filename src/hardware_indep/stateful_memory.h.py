@@ -42,7 +42,7 @@ def gen_make_smem_code(smem, table = None):
 #[ #include "dpdk_smem.h"
 #[ #include "gen_include.h"
 
-#{ typedef struct global_state_s {
+#{ typedef struct {
 for table, smem in hlir.all_meters + hlir.all_counters:
     if not smem.is_direct:
         continue

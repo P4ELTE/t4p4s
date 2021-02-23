@@ -9,12 +9,14 @@
 #include "util_packet.h"
 #include "common.h"
 
+#define T4P4S_MODEL psa
+
 #define INGRESS_META_FLD    FLD(all_metadatas,ingress_port)
 #define EGRESS_META_FLD     FLD(all_metadatas,egress_port)
 #define EGRESS_INIT_VALUE   0
 #define EGRESS_DROP_VALUE   true
 
-typedef struct InternetChecksum_s {
+typedef struct {
 	// TODO
 } InternetChecksum;
 

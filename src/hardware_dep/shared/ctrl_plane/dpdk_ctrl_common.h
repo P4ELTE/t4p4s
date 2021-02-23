@@ -3,7 +3,7 @@
 
 #pragma once
 
-typedef struct digest_ip_s {
+typedef struct {
     uint8_t ip[4];
     uint16_t prefix_length;
     int i1;
@@ -11,7 +11,7 @@ typedef struct digest_ip_s {
     int i3;
 } digest_ip_t;
 
-typedef struct digest_macport_s {
+typedef struct {
     uint8_t mac[6];
     uint16_t port;
 } digest_macport_t;
@@ -19,7 +19,7 @@ typedef struct digest_macport_s {
 
 typedef void (*digest_fun_t)(void* digest);
 
-typedef struct digest_dispatch_s {
+typedef struct {
     const char* name;
     digest_fun_t digest_fun;
 } digest_dispatch_t;

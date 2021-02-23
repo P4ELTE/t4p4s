@@ -14,7 +14,7 @@
 #ifndef FREESCALE_TABLES_H
 #define FREESCALE_TABLES_H
 
-typedef struct extended_table_s {
+typedef struct {
     void*     rte_table;
     uint8_t   size;
     uint8_t** content;

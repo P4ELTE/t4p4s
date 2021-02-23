@@ -6,56 +6,56 @@
 //=============================================================================
 // Registers
 
-typedef struct register_int8_s {
+typedef struct {
     volatile int8_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_int8_t;
 
-typedef struct register_int16_s {
+typedef struct {
     volatile int16_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_int16_t;
 
-typedef struct register_int32_s {
+typedef struct {
     volatile int32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_int32_t;
 
-typedef struct register_int64_s {
+typedef struct {
     volatile int64_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_int64_t;
 
-typedef struct register_uint8_s {
+typedef struct {
     volatile uint8_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_uint8_t;
 
-typedef struct register_uint16_s {
+typedef struct {
     volatile uint16_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_uint16_t;
 
-typedef struct register_uint32_s {
+typedef struct {
     volatile uint32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } register_uint32_t;
 
-typedef struct register_uint64_s {
+typedef struct {
     volatile uint64_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
@@ -102,7 +102,7 @@ void init_register_uint64_t(register_uint64_t* reg, uint32_t size);
 //=============================================================================
 // Counters
 
-typedef struct counter_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
@@ -116,28 +116,28 @@ typedef counter_t Counter_t;
 
 
 
-typedef struct direct_counter_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } direct_counter_t;
 
-typedef struct direct_meter_uint32_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } direct_meter_uint32_t;
 
-typedef struct direct_meter_uint8_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
 } direct_meter_uint8_t;
 
-typedef struct direct_meter_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
@@ -145,7 +145,7 @@ typedef struct direct_meter_s {
     // TODO
 } direct_meter_t;
 
-typedef struct meter_s {
+typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];

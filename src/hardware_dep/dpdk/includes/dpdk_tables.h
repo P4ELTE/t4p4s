@@ -11,7 +11,7 @@ typedef uint32_t table_index_t;
 typedef uint8_t table_index_t;
 #endif
 
-typedef struct extended_table_s {
+typedef struct {
     void*          rte_table;
     table_index_t  size;
     uint8_t**      content;
