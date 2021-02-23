@@ -47,11 +47,11 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), INGRESS_META_FLD, portid);
 }
 
-void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(verify_checksum,extern) "\n");
 }
 
-void update_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void update_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(update_checksum,extern) "\n");
 }
 
@@ -74,11 +74,11 @@ void verify(bool check, error_error_t toSignal, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(verify,extern) "\n");
 }
 
-void verify_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void verify_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(verify_checksum_with_payload,extern) "\n");
 }
 
-void update_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_PSA_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     debug(" :::: Calling extern " T4LIT(update_checksum_with_payload,extern) "\n");
 }
 
