@@ -211,3 +211,19 @@ def dlog(num, base=2):
     """Returns the discrete logarithm of num.
     For the standard base 2, this is the number of bits required to store the range 0..num."""
     return [n for n in range(32) if num < base**n][0]
+
+# ################################################################################
+
+def unspecified_value(size):
+    """Called when an unspecified value of `size` bytes is needed.
+    Generates either a value that is consistent for subsequent executions,
+    or a properly random value each time it is called."""
+    import hashlib
+
+    max_val = 2 ** size - 1
+    if current_compilation['use_real_random']:
+        return f'0x{randint(0, max_val):x} /* random {size} bit value */'
+    else:
+        txt = current_compilation['from'] + current_compilation['to']
+        hashed = int(hashlib.md5(txt.encode('utf-8')).hexdigest(), 16) % max_val
+        return f'0x{hashed:x} /* pseudorandom {size} bit value */'
