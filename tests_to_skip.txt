@@ -23,3 +23,14 @@ Header stacks and unions are not supported
 
 Complex variable assignments are only partially supported
     test-compound-assignment
+
+Currently unsupported
+    %cpf=psa
+    %cpf_core=psa
+    %cpf_main=psa
+    %cpf_ran=psa
+    %epg_2020=psa
+    %transport=psa
+
+    %cpf=v1
+    %epg_2020=v1
