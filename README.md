@@ -6,7 +6,7 @@ For publications and more, [see our homepage](http://p4.elte.hu/).
 
 An older version of the compiler is [also available](https://github.com/P4ELTE/t4p4s/tree/t4p4s-14).
 
-Find out more [about the P4 language](https://p4.org/).
+Find out more [about the P₄ language](https://p4.org/).
 
 ## Getting started
 
@@ -27,6 +27,7 @@ Notes.
 
     - To get T₄P₄S only without the third party libraries: `git clone --recursive https://github.com/P4ELTE/t4p4s`
     - To update a previous T₄P₄S checkout, execute this command in its directory: `git pull --recurse-submodules`
+    - If you rerun `bootstrap-t4p4s.sh`, the previously installed content will be put in a backup directory.
 
 - Without the `.` at the beginning of the line, the environment variables will not be usable immediately.
     - In that case, you can either open a new terminal, or run `. ./t4p4s_environment_variables.sh`
@@ -49,7 +50,7 @@ Notes.
 
     LOCAL_REPO_CACHE=/my/cache/dir . ./bootstrap-t4p4s.sh
 
-- At this stage of development, T₄P₄S will not compile and run all P4 programs properly. In particular, header stacks are not supported currently.
+- At this stage of development, T₄P₄S will not compile and run all P₄ programs properly. In particular, header stacks are not supported currently.
 
 
 Overriding defaults.
@@ -84,8 +85,8 @@ The options are collected in the following phases.
     - `examples.cfg` sets options for each example.
     - `opts_${ARCH}.cfg` sets architecture specific options.
     - Currently, the only valid value for `${ARCH}` is `dpdk`.
-1. When the command line of the script is processed, anything not identifiable as a P4 program is considered an option.
-    - A P4 program is the name of an existing file whose extension begins with `p4`.
+1. When the command line of the script is processed, anything not identifiable as a P₄ program is considered an option.
+    - A P₄ program is the name of an existing file whose extension begins with `p4`.
     - Here, the options are separated by spaces, therefore their values are not allowed to contain spaces themselves.
 1. Option files come in two flavours.
     - Some files (e.g. `lights.cfg`) contain an option definition on a single line.
@@ -212,14 +213,6 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh %%l2fwd`
     - Stop the switch immediately upon encountering invalid data
         `./t4p4s.sh %l2fwd=payload strict`
-1. Redo
-    - `t4p4s.sh` saves the collected environment variables to `build/l2fwd-gen@test-test/redo.opts.txt` (when executed as `./t4p4s.sh %l2fwd`)
-    - This option loads the saved environment; can speed up rerunning test cases
-        - Mostly useful for development purposes
-    - Has to be the very first argument to `t4p4s.sh`
-    - `run_tests.sh` (see below) also uses this option
-        `./t4p4s.sh redo=%l2fwd`
-        `./t4p4s.sh redo=%l2fwd=test2`
 1. Hugepages
     - `examples.cfg` sets the required number of hugepages for each example
     - Set it to another value, e.g. make T₄P₄S use `1024 MB` of hugepages
@@ -234,20 +227,33 @@ Note that for non-testing examples, you will have to setup your network card, an
     - Many options can be overridden using environment variables.
         `EXAMPLES_CONFIG_FILE="my_config.cfg" ./t4p4s.sh my_p4 @test`
         `EXAMPLES_CONFIG_FILE="my_config.cfg" COLOUR_CONFIG_FILE="my_colors.txt" P4_SRC_DIR="../my_files" ARCH_OPTS_FILE="my_opts.cfg" ./t4p4s.sh %my_p4 dbg verbose`
-    - Running this command gives you the list of environment variables available for customisation.
     - To see which environment variables are available for customisation and what their default values are, run the following command.
         `./t4p4s.sh showenvs`
-    - If `showenvs` is not the first argument, it prints the argument values after they have been fully computed/substituted
+    - If `showenvs` is not the first argument, it prints the argument values after they have been fully computed/substituted.
         `./t4p4s.sh %l2fwd showenvs`
 1. Controller
     - Set the controller manually
         `./t4p4s.sh :l2fwd ctr=l2fwd`
     - Let the output of the controller be shown in a separate window. For this to work, `gnome-terminal` is used, as the more general `x-terminal-emulator` does not seem to work properly.
         `./t4p4s.sh %my_p4 ctrterm`
+1. Compilation: logging, recompilation, source file hints, optimisation
+    - If you add `extern void log(string s);` to your P₄ file, calls to `log("My message")` will produce a line in the debug output.
+        `./t4p4s.sh %my_p4 x_log`
+    - T₄P₄S caches compilation results and takes only those compilation steps that are necessary. Changes in included files are not taken into consideration, however. You can force full recompilation in this case.
+        `./t4p4s.sh %my_p4 recompile`
+    - Inquisitive users may want to investigate the generated C source code. To help with this, T₄P₄S can generate comments that hint about the origins of a generated expression or statement.
+        `./t4p4s.sh %my_p4 hint=all`
+        `./t4p4s.sh %my_p4 hint=nopath`
+        `./t4p4s.sh %my_p4 hint=noext`
+        `./t4p4s.sh %my_p4 hint=nofile`
+    - You may change the optimisation level for `meson`. [See more details here.](https://mesonbuild.com/Builtin-options.html#core-options)
+        `MESON_BUILDTYPE=release ./t4p4s.sh %my_p4`
+    - When using `clang`, you may make use of `thin-lto`.
+        `./t4p4s.sh %my_p4 lto`
 1. Miscellaneous options
-    - Specify the P4 version manually (usually decided by other options or P4 file extension)
+    - Specify the P₄ version manually (usually decided by other options or P₄ file extension)
         `./t4p4s.sh :l2fwd vsn=14`
-    - Pass a test option to the P4 compiler. This defines a macro called `T4P4S_TEST_1` that is available during P4 preprocessing.
+    - Pass a test option to the P₄ compiler. This defines a macro called `T4P4S_TEST_1` that is available during P₄ preprocessing.
         `./t4p4s.sh %my_p4 p4testcase=1`
 
 ### Testing
