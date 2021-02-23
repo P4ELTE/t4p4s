@@ -24,7 +24,7 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
     state parse_ethernet {
-        packet.advance(3);
+        packet.advance(3*8);
         packet.extract(hdr.dummy);
         transition accept;
     }
