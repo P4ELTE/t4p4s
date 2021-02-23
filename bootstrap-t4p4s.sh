@@ -1,6 +1,7 @@
 
 # Highlight colours
 cc="\033[1;33m"     # yellow
+ee="\033[1;31m"     # red
 nn="\033[0m"
 
 if [ $# -gt 0 ] && [ "$1" == "showenvs" ]; then
@@ -18,7 +19,7 @@ fi
 if [ `cat /etc/os-release | grep ID_LIKE= | cut -d= -f2` == "ubuntu" ]; then
     MIN_UBUNTU_VSN=20
 
-    UBUNTU_VSN=`cat /etc/os-release | grep VERSION_ID= | cut -d'"' -f2`
+    UBUNTU_VSN=`cat /etc/os-release | grep VERSION_ID= | cut -d'"' -f2 | cut -d'.' -f1`
     [ $UBUNTU_VSN -lt $MIN_UBUNTU_VSN ] && echo -e "${cc}Warning$nn: Ubuntu version lower than minimum supported ($cc$MIN_UBUNTU_VSN$nn), installation may fail" && echo
 fi
 
@@ -50,9 +51,18 @@ INSTALL_STAGE4_P4C=${INSTALL_STAGE4_P4C-yes}
 INSTALL_STAGE5_GRPC=${INSTALL_STAGE5_GRPC-yes}
 INSTALL_STAGE6_T4P4S=${INSTALL_STAGE6_T4P4S-yes}
 
-PROTOBUF_USE_RC=${PROTOBUF_USE_RC-yes}
+PROTOBUF_USE_RC=${PROTOBUF_USE_RC-no}
 TODAY=`date +%F`
 P4C_COMMIT_DATE=${P4C_COMMIT_DATE-$TODAY}
+
+T4P4S_ENVVAR_FILE=t4p4s_envvars.sh
+
+REPO_PATH_protobuf=${REPO_PATH_protobuf-"https://github.com/google/protobuf"}
+REPO_PATH_p4c=${REPO_PATH_p4c-"https://github.com/p4lang/p4c"}
+REPO_PATH_grpc=${REPO_PATH_grpc-"https://github.com/grpc/grpc"}
+REPO_PATH_PI=${REPO_PATH_PI-"https://github.com/p4lang/PI"}
+REPO_PATH_P4Runtime_GRPCPP=${REPO_PATH_P4Runtime_GRPCPP-"https://github.com/P4ELTE/P4Runtime_GRPCPP"}
+REPO_PATH_t4p4s=${REPO_PATH_t4p4s-"https://github.com/P4ELTE/t4p4s"}
 
 if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     MEM_FREE_KB=`cat /proc/meminfo | grep MemFree | grep -Eo '[0-9]+'`
@@ -66,6 +76,7 @@ fi
 
 echo Requesting root access...
 sudo echo -n ""
+[ $? -ne 0 ] && echo -e "Root access ${cc}not granted$nn, exiting..." && exit 1
 echo Root access granted, starting...
 
 if [ "$FRESH" == "yes" ]; then
@@ -81,16 +92,19 @@ if [ "$CLEANUP" == "yes" ]; then
 
     mkdir -p $CLEANUP_DIR
 
-    mv --backup=numbered dpdk* $CLEANUP_DIR/ 2>/dev/null
+    sudo mv --backup=numbered dpdk* $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered log $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered protobuf $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered p4c $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered grpc $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered PI $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered P4Runtime_GRPCPP $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered t4p4s* $CLEANUP_DIR/ 2>/dev/null
-    mv --backup=numbered t4p4s_environment_variables.sh $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered ${T4P4S_ENVVAR_FILE} $CLEANUP_DIR/ 2>/dev/null
 
-    [ "$(ls -A $CLEANUP_DIR)" ] && echo -e "Moved previously downloaded files and directories to backup folder ${cc}$CLEANUP_DIR$nn" || rmdir $CLEANUP_DIR
+    CLEANUP_SIZE=`du -hcs $CLEANUP_DIR | head -1 | cut -d$'\t' -f1`
+
+    [ "$(ls -A $CLEANUP_DIR)" ] && echo -e "Moved ${cc}${CLEANUP_SIZE}B$nn of previous content to backup folder ${cc}$CLEANUP_DIR$nn" || rmdir $CLEANUP_DIR
 fi
 
 APPROX_INSTALL_MB=0
@@ -120,16 +134,16 @@ ALL_GCC=`apt-cache search gcc | grep -e "^gcc[.-][0-9]* " | cut -f 1 -d " " | so
 ALL_GXX=`apt-cache search g++ | grep -e "^g++[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
 ALL_CLANG=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
 ALL_CLANGXX=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed -e 's/clang/clang++/g'`
-ALL_LLD=`apt-cache search lld | grep -e "^lld[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed -e 's/lld/ld.lld/g'`
+ALL_LLD=`apt-cache search lld | grep -e "^lld[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
 
 T4P4S_CC=${T4P4S_CC-$(find_candidate gcc $ALL_CLANG clang $ALL_GCC)}
 T4P4S_CXX=${T4P4S_CXX-$(find_candidate g++ $ALL_CLANGXX clang++ $ALL_GXX)}
-T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD ld.gold)}
+T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD gold)}
 PYTHON3=${PYTHON3-$(find_candidate python3 $ALL_PYTHON3)}
 
 [ "$PYTHON3" == "" ] && echo -e "Could not find appropriate Python 3 version, exiting" && exit 1
 
-echo -e "Using compilers CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn, PYTHON3=${cc}${PYTHON3}$nn"
+echo -e "Using CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn, PYTHON3=${cc}${PYTHON3}$nn"
 
 if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
@@ -137,7 +151,7 @@ if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "To force installation, run ${cc}SKIP_CHECK=1 . ./bootstrap.sh$nn"
     exit
 else
-    echo -e "Installation will use approximately $cc$APPROX_INSTALL_MB MB$nn of space"
+    echo -e "Installation will use approximately $cc$APPROX_INSTALL_MB MB$nn"
 fi
 
 if [ "$FREE_MB" -lt "$APPROX_TOTAL_MB" ]; then
@@ -180,8 +194,8 @@ fi
 
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
     if [ "$PROTOBUF_TAG" == "" ]; then
-        [ "$PROTOBUF_USE_RC" != "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf | grep -ve "[-]rc" | tail -1 | cut -f3 -d'/'`
-        [ "$PROTOBUF_USE_RC" == "yes" ] && NEWEST_PROTOBUF_TAG=`git ls-remote --refs --tags https://github.com/google/protobuf                    | tail -1 | cut -f3 -d'/'`
+        [ "$PROTOBUF_USE_RC" != "yes" ] && NEWEST_PROTOBUF_TAG=`git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' $REPO_PATH_protobuf | grep -ve "[-]rc" | tail -1 | cut -f3 -d/`
+        [ "$PROTOBUF_USE_RC" == "yes" ] && NEWEST_PROTOBUF_TAG=`git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' $REPO_PATH_protobuf                    | tail -1 | cut -f3 -d/`
     fi
     PROTOBUF_TAG=${PROTOBUF_TAG-$NEWEST_PROTOBUF_TAG}
 
@@ -226,13 +240,13 @@ fi
 echo -e "Using ${cc}p4c$nn commit from ${cc}$P4C_COMMIT_DATE$nn"
 
 
-PKGS_PYTHON="${PYTHON3} ${PYTHON3}-dev python3-scapy python3-ipaddr python3-dill python3-setuptools"
+PKGS_PYTHON="${PYTHON3} ${PYTHON3}-dev python3-scapy python3-ipaddr python3-dill python3-setuptools python3-pip"
 PKGS_LIB="libtool libgc-dev libprotobuf-dev libprotoc-dev libnuma-dev libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev"
-PKGS_MAKE="meson ninja-build automake bison flex cmake ccache lld pkg-config"
+PKGS_MAKE="ninja-build automake bison flex cmake ccache lld pkg-config"
 PKGS_GRPC=""
 [ "$INSTALL_STAGE5_GRPC" == "yes" ] && PKGS_GRPC="libjudy-dev libssl-dev libboost-thread-dev libboost-dev libboost-system-dev libboost-thread-dev libtool-bin"
 REQUIRED_PACKAGES="$PKGS_PYTHON $PKGS_LIB $PKGS_MAKE $PKGS_GRPC g++ tcpdump"
-PIP_PACKAGES="pybind11 pysimdjson"
+PIP_PACKAGES="meson pyelftools pybind11 pysimdjson"
 if [ "$USE_OPTIONAL_PACKAGES" == "yes" ]; then
     OPT_PACKAGES="python3-ipdb python3-termcolor python3-colored python3-yaml python3-ujson python3-ruamel.yaml gnome-terminal"
     PIP_PACKAGES="$PIP_PACKAGES backtrace"
@@ -241,13 +255,6 @@ fi
 T4P4S_DIR=${T4P4S_DIR-t4p4s}
 [ $# -gt 0 ] && T4P4S_DIR="t4p4s-$1" && T4P4S_CLONE_OPT="$T4P4S_DIR -b $1" && echo -e "Using the $cc$1$nn branch of T4P4S"
 
-
-REPO_PATH_protobuf=${REPO_PATH_protobuf-"https://github.com/google/protobuf"}
-REPO_PATH_p4c=${REPO_PATH_p4c-"https://github.com/p4lang/p4c"}
-REPO_PATH_grpc=${REPO_PATH_grpc-"https://github.com/grpc/grpc"}
-REPO_PATH_PI=${REPO_PATH_PI-"https://github.com/p4lang/PI"}
-REPO_PATH_P4Runtime_GRPCPP=${REPO_PATH_P4Runtime_GRPCPP-"https://github.com/P4ELTE/P4Runtime_GRPCPP"}
-REPO_PATH_t4p4s=${REPO_PATH_t4p4s-"https://github.com/P4ELTE/t4p4s"}
 
 LOCAL_REPO_CACHE=${LOCAL_REPO_CACHE-}
 
@@ -338,34 +345,35 @@ ctrl_c_handler() {
 
 trap 'ctrl_c_handler' INT
 
+MESONCMD="$PYTHON3 -m mesonbuild.mesonmain"
 
 if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_APTGET" >/dev/null 2>&1
 
     echo -e "Installing ${cc}Python 3 packages$nn"
 
-    ${PYTHON3} -m pip install $PIP_PACKAGES >$(logfile "python3") 2>&1
+    sudo ${PYTHON3} -m pip install $PIP_PACKAGES >$(logfile "python3" ".pip") 2>&1
 
-    # reinstall meson if necessary
-    MESON_NEEDS_REINSTALL=0
-    MESON_VSN=`meson --version 2>/dev/null`
+    MESON_VSN=`sudo $MESONCMD --version 2>/dev/null`
     MESON_ERRCODE=$?
-    [ ${MESON_ERRCODE} -ne 0 ] && echo -e "There is a problem with executing ${cc}meson$nn (error code ${MESON_ERRCODE})" && MESON_NEEDS_REINSTALL=1
+    [ ${MESON_ERRCODE} -ne 0 ] && \
+        echo -e "${ee}Could not execute$nn ${cc}meson$nn (error code ${ee}${MESON_ERRCODE}$nn), exiting..." && \
+        echo -e "Hint: perhaps ${cc}meson$nn can be found at ${cc}~/.local/bin$nn, if so, consider adding it to your \$PATH" && \
+        exit 1
 
-    if [ ${MESON_ERRCODE} -eq 0 ]; then
-        MIN_REQ_MESON_VSN=0.53
-        MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
-        [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ] && echo "Current ${cc}meson$nn version ${cc}${MESON_VSN}$nn is older than the required ${cc}${MIN_REQ_MESON_VSN}$nn" && MESON_NEEDS_REINSTALL=1
-    fi
-
-    if [ "$MESON_NEEDS_REINSTALL" == 1 ]; then
-        echo -e "(Re)installing ${cc}pip$nn and ${cc}meson$nn"
-        sudo apt -y install python3-pip >$(logfile "python3" ".pip") 2>&1
-        sudo ${PYTHON3} -m pip install meson >$(logfile "python3" ".meson") 2>&1
-    fi
+    MIN_REQ_MESON_VSN=0.53
+    MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
+    [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ] && echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, exiting..." && exit 1
 fi
 
+MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
+# MESON_OPTS="-Dbuildtype=debugoptimized -Db_lto=true -Db_lto_mode=thin"
+MESON_OPTS="-Dbuildtype=${MESON_BUILDTYPE}"
+
+DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/qat,common/sfc_efx,compress/octeontx,compress/zlib,crypto/bcmfs,crypto/caam_jr,crypto/ccp,crypto/dpaa2_sec,crypto/dpaa_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/openssl,crypto/scheduler,crypto/virtio,event/dlb,event/dlb2,event/dpaa,event/dpaa2,event/dsw,event/octeontx,event/octeontx2,event/opdl,event/skeleton,event/sw,mempool/bucket,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/cxgbe,net/dpaa,net/dpaa2,net/e1000,net/ena,net/enetc,net/enic,net/failsafe,net/bond,net/fm10k,net/hinic,net/hns3,net/i40e,net/iavf,net/ice,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/netvsc,net/nfp,net/null,net/octeontx,net/octeontx2,net/pfe,net/qede,net/ring,net/sfc,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,net/vhost,net/virtio,net/vmxnet3,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,regex/octeontx2,vdpa/ifc}
+
 if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
+    ISSKIP=0
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_DPDK" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}DPDK$nn"
@@ -373,28 +381,37 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
     export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
 
     cd "$RTE_SDK"
-    CC=${T4P4S_CC} CC_LD=${T4P4S_LD} meson build -Dtests=false >$(logfile "dpdk") 2>&1
-    ninja -C build >>$(logfile "dpdk" ".ninja") 2>&1
-    sudo ninja -C build install >>$(logfile "dpdk" ".ninja.install") 2>&1
-    sudo ldconfig
+    sudo CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" $MESONCMD build $MESON_OPTS -Dtests=false -Ddisable_drivers="$DPDK_DISABLED_DRIVERS" >$(logfile "dpdk" ".meson") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}meson$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja -C build >>$(logfile "dpdk" ".ninja") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja -C build install >>$(logfile "dpdk" ".ninja.install") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ldconfig
     cd "$WORKDIR"
 fi
 
+LTO_OPT=""
+# LTO_OPT="-flto=thin"
 
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
+    ISSKIP=0
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_PROTOBUF" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}protobuf$nn"
 
     mkdir -p protobuf/cmake/build
     cd protobuf/cmake/build
-    cmake .. -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -fPIC" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja  -DBUILD_TESTS=OFF -DBUILD_CONFORMANCE=OFF -DBUILD_EXAMPLES=OFF >$(logfile "protobuf" ".ninja") 2>&1
-    sudo ninja install -j ${MAX_MAKE_JOBS} >>$(logfile "protobuf" ".ninja.install") 2>&1
-    sudo ldconfig
+    cmake .. -DCMAKE_C_FLAGS="-fPIC ${LTO_OPT}" -DCMAKE_CXX_FLAGS="-Wno-cpp -fPIC ${LTO_OPT}" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja  -DBUILD_TESTS=OFF -DBUILD_CONFORMANCE=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PROTOC_BINARIES=OFF -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_BUILD_CONFORMANCE=OFF -Dprotobuf_BUILD_EXAMPLES=OFF -Dprotobuf_BUILD_PROTOC_BINARIES=OFF >$(logfile "protobuf" ".ninja") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}protobuf$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS} >>$(logfile "protobuf" ".ninja.install") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}protobuf$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ldconfig
     cd "$WORKDIR"
 fi
 
 if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
+    ISSKIP=0
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_P4C" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}p4c$nn"
@@ -403,8 +420,13 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
 
     mkdir p4c/build
     cd p4c/build
-    cmake .. -DCMAKE_C_FLAGS="-fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_BMV2=OFF -DENABLE_EBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
-    sudo ninja install -j ${MAX_MAKE_JOBS_P4C} >>$(logfile "p4c" ".ninja.install") 2>&1
+    sed -i 's/-fuse-ld=gold/-fuse-ld=${T4P4S_LD}/g' ../CMakeLists.txt
+    # cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC ${LTO_OPT}" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC ${LTO_OPT}" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja -DLLVM_USE_LINKER="${T4P4S_LD}" -DENABLE_P4TEST=ON -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
+    # cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_BMV2=OFF -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
+    cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} >>$(logfile "p4c" ".ninja.install") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 fi
 
@@ -414,32 +436,36 @@ if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
     echo -e "Setting up ${cc}grpc$nn"
     mkdir -p grpc/build
     cd grpc/build
-    cmake .. -GNinja >$(logfile "grpc" ".cmake") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}grpc$nn (code $cc$?$nn)"
-    ninja >>$(logfile "grpc" ".ninja") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}grpc$nn (code $cc$?$nn)"
-    sudo ninja install >>$(logfile "grpc" ".ninja.install") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}grpc$nn (code $cc$?$nn)"
+    ISSKIP=0
+    cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -O2 -fPIC" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja >$(logfile "grpc" ".cmake") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && ninja >>$(logfile "grpc" ".ninja") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja install >>$(logfile "grpc" ".ninja.install") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_PI" >/dev/null 2>&1
     echo -e "Setting up ${cc}PI$nn"
     cd PI
+    ISSKIP=0
     ./autogen.sh >$(logfile "PI" ".autogen") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}PI$nn (code $cc$?$nn)"
-    CC=${T4P4S_CC} CC_LD=${T4P4S_LD} CXX="${T4P4S_CXX}" ./configure --with-proto >>$(logfile "PI" ".configure") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}PI$nn (code $cc$?$nn)"
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}autogen$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" CXX="${T4P4S_CXX}" ./configure --with-proto >>$(logfile "PI" ".configure") 2>&1
     make -j $MAX_MAKE_JOBS >>$(logfile "PI" ".make") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}PI$nn (code $cc$?$nn)"
-    sudo make install -j $MAX_MAKE_JOBS >>$(logfile "PI" ".make.install") 2>&1
-    [ $? -ne 0 ] && echo -e "Error during the compilation of ${cc}PI$nn (code $cc$?$nn)"
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}make$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo make install -j $MAX_MAKE_JOBS >>$(logfile "PI" ".make.install") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}make install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_P4Runtime_GRPCPP" >/dev/null 2>&1
     echo -e "Setting up ${cc}P4Runtime_GRPCPP$nn"
     cd P4Runtime_GRPCPP
+    ISSKIP=0
     ./install.sh >$(logfile "P4Runtime_GRPCPP" ".install") 2>&1
-    CC=${T4P4S_CC} CC_LD=${T4P4S_LD} CXX="${T4P4S_CXX}" ./compile.sh >>$(logfile "P4Runtime_GRPCPP" ".compile") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4runtime-grpcpp$nn/${cc}install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" CXX="${T4P4S_CXX}" ./compile.sh >>$(logfile "P4Runtime_GRPCPP" ".compile") 2>&1
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4runtime-grpcpp$nn/${cc}compile$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 fi
 
@@ -449,24 +475,36 @@ fi
 if [ "$INSTALL_STAGE6_T4P4S" == "yes" ]; then
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_T4P4S" >/dev/null 2>&1
 
-    cat <<EOF >./t4p4s_environment_variables.sh
+    DPDK_FILEVSN=${DPDK_FILEVSN-TO_BE_FILLED_BY_USER}
+    RTE_SDK=${RTE_SDK-`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`}
+
+    cat <<EOF >./${T4P4S_ENVVAR_FILE}
 export DPDK_VSN=${DPDK_VSN}
-export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
+export RTE_SDK=${RTE_SDK}
 export RTE_TARGET=${RTE_TARGET}
 export P4C=`pwd`/p4c
 export T4P4S=${T4P4S_DIR}
 EOF
 
-    chmod +x `pwd`/t4p4s_environment_variables.sh
-    . `pwd`/t4p4s_environment_variables.sh
+    chmod +x ./${T4P4S_ENVVAR_FILE}
+    . ./${T4P4S_ENVVAR_FILE}
 
     echo Environment variable config is done
-    echo -e "Environment variable config is saved in ${cc}`pwd`/t4p4s_environment_variables.sh$nn"
+    echo -e "Environment variable config is saved in ${cc}./${T4P4S_ENVVAR_FILE}$nn"
 
-    # remove all lines containing "t4p4s_environment_variables"
-    sed -ni '/t4p4s_environment_variables/!p' ~/.profile
+    ENV_TARGETS="$HOME/.bash_profile $HOME/.bash_login $HOME/.bashrc $HOME/.profile"
+    for target in $ENV_TARGETS; do
+        [ -a "$target" ] && ENV_TARGET=$target && break
+    done
 
-    echo >> ~/.profile
-    echo ". `pwd`/t4p4s_environment_variables.sh" >> ~/.profile
-    echo -e "Environment variable config is ${cc}enabled on login$nn: your ${cc}~/.profile$nn will run `pwd`/t4p4s_environment_variables.sh"
+    if [ "$ENV_TARGET" == "" ]; then
+        echo -e "Make sure you run ${cc}. ./${T4P4S_ENVVAR_FILE}$nn before you use T4P4S to setup all environment variables"
+    else
+        # remove all lines containing "t4p4s_environment_variables"
+        sed -ni '/${T4P4S_ENVVAR_FILE}/!p' ${ENV_TARGET}
+
+        echo >> ${ENV_TARGET}
+        echo ". `pwd`/${T4P4S_ENVVAR_FILE}" >> ${ENV_TARGET}
+        echo -e "Environment variable config is ${cc}enabled on login$nn: ${cc}${ENV_TARGET}$nn will run ${cc}${T4P4S_ENVVAR_FILE}$nn"
+    fi
 fi
