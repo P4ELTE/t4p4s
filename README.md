@@ -42,6 +42,10 @@ Notes.
 
     INSTALL_STAGE5_P4RT=no . ./bootstrap-t4p4s.sh
 
+- The following option quickens installation by turning off many features that may not be necessary for T₄P₄S use.
+
+    SLIM_INSTALL=yes . ./bootstrap-t4p4s.sh
+
 - To see all possible options (including available stages), run the script the following way.
 
     ./bootstrap-t4p4s.sh showenvs
