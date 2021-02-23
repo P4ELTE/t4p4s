@@ -24,9 +24,6 @@ for table in hlir.tables:
     #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
 
 
-max_bytes = max([0] + [t.key_length_bytes for t in hlir.tables])
-#[ uint8_t reverse_buffer[$max_bytes];
-
 # Variable width fields are not supported
 def get_key_byte_width(k):
     if 'size' in k:
@@ -259,11 +256,11 @@ for table, smem in hlir.all_counters:
 
 #[ extern struct socket_state state[NB_SOCKETS];
 
-#[ extern volatile int ctrl_is_initialized;
+#[ extern volatile bool ctrl_is_initialized;
 
 #{ void ctrl_initialized() {
 #[     debug("   " T4LIT(::,incoming) " Control plane init " T4LIT(done,success) "\n");
-#[     ctrl_is_initialized = 1;
+#[     ctrl_is_initialized = true;
 #} }
 
 

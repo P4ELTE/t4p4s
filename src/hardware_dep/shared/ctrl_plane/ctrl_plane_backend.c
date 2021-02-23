@@ -28,6 +28,10 @@ extern device_mgr_t *dev_mgr_ptr;
 
 #endif
 
+
+volatile bool ctrl_is_initialized;
+
+
 #define P4_BG_MEM_CELL_SIZE 2048
 #define P4_BG_QUEUE_SIZE 1024
 
@@ -239,7 +243,7 @@ ctrl_plane_backend create_backend(int num_of_threads, int queue_size, char* cont
 void launch_backend(ctrl_plane_backend bg)
 {
     backend_t *bgt = (backend_t*) bg;
-    ctrl_is_initialized = 0;
+    ctrl_is_initialized = false;
 
 #ifndef T4P4S_P4RT
     if( connect( bgt->controller_sock, (struct sockaddr *) &(bgt->controller_addr), sizeof(struct sockaddr_in) ) == -1 )

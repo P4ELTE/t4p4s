@@ -37,9 +37,12 @@ testcase_t* current_test_case;
     extern testcase_t t4p4s_test_suite[MAX_TESTCASES];
 
     void t4p4s_pre_launch(int idx) {
-        if (idx != 0) {
-            sleep_millis(PAUSE_BETWEEN_TESTCASES_MILLIS);
-        }
+        #ifndef T4P4S_NO_CONTROL_PLANE
+            // wait for "stray" control messages to go away
+            if (idx != 0) {
+                sleep_millis(PAUSE_BETWEEN_TESTCASES_MILLIS);
+            }
+        #endif
 
         current_test_case = t4p4s_test_suite + idx;
 
@@ -338,7 +341,23 @@ bool core_is_working(LCPARAMS) {
     return get_cmd(LCPARAMS_IN).action != FAKE_END;
 }
 
+extern volatile bool ctrl_is_initialized;
+
+void await_ctl_init() {
+    #ifndef T4P4S_NO_CONTROL_PLANE
+        int MAX_CTL_INIT_MILLIS = 50;
+        for (int i = 0; i < MAX_CTL_INIT_MILLIS; ++i) {
+            if (ctrl_is_initialized)    break;
+            sleep_millis(1);
+        }
+    #endif
+}
+
 bool receive_packet(unsigned pkt_idx, LCPARAMS) {
+    if (pkt_idx == 0) {
+        await_ctl_init();
+    }
+
     fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
@@ -348,9 +367,12 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
             pd->data    = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         }
 
-        if (cmd.sleep_millis > 0) {
-            sleep_millis(cmd.sleep_millis);
-        }
+        #ifndef T4P4S_NO_CONTROL_PLANE
+            // wait for answer from fake control plane
+            if (cmd.sleep_millis > 0) {
+                sleep_millis(cmd.sleep_millis);
+            }
+        #endif
 
         return got_packet;
     }
@@ -367,8 +389,24 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     return false;
 }
 
+int packet_expected_length(const char* sections[MAX_SECTION_COUNT]) {
+    int retval = 0;
+    for (int idx = 0; strlen(sections[idx]) != 0; ++idx) {
+        retval += strlen(sections[idx]) / 2;
+    }
+    return retval;
+}
+
 void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
+
+    if (get_cmd(LCPARAMS_IN).out_port != -1) {
+        ++packet_with_error_counter;
+        debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
+              get_cmd(LCPARAMS_IN).out_port,
+              packet_expected_length(get_cmd(LCPARAMS_IN).out)
+        );
+    }
 }
 
 bool is_packet_handled(LCPARAMS) {
@@ -409,6 +447,16 @@ unsigned get_queue_count(LCPARAMS) {
 
 void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
+
+    if (get_cmd(LCPARAMS_IN).out_port == -1) {
+        ++packet_with_error_counter;
+        debug(" " T4LIT(!!!!,error) " Packet was supposed to be " T4LIT(dropped,warning) ", but it was " T4LIT(sent,error) " to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data\n",
+              egress_port,
+              packet_length(pd)
+        );
+        return;
+    }
+
     check_sent_packet(egress_port, ingress_port, LCPARAMS_IN);
 }
 
