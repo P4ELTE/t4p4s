@@ -7,15 +7,12 @@
 import hlir16.hlir
 from compiler_log_warnings_errors import *
 
-from subprocess import call
-
 import os
 import os.path
 import sys
 import pkgutil
 import importlib
 
-import bz2
 import pickle
 
 import compiler_common
@@ -64,6 +61,7 @@ def write_cache(cache, required_modules, saver, data):
 
 
 def p4_to_json(files, arg):
+    global args
     p4_filename, json_filename = arg
     return hlir16.hlir.p4_to_json(p4_filename, json_filename, args['p4v'], args['p4c_path'], args['p4opt'])
 
@@ -108,9 +106,11 @@ class RecursionLimit():
     """Temporarily increase the standard recursion limit."""
     def __init__(self, limit):
         self.limit = limit
+
     def __enter__(self):
         self.old_limit = sys.getrecursionlimit()
         sys.setrecursionlimit(self.limit)
+
     def __exit__(self, type, value, traceback):
         sys.setrecursionlimit(self.old_limit)
 
@@ -174,14 +174,15 @@ def continue_stages(stages, stage_idx, data):
 
         data = new_data
 
-        if stage['saver'] is not None:
+        if 'saver' in stage and stage['saver'] is not None:
             required_modules, save_data = stage['saver']
             write_cache(stage['filename'], required_modules, save_data, data)
     return data
 
     compiler_common.current_compilation = None
 
-def load_hlir(filename, cache_dir_name):
+
+def load_hlir(filename, cache_dir_name, recompile=False):
     p4cache = os.path.join(cache_dir_name, os.path.basename(filename))
 
     stages = [
@@ -191,7 +192,7 @@ def load_hlir(filename, cache_dir_name):
         stage_hlir_add_attributes(filename, p4cache),
         ]
 
-    stage_idx, data = load_latest_stage_from_cache(stages)
+    stage_idx, data = (0, None) if recompile else load_latest_stage_from_cache(stages)
     if stage_idx == 0:
         args['verbose'] and print(stages[0]['msgfmt'].format(filename))
         data = (filename, f"{p4cache}.json.cached")
@@ -201,8 +202,10 @@ def load_hlir(filename, cache_dir_name):
 def cache_loader(no_cache_loader):
     return ([], lambda file, data: pickle.load(file) if file is not None else no_cache_loader(data) if data is not None else None)
 
+
 def cache_saver():
     return ([], lambda data: pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL))
+
 
 def stage_p4_to_json_file(filename, p4cache):
     return {
@@ -214,6 +217,7 @@ def stage_p4_to_json_file(filename, p4cache):
         'loaders': [([], p4_to_json)],
     }
 
+
 def stage_load_json(filename, p4cache):
     return {
         'name': 'stage_load_json',
@@ -224,6 +228,7 @@ def stage_load_json(filename, p4cache):
         'is_valid': lambda json_root: json_root['Node_ID'] is not None,
     }
 
+
 def stage_json_to_hlir(filename, p4cache):
     return {
         'name': 'stage_json_to_hlir',
@@ -233,6 +238,7 @@ def stage_json_to_hlir(filename, p4cache):
         'dependency': ["src/compiler.py", "src/compiler_load_p4.py", "src/compiler_exception_handling.py", "src/hlir16/hlir.py", "src/hlir16/hlir_attrs.py", "src/hlir16/p4node.py"],
         'saver': cache_saver(),
     }
+
 
 def stage_hlir_add_attributes(filename, p4cache):
     return {
@@ -248,6 +254,7 @@ def check_file_exists(filename):
     if os.path.isfile(filename) is False:
         print("FILE NOT FOUND: %s" % filename, file=sys.stderr)
         sys.exit(1)
+
 
 def check_file_extension(filename):
     _, ext = os.path.splitext(filename)
@@ -269,7 +276,7 @@ def load_from_p4(compiler_args, cache_dir_name):
     check_file_extension(filename)
 
     with RecursionLimit(10000) as recursion_limit:
-        hlir = load_hlir(filename, cache_dir_name)
+        hlir = load_hlir(filename, cache_dir_name, args['recompile'])
 
         if hlir is None:
             print(f"P4 compilation failed for file {os.path.basename(__file__)}", file=sys.stderr)
