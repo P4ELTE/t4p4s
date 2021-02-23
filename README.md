@@ -40,11 +40,15 @@ Notes.
 
     - It is also useful if you are not interested in using `P4Runtime` features.
 
-    INSTALL_STAGE5_P4RT=no . ./bootstrap-t4p4s.sh
+    INSTALL_STAGE5_GRPC=no . ./bootstrap-t4p4s.sh
 
 - The following option quickens installation by turning off many features that may not be necessary for T₄P₄S use.
 
     SLIM_INSTALL=yes . ./bootstrap-t4p4s.sh
+
+- You may customise the build process further. As the P₄ library is rather slow to compile to begin with, `CFLAGS` isn't passed to it, but you may use the specific `P4C_CFLAGS` variable. Here is a sample configuration.
+
+    CFLAGS="-march=native -mtune=native -O2" MESONFLAGS="-Db_pch=true -Ddebug=false -Doptimization=2 -Dstrip=true" P4C_CFLAGS="" . ./bootstrap-t4p4s.sh
 
 - To see all possible options (including available stages), run the script the following way.
 
