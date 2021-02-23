@@ -5,21 +5,19 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH01), 200, 0, ETH(ETH1A, ETH01, "eb")},
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH02), 200, 0, ETH(ETH1A, ETH02, "eb")},
-        {FAKE_PKT, 0, 0, ETH(ETH01, ETH1A),   0, 0, ETH(ETH01, ETH1A, "eb")},
-        {FAKE_PKT, 0, 0, ETH(ETH02, ETH1A),   0, 0, ETH(ETH02, ETH1A, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH01),  CTL_REPLIES, 0, ETH(ETH1A, ETH01, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH02),  CTL_REPLIES, 0, ETH(ETH1A, ETH02, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH01, ETH1A), NO_CTL_REPLY, 0, ETH(ETH01, ETH1A, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH02, ETH1A), NO_CTL_REPLY, 0, ETH(ETH02, ETH1A, "eb")},
 
         FEND,
     },
 
     {
-        // TODO there seems to be a problem with packets from the second lcore
-
-        // {FAKE_PKT, 0, 0, ETH(ETH1A, ETH03), 200, 0, ETH(ETH1A, ETH03, "eb")},
-        // {FAKE_PKT, 0, 0, ETH(ETH1A, ETH04), 200, 0, ETH(ETH1A, ETH04, "eb")},
-        // {FAKE_PKT, 0, 0, ETH(ETH03, ETH1A),   0, 0, ETH(ETH03, ETH1A, "eb")},
-        // {FAKE_PKT, 0, 0, ETH(ETH04, ETH1A),   0, 0, ETH(ETH04, ETH1A, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH03),  CTL_REPLIES, 0, ETH(ETH1A, ETH03, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH04),  CTL_REPLIES, 0, ETH(ETH1A, ETH04, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH03, ETH1A), NO_CTL_REPLY, 0, ETH(ETH03, ETH1A, "eb")},
+        {FAKE_PKT, 0, 0, ETH(ETH04, ETH1A), NO_CTL_REPLY, 0, ETH(ETH04, ETH1A, "eb")},
 
         FEND,
     },

@@ -269,10 +269,15 @@ for table, table_info in table_infos:
     #[
 
 for table, table_info in table_infos:
-    #[ apply_result_t ${table.name}_apply(STDPARAMS)
-    #{ {
+    # note: default_val is set properly only on lcore 0 on each socket
+    #{ table_entry_${table.name}_t* ${table.name}_get_default_entry(STDPARAMS) {
+    #[     return (table_entry_${table.name}_t*)tables[TABLE_${table.name}][0].default_val;
+    #} }
+
+for table, table_info in table_infos:
+    #{ apply_result_t ${table.name}_apply(STDPARAMS) {
     if 'key' not in table or table.key_length_bits == 0:
-        #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}][rte_lcore_id()].default_val;
+        #[     table_entry_${table.name}_t* entry = ${table.name}_get_default_entry(STDPARAMS_IN);
         #[     bool hit = false;
         #[     ${table.name}_apply_show_hit(entry->action.action_id, STDPARAMS_IN);
     else:
@@ -282,7 +287,7 @@ for table, table_info in table_infos:
         #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${table.matchType.name}_lookup(tables[TABLE_${table.name}], (uint8_t*)key);
         #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
         #{     if (unlikely(!hit)) {
-        #[         entry = (table_entry_${table.name}_t*)tables[TABLE_${table.name}]->default_val;
+        #[         entry = ${table.name}_get_default_entry(STDPARAMS_IN);
         #}     }
 
         #{ #ifdef T4P4S_DEBUG
