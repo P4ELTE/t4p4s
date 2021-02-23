@@ -64,6 +64,7 @@ project_source_files = [
 
     hdep / 'shared/util_debug.c',
     hdep / 'shared/backend.c',
+    hdep / 'shared/dataplane_hdr_fld_pkt.c',
 ]
 
 build_args = [
