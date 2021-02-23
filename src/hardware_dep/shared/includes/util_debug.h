@@ -65,9 +65,6 @@
     #endif
 
 
-    #include <pthread.h>
-    pthread_mutex_t dbg_mutex;
-
     #define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
 
     #define debug(M, ...) \

@@ -16,16 +16,30 @@ from compiler_common import statement_buffer_value
 
 ################################################################################
 
+# TODO more than one parser can be present
+parser = hlir.parsers[0]
+
+################################################################################
+
+#[ // Returns the sum of all collected variable widths.
+#{ int get_var_width_bitwidth(parser_state_t* pstate) {
+#[     int retval = 0
+for loc in parser.parserLocals:
+    if 'is_vw' in loc.urtype and loc.urtype.is_vw:
+        #[ + pstate->${loc.name}_var
+#[     ;
+
+#[ return retval;
+
+#} }
+
+################################################################################
+
 #{ void drop_packet(STDPARAMS) {
 #[     uint32_t value32; (void)value32;
 #[     uint32_t res32; (void)res32;
 #[     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_DROP_VALUE);
-#[     debug("    " T4LIT(:,status) " " T4LIT(Dropping package,status) "\n");
 #} }
-
-
-# TODO more than one parser can be present
-parser = hlir.parsers[0]
 
 
 #{ void init_parser_state(parser_state_t* pstate) {
@@ -38,6 +52,18 @@ for s in parser.states:
         #[ static void parser_state_${s.name}(STDPARAMS);
     else:
         #[ // state ${s.name} is not reachable
+
+#{ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, uint32_t hdrlen, STDPARAMS) {
+#{     #ifdef T4P4S_DEBUG
+#{         if (pd->parsed_length == pd->wrapper->pkt_len) {
+#[             debug("    " T4LIT(!,warning) " Missing %sheader " T4LIT(%s,header) "/" T4LIT(%d) "B @ offset " T4LIT(%d) "\n", varwidth_txt, hdr_name, hdrlen, pd->parsed_length);
+#[         } else {
+#[             debug("    " T4LIT(!,warning) " Trying to parse %sheader " T4LIT(%s,header) "/" T4LIT(%d) "B at offset " T4LIT(%d) ", " T4LIT(missing %d bytes,warning) "\n",
+#[                   varwidth_txt, hdr_name, hdrlen, pd->parsed_length, pd->parsed_length + hdrlen - pd->wrapper->pkt_len);
+#}         }
+#}     #endif
+#} }
+
 
 for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata):
     #{ static int parser_extract_${hdr.name}(STDPARAMS) {
@@ -54,14 +80,7 @@ for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata)
     #[ uint32_t vwlen = 0;
     #[ uint32_t hdrlen = (${hdr.urtype.size} + vwlen) / 8;
     #{ if (unlikely(pd->parsed_length + hdrlen > pd->wrapper->pkt_len)) {
-    #{     #ifdef T4P4S_DEBUG
-    #{         if (pd->parsed_length == pd->wrapper->pkt_len) {
-    #[             debug("    " T4LIT(!,warning) " Missing ${"variable width " if is_vw else ""}header $$[header]{hdr.name}/" T4LIT(%d) "B @ offset " T4LIT(%d) "\n", hdrlen, pd->parsed_length);
-    #[         } else {
-    #[             debug("    " T4LIT(!,warning) " Trying to parse ${"variable width " if is_vw else ""}header $$[header]{hdr.name}/" T4LIT(%d) "B at offset " T4LIT(%d) ", " T4LIT(missing %d bytes,warning) "\n", hdrlen, pd->parsed_length, pd->parsed_length + hdrlen - pd->wrapper->pkt_len);
-    #}         }
-    #}     #endif
-    #[
+    #{     cannot_parse_hdr("${"variable width " if is_vw else ""}", "${hdr.name}", hdrlen, STDPARAMS_IN);
     #[     return -1; // parsed after end of packet
     #} }
 
@@ -148,7 +167,7 @@ for s in parser.states:
         continue
 
     if s.name == 'reject':
-        #[     debug(" " T4LIT(%%%%%%%%,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
+        #[     debug(" " T4LIT(XXXX,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
         #[     drop_packet(STDPARAMS_IN);
         #[ }
         continue
@@ -165,19 +184,25 @@ for s in parser.states:
 
         arg0 = component.methodCall.arguments['Argument'][0]
         hdr = get_hdrinst(arg0, component)
-        if hdr is None:
+
+        # note: a hack (an attribute's proper value should be the determinant, not the presence/absence of an attribute),
+        #       but it looks like the best way to determine whether we are extracting to the underscore identifier
+        is_underscore_header = hdr is None or not hasattr(hdr, 'annotations')
+
+        if is_underscore_header:
             hdrt = arg0.expression.hdr_ref.urtype
             if hdrt.size % 8 != 0:
-                addWarning('extracting underscore header', f'Extracting non-byte-aligned header type {hdrt.name}/{hdrt.size}b as noname header')
+                addWarning('extracting underscore header', f'Attempting to parse non-byte-aligned header type {hdrt.name}/{hdrt.size}b as noname header')
             size = (hdrt.size+7)//8
-            #[ // extracting to underscore argument, $size bytes (${hdrt.size} bits)
-            #[ debug("   :: Extracting " T4LIT(${hdrt.name},header) "/" T4LIT($size) " as " T4LIT(noname header,header) "\n");
+            #[ // extracting to underscore argument, ${size}B (${hdrt.size}b)
+            #[ dbg_bytes(pd->extract_ptr, $size, "   :: Parsed " T4LIT(${hdrt.name},header) "/" T4LIT(${size}B) " as " T4LIT(noname header,header) ": ");
             #[ pd->extract_ptr += $size;
             #[ pd->is_emit_reordering = true; // a noname header cannot be emitted
         else:
             #[ int offset_${hdr.name} = parser_extract_${hdr.name}(STDPARAMS_IN);
             #{ if (unlikely(offset_${hdr.name}) < 0) {
             #[     drop_packet(STDPARAMS_IN);
+            #[     debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) "\n");
             #[     return;
             #} }
         #[ 
@@ -195,7 +220,7 @@ for s in parser.states:
             #[     debug("    " T4LIT(:,status) " " T4LIT(Payload,header) " is " T4LIT(empty,status) "\n");
             #} }
         elif s.name == 'reject':
-            #[ debug("   " T4LIT(::,status) " Packet is $$[status]{}{dropped}\n");
+            #[ debug("   " T4LIT(XX,status) " Packet is $$[status]{}{rejected} and $$[status]{}{dropped}\n");
             #[ drop_packet(STDPARAMS_IN);
     else:
         b = s.selectExpression
@@ -229,16 +254,3 @@ for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
         #[ "${fld.name}", // in header ${hdr.name}
 #} };
-
-
-#[ // Returns the sum of all collected variable widths.
-#{ int get_var_width_bitwidth(parser_state_t* pstate) {
-#[     int retval = 0
-for loc in parser.parserLocals:
-    if 'is_vw' in loc.urtype and loc.urtype.is_vw:
-        #[ + pstate->${loc.name}_var
-#[     ;
-
-#[ return retval;
-
-#} }

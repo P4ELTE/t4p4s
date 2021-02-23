@@ -5,13 +5,12 @@ from compiler_log_warnings_errors import addError, addWarning
 from utils.codegen import format_declaration, format_statement, format_expr, format_type, get_method_call_env
 from compiler_common import types, unique_everseen
 
+#[ #include <unistd.h>
+
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
-#[ #include <unistd.h>
 #[ #include "util_debug.h"
 #[ #include "util_packet.h"
-
-# [ #include "dpdk_primitives_impl.h" // TODO remove
 
 #[ extern ctrl_plane_backend bg;
 
