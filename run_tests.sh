@@ -8,6 +8,7 @@ declare -A skips
 declare -A skipped
 declare -A testcases
 declare -A archname
+declare -A dirname
 declare -A src_p4
 declare -A ext_p4
 
@@ -59,10 +60,13 @@ for file in `find -L . -name "test-*.c"`; do
             TESTPART="${p4file}$POSTFIX"
         fi
 
-        testcases["$PREPART$TESTPART"]="$PREPART$TESTPART"
-        src_p4["$PREPART$TESTPART"]="$SRC_P4"
-        ext_p4["$PREPART$TESTPART"]="$ext"
-        archname["$PREPART$TESTPART"]=`echo "$testcase" | sed -e "s/[^a-z].*//g"`
+        testid="$PREPART$TESTPART"
+        testcases["$testid"]="$testid"
+        src_p4["$testid"]="$SRC_P4"
+        ext="${SRC_P4##*.}"
+        ext_p4["$testid"]="$ext"
+        archname["$testid"]=`echo "$testcase" | sed -e "s/[^a-z].*//g"`
+        dirname["$testid"]=`echo "$testid" | sed -e "s/=/${std}-/g" | tr -d '%'`
 
         [ "${skipped[$PREPART$TESTPART]}" != "" ] && continue
         [ "$testcase" == "test" ] && [ "${skipped[\"$PREPART$TESTPART=test\"]}" != "" ] && continue
@@ -77,9 +81,6 @@ for file in `find -L . -name "test-*.c"`; do
     done
 done
 
-wait
-
-
 total_count=0
 for TESTCASE in ${testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
@@ -93,20 +94,21 @@ if [ "$PRECOMPILE" == "yes" ]; then
     for TESTCASE in ${testcases[@]}; do
         [ "${skipped[$TESTCASE]+x}" ] && continue
 
-        TARGET_DIR="../build/${p4file}${std}-${TESTCASE}/cache"
+        TARGET_DIR="../build/${dirname[$TESTCASE]}/cache"
         TARGET_JSON="${TARGET_DIR}/${p4file}.p4.json.cached"
+        # echo PP $TESTCASE ---- $TARGET_DIR
         mkdir -p ${TARGET_DIR}
 
         ARCH_MACRO="USE_${archname[$TESTCASE]^^}"
 
-        [ "${ext_p4[$TESTCASE]}" == ".p4_14" ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 14 &
-        [ "${ext_p4[$TESTCASE]}" == ".p4"    ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 16 &
+        [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 14 &
+        [ "${ext_p4[$TESTCASE]}" == "p4"    ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 16 &
     done
 fi
 
+wait
 
 cd -
-
 
 summary_echo() {
     echo "$*"
@@ -118,7 +120,6 @@ summary_only_echo() {
     echo "$*" >> ${SUMMARY_FILE}
     echo "$*" >> ${LAST_SUMMARY_FILE}
 }
-
 
 LOG_DIR=build/all-run-logs
 SUMMARY_FILE=${LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_log.txt
