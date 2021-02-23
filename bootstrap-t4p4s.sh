@@ -336,6 +336,9 @@ ctrl_c_handler() {
     kill -9 $WAITPROC_DPDK 2>/dev/null
     kill -9 $WAITPROC_PROTOBUF 2>/dev/null
     kill -9 $WAITPROC_P4C 2>/dev/null
+    kill -9 $WAITPROC_GRPC 2>/dev/null
+    kill -9 $WAITPROC_PI 2>/dev/null
+    kill -9 $WAITPROC_P4Runtime_GRPCPP 2>/dev/null
     kill -9 $WAITPROC_T4P4S 2>/dev/null
 
     echo "Ctrl-C pressed, exiting"
@@ -367,24 +370,32 @@ fi
 
 MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
 # MESON_OPTS="-Dbuildtype=debugoptimized -Db_lto=true -Db_lto_mode=thin"
-MESON_OPTS="-Dbuildtype=${MESON_BUILDTYPE}"
-
-DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/qat,common/sfc_efx,compress/octeontx,compress/zlib,crypto/bcmfs,crypto/caam_jr,crypto/ccp,crypto/dpaa2_sec,crypto/dpaa_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/openssl,crypto/scheduler,crypto/virtio,event/dlb,event/dlb2,event/dpaa,event/dpaa2,event/dsw,event/octeontx,event/octeontx2,event/opdl,event/skeleton,event/sw,mempool/bucket,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/cxgbe,net/dpaa,net/dpaa2,net/e1000,net/ena,net/enetc,net/enic,net/failsafe,net/bond,net/fm10k,net/hinic,net/hns3,net/i40e,net/iavf,net/ice,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/netvsc,net/nfp,net/null,net/octeontx,net/octeontx2,net/pfe,net/qede,net/ring,net/sfc,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,net/vhost,net/virtio,net/vmxnet3,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,regex/octeontx2,vdpa/ifc}
+MESON_OPTS="-Dbuildtype=${MESON_BUILDTYPE} -Db_pch=true"
 
 if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
     ISSKIP=0
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_DPDK}" ] 2>/dev/null && echo -ne "Waiting for ${cc}DPDK$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_DPDK" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}DPDK$nn"
 
     export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
 
+    if [ "$SLIM_INSTALL" == "yes" ]; then
+        DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/qat,common/sfc_efx,compress/octeontx,compress/zlib,crypto/bcmfs,crypto/caam_jr,crypto/ccp,crypto/dpaa2_sec,crypto/dpaa_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/openssl,crypto/scheduler,crypto/virtio,event/dlb,event/dlb2,event/dpaa,event/dpaa2,event/dsw,event/octeontx,event/octeontx2,event/opdl,event/skeleton,event/sw,mempool/bucket,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/cxgbe,net/dpaa,net/dpaa2,net/e1000,net/ena,net/enetc,net/enic,net/failsafe,net/bond,net/fm10k,net/hinic,net/hns3,net/i40e,net/iavf,net/ice,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/netvsc,net/nfp,net/null,net/octeontx,net/octeontx2,net/pfe,net/qede,net/ring,net/sfc,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,net/vhost,net/virtio,net/vmxnet3,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,regex/octeontx2,vdpa/ifc}
+
+        # no apps are needed, but there is no convenient option to turn them off
+        sed -i -e 's/\(foreach app\)/apps = []\n\1/g' "${RTE_SDK}/app/meson.build"
+    else
+        DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-""}
+    fi
+
     cd "$RTE_SDK"
-    sudo CC="ccache ${T4P4S_CC}" CC_LD="${T4P4S_LD}" $MESONCMD build $MESON_OPTS -Dtests=false -Ddisable_drivers="$DPDK_DISABLED_DRIVERS" >$(logfile "dpdk" ".meson") 2>&1
+    sudo CC="ccache ${T4P4S_CC}" CFLAGS="$CFLAGS" CC_LD="${T4P4S_LD}" $MESONCMD build $MESON_OPTS -Dtests=false -Ddisable_drivers="$DPDK_DISABLED_DRIVERS" >$(logfile "dpdk" ".meson") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}meson$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja -C build >>$(logfile "dpdk" ".ninja") 2>&1
+    [ $ISSKIP -ne 1 ] && sudo ninja -C build >&2 2>>$(logfile "dpdk" ".ninja")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja -C build install >>$(logfile "dpdk" ".ninja.install") 2>&1
+    [ $ISSKIP -ne 1 ] && sudo ninja -C build install 2>&1 >>$(logfile "dpdk" ".ninja.install")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     [ $ISSKIP -ne 1 ] && sudo ldconfig
     cd "$WORKDIR"
@@ -395,15 +406,18 @@ LTO_OPT=""
 
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
     ISSKIP=0
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_PROTOBUF}" ] 2>/dev/null && echo -ne "Waiting for ${cc}protobuf$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_PROTOBUF" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}protobuf$nn"
 
     mkdir -p protobuf/cmake/build
     cd protobuf/cmake/build
-    cmake .. -DCMAKE_C_FLAGS="-fPIC ${LTO_OPT}" -DCMAKE_CXX_FLAGS="-Wno-cpp -fPIC ${LTO_OPT}" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja  -DBUILD_TESTS=OFF -DBUILD_CONFORMANCE=OFF -DBUILD_EXAMPLES=OFF -DBUILD_PROTOC_BINARIES=OFF -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_BUILD_CONFORMANCE=OFF -Dprotobuf_BUILD_EXAMPLES=OFF -Dprotobuf_BUILD_PROTOC_BINARIES=OFF >$(logfile "protobuf" ".ninja") 2>&1
+    cmake .. -DCMAKE_C_FLAGS="$CFLAGS -fPIC ${LTO_OPT}" -DCMAKE_CXX_FLAGS="$CFLAGS -Wno-cpp -fPIC ${LTO_OPT}" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja  -DBUILD_TESTS=OFF -DBUILD_CONFORMANCE=OFF -DBUILD_EXAMPLES=OFF -Dprotobuf_BUILD_TESTS=OFF -Dprotobuf_BUILD_CONFORMANCE=OFF -Dprotobuf_BUILD_EXAMPLES=OFF >$(logfile "protobuf" ".cmake") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}protobuf$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS} >>$(logfile "protobuf" ".ninja.install") 2>&1
+    [ $ISSKIP -ne 1 ] && sudo ninja -j ${MAX_MAKE_JOBS} >&2 2>>$(logfile "protobuf" ".ninja")
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}protobuf$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS} 2>&1 >>$(logfile "protobuf" ".ninja.install")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}protobuf$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     [ $ISSKIP -ne 1 ] && sudo ldconfig
     cd "$WORKDIR"
@@ -411,6 +425,7 @@ fi
 
 if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     ISSKIP=0
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_P4C}" ] 2>/dev/null && echo -ne "Waiting for ${cc}p4c$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_P4C" >/dev/null 2>&1
 
     echo -e "Setting up ${cc}p4c$nn"
@@ -420,30 +435,32 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     mkdir p4c/build
     cd p4c/build
     sed -i 's/-fuse-ld=gold/-fuse-ld=${T4P4S_LD}/g' ../CMakeLists.txt
-    # cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC ${LTO_OPT}" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC ${LTO_OPT}" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja -DLLVM_USE_LINKER="${T4P4S_LD}" -DENABLE_P4TEST=ON -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
-    # cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_BMV2=OFF -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
-    cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-O2 -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
+    cmake .. -DCMAKE_C_FLAGS="${P4C_CFLAGS} -fPIC" -DCMAKE_CXX_FLAGS="${P4C_CFLAGS} -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} >>$(logfile "p4c" ".ninja.install") 2>&1
+    [ $ISSKIP -ne 1 ] && sudo ninja -j ${MAX_MAKE_JOBS_P4C} >&2 2>>$(logfile "p4c" ".ninja")
+    ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} 2>&1 >>$(logfile "p4c" ".ninja.install")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 fi
 
 
 if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_GRPC}" ] 2>/dev/null && echo -ne "Waiting for ${cc}grpc$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_GRPC" >/dev/null 2>&1
     echo -e "Setting up ${cc}grpc$nn"
     mkdir -p grpc/build
     cd grpc/build
     ISSKIP=0
-    cmake .. -DCMAKE_C_FLAGS="-O2 -fPIC" -DCMAKE_CXX_FLAGS="-Wno-cpp -O2 -fPIC" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja >$(logfile "grpc" ".cmake") 2>&1
+    cmake .. -DCMAKE_C_FLAGS="$CFLAGS -fPIC" -DCMAKE_CXX_FLAGS="$CFLAGS -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="${T4P4S_CC}" -DCMAKE_CXX_COMPILER="${T4P4S_CXX}" -GNinja >$(logfile "grpc" ".cmake") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && ninja >>$(logfile "grpc" ".ninja") 2>&1
+    [ $ISSKIP -ne 1 ] && ninja >&2 2>>$(logfile "grpc" ".ninja")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja install >>$(logfile "grpc" ".ninja.install") 2>&1
+    [ $ISSKIP -ne 1 ] && sudo ninja install 2>&1 >>$(logfile "grpc" ".ninja.install")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}grpc$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_PI}" ] 2>/dev/null && echo -ne "Waiting for ${cc}PI$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_PI" >/dev/null 2>&1
     echo -e "Setting up ${cc}PI$nn"
     cd PI
@@ -457,6 +474,7 @@ if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}make install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_P4Runtime_GRPCPP}" ] 2>/dev/null && echo -ne "Waiting for ${cc}P4Runtime_GRPCPP$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_P4Runtime_GRPCPP" >/dev/null 2>&1
     echo -e "Setting up ${cc}P4Runtime_GRPCPP$nn"
     cd P4Runtime_GRPCPP
@@ -472,6 +490,7 @@ fi
 
 # Save environment config
 if [ "$INSTALL_STAGE6_T4P4S" == "yes" ]; then
+    [ "$PARALLEL_INSTALL" == "yes" ] && [ -d "/proc/${WAITPROC_T4P4S}" ] 2>/dev/null && echo -ne "Waiting for ${cc}T₄P₄S$nn to download... "
     [ "$PARALLEL_INSTALL" == "yes" ] && wait "$WAITPROC_T4P4S" >/dev/null 2>&1
 
     DPDK_FILEVSN=${DPDK_FILEVSN-TO_BE_FILLED_BY_USER}
