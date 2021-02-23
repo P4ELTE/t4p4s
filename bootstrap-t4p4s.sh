@@ -80,7 +80,6 @@ sudo echo -n ""
 echo Root access granted, starting...
 
 if [ "$FRESH" == "yes" ]; then
-    unset PROTOBUF_TAG
     unset DPDK_VSN
     unset RTE_SDK
     unset RTE_TARGET
@@ -381,7 +380,7 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
     export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
 
     cd "$RTE_SDK"
-    sudo CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" $MESONCMD build $MESON_OPTS -Dtests=false -Ddisable_drivers="$DPDK_DISABLED_DRIVERS" >$(logfile "dpdk" ".meson") 2>&1
+    sudo CC="ccache ${T4P4S_CC}" CC_LD="${T4P4S_LD}" $MESONCMD build $MESON_OPTS -Dtests=false -Ddisable_drivers="$DPDK_DISABLED_DRIVERS" >$(logfile "dpdk" ".meson") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}meson$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     [ $ISSKIP -ne 1 ] && sudo ninja -C build >>$(logfile "dpdk" ".ninja") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}dpdk$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
@@ -451,7 +450,7 @@ if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
     ISSKIP=0
     ./autogen.sh >$(logfile "PI" ".autogen") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}autogen$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" CXX="${T4P4S_CXX}" ./configure --with-proto >>$(logfile "PI" ".configure") 2>&1
+    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="${T4P4S_LD}" CXX="${T4P4S_CXX}" ./configure --with-proto >>$(logfile "PI" ".configure") 2>&1
     make -j $MAX_MAKE_JOBS >>$(logfile "PI" ".make") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}pi$nn/${cc}make$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     [ $ISSKIP -ne 1 ] && sudo make install -j $MAX_MAKE_JOBS >>$(logfile "PI" ".make.install") 2>&1
@@ -464,7 +463,7 @@ if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
     ISSKIP=0
     ./install.sh >$(logfile "P4Runtime_GRPCPP" ".install") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4runtime-grpcpp$nn/${cc}install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="ccache ${T4P4S_LD}" CXX="${T4P4S_CXX}" ./compile.sh >>$(logfile "P4Runtime_GRPCPP" ".compile") 2>&1
+    [ $ISSKIP -ne 1 ] && CC="ccache ${T4P4S_CC}" CC_LD="${T4P4S_LD}" CXX="${T4P4S_CXX}" ./compile.sh >>$(logfile "P4Runtime_GRPCPP" ".compile") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4runtime-grpcpp$nn/${cc}compile$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 fi
