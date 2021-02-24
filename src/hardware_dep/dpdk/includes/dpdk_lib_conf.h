@@ -8,7 +8,7 @@
 #include "dataplane_lookup.h"  // lookup_table_t
 #include "parser.h"     // parser_state_t
 #include "common.h"     // NB_TABLES
-
+#include "util_debug.h"
 //=============================================================================
 // Unifying renamed types and constants
 

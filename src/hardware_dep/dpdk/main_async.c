@@ -31,7 +31,7 @@ struct rte_ring    *context_buffer;
 // INTERFACE
 
 void async_init_storage();
-void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void));
+void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx));
 void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
@@ -277,7 +277,7 @@ void init_async_data(struct lcore_data *data){
     //TIME_MEASURE_INIT(lcore_conf[a].async_work_loop_time);
 }
 
-void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void))
+void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))
 {
     COUNTER_ECHO(lcdata->conf->async_drop_counter,"dropped async: %d\n");
 
@@ -291,21 +291,22 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             COUNTER_STEP(lcdata->conf->async_packet);
             //TIME_MEASURE_START(lcdata->conf->async_main_time);
             context->uc_stack.ss_sp = (ucontext_t*)context + 1; // the stack is supposed to be placed right after the context description
-            context->uc_stack.ss_size = CONTEXT_STACKSIZE;
+            context->uc_stack.ss_size = CONTEXT_STACKSIZE*100;
             context->uc_stack.ss_flags = 0;
+            sigemptyset(&context->uc_sigmask);
             pd->context = context;
             debug("Packet being handled, context reference is %p\n", context);
 
             getcontext(context);
             context->uc_link = &lcdata->conf->main_loop_context;
             //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
-            makecontext(context, handler_function, 5, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
+            makecontext(context, handler_function, 6, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
             DBG_CONTEXT_SWAP_TO_PACKET(context)
             swapcontext(&lcdata->conf->main_loop_context, context);
             debug("Swapped back to main context.\n");
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        void (*handler_function_with_params)(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id) = (void (*)(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id))handler_function;
+        void (*handler_function_with_params)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx) = (void (*)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))handler_function;
         struct packet_descriptor_s *pd_store;
 
         int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
@@ -321,7 +322,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
 
             if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0) {
-                handler_function_with_params(lcdata, pd, port_id);
+                handler_function_with_params(LCPARAMS_IN, port_id, queue_idx, pkt_idx);
             }
         }
     #endif

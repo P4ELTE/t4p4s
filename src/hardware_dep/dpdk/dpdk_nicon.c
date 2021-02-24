@@ -168,7 +168,7 @@ struct lcore_data init_lcore_data() {
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
     lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
-    init_async_data(&data);
+    init_async_data(&lcdata);
 
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());

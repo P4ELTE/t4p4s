@@ -112,7 +112,7 @@ void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx
 #endif
 }
 // defined in main_async.c
-void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(void));
+void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx));
 void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
 
@@ -137,7 +137,9 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
         if (likely(is_packet_handled(LCPARAMS_IN))) {
             int portid = get_portid(queue_idx, LCPARAMS_IN);
             #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-                debug("CryptoCounter: %d\n",lcdata->conf->crypto_every_n_counter)
+                #ifdef DEBUG__CRYPTO_EVERY_N
+                    debug("CryptoCounter: %d\n",lcdata->conf->crypto_every_n_counter)
+                #endif
                 if(PACKET_REQUIRES_ASYNC(lcdata,pd)){
                     debug("DO ASYNC\n")
                     COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
