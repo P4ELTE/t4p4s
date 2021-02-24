@@ -201,11 +201,6 @@ void dpdk_main_loop()
         }
     #endif
 
-
-    if (!lcdata->is_valid) {
-        return;
-    }
-
     init_dataplane(pd, lcdata->conf->state.tables);
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
