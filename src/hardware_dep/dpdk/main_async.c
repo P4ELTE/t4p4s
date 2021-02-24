@@ -468,11 +468,14 @@ void main_loop_fake_crypto(LCPARAMS){
     }
 }
 
-uint64_t timer1 = 0;
+uint64_t main_loop_async_work_timer = 0;
+uint64_t main_loop_async_tick_timer = 0;
 
 void main_loop_async(LCPARAMS)
 {
-    //debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_buffer), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+    ONE_PER_SEC(main_loop_async_tick_timer){
+        debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_buffer), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+    }
     //wait_for_cycles(FAKE_CRYPTO_SLEEP_MULTIPLIER*1000);
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
@@ -516,7 +519,7 @@ void main_loop_async(LCPARAMS)
             /*if(n > 0){
                 debug("---------------- data arrived from crypto %d\n",n);
             }*/
-            ONE_PER_SEC(timer1){
+            ONE_PER_SEC(main_loop_async_work_timer){
                 debug("ASYNC WORK FUNCTION %d\n",lcdata->conf->pending_crypto);
             }
             if(n > 0){
