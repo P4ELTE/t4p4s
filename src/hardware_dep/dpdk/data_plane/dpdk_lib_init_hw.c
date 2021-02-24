@@ -204,8 +204,11 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     fflush(stdout);
 
     uint16_t nb_rx_queue = get_port_n_rx_queues(portid);
+    #ifdef T4P4S_VETH_MODE
+    uint32_t n_tx_queue = 1;
+    #else
     uint32_t n_tx_queue = min(nb_lcores, MAX_TX_QUEUE_PER_PORT);
-
+    #endif
     debug(" :::: Creating queues: nb_rxq=%d nb_txq=%u\n",
           nb_rx_queue, (unsigned)n_tx_queue );
     int ret = rte_eth_dev_configure(portid, nb_rx_queue,
@@ -218,10 +221,14 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
     print_port_mac((unsigned)portid, ports_eth_addr[portid].addr_bytes);
 
     uint16_t queueid = 0;
-    for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
-        if (init_tx_on_lcore(lcore_id, portid, queueid))
-            ++queueid;
-    }
+    #ifdef T4P4S_VETH_MODE
+        init_tx_on_lcore(0, portid, queueid);
+    #else
+        for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+            if (init_tx_on_lcore(lcore_id, portid, queueid))
+                ++queueid;
+        }
+    #endif
 
     debug("\n");
 }
