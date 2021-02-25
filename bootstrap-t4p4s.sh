@@ -137,7 +137,12 @@ ALL_LLD=`apt-cache search lld | grep -e "^lld[.-][0-9]* " | cut -f 1 -d " " | so
 
 T4P4S_CC=${T4P4S_CC-$(find_candidate gcc $ALL_CLANG clang $ALL_GCC)}
 T4P4S_CXX=${T4P4S_CXX-$(find_candidate g++ $ALL_CLANGXX clang++ $ALL_GXX)}
-T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD gold)}
+if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
+    # note: when using gcc, only lld seems to be supported, not lld-VSN
+    T4P4S_LD=${T4P4S_LD-$(find_candidate bfd lld gold)}
+else
+    T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD gold)}
+fi
 PYTHON3=${PYTHON3-$(find_candidate python3 $ALL_PYTHON3)}
 
 if [ "$PYTHON3" == "" ]; then
@@ -377,14 +382,20 @@ if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
     MIN_REQ_MESON_VSN=0.53
     MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
     if [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ]; then
-        echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, exiting"
-        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-        exit 1
+        echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, trying to update it"
+
+        sudo ${PYTHON3} -m pip install --force meson >$(logfile "python3" ".pip.meson") 2>&1
+
+        MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
+        if [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ]; then
+            echo -e "Available ${cc}meson$nn version is still not new enough, exiting"
+            [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+            exit 1
+        fi
     fi
 fi
 
 MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
-# MESON_OPTS="-Dbuildtype=debugoptimized -Db_lto=true -Db_lto_mode=thin"
 MESON_OPTS="-Dbuildtype=${MESON_BUILDTYPE} -Db_pch=true"
 
 if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
