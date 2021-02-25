@@ -272,7 +272,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             COUNTER_STEP(lcdata->conf->async_packet);
             //TIME_MEASURE_START(lcdata->conf->async_main_time);
             context->uc_stack.ss_sp = (ucontext_t*)context + 1; // the stack is supposed to be placed right after the context description
-            context->uc_stack.ss_size = CONTEXT_STACKSIZE*100;
+            context->uc_stack.ss_size = CONTEXT_STACKSIZE;
             context->uc_stack.ss_flags = 0;
             sigemptyset(&context->uc_sigmask);
             pd->context = context;
@@ -281,7 +281,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             getcontext(context);
             context->uc_link = &lcdata->conf->main_loop_context;
             //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
-            makecontext(context, handler_function, 6, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
+            makecontext(context, handler_function, 5, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
             DBG_CONTEXT_SWAP_TO_PACKET(context)
             swapcontext(&lcdata->conf->main_loop_context, context);
             debug("Swapped back to main context.\n");
