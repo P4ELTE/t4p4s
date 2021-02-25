@@ -198,4 +198,4 @@ struct async_op {
 
 extern struct rte_mempool *context_pool;
 extern struct rte_mempool *async_pool;
-extern struct rte_ring *context_buffer;
+extern struct rte_ring *context_free_command_ring;
