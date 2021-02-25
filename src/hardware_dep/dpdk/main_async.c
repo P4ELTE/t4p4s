@@ -70,7 +70,7 @@ void reset_headers(packet_descriptor_t* pd, lookup_table_t** tables);
 void parse_packet(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate);
 void emit_packet(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate);
 void control_DeparserImpl(packet_descriptor_t* pd, lookup_table_t** tables, parser_state_t* pstate);
-extern void free_packet(packet_descriptor_t* pd);
+extern void free_packet(LCPARAMS);
 
 // -----------------------------------------------------------------------------
 // SERIALIZATION AND DESERIALIZATION
@@ -265,7 +265,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
         ucontext_t *context;
         if(rte_mempool_get(context_pool, (void**)&context) != 0) {
             pd->dropped = 1;
-            free_packet(pd);
+            free_packet(LCPARAMS_IN);
             pd->context = NULL;
         }else{
             COUNTER_STEP(lcdata->conf->async_packet);
@@ -292,7 +292,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
         int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
         if(ret != 0){
             pd->dropped = 1;
-            free_packet(pd);
+            free_packet(LCPARAMS_IN);
             pd->context = NULL;
         }else{
             COUNTER_STEP(lcdata->conf->async_packet);
