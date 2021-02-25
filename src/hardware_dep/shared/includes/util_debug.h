@@ -26,6 +26,9 @@
 #define T4LIGHT_ T4LIGHT_default
 
 
+
+#include <pthread.h>
+pthread_mutex_t dbg_mutex;
 #ifdef T4P4S_DEBUG
     extern void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
     extern pthread_mutex_t dbg_mutex;
@@ -65,9 +68,6 @@
     #endif
 
 
-    #include <pthread.h>
-    pthread_mutex_t dbg_mutex;
-
     #define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
 
     #define debug(M, ...) \
@@ -83,22 +83,22 @@
         "\n--------------------------------\n" T4LIT(%s, port) " (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf)); \
     }
 
-    #define fdebug(M, ...) \
-    { \
-        pthread_mutex_lock(&dbg_mutex); \
-        debug_printf(M, ##__VA_ARGS__); \
-        pthread_mutex_unlock(&dbg_mutex); \
-    }
+
 
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)
     #define dbg_print(bytes, bit_count, MSG, ...)
     #define debug(M, ...)
     #define debug_mbuf(mbuf,message)
-    #define fdebug(M, ...)
 #endif
+#define flcore_debug(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
 
-
+#define fdebug(M, ...) \
+    { \
+        pthread_mutex_lock(&dbg_mutex); \
+        flcore_debug(M, ##__VA_ARGS__); \
+        pthread_mutex_unlock(&dbg_mutex); \
+    }
 
 typedef struct occurence_counter_s {
     int counter;
@@ -114,9 +114,9 @@ typedef struct time_measure_s{
 }time_measure_t;
 
 #if 1==1
-    #define COUNTER_INIT(oc) {oc.counter=0;}
+    #define COUNTER_INIT(oc) {oc.counter=-1;}
     #define COUNTER_ECHO(oc,print_template){ \
-            if(oc.counter == 0) { \
+            if(oc.counter == -1) { \
                 oc.start_cycle = rte_get_tsc_cycles(); \
                 oc.counter++; \
             } \
