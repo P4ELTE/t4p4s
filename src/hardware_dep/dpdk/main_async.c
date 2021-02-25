@@ -57,11 +57,6 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
             longjmp(asyncLoopJumpPoint[rte_lcore_id()],1);
         }
     }
-
-    //TODO: just an experimental solution (we should encapsulate it)
-    #define ASYNC_PDS_SIZE 10000
-    packet_descriptor_t async_pds[RTE_MAX_LCORE][ASYNC_PDS_SIZE];
-    uint32_t async_pds_counter[RTE_MAX_LCORE];
 #endif
 
 // -----------------------------------------------------------------------------
@@ -122,12 +117,6 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         if(pd->program_state == 1) {
             rte_mempool_put_bulk(pd_pool, (void **) &async_pds_id, 1);
         }
-        /*
-        int async_pds_id = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
-        rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
-        debug("Loading from async PD store! id is %d\n",async_pds_id);
-        *pd = async_pds[rte_lcore_id()][async_pds_id];
-        */
     #endif
     // Resetting the pd
     init_headers(pd, 0);
@@ -193,15 +182,6 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
         //debug("Saving to Async PD store! id is %d\n",store_pd);
         *(rte_pktmbuf_mtod(op->data, struct packet_descriptor_s**)) = store_pd;
         extra_length += sizeof(void**);
-    /*
-        async_pds_counter[rte_lcore_id()] = (async_pds_counter[rte_lcore_id()] + 1) % ASYNC_PDS_SIZE;
-        async_pds[rte_lcore_id()][async_pds_counter[rte_lcore_id()]] = *pd;
-        rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
-
-        debug("Saving to Async PD store! id is %d\n",async_pds_counter[rte_lcore_id()]);
-        *(rte_pktmbuf_mtod(op->data, uint32_t*)) = async_pds_counter[rte_lcore_id()];
-        extra_length += sizeof(uint32_t);
-        */
     #endif
 
     rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
