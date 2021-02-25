@@ -107,7 +107,7 @@ void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx
     if(pd->context != NULL)
     {
         debug(T4LIT(Context for packet %p terminating... swapping back to main context...,warning) "\n", pd->context);
-        rte_ring_enqueue(context_buffer, pd->context);
+        rte_ring_enqueue(context_free_command_ring, pd->context);
     }
 #endif
 }

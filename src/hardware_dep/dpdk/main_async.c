@@ -25,7 +25,7 @@ struct rte_mempool *async_pool;
 #if ASYNC_MODE == ASYNC_MODE_PD
     struct rte_mempool *pd_pool;
 #endif
-struct rte_ring    *context_buffer;
+struct rte_ring    *context_free_command_ring;
 
 // -----------------------------------------------------------------------------
 // INTERFACE
@@ -231,7 +231,8 @@ void async_init_storage()
     if (pd_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create pd pool\n");
 #endif
 
-    context_buffer = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    context_free_command_ring = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    if (context_free_command_ring == NULL) rte_exit(EXIT_FAILURE, "Cannot create context ring!\n");
 }
 
 
@@ -454,15 +455,15 @@ uint64_t main_loop_async_tick_timer = 0;
 void main_loop_async(LCPARAMS)
 {
     ONE_PER_SEC(main_loop_async_tick_timer){
-        debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_buffer), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+        debug("---------------- main loop async cotext_buffer:%d async_size:%d, pending: %d\n",rte_ring_count(context_free_command_ring), rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
     }
     //wait_for_cycles(FAKE_CRYPTO_SLEEP_MULTIPLIER*1000);
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-    if(rte_ring_count(context_buffer) > CRYPTO_BURST_SIZE)
+    if(rte_ring_count(context_free_command_ring) > CRYPTO_BURST_SIZE)
         {
-            n = rte_ring_dequeue_burst(context_buffer, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
+            n = rte_ring_dequeue_burst(context_free_command_ring, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
             for(i = 0; i < n; i++)
                 debug(T4LIT(Packet context %p is being freed up.,warning) "\n", cs[lcore_id][i]);
             rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
