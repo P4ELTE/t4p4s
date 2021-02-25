@@ -219,18 +219,15 @@ void dpdk_main_loop()
                 main_loop_fake_crypto(LCPARAMS_IN);
             }else{
                 main_loop_whole_process(LCPARAMS_IN);
+                #if ASYNC_MODE != ASYNC_MODE_OFF
+                main_loop_async(LCPARAMS_IN);
+                #endif
             }
         #else
             main_loop_whole_process(LCPARAMS_IN);
             #if ASYNC_MODE != ASYNC_MODE_OFF
                 main_loop_async(LCPARAMS_IN);
             #endif
-        #endif
-
-        #if ASYNC_MODE != ASYNC_MODE_OFF
-            if (lcore_id != rte_lcore_count() - 1) {
-                main_loop_async(LCPARAMS_IN);
-            }
         #endif
     }
 }
