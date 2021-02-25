@@ -1,4 +1,7 @@
 
+IS_SCRIPT_SOURCED=no
+[[ "${BASH_SOURCE[0]}" != "${0}" ]] && IS_SCRIPT_SOURCED=yes
+
 # Highlight colours
 cc="\033[1;33m"     # yellow
 ee="\033[1;31m"     # red
@@ -13,6 +16,7 @@ if [ $# -gt 0 ] && [ "$1" == "showenvs" ]; then
     cat "$0" | grep -e '\([A-Z0-9_]*\)=[$][{]\1-'| sed "s/[ ]*export//" | sed "s/[ ]*\([^=]*\)=[$][{]\1-\(.*\)[}]$/    ${colours[0]}\1$nn=${colours[1]}\2$nn/" | sort
     echo "Override them like this to customise the script's behaviour."
     echo "    ${colours[0]}MAX_MAKE_JOBS$nn=${colours[1]}8$nn ${colours[0]}T4P4S_CC$nn=${colours[1]}clang$nn ${colours[0]}$0$nn"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return
     exit
 fi
 
@@ -64,19 +68,15 @@ REPO_PATH_PI=${REPO_PATH_PI-"https://github.com/p4lang/PI"}
 REPO_PATH_P4Runtime_GRPCPP=${REPO_PATH_P4Runtime_GRPCPP-"https://github.com/P4ELTE/P4Runtime_GRPCPP"}
 REPO_PATH_t4p4s=${REPO_PATH_t4p4s-"https://github.com/P4ELTE/t4p4s"}
 
-if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
-    MEM_FREE_KB=`cat /proc/meminfo | grep MemFree | grep -Eo '[0-9]+'`
-    JOBS_BY_MEM_FREE=$(($MEM_FREE_KB / $P4C_APPROX_KB_PER_JOB / 1024))
-    MAX_MAKE_JOBS_P4C=$(($JOBS_BY_MEM_FREE<$MAX_MAKE_JOBS ? $JOBS_BY_MEM_FREE : $MAX_MAKE_JOBS))
-    MAX_MAKE_JOBS_P4C=$(($MAX_MAKE_JOBS_P4C <= 0 ? 1 : $MAX_MAKE_JOBS_P4C))
-    echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs in general, $cc$MAX_MAKE_JOBS_P4C$nn for ${cc}p4c$nn compilation"
-else
-    echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
-fi
+echo -e "System has $cc`nproc --all`$nn cores; will use $cc$MAX_MAKE_JOBS$nn jobs"
 
 echo Requesting root access...
 sudo echo -n ""
-[ $? -ne 0 ] && echo -e "Root access ${cc}not granted$nn, exiting..." && exit 1
+if [ $? -ne 0 ]; then
+    echo -e "Root access ${cc}not granted$nn, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
 echo Root access granted, starting...
 
 if [ "$FRESH" == "yes" ]; then
@@ -140,7 +140,11 @@ T4P4S_CXX=${T4P4S_CXX-$(find_candidate g++ $ALL_CLANGXX clang++ $ALL_GXX)}
 T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD gold)}
 PYTHON3=${PYTHON3-$(find_candidate python3 $ALL_PYTHON3)}
 
-[ "$PYTHON3" == "" ] && echo -e "Could not find appropriate Python 3 version, exiting" && exit 1
+if [ "$PYTHON3" == "" ]; then
+    echo -e "Could not find appropriate Python 3 version, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
 
 echo -e "Using CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn, PYTHON3=${cc}${PYTHON3}$nn"
 
@@ -148,7 +152,8 @@ if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
     echo -e "You seem to have $cc$FREE_MB MB$nn of free space on the current drive"
     echo -e "To force installation, run ${cc}SKIP_CHECK=1 . ./bootstrap.sh$nn"
-    exit
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
 else
     echo -e "Installation will use approximately $cc$APPROX_INSTALL_MB MB$nn"
 fi
@@ -258,7 +263,11 @@ T4P4S_DIR=${T4P4S_DIR-t4p4s}
 LOCAL_REPO_CACHE=${LOCAL_REPO_CACHE-}
 
 if [ "$LOCAL_REPO_CACHE" != "" ]; then
-    [ ! -d "$LOCAL_REPO_CACHE" ] && echo -e "The local repo cache ${cc}$LOCAL_REPO_CACHE$nn is not a directory" && exit 1
+    if [ ! -d "$LOCAL_REPO_CACHE" ]; then
+        echo -e "The local repo cache ${cc}$LOCAL_REPO_CACHE$nn is not a directory, exiting"
+        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+        exit 1
+    fi
 
     echo -e "Using local repo cache $cc$LOCAL_REPO_CACHE$nn"
 
@@ -358,14 +367,20 @@ if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
 
     MESON_VSN=`sudo $MESONCMD --version 2>/dev/null`
     MESON_ERRCODE=$?
-    [ ${MESON_ERRCODE} -ne 0 ] && \
-        echo -e "${ee}Could not execute$nn ${cc}meson$nn (error code ${ee}${MESON_ERRCODE}$nn), exiting..." && \
-        echo -e "Hint: perhaps ${cc}meson$nn can be found at ${cc}~/.local/bin$nn, if so, consider adding it to your \$PATH" && \
+    if [ ${MESON_ERRCODE} -ne 0 ]; then
+        echo -e "${ee}Could not execute$nn ${cc}meson$nn (error code ${ee}${MESON_ERRCODE}$nn), exiting"
+        echo -e "Hint: perhaps ${cc}meson$nn can be found at ${cc}~/.local/bin$nn, if so, consider adding it to your \$PATH"
+        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
         exit 1
+    fi
 
     MIN_REQ_MESON_VSN=0.53
     MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
-    [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ] && echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, exiting..." && exit 1
+    if [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ]; then
+        echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, exiting"
+        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+        exit 1
+    fi
 fi
 
 MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
@@ -379,7 +394,15 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
 
     echo -e "Setting up ${cc}DPDK$nn"
 
-    export RTE_SDK=`pwd`/`ls -d dpdk*$DPDK_FILEVSN*/`
+    RTE_SDK_DIR=`ls -d dpdk*$DPDK_FILEVSN* 2>/dev/null`
+
+    if [ $? -ne 0 ]; then
+        echo -e "Cannot find extracted DPDK directory under ${cc}`pwd`$nn, exiting"
+        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+        exit 1
+    fi
+
+    export RTE_SDK="`pwd`/${RTE_SDK_DIR}"
 
     if [ "$SLIM_INSTALL" == "yes" ]; then
         DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/qat,common/sfc_efx,compress/octeontx,compress/zlib,crypto/bcmfs,crypto/caam_jr,crypto/ccp,crypto/dpaa2_sec,crypto/dpaa_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/openssl,crypto/scheduler,crypto/virtio,event/dlb,event/dlb2,event/dpaa,event/dpaa2,event/dsw,event/octeontx,event/octeontx2,event/opdl,event/skeleton,event/sw,mempool/bucket,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/cxgbe,net/dpaa,net/dpaa2,net/e1000,net/ena,net/enetc,net/enic,net/failsafe,net/bond,net/fm10k,net/hinic,net/hns3,net/i40e,net/iavf,net/ice,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/netvsc,net/nfp,net/null,net/octeontx,net/octeontx2,net/pfe,net/qede,net/ring,net/sfc,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,net/vhost,net/virtio,net/vmxnet3,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,regex/octeontx2,vdpa/ifc}
@@ -437,6 +460,16 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     sed -i 's/-fuse-ld=gold/-fuse-ld=${T4P4S_LD}/g' ../CMakeLists.txt
     cmake .. -DCMAKE_C_FLAGS="${P4C_CFLAGS} -fPIC" -DCMAKE_CXX_FLAGS="${P4C_CFLAGS} -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
+
+    # free up as much memory as possible
+    sudo sh -c 'echo 3 >/proc/sys/vm/drop_caches'
+
+    MEM_FREE_KB=`cat /proc/meminfo | grep MemFree | grep -Eo '[0-9]+'`
+    JOBS_BY_MEM_FREE=$(($MEM_FREE_KB / $P4C_APPROX_KB_PER_JOB / 1024))
+    MAX_MAKE_JOBS_P4C=$(($JOBS_BY_MEM_FREE<$MAX_MAKE_JOBS ? $JOBS_BY_MEM_FREE : $MAX_MAKE_JOBS))
+    MAX_MAKE_JOBS_P4C=$(($MAX_MAKE_JOBS_P4C <= 0 ? 1 : $MAX_MAKE_JOBS_P4C))
+    echo -e "Will use $cc$MAX_MAKE_JOBS_P4C$nn for ${cc}p4c$nn compilation"
+
     [ $ISSKIP -ne 1 ] && sudo ninja -j ${MAX_MAKE_JOBS_P4C} >&2 2>>$(logfile "p4c" ".ninja")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} 2>&1 >>$(logfile "p4c" ".ninja.install")
