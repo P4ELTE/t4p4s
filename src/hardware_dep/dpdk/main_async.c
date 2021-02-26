@@ -110,8 +110,8 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         rte_pktmbuf_adj(mbuf, sizeof(void*));
 
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        struct packet_descriptor_s* async_pds_id = *(rte_pktmbuf_mtod(mbuf, struct packet_descriptor_s**));
-        rte_pktmbuf_adj(mbuf, sizeof(struct packet_descriptor_s*));
+        packet_descriptor_t* async_pds_id = *(rte_pktmbuf_mtod(mbuf, packet_descriptor_t**));
+        rte_pktmbuf_adj(mbuf, sizeof(packet_descriptor_t*));
         //debug("Loading from async PD store! id is %d\n",async_pds_id);
         *pd = *async_pds_id;
         if(pd->program_state == 1) {
@@ -175,12 +175,12 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
             extra_length += sizeof(void*);
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        struct packet_descriptor_s *store_pd = extraInformationForAsyncHandling;
+        packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
         *store_pd = *pd;
 
-        rte_pktmbuf_prepend(op->data, sizeof(struct packet_descriptor_s*));
+        rte_pktmbuf_prepend(op->data, sizeof(packet_descriptor_t*));
         //debug("Saving to Async PD store! id is %d\n",store_pd);
-        *(rte_pktmbuf_mtod(op->data, struct packet_descriptor_s**)) = store_pd;
+        *(rte_pktmbuf_mtod(op->data, packet_descriptor_t**)) = store_pd;
         extra_length += sizeof(void**);
     #endif
 
@@ -227,7 +227,7 @@ void async_init_storage()
         }
     }
 #if ASYNC_MODE == ASYNC_MODE_PD
-    pd_pool = rte_mempool_create("pd_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(struct packet_descriptor_s), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    pd_pool = rte_mempool_create("pd_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(packet_descriptor_t), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (pd_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create pd pool\n");
 #endif
 
@@ -288,7 +288,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         void (*handler_function_with_params)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx) = (void (*)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))handler_function;
-        struct packet_descriptor_s *pd_store;
+        packet_descriptor_t *pd_store;
 
         int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
         if(ret != 0){

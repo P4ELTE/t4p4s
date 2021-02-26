@@ -336,7 +336,7 @@ find_tool() {
     exit_on_error "Cannot not find $(cc 2)$tool$nn tool"
 }
 
-PYTHON3=${PYTHON3-$(find_tool "." python3)}
+PYTHON3='python3'
 
 # note: it is used with sudo
 MESON_CMD="$PYTHON3 -m mesonbuild.mesonmain"
@@ -733,7 +733,9 @@ project(
     'c',
     version : '1.0.0',
     default_options : [
-        'warning_level=0'
+        'warning_level=0',
+        'optimization=3',
+        'buildtype=release'
     ],
 )
 EOT
