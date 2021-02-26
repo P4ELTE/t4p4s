@@ -9,6 +9,8 @@
 #include "util_packet.h"
 #include "common.h"
 
+#define T4P4S_MODEL v1model
+
 #define INGRESS_META_FLD    FLD(all_metadatas,ingress_port)
 #define EGRESS_META_FLD     FLD(all_metadatas,egress_port)
 #define EGRESS_INIT_VALUE   0

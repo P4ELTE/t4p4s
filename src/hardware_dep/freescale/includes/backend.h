@@ -34,8 +34,6 @@ int           launch       (void);
 //=============================================================================
 // Table mgmt
 
-typedef struct lookup_table_s lookup_table_t;
-
 void        exact_create (lookup_table_t* t, int socketid);
 void          lpm_create (lookup_table_t* t, int socketid);
 void      ternary_create (lookup_table_t* t, int socketid);

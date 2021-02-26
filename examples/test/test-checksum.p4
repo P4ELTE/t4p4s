@@ -54,7 +54,7 @@ header ipv4_t {
     bit<16>     hdrChecksum;
     bit<32>     srcAddr;
     bit<32>     dstAddr;
-    @length((bit<32>)ihl * 32w4 * 8 - 160) 
+    @length((bit<32>)ihl * 32w4 * 8 - 160)
     varbit<320> options;
 }
 
@@ -69,7 +69,7 @@ header tcp_t {
     bit<16>     window;
     bit<16>     checksum;
     bit<16>     urgentPtr;
-    @length((bit<32>)dataOffset * 32w4 * 8 - 160) 
+    @length((bit<32>)dataOffset * 32w4 * 8 - 160)
     varbit<320> options;
 }
 
@@ -77,11 +77,11 @@ struct metadata {
 }
 
 struct headers {
-    @name(".ethernet") 
+    @name(".ethernet")
     ethernet_t ethernet;
-    @name(".ipv4") 
+    @name(".ipv4")
     ipv4_t     ipv4;
-    @name(".tcp") 
+    @name(".tcp")
     tcp_t      tcp;
 }
 
@@ -101,6 +101,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
         packet.extract(tmp_hdr);
         packet.extract(tmp_hdr_0, (bit<32>)((bit<32>)tmp_hdr.ihl * 32w4 * 8 - 160));
         hdr.ipv4.setValid();
+        tmp_hdr.setValid();
         hdr.ipv4.version = tmp_hdr.version;
         hdr.ipv4.ihl = tmp_hdr.ihl;
         hdr.ipv4.diffserv = tmp_hdr.diffserv;

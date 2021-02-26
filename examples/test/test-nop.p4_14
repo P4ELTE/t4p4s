@@ -17,22 +17,17 @@ parser parse_ethernet {
     return ingress;
 }
 
-action mac_learn() {}
-action bcast() {}
-action forward() {}
-action _nop() {}
-
 table smac {
     reads {
     }
-    actions {mac_learn;_nop;}
+    actions {}
     size : 512;
 }
 
 table dmac {
     reads {
     }
-    actions {bcast;forward;}
+    actions {}
     size : 512;
 }
 

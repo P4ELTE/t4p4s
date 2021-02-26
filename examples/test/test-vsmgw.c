@@ -42,7 +42,7 @@ fake_cmd_t t4p4s_testcase_arp[][RTE_MAX_LCORE] = {
 fake_cmd_t t4p4s_testcase_arp_ipv4[][RTE_MAX_LCORE] = {
     {
         FSLEEP(200),
-        {FAKE_PKT, 0, 1, ARP_IPV4(ETH01, ETH1A, "0000", "0000000000000000000000000000000000000000"), 0, NO_OUTPUT},
+        {FAKE_PKT, 0, 1, ARP_IPV4(ETH01, ETH1A, "0000", "000000000000", "00000000", "000000000000", "00000000"), 0, NO_OUTPUT},
         FEND,
     },
     {

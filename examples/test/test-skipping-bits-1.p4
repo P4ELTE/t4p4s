@@ -1,12 +1,6 @@
 #include <core.p4>
 #include <psa.p4>
-
-// In: 0000000000000001
-// Out: 00000010
-
-header dummy_t {
-    bit<8> f1;
-}
+#include "../include/std_headers.p4"
 
 struct empty_metadata_t {
 }
@@ -15,21 +9,19 @@ struct metadata {
 }
 
 struct headers {
-    dummy_t dummy;
+    bits16_t inhdr;
 }
+
 parser IngressParserImpl(packet_in packet,
                          out headers hdr,
                          inout metadata meta,
                          in psa_ingress_parser_input_metadata_t istd,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
-    state parse_ethernet {
-        packet.extract<dummy_t>(_);
-        packet.extract(hdr.dummy);
-        transition accept;
-    }
     state start {
-        transition parse_ethernet;
+        packet.extract<bits8_t>(_);
+        packet.extract(hdr.inhdr);
+        transition accept;
     }
 }
 
@@ -39,10 +31,13 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-       hdr.dummy.f1 = hdr.dummy.f1 + 1;
+        if (hdr.inhdr.f16 == 0x0FF) {
+            hdr.inhdr.setInvalid();
+        } else {
+            hdr.inhdr.f16 = hdr.inhdr.f16 + 1;
+        }
     }
 }
-
 
 control ingress(inout headers hdr,
                 inout metadata meta,
@@ -76,7 +71,9 @@ control IngressDeparserImpl(packet_out buffer,
                             in psa_ingress_output_metadata_t istd)
 {
     apply {
-        buffer.emit(hdr.dummy);
+        if (hdr.inhdr.isValid()) {
+            buffer.emit(hdr.inhdr);
+        }
     }
 }
 

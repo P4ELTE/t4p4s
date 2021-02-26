@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "dataplane_hdr_fld_pkt.h"
+
 #define SHORT_STDPARAMS packet_descriptor_t* pd, lookup_table_t** tables
 #define SHORT_STDPARAMS_IN pd, tables
 #define STDPARAMS SHORT_STDPARAMS, parser_state_t* pstate
@@ -11,7 +13,7 @@
 #define LCPARAMS struct lcore_data* lcdata, packet_descriptor_t* pd
 #define LCPARAMS_IN lcdata, pd
 
-typedef struct bitfield_handle_s {
+typedef struct {
     uint8_t* byte_addr;
     int      meta; // endianness / is_host_byte_order
     int      bitwidth;
@@ -25,7 +27,9 @@ typedef struct bitfield_handle_s {
 } bitfield_handle_t;
 
 
-typedef struct uint8_buffer_s {
+typedef struct {
        int      buffer_size;
        uint8_t* buffer;
 } uint8_buffer_t;
+
+bool is_header_valid(header_instance_t, packet_descriptor_t*);

@@ -31,7 +31,7 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), INGRESS_META_FLD, portid);
 }
 
-void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify_checksum,extern) "\n");
     uint32_t res32, current_cksum = 0, calculated_cksum = 0;
     if (cond) {
@@ -55,7 +55,7 @@ void verify_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t ck
     }
 }
 
-void update_checksum(bool cond, struct uint8_buffer_s data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void update_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(update_checksum,extern) "\n");
 
     uint32_t res32, calculated_cksum = 0;
@@ -110,23 +110,52 @@ void verify(bool check, error_error_t toSignal, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify,extern) "\n");
 }
 
-void verify_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void verify_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     // TODO implement call to extern
     debug("    : Called extern " T4LIT(verify_checksum_with_payload,extern) "\n");
 }
 
-void update_checksum_with_payload(bool condition, struct uint8_buffer_s data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     // TODO implement call to extern
     debug("    : Called extern " T4LIT(update_checksum_with_payload,extern) "\n");
 }
 
+// ----------------------------------------------------------------
+
+void verify_checksum__b4s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    verify_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
+void verify_checksum__b32s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    verify_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
+void update_checksum__b4s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    update_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
+void update_checksum__b32s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    update_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
+void verify_checksum_with_payload__b32s__b16(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    verify_checksum_with_payload(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
+
+void update_checksum_with_payload__b32s__b16(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    update_checksum_with_payload(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
+
+
+// ----------------------------------------------------------------
 
 extern void do_counter_count(counter_t* counter, int index, uint32_t value);
 
 void extern_counter_count(uint32_t counter_array_size, enum_CounterType_t ct, uint32_t index, counter_t* counter, SHORT_STDPARAMS) {
     index = rte_be_to_cpu_32(index);
-    if (index < counter_array_size) 
+    if (index < counter_array_size) {
 	    do_counter_count(counter, index, ct == enum_CounterType_packets ? 1 : packet_length(pd));
+    }
 }
 
 void extern_meter_execute_meter(uint32_t index, enum_MeterType_t b, uint32_t c, uint8_t d, meter_t e, SHORT_STDPARAMS) {
@@ -140,3 +169,4 @@ void extern_register_read(uint32_t index, uint32_t a, uint32_t b, register_t c, 
 void extern_register_write(uint32_t index, uint32_t a, uint32_t b, register_t* c, SHORT_STDPARAMS) {
     debug("    : Executing extern_register_write#" T4LIT(%d) "\n", index);
 }
+

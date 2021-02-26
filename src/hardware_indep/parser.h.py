@@ -12,7 +12,7 @@ import functools
 #[ #include <stdbool.h>
 #[ #include "aliases.h"
 
-#{ typedef enum parsed_field_attr_s {
+#{ typedef enum {
 #[     NOT_MODIFIED,
 #[     MODIFIED,
 #} } parsed_field_attr_t;
@@ -24,7 +24,7 @@ for hdr in hlir.header_instances:
     if hdr.urtype.node_type == 'Type_HeaderUnion':
         raise NotImplementedError("Header unions are not supported")
 
-#{ typedef struct parsed_fields_s {
+#{ typedef struct {
 for hdr, fld in parsed_fields:
     #[     uint32_t FLD(${hdr.name},${fld._expression.name});
 #[
@@ -52,12 +52,12 @@ nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr in hlir.header_in
 #[ #define FIXED_WIDTH_FIELD (-1)
 
 
-#{ typedef enum header_instance_e {
+#{ typedef enum {
 for hdr in hlir.header_instances:
     #[     HDR(${hdr.name}),
 #} } header_instance_t;
 
-#{ typedef enum field_instance_e {
+#{ typedef enum {
 for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
         #[   FLD(${hdr.name},${fld.name}),
@@ -146,7 +146,7 @@ parser = hlir.parsers[0]
 
 vw_names = [hdr.name for hdr in hlir.header_instances.filter(lambda hdr: not hdr.urtype.is_metadata and hdr.urtype.is_vw)]
 
-#{ typedef struct parser_state_s {
+#{ typedef struct {
 for loc in parser.parserLocals:
     if 'type_ref' in loc.type:
         if loc.urtype.node_type == 'Type_Extern':

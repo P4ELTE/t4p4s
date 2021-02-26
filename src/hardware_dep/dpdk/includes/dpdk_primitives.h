@@ -5,16 +5,16 @@
 
 // Function based set field
 
-typedef struct target_fld_s {
-    packet_descriptor_t*   pd;
-    enum header_instance_e hdr;
-    enum field_instance_e  fld;
+typedef struct {
+    packet_descriptor_t* pd;
+    header_instance_t    hdr;
+    field_instance_t     fld;
 } fldT;
 
-typedef struct target_buf_s {
+typedef struct {
     uint8_t* buf;
     int      w;
-    enum field_instance_e fld;
+    field_instance_t fld;
 } bufT;
 
 #include "dpdk_primitives_impl.h"

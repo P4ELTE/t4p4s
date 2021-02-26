@@ -12,6 +12,11 @@
     extern jmp_buf mainLoopJumpPoint[RTE_MAX_LCORE];
 #endif
 
+#ifdef T4P4S_DEBUG
+    volatile int packet_counter = 0;
+#endif
+
+
 void get_broadcast_port_msg(char result[256], int ingress_port) {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
@@ -68,11 +73,11 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
         #ifdef T4P4S_DEBUG
             char ports_msg[256];
             get_broadcast_port_msg(ports_msg, ingress_port);
-            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%d) " bytes): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
+            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%dB) "): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
         #endif
         broadcast_packet(egress_port, ingress_port, LCPARAMS_IN);
     } else {
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%d) " bytes): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%dB) "): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
         send_single_packet(pd->wrapper, egress_port, ingress_port, false, LCPARAMS_IN);
     }
 }
@@ -80,7 +85,6 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
 void do_single_tx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
     if (unlikely(GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD) == EGRESS_DROP_VALUE)) {
-        debug(" " T4LIT(XXXX,status) " " T4LIT(Dropping,status) " packet\n");
         free_packet(LCPARAMS_IN);
     } else {
         debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Egressing,outgoing) " packet\n");
@@ -100,7 +104,7 @@ void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx
     parser_state_t* pstate = &(state.parser_state);
     init_parser_state(&(state.parser_state));
 
-    handle_packet(portid, STDPARAMS_IN);
+    handle_packet(portid, get_packet_idx(LCPARAMS_IN), STDPARAMS_IN);
     do_single_tx(queue_idx, pkt_idx, LCPARAMS_IN);
 
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT

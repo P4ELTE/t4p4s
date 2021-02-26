@@ -8,4 +8,4 @@
 extern lookup_table_t table_config[];
 
 void init_dataplane(SHORT_STDPARAMS);
-void handle_packet(uint32_t portid, STDPARAMS);
+void handle_packet(uint32_t portid, int pkt_idx, STDPARAMS);

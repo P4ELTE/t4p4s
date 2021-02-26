@@ -25,7 +25,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         hdr.ethernet.dstAddr   = 0b0001_0010_0011_0100_0101_0110_0111_1000_1001_1010_1011_1100;
 
         standard_metadata.egress_port = 0;
-    } 
+    }
 
     table dmac {
         actions = {

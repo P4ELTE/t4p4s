@@ -1,99 +1,99 @@
 /* -*- P4_16 -*- */
 #include <core.p4>
 #include <v1model.p4>
-
-/*************************************************************************
-*********************** H E A D E R S  ***********************************
-*************************************************************************/
-header Ethernet_h {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
+#include "../include/std_headers.p4"
 
 struct metadata {
-    /* empty */
 }
 
 struct headers {
-    /* empty */
-	Ethernet_h ethernet;
-}
+    bits8_t inhdr;
 
-/*************************************************************************
-*********************** P A R S E R  ***********************************
-*************************************************************************/
+    bits8_t outhdr8;
+    // bits8_t outhdr8_2;
+
+    bits16_t outhdr16;
+    // bits16_t outhdr16_2;
+
+    bits32_t outhdr32;
+    // bits32_t outhdr32_2;
+}
 
 parser MyParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
-
     state start {
+        packet.extract(hdr.inhdr);
         transition accept;
     }
-
 }
 
-/*************************************************************************
-************   C H E C K S U M    V E R I F I C A T I O N   *************
-*************************************************************************/
-
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
     apply {  }
 }
 
-
-/*************************************************************************
-**************  I N G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
-
 control ingress(inout headers hdr,
-                  inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
-    
-    apply {
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+    action random8() {
+        hdr.outhdr8.setValid();
+        // hdr.outhdr8_2.setValid();
+
         bit<8> rand_val;
         random<bit<8>>(rand_val, 0, 254);
+        hdr.outhdr8.f8 = rand_val;
+
+        // random<bit<8>>(hdr.outhdr8_2.f8, 0, 254);
+    }
+
+    action random16() {
+        hdr.outhdr16.setValid();
+        // hdr.outhdr16_2.setValid();
+
+        bit<16> rand_val;
+        random<bit<16>>(rand_val, 0, 254);
+        hdr.outhdr16.f16 = rand_val;
+
+        // random<bit<16>>(hdr.outhdr16_2.f16, 0, 254);
+    }
+
+    action random32() {
+        hdr.outhdr32.setValid();
+        // hdr.outhdr32_2.setValid();
+
+        bit<32> rand_val;
+        random<bit<32>>(rand_val, 0, 254);
+        hdr.outhdr32.f32 = rand_val;
+
+        // random<bit<32>>(hdr.outhdr32_2.f32, 0, 254);
+    }
+
+    apply {
         standard_metadata.egress_port = 9w123;
+
+        if (hdr.inhdr.f8 == 8)     random8();
+        if (hdr.inhdr.f8 == 16)    random16();
+        if (hdr.inhdr.f8 == 32)    random32();
     }
 }
 
-/*************************************************************************
-****************  E G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
+control MyDeparser(packet_out packet, in headers hdr) {
+    apply {
+        if (hdr.inhdr.f8 == 8)     packet.emit(hdr.outhdr8);
+        if (hdr.inhdr.f8 == 16)    packet.emit(hdr.outhdr16);
+        if (hdr.inhdr.f8 == 32)    packet.emit(hdr.outhdr32);
+    }
+}
 
 control egress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply {  }
-}
-
-/*************************************************************************
-*************   C H E C K S U M    C O M P U T A T I O N   **************
-*************************************************************************/
-
-control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
-     apply { }
-}
-
-/*************************************************************************
-***********************  D E P A R S E R  *******************************
-*************************************************************************/
-
-control MyDeparser(packet_out packet, in headers hdr) {
+               inout metadata meta,
+               inout standard_metadata_t standard_metadata) {
     apply { }
 }
 
-/*************************************************************************
-***********************  S W I T C H  *******************************
-*************************************************************************/
+control MyComputeChecksum(inout headers hdr, inout metadata meta) {
+     apply { }
+}
 
-V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-ingress(),
-egress(),
-MyComputeChecksum(),
-MyDeparser()
-) main;
+V1Switch(MyParser(),MyVerifyChecksum(),ingress(),egress(),MyComputeChecksum(),MyDeparser()) main;

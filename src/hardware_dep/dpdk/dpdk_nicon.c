@@ -291,3 +291,7 @@ extern uint8_t get_nb_ports();
 uint8_t get_port_count() {
     return get_nb_ports();
 }
+
+int get_packet_idx(LCPARAMS) {
+    return -1;
+}

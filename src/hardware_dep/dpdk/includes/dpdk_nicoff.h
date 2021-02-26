@@ -5,7 +5,7 @@
 
 #define T4P4S_NIC_VARIANT off
 
-#include "test.h"
+#include "testsuite.h"
 #include <stdbool.h>
 
 struct lcore_data {

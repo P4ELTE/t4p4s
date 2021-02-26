@@ -21,7 +21,7 @@ from compiler_common import unique_everseen
 #[ #define FIELD(name, length) uint8_t name[(length + 7) / 8];
 
 
-#{ typedef enum actions_e {
+#{ typedef enum {
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     action_${action.action_object.name},
@@ -31,7 +31,7 @@ for table in hlir.tables:
 
 for ctl in hlir.controls:
     for act in ctl.actions:
-        #{ typedef struct action_${act.name}_params_s {
+        #{ typedef struct {
         for param in act.parameters.parameters:
             paramtype = param.urtype
             #[     ${format_type(param.urtype, varname = param.name)};
@@ -41,7 +41,7 @@ for ctl in hlir.controls:
         #} } action_${act.name}_params_t;
 
 for table in hlir.tables:
-    #{ typedef struct ${table.name}_action_s {
+    #{ typedef struct {
     #[     int action_id;
     #{     union {
     for action in table.actions:
@@ -63,7 +63,7 @@ for table in hlir.tables:
 non_ctr_locals = ('counter', 'direct_counter', 'meter')
 
 for ctl in hlir.controls:
-    #{ typedef struct control_locals_${ctl.name}_s {
+    #{ typedef struct {
     for local_var_decl in ctl.local_var_decls.filterfalse('urtype.node_type', 'Type_Header'):
         #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
 

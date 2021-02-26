@@ -49,7 +49,7 @@ void MODIFY_INT32_INT32_BITS_PACKET(packet_descriptor_t* pd, header_instance_t h
 */
 
 // TODO simplify all other interface macros, too
-int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32) {
+int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, header_instance_t h, field_instance_t f, uint32_t value32) {
     int res32;
     MODIFY_INT32_INT32_AUTO(handle(header_desc_ins(pd, h), f), value32);
     return res32;

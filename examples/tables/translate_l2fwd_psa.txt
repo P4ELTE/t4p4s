@@ -1,0 +1,6 @@
+TRANSLATION smac ingress.smac
+TRANSLATION mac_learn ingress.mac_learn
+TRANSLATION dmac ingress.dmac
+TRANSLATION bcast ingress.bcast
+TRANSLATION forward ingress.forward
+TRANSLATION _nop ingress._nop

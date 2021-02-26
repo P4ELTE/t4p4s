@@ -9,7 +9,7 @@
 #include "aliases.h"
 #include "parser.h"
 
-typedef struct field_reference_s {
+typedef struct {
     header_instance_t header;
     int meta;
     int bitwidth;
@@ -22,7 +22,7 @@ typedef struct field_reference_s {
     uint8_t* byte_addr;  // Pointer to the byte containing the first bit of the field in the packet
 } field_reference_t;
 
-typedef struct header_reference_s {
+typedef struct {
     header_instance_t header_instance;
     int bytewidth;
     int var_width_field;
@@ -55,7 +55,7 @@ typedef struct header_reference_s {
                  .var_width_field = hdr_infos[h].var_width_field, \
                }
 
-typedef struct header_descriptor_s {
+typedef struct {
     header_instance_t   type;
     void *              pointer;
     uint32_t            length;
@@ -66,12 +66,11 @@ typedef struct header_descriptor_s {
 #endif
 } header_descriptor_t;
 
-typedef struct packet_descriptor_s {
+typedef struct {
     void *context;
 
     uint32_t port_id;
     int program_state;
-
 
     packet_data_t*      data;
     void*               extract_ptr;
@@ -92,6 +91,9 @@ typedef struct packet_descriptor_s {
     void * control_locals;
 } packet_descriptor_t;
 
+
+void activate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
+void deactivate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
 
 #define clear_pd_states(pd)\
                 { \

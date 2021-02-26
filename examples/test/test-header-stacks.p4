@@ -26,7 +26,7 @@ struct metadata {
 
 struct headers {
     empty_t empty;
-    dummy_t[4] dummy;
+    dummy_t[134] dummy;
 }
 parser IngressParserImpl(packet_in packet,
                          out headers hdr,
@@ -53,9 +53,9 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     apply {
-       data d = {~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second};
+       // data d = {~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second};
        hdr.dummy[1].f1 = (bit<1>)hdr.empty.isValid();
-       hdr.dummy[1].f2 = d;
+       // hdr.dummy[1].f2 = d;
        hdr.dummy[2].setInvalid();
        hdr.dummy.pop_front(1);
     }

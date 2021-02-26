@@ -170,4 +170,4 @@
 
 int set_field(fldT f[], bufT b[], uint32_t value32, int bit_width);
 
-int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, enum header_instance_e h, enum field_instance_e f, uint32_t value32);
+int MODIFY_INT32_INT32_AUTO_PACKET(packet_descriptor_t* pd, header_instance_t h, field_instance_t f, uint32_t value32);

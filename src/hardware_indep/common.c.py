@@ -37,7 +37,7 @@ for table in hlir.tables:
 #[ int stats_counter;
 
 #{ void t4p4s_print_stats_parser_states(bool is_on) {
-#[     sprintf(stats_buf, "");
+#[     sprintf(stats_buf, "%s", "");
 #[     char* printout = stats_buf;
 
 #[     stats_counter = 0;
@@ -60,7 +60,7 @@ for name in parser_state_names:
 #[ enum t4p4s_table_stat_e { T4TABLE_APPLIED };
 
 #{ void t4p4s_print_stats_tables(bool is_on, bool hidden, enum t4p4s_table_stat_e stat) {
-#[     sprintf(stats_buf, "");
+#[     sprintf(stats_buf, "%s", "");
 #[     char* printout = stats_buf;
 
 #[     stats_counter = 0;
@@ -81,7 +81,7 @@ for table in hlir.tables:
 #} }
 
 #{ void t4p4s_print_stats_table_actions(bool is_on, bool hidden, enum t4p4s_table_stat_e stat) {
-#[     sprintf(stats_buf, "");
+#[     sprintf(stats_buf, "%s", "");
 #[     char* printout = stats_buf;
 
 #[     stats_counter = 0;
@@ -108,8 +108,27 @@ for table in hlir.tables:
 #[         debug("    - %2d %s %sactions: %s\n", stats_counter, is_on ? "applied" : "unapplied", hidden ? "hidden " : "", stats_buf);
 #} }
 
+#{     #ifdef T4P4S_DEBUG
+#[         extern int packet_with_error_counter;
+#[         extern volatile int packet_counter;
+#}     #endif
+
+#{     void t4p4s_print_stats_error_packets() {
+#{         #ifdef T4P4S_DEBUG
+#[             int all  = packet_counter;
+#[             int errs = packet_with_error_counter;
+#{             if (errs == 0) {
+#[                 debug("    - " T4LIT(%2d,success) " OK packet%s\n", all, all != 1 ? "s" : "");
+#[             } else {
+#[                 debug("    - " T4LIT(%2d,error) " error%s in packet processing, " T4LIT(%2d,success) " OK packet%s (" T4LIT(%2d) " packet%s in total)\n",
+#[                       errs, errs != 1 ? "s" : "", all - errs, all - errs != 1 ? "s" : "", all, all != 1 ? "s" : "");
+#}             }
+#}         #endif
+#}     }
+
 #{     void t4p4s_print_stats() {
 #[         debug("Statistics:\n");
+#[         t4p4s_print_stats_error_packets();
 #[         t4p4s_print_stats_parser_states(true);
 
 #[         t4p4s_print_stats_tables(true, false, T4TABLE_APPLIED);

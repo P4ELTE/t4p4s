@@ -5,13 +5,12 @@ from compiler_log_warnings_errors import addError, addWarning
 from utils.codegen import format_declaration, format_statement, format_expr, format_type, get_method_call_env
 from compiler_common import types, unique_everseen
 
+#[ #include <unistd.h>
+
 #[ #include "dpdk_lib.h"
 #[ #include "actions.h"
-#[ #include <unistd.h>
 #[ #include "util_debug.h"
 #[ #include "util_packet.h"
-
-# [ #include "dpdk_primitives_impl.h" // TODO remove
 
 #[ extern ctrl_plane_backend bg;
 
@@ -39,6 +38,9 @@ for table in hlir.tables:
 
 for ctl in hlir.controls:
     for act in ctl.actions:
+        name = act.annotations.annotations.get('name')
+        if name:
+            #[ // action name: ${name.expr[0].value}
         #{ void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
         #[     uint32_t value32, res32, mask32;
         #[     (void)value32; (void)res32; (void)mask32;

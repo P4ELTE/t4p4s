@@ -21,7 +21,7 @@ struct type_field_list {
     uint8_t* field_widths;
 };
 
-typedef struct lookup_table_entry_info_s {
+typedef struct {
     int entry_count;
 
     uint8_t key_size;
@@ -33,7 +33,7 @@ typedef struct lookup_table_entry_info_s {
     uint8_t state_size;
 } lookup_table_entry_info_t;
 
-typedef struct lookup_table_s {
+typedef struct {
     char* name;
     char* canonical_name;
 

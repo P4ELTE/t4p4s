@@ -1,9 +1,6 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 010101010100000010000000
-// Out: 111111111111111110000000
-
 header dummy_t {
   bit<1> f1;
   bit<8> f2;
@@ -29,42 +26,43 @@ parser IngressParserImpl(packet_in packet,
                          in psa_ingress_parser_input_metadata_t istd,
                          in empty_metadata_t resubmit_meta,
                          in empty_metadata_t recirculate_meta) {
-    state parse_continue_4 {
-        hdr.dummy.f4 = 2w3;
-        hdr.dummy.f5 = 2w3;
-        transition accept;
-    }
-
-    state parse_continue_3 {
-        hdr.dummy.f3 = 4w0xF;
-        transition select(hdr.dummy.f4, hdr.dummy.f5) {
-                (2w0, 2w1) : parse_continue_4;
-                (2w0, 2w0) : reject;
-                (_, _) : reject;
-        }
-    }
-
-    state parse_continue_2 {
-        hdr.dummy.f2 = 8w0xFF;
-        transition select(hdr.dummy.f3) {
-                4w5..4w8 : parse_continue_3;
-                _ : reject;
-        }
-    }
-
-    state parse_continue {
-        hdr.dummy.f1 = hdr.dummy.f1 + 1;
-        transition select(hdr.dummy.f2) {
-                8w0x0A &&& 8w0x0F: parse_continue_2;
-                _ : reject;
-        }
-    }
     state start {
         packet.extract(hdr.dummy);
         transition select(hdr.dummy.f1) {
-            1w1 : parse_continue;
-            _ : reject;
+            1w1 : stage1;
+            _   : reject;
         }
+    }
+
+    state stage1 {
+        hdr.dummy.f1 = hdr.dummy.f1 + 1;
+        transition select(hdr.dummy.f2) {
+            8w0x0A &&& 8w0x0F : stage2;
+            _                 : reject;
+        }
+    }
+
+    state stage2 {
+        hdr.dummy.f2 = 8w0xFF;
+        transition select(hdr.dummy.f3) {
+            4w5..4w8 : stage3;
+            _        : reject;
+        }
+    }
+
+    state stage3 {
+        hdr.dummy.f3 = 4w0xF;
+        transition select(hdr.dummy.f4, hdr.dummy.f5) {
+            (2w0, 2w1) : stage4;
+            (2w0, 2w0) : reject;
+            (_, _)     : reject;
+        }
+    }
+
+    state stage4 {
+        hdr.dummy.f4 = 2w3;
+        hdr.dummy.f5 = 2w3;
+        transition accept;
     }
 }
 
