@@ -10,6 +10,7 @@ struct metadata {
 
 header dummy_t {
 	bit<28> addr1;
+	bit<4> padding;
 }
 
 struct empty_metadata_t {
