@@ -607,7 +607,12 @@ if [ "$(optvalue p4)" == off ] && [ "$(optvalue c)" == off ] && [ "$(optvalue ru
 fi
 
 T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang gcc)}
-T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
+    # note: when using gcc, only lld seems to be supported, not lld-VSN
+    T4P4S_LD=${T4P4S_LD-$(find_tool lld bfd gold)}
+else
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+fi
 DEBUGGER=${DEBUGGER-$(find_tool "-" lldb gdb)}
 
 verbosemsg "Using $(cc 0)CC$nn=$(cc 1)$T4P4S_CC$nn, $(cc 0)LD$nn=$(cc 1)$T4P4S_LD$nn, $(cc 0)PYTHON3$nn=$(cc 1)${PYTHON3}$nn, $(cc 0)DBG$nn=$(cc 1)${DEBUGGER}$nn"
