@@ -326,7 +326,7 @@ find_tool() {
     TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
     [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
     for tool in $*; do
-        for candidate in `apt-cache search $tool | grep -e "^${tool}[.\-][0-9]* " | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
+        for candidate in `apt-cache search --names-only "^${tool}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
             which $candidate >/dev/null
             [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
         done
