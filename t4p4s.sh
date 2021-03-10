@@ -336,7 +336,7 @@ find_tool() {
     exit_on_error "Cannot not find $(cc 2)$tool$nn tool"
 }
 
-PYTHON3='python3'
+PYTHON3=${PYTHON3-$(find_tool "." python3)}
 
 # note: it is used with sudo
 MESON_CMD="$PYTHON3 -m mesonbuild.mesonmain"
