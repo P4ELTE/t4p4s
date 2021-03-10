@@ -507,7 +507,7 @@ void t4p4s_after_launch(int idx) {
 int t4p4s_normal_exit() {
     t4p4s_print_stats();
 
-    if (encountered_error) {
+    if (encountered_error || packet_with_error_counter>0) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
         return 3;
     }
