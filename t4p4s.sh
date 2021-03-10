@@ -326,7 +326,7 @@ find_tool() {
     TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
     [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
     for tool in $*; do
-        for candidate in `apt-cache search $tool | grep -e "^${tool}[.\-][0-9]* " | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
+        for candidate in `apt-cache search --names-only "^${tool}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
             which $candidate >/dev/null
             [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
         done
@@ -607,7 +607,12 @@ if [ "$(optvalue p4)" == off ] && [ "$(optvalue c)" == off ] && [ "$(optvalue ru
 fi
 
 T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang gcc)}
-T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
+    # note: when using gcc, only lld seems to be supported, not lld-VSN
+    T4P4S_LD=${T4P4S_LD-$(find_tool lld bfd gold)}
+else
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+fi
 DEBUGGER=${DEBUGGER-$(find_tool "-" lldb gdb)}
 
 verbosemsg "Using $(cc 0)CC$nn=$(cc 1)$T4P4S_CC$nn, $(cc 0)LD$nn=$(cc 1)$T4P4S_LD$nn, $(cc 0)PYTHON3$nn=$(cc 1)${PYTHON3}$nn, $(cc 0)DBG$nn=$(cc 1)${DEBUGGER}$nn"
