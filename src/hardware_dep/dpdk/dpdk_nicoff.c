@@ -516,7 +516,7 @@ int t4p4s_normal_exit() {
     }
 
     if (encountered_drops) {
-        debug(T4LIT(Normal exit,success) " but " T4LIT(some packets were unexpectedly dropped,error) "\n");
+        debug(T4LIT(Normal exit,success) " but " T4LIT(some packets were unexpectedly dropped/sent,error) "\n");
         return 4;
     }
 
