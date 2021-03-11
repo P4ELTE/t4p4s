@@ -118,32 +118,33 @@ FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
 SKIP_CHECK=${SKIP_CHECK-no}
 
 
-find_candidate() {
-    FIRST_CANDIDATE=$1
+find_tool() {
+    SEP=$1
     shift
-    for candidate in $*; do
-        which $candidate >/dev/null
-        [ $? -eq 0 ] && echo $candidate && return
+    DEFAULT_TOOL=$1
+    T4P4S_TOOL_DIR="${T4P4S_BUILD_DIR}/tools"
+    mkdir -p "${T4P4S_TOOL_DIR}"
+    TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
+    [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
+    for tool in $*; do
+        for candidate in `apt-cache search --names-only "^${tool}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
+            which $candidate >/dev/null
+            [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
+        done
+        which $tool >/dev/null
+        [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
     done
-    echo $FIRST_CANDIDATE
+    exit_on_error "Cannot not find $(cc 2)$tool$nn tool"
 }
 
-ALL_PYTHON3=`apt-cache search python3 | grep -e "^python3[.-][0-9]* " | cut -f 1 -d " " | sort -t "." -k 2,2nr`
-ALL_GCC=`apt-cache search gcc | grep -e "^gcc[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
-ALL_GXX=`apt-cache search g++ | grep -e "^g++[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
-ALL_CLANG=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
-ALL_CLANGXX=`apt-cache search clang | grep -e "^clang[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed -e 's/clang/clang++/g'`
-ALL_LLD=`apt-cache search lld | grep -e "^lld[.-][0-9]* " | cut -f 1 -d " " | sort -t "-" -k 2,2nr`
-
-T4P4S_CC=${T4P4S_CC-$(find_candidate gcc $ALL_CLANG clang $ALL_GCC)}
-T4P4S_CXX=${T4P4S_CXX-$(find_candidate g++ $ALL_CLANGXX clang++ $ALL_GXX)}
+PYTHON3=${PYTHON3-$(find_tool "." python3)}
+T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang gcc)}
 if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
     # note: when using gcc, only lld seems to be supported, not lld-VSN
-    T4P4S_LD=${T4P4S_LD-$(find_candidate bfd lld gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool lld bfd gold)}
 else
-    T4P4S_LD=${T4P4S_LD-$(find_candidate bfd $ALL_LLD gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
 fi
-PYTHON3=${PYTHON3-$(find_candidate python3 $ALL_PYTHON3)}
 
 if [ "$PYTHON3" == "" ]; then
     echo -e "Could not find appropriate Python 3 version, exiting"
