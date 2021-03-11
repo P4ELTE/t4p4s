@@ -316,6 +316,7 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
 }
 
 bool encountered_error = false;
+bool encountered_drops = false;
 
 void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
     fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
@@ -402,6 +403,7 @@ void free_packet(LCPARAMS) {
 
     if (get_cmd(LCPARAMS_IN).out_port != -1) {
         ++packet_with_error_counter;
+        encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
               get_cmd(LCPARAMS_IN).out_port,
               packet_expected_length(get_cmd(LCPARAMS_IN).out)
@@ -450,6 +452,7 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool sen
 
     if (get_cmd(LCPARAMS_IN).out_port == -1) {
         ++packet_with_error_counter;
+        encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be " T4LIT(dropped,warning) ", but it was " T4LIT(sent,error) " to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data\n",
               egress_port,
               packet_length(pd)
@@ -507,9 +510,14 @@ void t4p4s_after_launch(int idx) {
 int t4p4s_normal_exit() {
     t4p4s_print_stats();
 
-    if (encountered_error || packet_with_error_counter>0) {
+    if (encountered_error) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
         return 3;
+    }
+
+    if (encountered_drops) {
+        debug(T4LIT(Normal exit,success) " but " T4LIT(some packets were unexpectedly dropped,error) "\n");
+        return 4;
     }
 
     debug(T4LIT(Normal exit.,success) "\n");
