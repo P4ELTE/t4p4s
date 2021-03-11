@@ -3,39 +3,109 @@
 
 #include "../include/std_headers.p4"
 
+#ifdef TEST_CONST_ENTRIES
+    #define ENABLED_BITS TEST_CONST_ENTRIES
+#else
+    #define ENABLED_BITS 0xFFFFFFFF
+#endif
+
 header outhdr_t {
-    bit<(8-1)>   align1;    bit<1>  f1;
-    bit<(8-2)>   align2;    bit<2>  f2;
-    bit<(8-3)>   align3;    bit<3>  f3;
-    bit<(8-4)>   align4;    bit<4>  f4;
-    bit<(8-5)>   align5;    bit<5>  f5;
-    bit<(8-6)>   align6;    bit<6>  f6;
-    bit<(8-7)>   align7;    bit<7>  f7;
-                            bit<8>  f8;
-    bit<(16-9)>  align9;    bit<9>  f9;
-    bit<(16-10)> align10;   bit<10> f10;
-    bit<(16-11)> align11;   bit<11> f11;
-    bit<(16-12)> align12;   bit<12> f12;
-    bit<(16-13)> align13;   bit<13> f13;
-    bit<(16-14)> align14;   bit<14> f14;
-    bit<(16-15)> align15;   bit<15> f15;
-                            bit<16> f16;
-    bit<(32-17)> align17;   bit<17> f17;
-    bit<(32-18)> align18;   bit<18> f18;
-    bit<(32-19)> align19;   bit<19> f19;
-    bit<(32-20)> align20;   bit<20> f20;
-    bit<(32-21)> align21;   bit<21> f21;
-    bit<(32-22)> align22;   bit<22> f22;
-    bit<(32-23)> align23;   bit<23> f23;
-    bit<(32-24)> align24;   bit<24> f24;
-    bit<(32-25)> align25;   bit<25> f25;
-    bit<(32-26)> align26;   bit<26> f26;
-    bit<(32-27)> align27;   bit<27> f27;
-    bit<(32-28)> align28;   bit<28> f28;
-    bit<(32-29)> align29;   bit<29> f29;
-    bit<(32-30)> align30;   bit<30> f30;
-    bit<(32-31)> align31;   bit<31> f31;
-                            bit<32> f32;
+    #if (ENABLED_BITS & (1 << 0)) != 0
+        padded1_t  p1;
+    #endif
+    #if (ENABLED_BITS & (1 << 1)) != 0
+        padded2_t  p2;
+    #endif
+    #if (ENABLED_BITS & (1 << 2)) != 0
+        padded3_t  p3;
+    #endif
+    #if (ENABLED_BITS & (1 << 3)) != 0
+        padded4_t  p4;
+    #endif
+    #if (ENABLED_BITS & (1 << 4)) != 0
+        padded5_t  p5;
+    #endif
+    #if (ENABLED_BITS & (1 << 5)) != 0
+        padded6_t  p6;
+    #endif
+    #if (ENABLED_BITS & (1 << 6)) != 0
+        padded7_t  p7;
+    #endif
+    #if (ENABLED_BITS & (1 << 7)) != 0
+        padded8_t  p8;
+    #endif
+    #if (ENABLED_BITS & (1 << 8)) != 0
+        padded9_t  p9;
+    #endif
+    #if (ENABLED_BITS & (1 << 9)) != 0
+        padded10_t p10;
+    #endif
+    #if (ENABLED_BITS & (1 << 10)) != 0
+        padded11_t p11;
+    #endif
+    #if (ENABLED_BITS & (1 << 11)) != 0
+        padded12_t p12;
+    #endif
+    #if (ENABLED_BITS & (1 << 12)) != 0
+        padded13_t p13;
+    #endif
+    #if (ENABLED_BITS & (1 << 13)) != 0
+        padded14_t p14;
+    #endif
+    #if (ENABLED_BITS & (1 << 14)) != 0
+        padded15_t p15;
+    #endif
+    #if (ENABLED_BITS & (1 << 15)) != 0
+        padded16_t p16;
+    #endif
+    #if (ENABLED_BITS & (1 << 16)) != 0
+        padded17_t p17;
+    #endif
+    #if (ENABLED_BITS & (1 << 17)) != 0
+        padded18_t p18;
+    #endif
+    #if (ENABLED_BITS & (1 << 18)) != 0
+        padded19_t p19;
+    #endif
+    #if (ENABLED_BITS & (1 << 19)) != 0
+        padded20_t p20;
+    #endif
+    #if (ENABLED_BITS & (1 << 20)) != 0
+        padded21_t p21;
+    #endif
+    #if (ENABLED_BITS & (1 << 21)) != 0
+        padded22_t p22;
+    #endif
+    #if (ENABLED_BITS & (1 << 22)) != 0
+        padded23_t p23;
+    #endif
+    #if (ENABLED_BITS & (1 << 23)) != 0
+        padded24_t p24;
+    #endif
+    #if (ENABLED_BITS & (1 << 24)) != 0
+        padded25_t p25;
+    #endif
+    #if (ENABLED_BITS & (1 << 25)) != 0
+        padded26_t p26;
+    #endif
+    #if (ENABLED_BITS & (1 << 26)) != 0
+        padded27_t p27;
+    #endif
+    #if (ENABLED_BITS & (1 << 27)) != 0
+        padded28_t p28;
+    #endif
+    #if (ENABLED_BITS & (1 << 28)) != 0
+        padded29_t p29;
+    #endif
+    #if (ENABLED_BITS & (1 << 29)) != 0
+        padded30_t p30;
+    #endif
+    #if (ENABLED_BITS & (1 << 30)) != 0
+        padded31_t p31;
+    #endif
+    #if (ENABLED_BITS & (1 << 31)) != 0
+        padded32_t p32;
+    #endif
 }
 
 
@@ -58,38 +128,102 @@ parser IngressParserImpl(packet_in packet,
     state start {
         hdr.outhdr.setValid();
 
-        hdr.outhdr.f1 = packet.lookahead<bits1_t>().f1;    hdr.outhdr.align1 = 0;
-        hdr.outhdr.f2 = packet.lookahead<bits2_t>().f2;    hdr.outhdr.align2 = 0;
-        hdr.outhdr.f3 = packet.lookahead<bits3_t>().f3;    hdr.outhdr.align3 = 0;
-        hdr.outhdr.f4 = packet.lookahead<bits4_t>().f4;    hdr.outhdr.align4 = 0;
-        hdr.outhdr.f5 = packet.lookahead<bits5_t>().f5;    hdr.outhdr.align5 = 0;
-        hdr.outhdr.f6 = packet.lookahead<bits6_t>().f6;    hdr.outhdr.align6 = 0;
-        hdr.outhdr.f7 = packet.lookahead<bits7_t>().f7;    hdr.outhdr.align7 = 0;
-        hdr.outhdr.f8 = packet.lookahead<bits8_t>().f8;    // hdr.outhdr.align8 = 0;
-        hdr.outhdr.f9 = packet.lookahead<bits9_t>().f9;    hdr.outhdr.align9 = 0;
-        hdr.outhdr.f10 = packet.lookahead<bits10_t>().f10; hdr.outhdr.align10 = 0;
-        hdr.outhdr.f11 = packet.lookahead<bits11_t>().f11; hdr.outhdr.align11 = 0;
-        hdr.outhdr.f12 = packet.lookahead<bits12_t>().f12; hdr.outhdr.align12 = 0;
-        hdr.outhdr.f13 = packet.lookahead<bits13_t>().f13; hdr.outhdr.align13 = 0;
-        hdr.outhdr.f14 = packet.lookahead<bits14_t>().f14; hdr.outhdr.align14 = 0;
-        hdr.outhdr.f15 = packet.lookahead<bits15_t>().f15; hdr.outhdr.align15 = 0;
-        hdr.outhdr.f16 = packet.lookahead<bits16_t>().f16; // hdr.outhdr.align16 = 0;
-        hdr.outhdr.f17 = packet.lookahead<bits17_t>().f17; hdr.outhdr.align17 = 0;
-        hdr.outhdr.f18 = packet.lookahead<bits18_t>().f18; hdr.outhdr.align18 = 0;
-        hdr.outhdr.f19 = packet.lookahead<bits19_t>().f19; hdr.outhdr.align19 = 0;
-        hdr.outhdr.f20 = packet.lookahead<bits20_t>().f20; hdr.outhdr.align20 = 0;
-        hdr.outhdr.f21 = packet.lookahead<bits21_t>().f21; hdr.outhdr.align21 = 0;
-        hdr.outhdr.f22 = packet.lookahead<bits22_t>().f22; hdr.outhdr.align22 = 0;
-        hdr.outhdr.f23 = packet.lookahead<bits23_t>().f23; hdr.outhdr.align23 = 0;
-        hdr.outhdr.f24 = packet.lookahead<bits24_t>().f24; hdr.outhdr.align24 = 0;
-        hdr.outhdr.f25 = packet.lookahead<bits25_t>().f25; hdr.outhdr.align25 = 0;
-        hdr.outhdr.f26 = packet.lookahead<bits26_t>().f26; hdr.outhdr.align26 = 0;
-        hdr.outhdr.f27 = packet.lookahead<bits27_t>().f27; hdr.outhdr.align27 = 0;
-        hdr.outhdr.f28 = packet.lookahead<bits28_t>().f28; hdr.outhdr.align28 = 0;
-        hdr.outhdr.f29 = packet.lookahead<bits29_t>().f29; hdr.outhdr.align29 = 0;
-        hdr.outhdr.f30 = packet.lookahead<bits30_t>().f30; hdr.outhdr.align30 = 0;
-        hdr.outhdr.f31 = packet.lookahead<bits31_t>().f31; hdr.outhdr.align31 = 0;
-        hdr.outhdr.f32 = packet.lookahead<bits32_t>().f32; // hdr.outhdr.align32 = 0;
+        #if (ENABLED_BITS & (1 << 0)) != 0
+            hdr.outhdr.p1.f1  = packet.lookahead<bits1_t>().f1;   hdr.outhdr.p1.pad1 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 1)) != 0
+            hdr.outhdr.p2.f2  = packet.lookahead<bits2_t>().f2;   hdr.outhdr.p2.pad2 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 2)) != 0
+            hdr.outhdr.p3.f3  = packet.lookahead<bits3_t>().f3;   hdr.outhdr.p3.pad3 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 3)) != 0
+            hdr.outhdr.p4.f4  = packet.lookahead<bits4_t>().f4;   hdr.outhdr.p4.pad4 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 4)) != 0
+            hdr.outhdr.p5.f5  = packet.lookahead<bits5_t>().f5;   hdr.outhdr.p5.pad5 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 5)) != 0
+            hdr.outhdr.p6.f6  = packet.lookahead<bits6_t>().f6;   hdr.outhdr.p6.pad6 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 6)) != 0
+            hdr.outhdr.p7.f7  = packet.lookahead<bits7_t>().f7;   hdr.outhdr.p7.pad7 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 7)) != 0
+            hdr.outhdr.p8.f8  = packet.lookahead<bits8_t>().f8;
+        #endif
+        #if (ENABLED_BITS & (1 << 8)) != 0
+            hdr.outhdr.p9.f9  = packet.lookahead<bits9_t>().f9;   hdr.outhdr.p9.pad9 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 9)) != 0
+            hdr.outhdr.p10.f10  = packet.lookahead<bits10_t>().f10;   hdr.outhdr.p10.pad10 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 10)) != 0
+            hdr.outhdr.p11.f11  = packet.lookahead<bits11_t>().f11;   hdr.outhdr.p11.pad11 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 11)) != 0
+            hdr.outhdr.p12.f12  = packet.lookahead<bits12_t>().f12;   hdr.outhdr.p12.pad12 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 12)) != 0
+            hdr.outhdr.p13.f13  = packet.lookahead<bits13_t>().f13;   hdr.outhdr.p13.pad13 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 13)) != 0
+            hdr.outhdr.p14.f14  = packet.lookahead<bits14_t>().f14;   hdr.outhdr.p14.pad14 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 14)) != 0
+            hdr.outhdr.p15.f15  = packet.lookahead<bits15_t>().f15;   hdr.outhdr.p15.pad15 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 15)) != 0
+            hdr.outhdr.p16.f16  = packet.lookahead<bits16_t>().f16;
+        #endif
+        #if (ENABLED_BITS & (1 << 16)) != 0
+            hdr.outhdr.p17.f17  = packet.lookahead<bits17_t>().f17;   hdr.outhdr.p17.pad17 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 17)) != 0
+            hdr.outhdr.p18.f18  = packet.lookahead<bits18_t>().f18;   hdr.outhdr.p18.pad18 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 18)) != 0
+            hdr.outhdr.p19.f19  = packet.lookahead<bits19_t>().f19;   hdr.outhdr.p19.pad19 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 19)) != 0
+            hdr.outhdr.p20.f20  = packet.lookahead<bits20_t>().f20;   hdr.outhdr.p20.pad20 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 20)) != 0
+            hdr.outhdr.p21.f21  = packet.lookahead<bits21_t>().f21;   hdr.outhdr.p21.pad21 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 21)) != 0
+            hdr.outhdr.p22.f22  = packet.lookahead<bits22_t>().f22;   hdr.outhdr.p22.pad22 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 22)) != 0
+            hdr.outhdr.p23.f23  = packet.lookahead<bits23_t>().f23;   hdr.outhdr.p23.pad23 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 23)) != 0
+            hdr.outhdr.p24.f24  = packet.lookahead<bits24_t>().f24;   hdr.outhdr.p24.pad24 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 24)) != 0
+            hdr.outhdr.p25.f25  = packet.lookahead<bits25_t>().f25;   hdr.outhdr.p25.pad25 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 25)) != 0
+            hdr.outhdr.p26.f26  = packet.lookahead<bits26_t>().f26;   hdr.outhdr.p26.pad26 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 26)) != 0
+            hdr.outhdr.p27.f27  = packet.lookahead<bits27_t>().f27;   hdr.outhdr.p27.pad27 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 27)) != 0
+            hdr.outhdr.p28.f28  = packet.lookahead<bits28_t>().f28;   hdr.outhdr.p28.pad28 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 28)) != 0
+            hdr.outhdr.p29.f29  = packet.lookahead<bits29_t>().f29;   hdr.outhdr.p29.pad29 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 29)) != 0
+            hdr.outhdr.p30.f30  = packet.lookahead<bits30_t>().f30;   hdr.outhdr.p30.pad30 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 30)) != 0
+            hdr.outhdr.p31.f31  = packet.lookahead<bits31_t>().f31;   hdr.outhdr.p31.pad31 = 0;
+        #endif
+        #if (ENABLED_BITS & (1 << 31)) != 0
+            hdr.outhdr.p32.f32  = packet.lookahead<bits32_t>().f32;
+        #endif
 
         packet.advance(32);
         transition accept;
