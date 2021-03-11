@@ -1,95 +1,27 @@
-header ipv4_t_1 {
-    bit<4>  version;
-    bit<4>  ihl;
-    bit<8>  diffserv;
-    bit<16> totalLen;
-    bit<16> identification;
-    bit<16> fragOffset;
-    bit<8>  ttl;
-    bit<8>  protocol;
-    bit<16> hdrChecksum;
-    bit<32> srcAddr;
-    bit<32> dstAddr;
-}
 
-header ipv4_t_2 {
-    varbit<320> options;
-}
-
-header tcp_t_1 {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<4>  res;
-    bit<8>  flags;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
-}
-
-header tcp_t_2 {
-    varbit<320> options;
-}
 
 #include <core.p4>
 #include <v1model.p4>
-
-header ethernet_t {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
-
-header ipv4_t {
-    bit<4>      version;
-    bit<4>      ihl;
-    bit<8>      diffserv;
-    bit<16>     totalLen;
-    bit<16>     identification;
-    bit<16>     fragOffset;
-    bit<8>      ttl;
-    bit<8>      protocol;
-    bit<16>     hdrChecksum;
-    bit<32>     srcAddr;
-    bit<32>     dstAddr;
-    @length((bit<32>)ihl * 32w4 * 8 - 160)
-    varbit<320> options;
-}
-
-header tcp_t {
-    bit<16>     srcPort;
-    bit<16>     dstPort;
-    bit<32>     seqNo;
-    bit<32>     ackNo;
-    bit<4>      dataOffset;
-    bit<4>      res;
-    bit<8>      flags;
-    bit<16>     window;
-    bit<16>     checksum;
-    bit<16>     urgentPtr;
-    @length((bit<32>)dataOffset * 32w4 * 8 - 160)
-    varbit<320> options;
-}
+#include "../include/std_headers.p4"
 
 struct metadata {
 }
 
 struct headers {
     @name(".ethernet")
-    ethernet_t ethernet;
+    ethernet_t         ethernet;
     @name(".ipv4")
-    ipv4_t     ipv4;
+    ipv4_options_t     ipv4;
     @name(".tcp")
-    tcp_t      tcp;
+    tcp_options_t      tcp;
 }
 
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    ipv4_t_1 tmp_hdr;
-    ipv4_t_2 tmp_hdr_0;
-    tcp_t_1 tmp_hdr_1;
-    tcp_t_2 tmp_hdr_2;
+    ipv4_t       ipv4_novarbit;
+    varbits320_t ipv4_varbit;
+    tcp_t        tcp_novarbit;
+    varbits320_t tcp_varbit;
+
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -97,43 +29,49 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
             default: accept;
         }
     }
+
     @name(".parse_ipv4") state parse_ipv4 {
-        packet.extract(tmp_hdr);
-        packet.extract(tmp_hdr_0, (bit<32>)((bit<32>)tmp_hdr.ihl * 32w4 * 8 - 160));
+        packet.extract(ipv4_novarbit);
+        packet.extract(ipv4_varbit, (bit<32>)((bit<32>)ipv4_novarbit.ihl * 32w4 * 8 - 160));
+
         hdr.ipv4.setValid();
-        tmp_hdr.setValid();
-        hdr.ipv4.version = tmp_hdr.version;
-        hdr.ipv4.ihl = tmp_hdr.ihl;
-        hdr.ipv4.diffserv = tmp_hdr.diffserv;
-        hdr.ipv4.totalLen = tmp_hdr.totalLen;
-        hdr.ipv4.identification = tmp_hdr.identification;
-        hdr.ipv4.fragOffset = tmp_hdr.fragOffset;
-        hdr.ipv4.ttl = tmp_hdr.ttl;
-        hdr.ipv4.protocol = tmp_hdr.protocol;
-        hdr.ipv4.hdrChecksum = tmp_hdr.hdrChecksum;
-        hdr.ipv4.srcAddr = tmp_hdr.srcAddr;
-        hdr.ipv4.dstAddr = tmp_hdr.dstAddr;
-        hdr.ipv4.options = tmp_hdr_0.options;
+        hdr.ipv4.version = ipv4_novarbit.version;
+        hdr.ipv4.ihl = ipv4_novarbit.ihl;
+        hdr.ipv4.diffserv = ipv4_novarbit.diffserv;
+        hdr.ipv4.totalLen = ipv4_novarbit.totalLen;
+        hdr.ipv4.identification = ipv4_novarbit.identification;
+        hdr.ipv4.flags = ipv4_novarbit.flags;
+        hdr.ipv4.fragOffset = ipv4_novarbit.fragOffset;
+        hdr.ipv4.ttl = ipv4_novarbit.ttl;
+        hdr.ipv4.protocol = ipv4_novarbit.protocol;
+        hdr.ipv4.hdrChecksum = ipv4_novarbit.hdrChecksum;
+        hdr.ipv4.srcAddr = ipv4_novarbit.srcAddr;
+        hdr.ipv4.dstAddr = ipv4_novarbit.dstAddr;
+        hdr.ipv4.options = ipv4_varbit.options;
+
         transition select(hdr.ipv4.protocol) {
             8w0x6: parse_tcp;
             default: accept;
         }
     }
+
     @name(".parse_tcp") state parse_tcp {
-        packet.extract(tmp_hdr_1);
-        packet.extract(tmp_hdr_2, (bit<32>)((bit<32>)tmp_hdr_1.dataOffset * 32w4 * 8 - 160));
+        packet.extract(tcp_novarbit);
+        packet.extract(tcp_varbit, (bit<32>)((bit<32>)tcp_novarbit.dataOffset * 32w4 * 8 - 160));
+
         hdr.tcp.setValid();
-        hdr.tcp.srcPort = tmp_hdr_1.srcPort;
-        hdr.tcp.dstPort = tmp_hdr_1.dstPort;
-        hdr.tcp.seqNo = tmp_hdr_1.seqNo;
-        hdr.tcp.ackNo = tmp_hdr_1.ackNo;
-        hdr.tcp.dataOffset = tmp_hdr_1.dataOffset;
-        hdr.tcp.res = tmp_hdr_1.res;
-        hdr.tcp.flags = tmp_hdr_1.flags;
-        hdr.tcp.window = tmp_hdr_1.window;
-        hdr.tcp.checksum = tmp_hdr_1.checksum;
-        hdr.tcp.urgentPtr = tmp_hdr_1.urgentPtr;
-        hdr.tcp.options = tmp_hdr_2.options;
+        hdr.tcp.srcPort = tcp_novarbit.srcPort;
+        hdr.tcp.dstPort = tcp_novarbit.dstPort;
+        hdr.tcp.seqNo = tcp_novarbit.seqNo;
+        hdr.tcp.ackNo = tcp_novarbit.ackNo;
+        hdr.tcp.dataOffset = tcp_novarbit.dataOffset;
+        hdr.tcp.res = tcp_novarbit.res;
+        hdr.tcp.flags = tcp_novarbit.flags;
+        hdr.tcp.window = tcp_novarbit.window;
+        hdr.tcp.checksum = tcp_novarbit.checksum;
+        hdr.tcp.urgentPtr = tcp_novarbit.urgentPtr;
+        hdr.tcp.options = tcp_varbit.options;
+
         transition accept;
     }
     @name(".start") state start {
@@ -149,14 +87,17 @@ control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name(".on_miss") action on_miss() {
     }
+
     @name(".fib_hit_nexthop") action fib_hit_nexthop(bit<48> dmac, bit<9> port) {
         hdr.ethernet.dstAddr = dmac;
         standard_metadata.egress_port = port;
         hdr.ipv4.ttl = hdr.ipv4.ttl + 8w0xff;
     }
+
     @name(".rewrite_src_mac") action rewrite_src_mac(bit<48> smac) {
         hdr.ethernet.srcAddr = smac;
     }
+
     @name(".ipv4_fib_lpm") table ipv4_fib_lpm {
         actions = {
             on_miss;
@@ -166,7 +107,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             hdr.ipv4.dstAddr: lpm;
         }
         size = 512;
+
+        // const entries = {
+            // 0xc0a8_016b: fib_hit_nexthop(0x000001000000, 123);
+        // }
     }
+
     @name(".sendout") table sendout {
         actions = {
             on_miss;
@@ -177,6 +123,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         size = 512;
     }
+
     apply {
         ipv4_fib_lpm.apply();
         sendout.apply();
