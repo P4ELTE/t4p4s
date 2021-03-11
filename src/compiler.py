@@ -159,7 +159,7 @@ def translate_line_with_insert(file, genfile, line_idx, line, indent_str):
     prepend_append_funname = "prepend" if maybe_pre == "pre" else "append" if maybe_pre == "aft" else ""
     prepend_append_txt = f"[{maybe_pre}]" if maybe_pre != "" else ""
     no_hint = "nohint" in args['hint']
-    extra_content = f" // {prepend_append_txt} {print_file(file, genfile)}:{line_idx}\\n" if not no_hint and maybe_pre else ""
+    extra_content = f" // {prepend_append_txt} {print_file(file, genfile)}:{line_idx}" if not no_hint and maybe_pre else ""
 
     _is_escaped, line = split_and_translate(content, extra_content)
 
@@ -284,7 +284,12 @@ def add_code(line, lineno = None, file = "{0}"):
     no_sugar_on_line = stripped_line.startswith('//') or stripped_line.startswith('# ') or stripped_line == ""
 
     indent = '{2}' * compiler_common.file_indentation_level
-    return indent + line + sugar(no_sugar_on_line, file, lineno, sugar_style) + line_ends[sugar_style]
+    if compiler_common.file_sugar_style[-1] != 'line_comment':
+        indent = ''
+
+    sugared = sugar(no_sugar_on_line, file, lineno, sugar_style)
+    line_end = line_ends[sugar_style]
+    return f'{{indent}}{{line}}{{sugared}}{{line_end}}'
 
 
 def sugar(no_sugar_on_line, file, lineno, sugar_style):
@@ -357,6 +362,10 @@ def generate_code(file, genfile, localvars={}):
     with open(file, "r") as orig_file:
         code = orig_file.read()
         code = translate_file_contents(file, genfile, code, relpath="src/")
+
+        if (depth := compiler_common.file_indentation_level) != 0:
+            print(f"Warning: indentation is {depth} level{'' if depth == 1 else 's'} too deep in file {file}", file=sys.stderr)
+            compiler_common.file_indentation_level = 0
 
         if generate_code_files:
             write_file(genfile, code)
