@@ -70,28 +70,28 @@ for hdr in hlir.header_instances:
 #[ #define uint32_top_bits(n) (0xffffffff << mod_top(n, 32))
 
 
-#{ struct hdr_info {
+#{ typedef struct {
 #[     int         idx;
 #[     const char* name;
 #[     int         byte_width;
 #[     int         byte_offset;
 #[     bool        is_metadata;
 #[     int         var_width_field;
-#} };
+#} } hdr_info_t;
 
-#{ struct fld_info {
+#{ typedef struct {
 #[     int               bit_width;
 #[     int               bit_offset;
 #[     int               byte_width;
 #[     int               byte_offset;
-#[     int               mask;
+#[     uint32_t          mask;
 #[     bool              is_metadata;
 #[     header_instance_t header_instance;
-#} };
+#} } fld_info_t;
 
 
 
-#{ static const struct hdr_info hdr_infos[HEADER_COUNT] = {
+#{ static const hdr_info_t hdr_infos[HEADER_COUNT] = {
 byte_offsets = ["0"]
 for idx, hdr in enumerate(hlir.header_instances):
     typ = hdr.urtype
@@ -116,9 +116,16 @@ if len(hlir.header_instances) == 0:
 #} };
 
 
-#{ static const struct fld_info fld_infos[FIELD_COUNT] = {
+#{ static const fld_info_t fld_infos[FIELD_COUNT] = {
 for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
+        not0 = 0xffffffff
+        shift_up = (32 - fld.urtype.size) % 32
+        top_bits = (not0 << shift_up) & not0
+        mask = top_bits >> (fld.offset % 8)
+        mask_txt = f'{mask:08x}'
+        binary_txt = '_'.join(f'{mask:032b}'[i:i+8] for i in range(0, 32, 8))
+
         #[     // field ${hdr.name}.${fld.name}
         #{     {
         #[         .byte_width = ${hdr.urtype.byte_width},
@@ -126,7 +133,8 @@ for hdr in hlir.header_instances:
         #[         .bit_width = ${fld.urtype.size},
         #[         .bit_offset = ${fld.offset} % 8,
         #[         .byte_offset = ${fld.offset} / 8,
-        #[         .mask = __bswap_constant_32(uint32_top_bits(${fld.urtype.size}) >> (${fld.offset}%8)),
+        #[         .mask = __bswap_constant_32(0x${mask_txt}), // ${fld.urtype.size} bits at offset ${fld.offset}: ${binary_txt}
+        #[         // .mask = __bswap_constant_32(uint32_top_bits(${fld.urtype.size}) >> (${fld.offset}%8)),
         #[         .header_instance = HDR(${'all_metadatas' if hdr.urtype.is_metadata else hdr.name}),
         #}     },
         #[
