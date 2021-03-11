@@ -31,14 +31,14 @@
 #define PAYLOAD04   "1a9eeb2d5965840121f6654196bed15b97011d374df64b5d6689f4"
 
 
-extern void ipv4_fib_lpm_0_setdefault(ipv4_fib_lpm_0_action_t action);
+extern void setdefault_ipv4_fib_lpm_0(ipv4_fib_lpm_0_action_t action);
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_SETDEF, ipv4_fib_lpm_0_setdefault, 0, {"on_miss"}, 0, 0, {""} },
+        {FAKE_SETDEF, setdefault_ipv4_fib_lpm_0, 0, {"on_miss"}, 0, 0, FDATA("") },
 
-        FSLEEP(200),
-        {FAKE_PKT, 0, 0, {ETH01, ETH02, "0800", IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01, ""}, 200,  0, {ETH01, ETH02, "0800", IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01, ""}},
+        {FAKE_PKT, 0,   0, ETH(ETH01, ETH02, IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01),
+         NO_CTL_REPLY,  0, ETH(ETH01, ETH02, IP4_01, IP4_01_OPTS, TCP01, TCP01_OPTS, PAYLOAD01)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01), 200,  0, ETH(ETH01, ETH02, IP4_01 IP4_01_OPTS TCP01 TCP01_OPTS PAYLOAD01)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_02 IP4_02_OPTS                 PAYLOAD02), 200, 18, ETH(ETH01, ETH02, IP4_02 IP4_02_OPTS                 PAYLOAD02)},
         // {FAKE_PKT, 0, 0, ETH(ETH01, ETH02, IP4_03 IP4_03_OPTS                 PAYLOAD03), 200, 18, ETH(ETH01, ETH02, IP4_03 IP4_03_OPTS                 PAYLOAD03)},
