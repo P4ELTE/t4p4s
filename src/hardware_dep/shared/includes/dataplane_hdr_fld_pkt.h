@@ -91,7 +91,6 @@ typedef struct {
     unsigned queue_idx;
     unsigned pkt_idx;
     int program_state;
-    uint8_t             dropped;
 } packet_descriptor_t;
 
 

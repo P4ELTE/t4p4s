@@ -131,14 +131,9 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
         COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"doing crypto packet: %d\n");
         COUNTER_ECHO(lcdata->conf->fwd_packet,"fwd packet: %d\n");
         COUNTER_ECHO(lcdata->conf->async_packet,"async packet: %d\n");
-
-        clear_pd_states(pd);
-        pd->context = NULL;
-        pd->dropped = 0;
     #endif
 
     bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
-
     if (got_packet) {
         void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx) = do_handle_packet;
         if (likely(is_packet_handled(LCPARAMS_IN))) {

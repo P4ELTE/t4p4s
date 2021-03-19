@@ -77,7 +77,6 @@ extern void free_packet(LCPARAMS);
 
 static void reset_pd(packet_descriptor_t *pd)
 {
-    pd->dropped=0;
     pd->parsed_length = 0;
     if(pd->wrapper == 0){
         pd->payload_length = 0;
@@ -265,12 +264,16 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
     pd->port_id = port_id;
     pd->queue_idx = queue_idx;
     pd->pkt_idx = pkt_idx;
+
+    uint8_t dropped = 0;
+    pd->context = NULL;
+    clear_pd_states(pd);
     COUNTER_ECHO(lcdata->conf->async_drop_counter,"dropped async: %d\n");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         ucontext_t *context;
         if(rte_mempool_get(context_pool, (void**)&context) != 0) {
-            pd->dropped = 1;
+            dropped = 1;
             free_packet(LCPARAMS_IN);
             pd->context = NULL;
         }else{
@@ -297,7 +300,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
 
         int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
         if(ret != 0){
-            pd->dropped = 1;
+            dropped = 1;
             free_packet(LCPARAMS_IN);
             pd->context = NULL;
         }else{
@@ -314,7 +317,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
     #endif
 
 
-    if(pd->dropped > 0){
+    if(dropped > 0){
         COUNTER_STEP(lcore_conf[rte_lcore_id()].async_drop_counter);
     }
 }
