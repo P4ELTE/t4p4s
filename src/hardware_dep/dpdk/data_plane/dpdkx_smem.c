@@ -101,35 +101,42 @@ void init_register_uint64_t(register_uint64_t* reg, uint32_t size)  {
 
 void extern_register_read_int8_t(register_int8_t* reg, int8_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i8) " = " T4LIT(0x%02x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_int16_t(register_int16_t* reg, int16_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i16) " = " T4LIT(0x%04x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_int32_t(register_int32_t* reg, int32_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i32) " = " T4LIT(0x%08x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_int64_t(register_int64_t* reg, int64_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%ld) "/" T4LIT(i64) " = " T4LIT(0x%016lx,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_uint8_t(register_uint8_t* reg, uint8_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%u) "/" T4LIT(u8) " = " T4LIT(0x%02x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_uint16_t(register_uint16_t* reg, uint16_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
-    debug("    : Executing extern_register_read_uint16_t#" T4LIT(%d) " value:" T4LIT(%d) "\n", idx, reg[idx].value);
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%u) "/" T4LIT(u16) " = " T4LIT(0x%04x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_uint32_t(register_uint32_t* reg, uint32_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%u) "/" T4LIT(u32) " = " T4LIT(0x%08x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 void extern_register_read_uint64_t(register_uint64_t* reg, uint64_t* value_result, uint32_t idx) {
     *value_result =  reg[idx].value;
+    debug("    : Read from register " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%lu) "/" T4LIT(u64) " = " T4LIT(0x%016lx,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 
@@ -137,35 +144,35 @@ void extern_register_read_uint64_t(register_uint64_t* reg, uint64_t* value_resul
 
 void extern_register_write_int8_t(register_int8_t* reg, int idx, int8_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i8) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i8) " = " T4LIT(0x%02x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_int16_t(register_int16_t* reg, int idx, int16_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i16) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i16) " = " T4LIT(0x%04x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_int32_t(register_int32_t* reg, int idx, int32_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i32) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(i32) " = " T4LIT(0x%08x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_int64_t(register_int64_t* reg, int idx, int64_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%ld) "/" T4LIT(i64) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%ld) "/" T4LIT(i64) " = " T4LIT(0x%016lx,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_uint8_t(register_uint8_t* reg, int idx, uint8_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u8) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u8) " = " T4LIT(0x%02x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_uint16_t(register_uint16_t* reg, int idx, uint16_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u16) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u16) " = " T4LIT(0x%04x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_uint32_t(register_uint32_t* reg, int idx, uint32_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u32) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%d) "/" T4LIT(u32) " = " T4LIT(0x%08x,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 void extern_register_write_uint64_t(register_uint64_t* reg, int idx, uint64_t value) {
     reg[idx].value = value;
-    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%lu) "/" T4LIT(u64) "b\n", reg->name, idx, reg->value);
+    debug("    : Writing register: " T4LIT(%s,smem) "[" T4LIT(%d) "] = " T4LIT(%lu) "/" T4LIT(u64) " = " T4LIT(0x%016lx,bytes) "\n", reg->name, idx, reg->value, reg->value);
 }
 
 

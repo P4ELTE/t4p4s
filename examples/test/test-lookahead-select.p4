@@ -4,14 +4,14 @@
 #include "../include/std_headers.p4"
 
 header outhdr_t {
-    bit<(8-1)>   align1;    bit<1>  f1;
-    bit<(8-3)>   align3;    bit<3>  f3;
-    bit<(8-7)>   align7;    bit<7>  f7;
-                            bit<8>  f8;
-    bit<(16-9)>  align9;    bit<9>  f9;
-                            bit<16> f16;
-    bit<(32-17)> align17;   bit<17> f17;
-                            bit<32> f32;
+    padded1_t  f1;
+    padded3_t  f3;
+    padded7_t  f7;
+    padded8_t  f8;
+    padded9_t  f9;
+    padded16_t f16;
+    padded17_t f17;
+    padded32_t f32;
 }
 
 struct empty_metadata_t {
@@ -32,13 +32,13 @@ parser IngressParserImpl(packet_in packet,
                          in empty_metadata_t recirculate_meta) {
     state start {
         hdr.outhdr.setValid();
-        hdr.outhdr.f1 = 0;
-        hdr.outhdr.f3 = 0;
-        hdr.outhdr.f8 = 0;
-        hdr.outhdr.f9 = 0;
-        hdr.outhdr.f16 = 0;
-        hdr.outhdr.f17 = 0;
-        hdr.outhdr.f32 = 0;
+        hdr.outhdr.f1.f1 = 0;
+        hdr.outhdr.f3.f3 = 0;
+        hdr.outhdr.f8.f8 = 0;
+        hdr.outhdr.f9.f9 = 0;
+        hdr.outhdr.f16.f16 = 0;
+        hdr.outhdr.f17.f17 = 0;
+        hdr.outhdr.f32.f32 = 0;
 
         transition look1;
     }
@@ -97,21 +97,21 @@ parser IngressParserImpl(packet_in packet,
         }
     }
 
-    state got1_1       { hdr.outhdr.f1  = 1; transition look3;  }
-    state got3_1       { hdr.outhdr.f3  = 1; transition look8;  }
-    state got8_1       { hdr.outhdr.f8  = 1; transition look9;  }
-    state got9_1       { hdr.outhdr.f9  = 1; transition look16; }
-    state got16_1      { hdr.outhdr.f16 = 1; transition look17; }
-    state got17_1      { hdr.outhdr.f17 = 1; transition look32; }
-    state got32_1      { hdr.outhdr.f32 = 1; transition done;   }
+    state got1_1       { hdr.outhdr.f1.f1  = 1; transition look3;  }
+    state got3_1       { hdr.outhdr.f3.f3  = 1; transition look8;  }
+    state got8_1       { hdr.outhdr.f8.f8  = 1; transition look9;  }
+    state got9_1       { hdr.outhdr.f9.f9  = 1; transition look16; }
+    state got16_1      { hdr.outhdr.f16.f16 = 1; transition look17; }
+    state got17_1      { hdr.outhdr.f17.f17 = 1; transition look32; }
+    state got32_1      { hdr.outhdr.f32.f32 = 1; transition done;   }
 
-    state got1_default  { hdr.outhdr.f1  = packet.lookahead<bits1_t>().f1;   transition look3;  }
-    state got3_default  { hdr.outhdr.f3  = packet.lookahead<bits3_t>().f3;   transition look8;  }
-    state got8_default  { hdr.outhdr.f8  = packet.lookahead<bits8_t>().f8;   transition look16; }
-    state got9_default  { hdr.outhdr.f9  = packet.lookahead<bits9_t>().f9;   transition look16; }
-    state got16_default { hdr.outhdr.f16 = packet.lookahead<bits16_t>().f16; transition look17; }
-    state got17_default { hdr.outhdr.f17 = packet.lookahead<bits17_t>().f17; transition look32; }
-    state got32_default { hdr.outhdr.f32 = packet.lookahead<bits32_t>().f32; transition done;   }
+    state got1_default  { hdr.outhdr.f1.f1  = packet.lookahead<bits1_t>().f1;   transition look3;  }
+    state got3_default  { hdr.outhdr.f3.f3  = packet.lookahead<bits3_t>().f3;   transition look8;  }
+    state got8_default  { hdr.outhdr.f8.f8  = packet.lookahead<bits8_t>().f8;   transition look16; }
+    state got9_default  { hdr.outhdr.f9.f9  = packet.lookahead<bits9_t>().f9;   transition look16; }
+    state got16_default { hdr.outhdr.f16.f16 = packet.lookahead<bits16_t>().f16; transition look17; }
+    state got17_default { hdr.outhdr.f17.f17 = packet.lookahead<bits17_t>().f17; transition look32; }
+    state got32_default { hdr.outhdr.f32.f32 = packet.lookahead<bits32_t>().f32; transition done;   }
 }
 
 control egress(inout headers hdr,

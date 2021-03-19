@@ -47,21 +47,28 @@ for table in hlir.tables:
 #[ };
 
 
+for table in hlir.tables:
+    #{ void setdefault_${table.name}(uint8_t action_id) {
+    #{     table_entry_${table.name}_t default_action = {
+    #[          .action = { action_id },
+    #[          .is_entry_valid = VALID_TABLE_ENTRY,
+    #}     };
+    #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&default_action);
+    #} }
+
+
+
 #[ extern struct socket_state state[NB_SOCKETS];
-#[ extern void table_setdefault_promote  (int tableid, uint8_t* value);
+#[ extern void table_setdefault_promote(int tableid, uint8_t* value);
 
 #{ void init_table_default_actions() {
 #[     debug(" :::: Init table default actions\n");
 
 for table in hlir.tables:
-    #[ int current_replica_${table.name} = state[0].active_replica[TABLE_${table.name}];
-    #{ if (state[0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL) {
-    #{     table_entry_${table.name}_t initial_default = {
-    #[          .action = { action_${table.default_action.expression.method.action_ref.name} },
-    #[          .is_entry_valid = VALID_TABLE_ENTRY,
-    #}     };
-    #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t *)&initial_default);
-    #} }
+    #[     int current_replica_${table.name} = state[0].active_replica[TABLE_${table.name}];
+    #{     if (likely(state[0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
+    #[         setdefault_${table.name}(action_${table.default_action.expression.method.action_ref.name});
+    #}     }
 #} }
 
 for table in hlir.tables:
@@ -171,14 +178,7 @@ for table in hlir.tables:
 #{ void init_table_const_entries() {
 for table in hlir.tables:
     if 'entries' not in table:
-        #[     // table ${table.name} does not have const entries
+        #[     // no const entries in table ${table.name}
         continue
     #[     init_table_const_entries_${table.name}();
 #} }
-
-for table in hlir.tables:
-    #{ void ${table.name}_setdefault(uint8_t action_id) {
-    #[     ${table.name}_action_t action;
-    #[     action.action_id = action_id;
-    #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&action);
-    #} }

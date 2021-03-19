@@ -273,7 +273,7 @@ for table, smem in hlir.all_counters:
 #[         ctrl_initialized();
 #[     } else if (ctrl_m->type == P4T_READ_COUNTER) {
 #[         //ctrl_m->xid = *read_counter_value_by_name(ctrl_m->table_name);
-#{         //TODO:SEND BACK;
+#[         //TODO:SEND BACK;
 #}     }
 #} }
 
@@ -301,7 +301,7 @@ for table, smem in hlir.all_counters:
 #[             if (state[0].tables[t.id][0]->init_entry_count > 0)
 #[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
 #}             }
-#{         #endif
+#}         #endif
 #}     }
 #} #endif
 

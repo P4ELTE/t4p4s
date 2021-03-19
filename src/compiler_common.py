@@ -173,15 +173,18 @@ def statement_buffer_value():
 
 ################################################################################
 
-def is_control_local_var(var_name):
-    global enclosing_control
+def is_control_local_var(var_name, start_node=None):
+    if start_node:
+        ctl = start_node.parents.filter('node_type', ('P4Parser', 'P4Control'))[0]
+    else:
+        global enclosing_control
+        ctl = enclosing_control
 
-    def get_locals(node):
-        if node.node_type == 'P4Parser':  return node.parserLocals
-        if node.node_type == 'P4Control': return node.controlLocals
-        return []
-
-    return enclosing_control is not None and [] != [cl for cl in get_locals(enclosing_control) if cl.name == var_name]
+    if ctl.node_type == 'P4Parser':
+        return ctl.parserLocals.get(var_name) is not None
+    if ctl.node_type == 'P4Control':
+        return ctl.controlLocals.get(var_name) is not None
+    return False
 
 ################################################################################
 

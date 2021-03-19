@@ -197,6 +197,20 @@ for table in hlir.tables:
 #} }
 
 
+#{ void apply_show_hit_with_key_msg(uint8_t** key, bool hit, int key_size, int key_length_bytes, const char* matchtype_name, const char* action_short_name, const char* params_txt, const char* table_info, STDPARAMS) {
+#[     dbg_bytes(key, key_size,
+#[               " %s Lookup on " T4LIT(%s,table) "/" T4LIT(%s) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
+#[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
+#[               table_info,
+#[               matchtype_name,
+#[               key_length_bytes,
+#[               action_short_name,
+#[               params_txt,
+#[               hit ? "" : " (default)",
+#[               hit ? T4LIT(hit,success) : T4LIT(miss,status)
+#[               );
+#} }
+
 table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 for table, table_info in table_infos:
@@ -204,29 +218,22 @@ for table, table_info in table_infos:
         continue
 
     #{ void ${table.name}_apply_show_hit_with_key(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
+    #[     char params_txt[1024];
     for dbg_action in table.actions:
         aoname = dbg_action.action_object.name
         dbg_action_name = dbg_action.expression.method.path.name
-        #{ if (entry != 0 && !strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
-
-        #[     char params_txt[1024];
-        #[     ${table.name}_show_params_${aoname}(params_txt, &(entry->action.${aoname}_params));
-
-        #[     dbg_bytes(key, table_config[TABLE_${table.name}].entry.key_size,
-        #[               " %s Lookup on $$[table]{table_info}/" T4LIT(${table.matchType.name}) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
-        #[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
-        #[               ${table.key_length_bytes},
-        #[               action_short_names[entry->action.action_id],
-        #[               params_txt,
-        #[               hit ? "" : " (default)",
-        #[               hit ? T4LIT(hit,success) : T4LIT(miss,status)
-        #[               );
-        #} }
+        #{     if (!strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
+        #[         ${table.name}_show_params_${aoname}(params_txt, &(entry->action.${aoname}_params));
+        #[         apply_show_hit_with_key_msg(key, hit, table_config[TABLE_${table.name}].entry.key_size, ${table.key_length_bytes}, "${table.matchType.name}", action_short_names[entry->action.action_id], params_txt, "${table_info}", STDPARAMS_IN);
+        #}     }
     #} }
     #[
 #} #endif
 
 for table, table_info in table_infos:
+    if 'key' in table and table.key_length_bits > 0:
+        continue
+
     #{ void ${table.name}_apply_show_hit(int action_id, STDPARAMS) {
     if 'key' not in table:
         #[     debug(" :::: Lookup on " T4LIT(${table_info},table) ", default action is " T4LIT(%s,action) "\n", action_short_names[action_id]);
@@ -273,6 +280,7 @@ for table, table_info in table_infos:
     #{ table_entry_${table.name}_t* ${table.name}_get_default_entry(STDPARAMS) {
     #[     return (table_entry_${table.name}_t*)tables[TABLE_${table.name}][0].default_val;
     #} }
+    #[
 
 for table, table_info in table_infos:
     #{ apply_result_t ${table.name}_apply(STDPARAMS) {
@@ -291,7 +299,7 @@ for table, table_info in table_infos:
         #}     }
 
         #{ #ifdef T4P4S_DEBUG
-        #[     ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
+        #[     if (likely(entry != 0))    ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
         #} #endif
 
         #{ #ifdef T4P4S_STATS
@@ -327,26 +335,35 @@ for table, table_info in table_infos:
 
 ################################################################################
 
+#{ void reset_vw_fields(SHORT_STDPARAMS) {
+for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
+    for fld in hdr.urtype.fields:
+        if fld.is_vw:
+            #[ pd->headers[HDR(${hdr.name})].var_width_field_bitwidth = 0;
+#} }
+
 #{ void reset_headers(SHORT_STDPARAMS) {
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
     #[     pd->headers[HDR(${hdr.name})].pointer = NULL;
 
 #[     // reset metadatas
 #[     memset(pd->headers[HDR(all_metadatas)].pointer, 0, hdr_infos[HDR(all_metadatas)].byte_width * sizeof(uint8_t));
+#[
+#[     reset_vw_fields(SHORT_STDPARAMS_IN);
 #} }
 
 #{ void init_headers(SHORT_STDPARAMS) {
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
-    #[ pd->headers[HDR(${hdr.name})] = (header_descriptor_t)
-    #{ {
-    #[     .type = HDR(${hdr.name}),
-    #[     .length = hdr_infos[HDR(${hdr.name})].byte_width,
-    #[     .pointer = NULL,
-    #[     .var_width_field_bitwidth = 0,
-    #[     #ifdef T4P4S_DEBUG
-    #[         .name = "${hdr.name}",
-    #[     #endif
-    #} };
+    #{     pd->headers[HDR(${hdr.name})] = (header_descriptor_t) {
+    #[         .type = HDR(${hdr.name}),
+    #[         .length = hdr_infos[HDR(${hdr.name})].byte_width,
+    #[         .pointer = NULL,
+    #[         .var_width_field_bitwidth = 0,
+    #[         #ifdef T4P4S_DEBUG
+    #[             .name = "${hdr.name}",
+    #[         #endif
+    #}     };
+    #[
 
 #[     // init metadatas
 #[     pd->headers[HDR(all_metadatas)] = (header_descriptor_t)
@@ -354,7 +371,7 @@ for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
 #[         .type = HDR(all_metadatas),
 #[         .length = hdr_infos[HDR(all_metadatas)].byte_width,
 #[         .pointer = rte_malloc("all_metadatas_t", hdr_infos[HDR(all_metadatas)].byte_width * sizeof(uint8_t), 0),
-#[         .var_width_field_bitwidth = 0
+#[         .var_width_field_bitwidth = 0,
 #}     };
 #} }
 
@@ -373,19 +390,21 @@ def is_keyless_single_action_table(table):
 #[     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_INIT_VALUE);
 #} }
 
-#{ void update_packet(packet_descriptor_t* pd) {
-#[     uint32_t value32, res32;
-#[     (void)value32, (void)res32;
 for hdr in hlir.header_instances:
-    #[
-    #[ // updating header ${hdr.name}
+    #{ void update_hdr_${hdr.name}(STDPARAMS) {
     for fld in hdr.urtype.fields:
         if fld.preparsed or fld.urtype.size > 32:
             continue
-        #{ if (pd->fields.FLD_ATTR(${hdr.name},${fld.name}) == MODIFIED) {
-        #[     value32 = pd->fields.FLD(${hdr.name},${fld.name});
-        #[     MODIFY_INT32_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), value32);
-        #} }
+
+        #{     if (pd->fields.FLD_ATTR(${hdr.name},${fld.name}) == MODIFIED) {
+        #[         MODIFY_INT32_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), pd->fields.FLD(${hdr.name},${fld.name}));
+        #}     }
+    #} }
+    #[
+
+#{ void update_packet(STDPARAMS) {
+for hdr in hlir.header_instances:
+    #[     update_hdr_${hdr.name}(STDPARAMS_IN);
 #} }
 
 ################################################################################
@@ -397,8 +416,7 @@ for ctl in hlir.controls:
         #[ // skipping method generation for empty control ${ctl.name}
         continue
 
-    #[ void control_${ctl.name}(STDPARAMS)
-    #{ {
+    #{ void control_${ctl.name}(STDPARAMS)  {
     #[     debug("Control $$[control]{ctl.name}...\n");
     #[     uint32_t value32, res32;
     #[     (void)value32, (void)res32;
@@ -420,7 +438,7 @@ for idx, ctl in enumerate(hlir.controls):
         #[ transfer_to_egress(pd);
     if ctl.name == 'egress':
         #[ // TODO temporarily disabled
-        #[ // update_packet(pd); // we need to update the packet prior to calculating the new checksum
+        #[ // update_packet(STDPARAMS_IN); // we need to update the packet prior to calculating the new checksum
 #} }
 
 ################################################################################
@@ -429,8 +447,7 @@ longest_hdr_name_len = max({len(h.name) for h in hlir.header_instances if not h.
 
 pkt_name_indent = " " * longest_hdr_name_len
 
-#[ void store_headers_for_emit(STDPARAMS)
-#{ {
+#{ void print_headers(STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
 #[         int skips = 0;
 #{         for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
@@ -441,31 +458,34 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[         debug("   :: Preparing $${}{%d} header%s for storage, skipping " T4LIT(%d) " header%s...\n",
 #[               emits, emits != 1 ? "s" : "", skips, skips != 1 ? "s" : "");
 #}     #endif
+#} }
+#[
 
+#{ void store_headers_for_emit(STDPARAMS) {
 #[     pd->emit_headers_length = 0;
 #{     for (int i = 0; i < pd->emit_hdrinst_count; ++i) {
-#[         header_descriptor_t hdr = pd->headers[pd->header_reorder[i]];
-
+#[         header_descriptor_t* hdr = &(pd->headers[pd->header_reorder[i]]);
 #[
-#{         if (unlikely(hdr.pointer == NULL)) {
+#{         if (unlikely(hdr->pointer == NULL)) {
 #{             #ifdef T4P4S_DEBUG
-#{                 if (hdr.was_enabled_at_initial_parse) {
-#[                     debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#{                 if (hdr->was_enabled_at_initial_parse) {
+#[                     debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr->name, hdr->length);
 #}                 }
 #}             #endif
 #[             continue;
 #}         }
-
-#{         if (likely(hdr.was_enabled_at_initial_parse)) {
-#[             dbg_bytes(hdr.pointer, hdr.length, "        :  " T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = %s", pd->header_reorder[i] + 1, hdr.name, hdr.length, hdr.pointer == NULL ? T4LIT((invalid),warning) " " : "");
-#[             memcpy(pd->header_tmp_storage + hdr_infos[hdr.type].byte_offset, hdr.pointer, hdr.length);
+#[
+#{         if (likely(hdr->was_enabled_at_initial_parse)) {
+#[             dbg_bytes(hdr->pointer, hdr->length, "        :  " T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = %s", pd->header_reorder[i] + 1, hdr->name, hdr->length, hdr->pointer == NULL ? T4LIT((invalid),warning) " " : "");
+#[             memcpy(pd->header_tmp_storage + hdr_infos[hdr->type].byte_offset, hdr->pointer, hdr->length);
 #[         } else {
-#[             dbg_bytes(hdr.pointer, hdr.length, "        : +" T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = ", pd->header_reorder[i] + 1, hdr.name, hdr.length);
+#[             dbg_bytes(hdr->pointer, hdr->length, "        : +" T4LIT(#%02d) " $$[header][%]{longest_hdr_name_len}{s}/$${}{%02dB} = ", pd->header_reorder[i] + 1, hdr->name, hdr->length);
 #}         }
 #[
-#[         pd->emit_headers_length += hdr.length;
+#[         pd->emit_headers_length += hdr->length;
 #}     }
 #} }
+#[
 
 #[ void resize_packet_on_emit(STDPARAMS)
 #{ {
@@ -491,6 +511,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #}     }
 #[     pd->wrapper->pkt_len = new_length;
 #} }
+#[
 
 #[ // if (some of) the emitted headers are one after another, this function copies them in one go
 #[ void copy_emit_contents(STDPARAMS)
@@ -542,6 +563,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[             return;
 #}         }
 #[         debug(" :::: Pre-emit reordering\n");
+#[         print_headers(STDPARAMS_IN);
 #[         store_headers_for_emit(STDPARAMS_IN);
 #[         resize_packet_on_emit(STDPARAMS_IN);
 #[         copy_emit_contents(STDPARAMS_IN);

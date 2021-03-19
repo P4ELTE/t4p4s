@@ -101,6 +101,8 @@ if [ "$PRECOMPILE" == "yes" ]; then
 
         ARCH_MACRO="USE_${archname[$TESTCASE]^^}"
 
+        [ -f ${TARGET_JSON} ] && [ ${TARGET_JSON} -nt "${src_p4[$TESTCASE]}" ] && continue
+
         [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 14 &
         [ "${ext_p4[$TESTCASE]}" == "p4"    ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 16 &
     done
@@ -198,11 +200,12 @@ else
     fail_codes[1]="P4 to C compilation failed"
     fail_codes[2]="C compilation failed"
     fail_codes[3]="Execution finished with wrong output"
+    fail_codes[4]="Packets were unexpectedly dropped/sent"
     fail_codes[139]="C code execution: Segmentation fault"
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"
 
-    for fc in 1 2 3 139 254 255; do
+    for fc in 1 2 3 4 139 254 255; do
         failcode_count=0
         for test in ${!exitcode[@]}; do
             [ ${exitcode[$test]} -eq $fc ] && ((++failcode_count))
