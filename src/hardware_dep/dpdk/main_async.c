@@ -88,7 +88,7 @@ static void reset_pd(packet_descriptor_t *pd)
     pd->is_emit_reordering = false;
 }
 
-void do_handle_packet(struct lcore_data* lcdata, packet_descriptor_t* pd, uint32_t port_id);
+extern void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx);
 void main_loop_post_rx(struct lcore_data* lcdata);
 void main_loop_post_single_rx(struct lcore_data* lcdata, bool got_packet);
 
@@ -142,7 +142,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         reset_pd(pd);
         parse_packet(pd, 0, 0);
         pd->program_state += 1;
-        do_handle_packet(lcdata, pd, pd->port_id);
+        do_handle_packet(lcdata, pd, pd->port_id, pd->queue_idx, pd->pkt_idx);
     #endif
 }
 
@@ -262,6 +262,9 @@ void init_async_data(struct lcore_data *data){
 
 void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))
 {
+    pd->port_id = port_id;
+    pd->queue_idx = queue_idx;
+    pd->pkt_idx = pkt_idx;
     COUNTER_ECHO(lcdata->conf->async_drop_counter,"dropped async: %d\n");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT

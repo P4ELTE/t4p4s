@@ -146,7 +146,7 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
             #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
                 if(PACKET_REQUIRES_ASYNC(lcdata,pd)){
                     COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
-                    async_handle_packet(LCPARAMS_IN, portid, queue_idx, pkt_idx, (void (*)(void))handler_function);
+                    async_handle_packet(LCPARAMS_IN, portid, queue_idx, pkt_idx, handler_function);
                 }
                 else{
                     handler_function(LCPARAMS_IN, portid, queue_idx, pkt_idx);

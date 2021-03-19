@@ -67,17 +67,11 @@ typedef struct {
 } header_descriptor_t;
 
 typedef struct {
-    void *context;
-
-    uint32_t port_id;
-    int program_state;
-
     packet_data_t*      data;
     void*               extract_ptr;
     header_descriptor_t headers[HEADER_COUNT+1];
     parsed_fields_t     fields;
     packet*             wrapper;
-    uint8_t             dropped;
 
     int emit_hdrinst_count;
     int emit_headers_length;
@@ -89,6 +83,15 @@ typedef struct {
     uint8_t header_tmp_storage[NONMETA_HDR_TOTAL_LENGTH];
 
     void * control_locals;
+
+    // async functionality
+    void *context;
+
+    int port_id;
+    unsigned queue_idx;
+    unsigned pkt_idx;
+    int program_state;
+    uint8_t             dropped;
 } packet_descriptor_t;
 
 
