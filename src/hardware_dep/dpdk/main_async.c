@@ -43,18 +43,18 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 #define DBG_CONTEXT_SWAP_TO_MAIN        debug(T4LIT(Swapping to main context...,warning) "\n");
 #define DBG_CONTEXT_SWAP_TO_PACKET(ctx) debug(T4LIT(Swapping to packet context (%p)...,warning) "\n", ctx);
 
+extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
+
 #if ASYNC_MODE == ASYNC_MODE_PD
     #include <setjmp.h>
-    jmp_buf mainLoopJumpPoint[RTE_MAX_LCORE];
-    jmp_buf asyncLoopJumpPoint[RTE_MAX_LCORE];
 
     void jump_to_main_loop(packet_descriptor_t* pd){
         if(pd->program_state == 0){
             debug("========================================================= Jump to the main loop\n");
-            longjmp(mainLoopJumpPoint[rte_lcore_id()],1);
+            longjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint,1);
         }else{
             debug("========================================================= Jump to the async loop\n");
-            longjmp(asyncLoopJumpPoint[rte_lcore_id()],1);
+            longjmp(lcore_conf[rte_lcore_id()].asyncLoopJumpPoint,1);
         }
     }
 #endif
@@ -304,7 +304,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             COUNTER_STEP(lcdata->conf->async_packet);
             pd->context = pd_store;
 
-            if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0) {
+            if(setjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint) == 0) {
                 handler_function_with_params(LCPARAMS_IN, port_id, queue_idx, pkt_idx);
             }
         }
@@ -511,7 +511,7 @@ void main_loop_async(LCPARAMS)
                     else{
                         dequeued_ops[lcore_id][i]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
                         #if ASYNC_MODE == ASYNC_MODE_PD
-                            if(setjmp(asyncLoopJumpPoint[rte_lcore_id()]) == 0) {
+                            if(setjmp(lcore_conf[rte_lcore_id()].asyncLoopJumpPoint) == 0) {
                                 resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
                             }
                         #else

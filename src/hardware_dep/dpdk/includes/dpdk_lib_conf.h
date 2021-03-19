@@ -96,7 +96,7 @@ struct lcore_hardware_conf {
 #else
 #define CONTEXT_STACKSIZE SIGSTKSZ
 #endif
-
+#include <setjmp.h>
 
 struct lcore_conf {
     struct lcore_hardware_conf hw;
@@ -116,16 +116,12 @@ struct lcore_conf {
     occurence_counter_t async_packet;
 	occurence_counter_t processed_packet_num;
 
+    jmp_buf mainLoopJumpPoint;
+    jmp_buf asyncLoopJumpPoint;
+
     #ifdef DEBUG__CRYPTO_EVERY_N
         int crypto_every_n_counter;
     #endif
-	//time_measure_t main_time;
-	//time_measure_t middle_time;
-	//time_measure_t middle_time2;
-
-	//time_measure_t async_main_time;
-	//time_measure_t sync_main_time;
-	//time_measure_t async_work_loop_time;
 } __rte_cache_aligned;
 
 
