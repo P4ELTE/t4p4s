@@ -210,11 +210,7 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_typ
 
 void async_init_storage()
 {
-#if ASYNC_MODE == ASYNC_MODE_CONTEXT
-    context_pool = rte_mempool_create("context_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
-    if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
-#endif
-    async_pool = rte_mempool_create("async_pool", (unsigned)1024*1024-1, sizeof(struct async_op), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    async_pool = rte_mempool_create("async_pool", (unsigned)64*1024-1, sizeof(struct async_op), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (async_pool == NULL) {
         switch(rte_errno){
             case E_RTE_NO_CONFIG:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - function could not get pointer to rte_config structure\n"); break;
@@ -226,13 +222,19 @@ void async_init_storage()
             default:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - Unknown error %d\n",rte_errno); break;
         }
     }
-#if ASYNC_MODE == ASYNC_MODE_PD
-    pd_pool = rte_mempool_create("pd_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(packet_descriptor_t), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
-    if (pd_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create pd pool\n");
-#endif
 
-    context_free_command_ring = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-    if (context_free_command_ring == NULL) rte_exit(EXIT_FAILURE, "Cannot create context ring!\n");
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        context_pool = rte_mempool_create("context_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+        if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
+
+        context_free_command_ring = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        if (context_free_command_ring == NULL) rte_exit(EXIT_FAILURE, "Cannot create context ring!\n");
+    #endif
+
+    #if ASYNC_MODE == ASYNC_MODE_PD
+        pd_pool = rte_mempool_create("pd_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(packet_descriptor_t), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+        if (pd_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create pd pool\n");
+    #endif
 }
 
 

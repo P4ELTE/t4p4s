@@ -38,11 +38,6 @@ static inline void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
             rte_pktmbuf_free(m_table[ret]);
         } while (++ret < n);
     }
-
-/*
-    TODO set the prev_tsc even if the burst was sent due to full tx queue!
-    lcdata->prev_tsc = rte_rdtsc();
-*/
 }
 
 void tx_burst_queue_drain(LCPARAMS) {

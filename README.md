@@ -152,6 +152,17 @@ CONFIG_RTE_LIBRTE_PMD_OPENSSL=y
 
 and do a rebuild on DPDK.
 
+You can also activate a separate crypto node to run the commands with parameter `crypto_node=openssl`. If you run a crypto node, you have to configure an extra core that only will do the external job.
+
+If you want to test with a constant time external function, you can set `crypto_node=fake` and set for example the time with `fake_crypto_time=5000` that sets the external function to run until 5000 clock ticks.
+
+An example call of async mode:
+
+```
+./t4p4s.sh :l2fwd-gen cores=4 ports=3x2 async_mode=pd crypto_node=fake fake_crypto_time=3000
+```
+
+
 ### Execution
 
 The `t4p4s.sh` script uses settings from three configuration files.

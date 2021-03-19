@@ -5,11 +5,8 @@
 
 #include "dpdk_lib.h"
 #include "dpdk_nicoff.h"
-#include "dpdkx_crypto.h"
-
-// -----------------------------------------------------------------------------
-
 #include "util_debug.h"
+#include "dpdkx_crypto.h"
 #include "util_packet.h"
 
 #include "main.h"
@@ -99,10 +96,6 @@ fake_cmd_t get_cmd_to_verify(LCPARAMS) {
             get_command_object(LCPARAMS_IN, lcdata->verify_idx).in_port == 0) {
         lcdata->verify_idx++;
     }
-    fprintf(stderr,"Verify object: actual idx:%d cmd:%d out_port: %d\n",lcdata->verify_idx,
-            get_command_object(LCPARAMS_IN, lcdata->verify_idx).action,
-            get_command_object(LCPARAMS_IN, lcdata->verify_idx).out_port
-    );
     return get_command_object(LCPARAMS_IN, lcdata->verify_idx++);
 }
 
@@ -361,8 +354,12 @@ bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
 bool core_is_working(LCPARAMS) {
-    //fprintf(stderr,"Pending: %d\n",lcdata->conf->pending_crypto);
-    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0;
+    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END;
+
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        ret = ret || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0
+    #endif
+
     #ifdef START_CRYPTO_NODE
         if(ret == false){
             core_stopped_running[rte_lcore_id()] = true;
