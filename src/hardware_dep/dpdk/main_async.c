@@ -265,8 +265,6 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
     pd->pkt_idx = pkt_idx;
 
     uint8_t dropped = 0;
-    pd->context = NULL;
-    clear_pd_states(pd);
     COUNTER_ECHO(lcdata->conf->async_drop_counter,"dropped async: %d\n");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT

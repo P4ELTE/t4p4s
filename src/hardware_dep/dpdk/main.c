@@ -131,6 +131,8 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
     COUNTER_ECHO(lcdata->conf->fwd_packet,"fwd packet: %d\n");
     COUNTER_ECHO(lcdata->conf->async_packet,"async packet: %d\n");
 
+    pd->context = NULL;
+    clear_pd_states(pd);
 
     bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
     if (got_packet) {
