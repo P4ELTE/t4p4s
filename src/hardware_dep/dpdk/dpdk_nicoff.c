@@ -357,7 +357,7 @@ bool core_is_working(LCPARAMS) {
     bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END;
 
     #if ASYNC_MODE != ASYNC_MODE_OFF
-        ret = ret || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0
+        ret = ret || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0;
     #endif
 
     #ifdef START_CRYPTO_NODE
