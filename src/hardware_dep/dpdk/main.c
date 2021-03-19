@@ -124,14 +124,13 @@ void main_loop_fake_crypto(LCPARAMS);
 
 void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
 {
-    #if ASYNC_MODE != ASYNC_MODE_OFF
-        COUNTER_ECHO(lcdata->conf->processed_packet_num,"processed packet num: %d\n");
-        COUNTER_STEP(lcdata->conf->processed_packet_num);
-        COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"send to crypto packet: %d\n");
-        COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"doing crypto packet: %d\n");
-        COUNTER_ECHO(lcdata->conf->fwd_packet,"fwd packet: %d\n");
-        COUNTER_ECHO(lcdata->conf->async_packet,"async packet: %d\n");
-    #endif
+    COUNTER_ECHO(lcdata->conf->processed_packet_num,"processed packet num: %d\n");
+    COUNTER_STEP(lcdata->conf->processed_packet_num);
+    COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"send to crypto packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"doing crypto packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->fwd_packet,"fwd packet: %d\n");
+    COUNTER_ECHO(lcdata->conf->async_packet,"async packet: %d\n");
+
 
     bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
     if (got_packet) {
@@ -205,13 +204,12 @@ void dpdk_main_loop()
         getcontext(&lcore_conf[rte_lcore_id()].main_loop_context);
     #endif
 
-    #if ASYNC_MODE != ASYNC_MODE_OFF
-        COUNTER_INIT(lcdata->conf->processed_packet_num);
-        COUNTER_INIT(lcdata->conf->async_packet);
-        COUNTER_INIT(lcdata->conf->sent_to_crypto_packet);
-        COUNTER_INIT(lcdata->conf->doing_crypto_packet);
-        COUNTER_INIT(lcdata->conf->fwd_packet);
-    #endif
+    COUNTER_INIT(lcdata->conf->processed_packet_num);
+    COUNTER_INIT(lcdata->conf->async_packet);
+    COUNTER_INIT(lcdata->conf->sent_to_crypto_packet);
+    COUNTER_INIT(lcdata->conf->doing_crypto_packet);
+    COUNTER_INIT(lcdata->conf->fwd_packet);
+
     while (core_is_working(LCPARAMS_IN)) {
         #ifdef START_CRYPTO_NODE
             if (lcore_id ==  rte_lcore_count() - 1){

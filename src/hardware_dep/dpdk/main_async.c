@@ -256,7 +256,6 @@ void init_async_data(struct lcore_data *data){
         data->conf->crypto_every_n_counter = -1;
     #endif
     COUNTER_INIT(data->conf->async_drop_counter);
-    //TIME_MEASURE_INIT(lcore_conf[a].async_work_loop_time);
 }
 
 void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))
@@ -278,7 +277,6 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             pd->context = NULL;
         }else{
             COUNTER_STEP(lcdata->conf->async_packet);
-            //TIME_MEASURE_START(lcdata->conf->async_main_time);
             context->uc_stack.ss_sp = (ucontext_t*)context + 1; // the stack is supposed to be placed right after the context description
             context->uc_stack.ss_size = CONTEXT_STACKSIZE;
             context->uc_stack.ss_flags = 0;
@@ -288,7 +286,6 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
 
             getcontext(context);
             context->uc_link = &lcdata->conf->main_loop_context;
-            //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
             makecontext(context, handler_function, 5, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
             DBG_CONTEXT_SWAP_TO_PACKET(context)
             swapcontext(&lcdata->conf->main_loop_context, context);
@@ -305,10 +302,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             pd->context = NULL;
         }else{
             COUNTER_STEP(lcdata->conf->async_packet);
-            //fdebug("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$NOT DROPPED! %d\n",pd_store);
-            //TIME_MEASURE_START(lcdata->conf->async_main_time);
             pd->context = pd_store;
-            //TIME_MEASURE_STOP(lcdata->conf->async_main_time);
 
             if(setjmp(mainLoopJumpPoint[rte_lcore_id()]) == 0) {
                 handler_function_with_params(LCPARAMS_IN, port_id, queue_idx, pkt_idx);
@@ -463,20 +457,20 @@ uint64_t main_loop_async_tick_timer = 0;
 void main_loop_async(LCPARAMS)
 {
     ONE_PER_SEC(main_loop_async_tick_timer){
-        debug("---------------- main loop async - async_size:%d, pending: %d\n", rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+        debug("Main loop async - async_size:%d, pending: %d\n", rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
     }
 
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
-#if ASYNC_MODE == ASYNC_MODE_CONTEXT
-    if(rte_ring_count(context_free_command_ring) > CRYPTO_BURST_SIZE)
-        {
-            n = rte_ring_dequeue_burst(context_free_command_ring, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
-            for(i = 0; i < n; i++)
-                debug(T4LIT(Packet context %p is being freed up.,warning) "\n", cs[lcore_id][i]);
-            rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
-        }
-#endif
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(rte_ring_count(context_free_command_ring) > CRYPTO_BURST_SIZE)
+            {
+                n = rte_ring_dequeue_burst(context_free_command_ring, (void**)cs[lcore_id], CRYPTO_BURST_SIZE, NULL);
+                for(i = 0; i < n; i++)
+                    debug(T4LIT(Packet context %p is being freed up.,warning) "\n", cs[lcore_id][i]);
+                rte_mempool_put_bulk(context_pool, (void**)cs[lcore_id], n);
+            }
+    #endif
 
     if(CRYPTO_DEVICE_AVAILABLE)
     {
@@ -490,30 +484,25 @@ void main_loop_async(LCPARAMS)
                 for(i = 0; i < n; i++)
                     async_op_to_crypto_op(async_ops[lcore_id][i], enqueued_ops[lcore_id][i]);
                 rte_mempool_put_bulk(async_pool, (void**)async_ops[lcore_id], n);
-#ifdef START_CRYPTO_NODE
-                lcdata->conf->pending_crypto += rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_ops[lcore_id], n, NULL);
-#else
-                lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
-#endif
+                #ifdef START_CRYPTO_NODE
+                    lcdata->conf->pending_crypto += rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_ops[lcore_id], n, NULL);
+                #else
+                    lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
+                #endif
             }
         }
 
         if(lcdata->conf->pending_crypto >= CRYPTO_BURST_SIZE)
         {
-#ifdef START_CRYPTO_NODE
-            n = rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
-#else
-            n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
-#endif
-            /*if(n > 0){
-                debug("---------------- data arrived from crypto %d\n",n);
-            }*/
+            #ifdef START_CRYPTO_NODE
+                n = rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
+            #else
+                n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+            #endif
             ONE_PER_SEC(main_loop_async_work_timer){
-                debug("ASYNC WORK FUNCTION %d\n",lcdata->conf->pending_crypto);
+                debug("Async work function %d\n",lcdata->conf->pending_crypto);
             }
             if(n > 0){
-                //TIME_MEASURE_START(lcdata->conf->async_work_loop_time);
-                //fprintf(stderr,"DEQUE from fake crypto:%d\n",n);
                 for (i = 0; i < n; i++)
                 {
                     if (dequeued_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS){

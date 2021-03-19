@@ -91,12 +91,14 @@ pthread_mutex_t dbg_mutex;
     #define debug(M, ...)
     #define debug_mbuf(mbuf,message)
 #endif
-#define flcore_debug(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
 
-#define fdebug(M, ...) \
+
+#define lcore_report(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+
+#define report(M, ...) \
     { \
         pthread_mutex_lock(&dbg_mutex); \
-        flcore_debug(M, ##__VA_ARGS__); \
+        lcore_report(M, ##__VA_ARGS__); \
         pthread_mutex_unlock(&dbg_mutex); \
     }
 
@@ -121,7 +123,7 @@ typedef struct time_measure_s{
                 oc.counter++; \
             } \
             if(rte_get_tsc_cycles() - oc.start_cycle > rte_get_timer_hz()){ \
-                fdebug(print_template,oc.counter); \
+                report(print_template,oc.counter); \
                 oc.start_cycle = rte_get_tsc_cycles(); \
                 oc.counter = 0; \
             } \
@@ -137,7 +139,7 @@ typedef struct time_measure_s{
                 tm.echo_start_cycle = rte_get_tsc_cycles(); \
             } \
             if(rte_get_tsc_cycles() - tm.echo_start_cycle > rte_get_timer_hz() && tm.counter > 0){ \
-                fdebug(print_template,tm.time_sum); \
+                report(print_template,tm.time_sum); \
                 tm.echo_start_cycle = rte_get_tsc_cycles(); \
                 tm.time_sum = 0; \
                 tm.counter = 0; \
