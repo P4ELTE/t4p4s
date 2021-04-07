@@ -11,7 +11,8 @@ from compiler_common import statement_buffer_value, generate_var_name
 #[ #include "gen_include.h"
 
 #{ #ifdef T4P4S_STATS
-#[     extern t4p4s_stats_t t4p4s_stats;
+#[     extern t4p4s_stats_t t4p4s_stats_global;
+#[     extern t4p4s_stats_t t4p4s_stats_per_packet;
 #} #endif
 
 ################################################################################
@@ -269,7 +270,8 @@ for s in parser.states:
 
     #{ static void parser_state_${s.name}(STDPARAMS) {
     #{     #ifdef T4P4S_STATS
-    #[         t4p4s_stats.parser_state__${s.name} = true;
+    #[         t4p4s_stats_global.parser_state__${s.name} = true;
+    #[         t4p4s_stats_per_packet.parser_state__${s.name} = true;
     #}     #endif
 
     if s.name == 'accept':

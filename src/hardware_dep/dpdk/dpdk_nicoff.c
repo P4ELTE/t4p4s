@@ -416,10 +416,15 @@ bool is_packet_handled(LCPARAMS) {
 }
 
 void main_loop_pre_rx(LCPARAMS) {
+
+	t4p4s_init_per_packet_stats();
+
     lcdata->is_valid = true;
 }
 
 void main_loop_post_rx(LCPARAMS) {
+	
+	t4p4s_print_per_packet_stats();
 
 }
 
@@ -476,6 +481,9 @@ void init_storage() {
 }
 
 struct lcore_data init_lcore_data() {
+
+	t4p4s_init_global_stats();
+
     return (struct lcore_data) {
         .conf     = &lcore_conf[rte_lcore_id()],
         .is_valid = true,
@@ -490,7 +498,7 @@ void initialize_nic() {
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
-    t4p4s_print_stats();
+    t4p4s_print_global_stats();
 
     if (launch_count() == 1) {
         debug(T4LIT(Abnormal exit,error) ", code " T4LIT(%d) ".\n", retval);
@@ -508,7 +516,7 @@ void t4p4s_after_launch(int idx) {
 }
 
 int t4p4s_normal_exit() {
-    t4p4s_print_stats();
+    t4p4s_print_global_stats();
 
     if (encountered_error) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
