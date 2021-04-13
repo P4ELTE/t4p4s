@@ -20,12 +20,16 @@
 // -----------------------------------------------------------------------------
 // GLOBALS
 
-struct rte_mempool *context_pool;
 struct rte_mempool *async_pool;
 #if ASYNC_MODE == ASYNC_MODE_PD
     struct rte_mempool *pd_pool;
 #endif
-struct rte_ring    *context_free_command_ring;
+
+
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+    struct rte_mempool *context_pool;
+    struct rte_ring    *context_free_command_ring;
+#endif
 
 // -----------------------------------------------------------------------------
 // INTERFACE
@@ -519,7 +523,6 @@ void main_loop_async(LCPARAMS)
                 }
                 rte_mempool_put_bulk(lcdata->conf->crypto_pool, (void **)dequeued_ops[lcore_id], n);
                 lcdata->conf->pending_crypto -= n;
-                //TIME_MEASURE_STOP(lcdata->conf->async_work_loop_time);
             }
         }
     }

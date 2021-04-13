@@ -7,10 +7,6 @@
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
 
-#if ASYNC_MODE == ASYNC_MODE_PD
-#include <setjmp.h>
-    extern jmp_buf mainLoopJumpPoint[RTE_MAX_LCORE];
-#endif
 
 #ifdef T4P4S_DEBUG
     volatile int packet_counter = 0;
