@@ -527,13 +527,12 @@ extern void init_async_data(struct lcore_data *data);
 struct lcore_data init_lcore_data() {
 
     t4p4s_init_global_stats();
-
-    return (struct lcore_data) {
+    struct lcore_data data = (struct lcore_data) {
         .conf     = &lcore_conf[rte_lcore_id()],
         .is_valid = true,
+        .verify_idx = 0,
         .idx      = 0,
         .pkt_idx  = 0,
-        .mempool  = pktmbuf_pool[0],
     };
     data.conf->mempool  = pktmbuf_pool[0];
     init_async_data(&data);
