@@ -32,7 +32,8 @@ from compiler_common import types
 #[ extern void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
 
 #{ #ifdef T4P4S_STATS
-#[     extern t4p4s_stats_t t4p4s_stats;
+#[     extern t4p4s_stats_t t4p4s_stats_global;
+#[     extern t4p4s_stats_t t4p4s_stats_per_packet;
 #} #endif
 
 ################################################################################
@@ -264,12 +265,14 @@ for table, table_info in table_infos:
 for table, table_info in table_infos:
     #{ void ${table.name}_stats(int action_id, STDPARAMS) {
     #{     #ifdef T4P4S_STATS
-    #[         t4p4s_stats.table_apply__${table.name} = true;
+    #[         t4p4s_stats_global.table_apply__${table.name} = true;
+    #[         t4p4s_stats_per_packet.table_apply__${table.name} = true;
 
     for stat_action in table.actions:
         stat_action_name = stat_action.expression.method.path.name
         #{         if (action_${stat_action_name} == action_id) {
-        #[             t4p4s_stats.table_action_used__${table.name}_${stat_action_name} = true;
+        #[             t4p4s_stats_global.table_action_used__${table.name}_${stat_action_name} = true;
+        #[             t4p4s_stats_per_packet.table_action_used__${table.name}_${stat_action_name} = true;
         #}         }
     #}     #endif
     #} }
@@ -303,8 +306,10 @@ for table, table_info in table_infos:
         #} #endif
 
         #{ #ifdef T4P4S_STATS
-        #[     t4p4s_stats.table_hit__${table.name} = hit || t4p4s_stats.table_hit__${table.name};
-        #[     t4p4s_stats.table_miss__${table.name} = !hit || t4p4s_stats.table_miss__${table.name};
+        #[     t4p4s_stats_global.table_hit__${table.name} = hit || t4p4s_stats_global.table_hit__${table.name};
+        #[     t4p4s_stats_global.table_miss__${table.name} = !hit || t4p4s_stats_global.table_miss__${table.name};
+        #[     t4p4s_stats_per_packet.table_hit__${table.name} = hit || t4p4s_stats_per_packet.table_hit__${table.name};
+        #[     t4p4s_stats_per_packet.table_miss__${table.name} = !hit || t4p4s_stats_per_packet.table_miss__${table.name};
         #} #endif
 
     if len(table.direct_meters + table.direct_counters) > 0:

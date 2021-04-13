@@ -55,4 +55,7 @@ int get_packet_idx(LCPARAMS);
 uint32_t get_port_mask();
 uint8_t get_port_count();
 
-void t4p4s_print_stats();
+void t4p4s_print_global_stats();
+void t4p4s_print_per_packet_stats();
+void t4p4s_init_global_stats();
+void t4p4s_init_per_packet_stats();
