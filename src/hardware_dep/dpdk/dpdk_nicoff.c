@@ -93,7 +93,7 @@ fake_cmd_t get_command_object(LCPARAMS, unsigned idx){
 
 fake_cmd_t get_cmd_to_verify(LCPARAMS) {
     while(  get_command_object(LCPARAMS_IN, lcdata->verify_idx).action != FAKE_PKT ||
-            get_command_object(LCPARAMS_IN, lcdata->verify_idx).in_port == 0) {
+            strlen(get_command_object(LCPARAMS_IN, lcdata->verify_idx).out[0]) == 0) {
         lcdata->verify_idx++;
     }
     return get_command_object(LCPARAMS_IN, lcdata->verify_idx++);
