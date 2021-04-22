@@ -19,6 +19,9 @@ for table in hlir.tables:
     tmt = table.matchType.name
     ks  = table.key_length_bytes
     #[ {
+    #[  .name           = "${table.name}",
+    #[  .canonical_name = "${table.canonical_name}",
+
     #[  .id = TABLE_${table.name},
     #[  .type = LOOKUP_$tmt,
 
@@ -40,7 +43,6 @@ for table in hlir.tables:
     #[  .max_size = 250000,
 
     #{  #ifdef T4P4S_DEBUG
-    #[      .canonical_name= "${table.canonical_name}",
     #[      .short_name= "${table.short_name}",
     #}  #endif
     #[ },
@@ -48,28 +50,30 @@ for table in hlir.tables:
 
 
 for table in hlir.tables:
-    #{ void setdefault_${table.name}(uint8_t action_id) {
+    #{ void setdefault_${table.name}(actions_t action_id) {
     #{     table_entry_${table.name}_t default_action = {
     #[          .action = { action_id },
     #[          .is_entry_valid = VALID_TABLE_ENTRY,
     #}     };
-    #[     table_setdefault_promote(TABLE_${table.name}, (uint8_t*)&default_action);
+    #[     table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action);
     #} }
 
 
+#[ #define SOCKET0 0
 
 #[ extern struct socket_state state[NB_SOCKETS];
-#[ extern void table_setdefault_promote(int tableid, uint8_t* value);
+#[ extern void table_setdefault_promote(table_name_t tableid, actions_t* action_id);
 
 #{ void init_table_default_actions() {
 #[     debug(" :::: Init table default actions\n");
 
 for table in hlir.tables:
-    #[     int current_replica_${table.name} = state[0].active_replica[TABLE_${table.name}];
-    #{     if (likely(state[0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
+    #[     int current_replica_${table.name} = state[SOCKET0].active_replica[TABLE_${table.name}];
+    #{     if (likely(state[SOCKET0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
     #[         setdefault_${table.name}(action_${table.default_action.expression.method.action_ref.name});
     #}     }
 #} }
+#[
 
 for table in hlir.tables:
     if 'entries' not in table:
@@ -182,3 +186,21 @@ for table in hlir.tables:
         continue
     #[     init_table_const_entries_${table.name}();
 #} }
+
+#[ // ============================================================================
+#[ // Getters
+
+#[ extern char* action_names[];
+#[ extern char* action_canonical_names[];
+
+#[ int get_entry_action_id(const void* entry) {
+#[     return *((int*)entry);
+#[ }
+
+#[ char* get_entry_action_name(const void* entry) {
+#[     return action_canonical_names[get_entry_action_id(entry)];
+#[ }
+
+#[ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
+#[     return (bool*)(entry + t->entry.action_size + t->entry.state_size);
+#[ }
