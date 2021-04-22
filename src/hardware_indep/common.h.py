@@ -69,3 +69,31 @@ for table in hlir.tables:
 
 #} } t4p4s_stats_t;
 #} #endif
+#{ typedef enum {
+#[		none = 0,
+parser = hlir.parsers[0]
+i = 1
+for s in parser.states:
+    #[      parser_state__${s.name} = $i,
+    i+=1
+
+#[
+
+for table in hlir.tables:
+    #[          table_apply__${table.name} = $i,
+    i+=1
+    if 'key' in table:
+        #[         table_hit__${table.name} = $i,
+        i+=1
+        #[         table_miss__${table.name} = $i,
+        i+=1
+    else:
+        #[         table_used__${table.name} = $i,
+        i+=1
+
+
+    for action_name in table.actions.map('expression.method.path.name'):
+        #[         table_action_used__${table.name}_${action_name} = $i,
+        i+=1
+
+#} } t4p4s_controlflow_name_t;

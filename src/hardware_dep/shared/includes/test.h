@@ -10,6 +10,9 @@
 
 #define FDATA(...)    { __VA_ARGS__, "" }
 
+#define REQUIRE(...)    { __VA_ARGS__, 0 }
+#define FORBID(...)     { __VA_ARGS__, 0 }
+
 #define FSLEEP(time)  {FAKE_PKT, 0, 0, FDATA(""), time, 0, FDATA("")}
 #define FEND          {FAKE_END, 0, 0, FDATA(""),    0, 0, FDATA("")}
 

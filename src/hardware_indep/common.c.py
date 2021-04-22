@@ -196,9 +196,54 @@ for table in hlir.tables:
 
 #}     }
 
+#{     bool t4p4s_check_stat_based_requirement(t4p4s_stats_t stat, t4p4s_controlflow_name_t requirement, bool positive) {
+parser = hlir.parsers[0]
+for s in parser.states:
+    #[         if (requirement==parser_state__${s.name} && ((positive && stat.parser_state__${s.name}) || (!positive && !stat.parser_state__${s.name}))) {return true;}
+
+#[
+
+for table in hlir.tables:
+    #[         if (requirement==table_apply__${table.name} && ((positive && stat.table_apply__${table.name}) || (!positive && !stat.table_apply__${table.name}))) {return true;}
+    
+    if 'key' in table:
+        #[         if (requirement==table_hit__${table.name} && ((positive && stat.table_hit__${table.name}) || (!positive && !stat.table_hit__${table.name}))) {return true;}
+        #[         if (requirement==table_miss__${table.name} && ((positive && stat.table_miss__${table.name}) || (!positive && !stat.table_miss__${table.name}))) {return true;}
+    else:
+        #[         if (requirement==table_used__${table.name} && ((positive && stat.table_used__${table.name}) || (!positive && !stat.table_used__${table.name}))) {return true;}
+   
+
+    for action_name in table.actions.map('expression.method.path.name'):
+        #[         if (requirement==table_action_used__${table.name}_${action_name} && ((positive && stat.table_action_used__${table.name}_${action_name}) || (!positive && !stat.table_action_used__${table.name}_${action_name}))) {return true;}
+
+#[         return false;
+#}     }
+
+#{    bool check_controlflow_requirements(fake_cmd_t cmd) {
+	
+#[	    bool ok = true;
+	
+#[	    t4p4s_controlflow_name_t* name_require = cmd.require;
+	
+#{      while (*name_require > 0) {
+#[		    ok = ok && t4p4s_check_stat_based_requirement(t4p4s_stats_per_packet ,*name_require, 1);
+#[		    ++name_require;
+#}	    }
+	
+#[	    t4p4s_controlflow_name_t* name_forbid = cmd.forbid;
+	
+#{      while (*name_forbid > 0) {
+#[		    ok = ok && t4p4s_check_stat_based_requirement(t4p4s_stats_per_packet ,*name_forbid, 0);
+#[		    ++name_forbid;
+#}	    }
+	
+#[	    return ok;
+#}    }
+
 #[ #else
 #[     void t4p4s_print_global_stats() { /* do nothing */ }
 #[     void t4p4s_print_per_packet_stats() { /* do nothing */ }
 #[     void t4p4s_init_global_stats()  { /* do nothing */ }
 #[     void t4p4s_init_per_packet_stats()  { /* do nothing */ }
+#[     bool check_controlflow_requirements(fake_cmd_t cmd) { return true; }
 #} #endif

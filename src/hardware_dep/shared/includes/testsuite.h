@@ -4,6 +4,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "common.h"
 
 // ------------------------------------------------------
 // Fake packet data
@@ -18,15 +19,18 @@ enum fake_cmd_e {
 #define MAX_SECTION_COUNT 128
 
 typedef struct {
-    enum fake_cmd_e action;
-    void*           ptr;
-    uint32_t        in_port;
-    const char*     in[MAX_SECTION_COUNT];
+    enum fake_cmd_e 			action;
+    void*           			ptr;
+    uint32_t        			in_port;
+    const char*     			in[MAX_SECTION_COUNT];
 
-    int             sleep_millis;
+    int             			sleep_millis;
 
-    uint32_t        out_port;
-    const char*     out[MAX_SECTION_COUNT];
+    uint32_t        			out_port;
+    const char*     			out[MAX_SECTION_COUNT];
+    
+    t4p4s_controlflow_name_t  	require[MAX_SECTION_COUNT];
+    t4p4s_controlflow_name_t  	forbid[MAX_SECTION_COUNT];  
 } fake_cmd_t;
 
 // ------------------------------------------------------

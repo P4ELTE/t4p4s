@@ -59,3 +59,4 @@ void t4p4s_print_global_stats();
 void t4p4s_print_per_packet_stats();
 void t4p4s_init_global_stats();
 void t4p4s_init_per_packet_stats();
+bool check_controlflow_requirements(fake_cmd_t cmd);
