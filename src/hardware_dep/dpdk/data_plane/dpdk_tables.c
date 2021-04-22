@@ -7,9 +7,6 @@
 
 #include "tables.h"
 
-extern char* action_names[];
-extern char* action_canonical_names[];
-
 // ============================================================================
 // LOOKUP TABLE IMPLEMENTATIONS
 
@@ -23,27 +20,6 @@ extern char* action_canonical_names[];
 #include <rte_malloc.h>     // extended tables
 #include <rte_errno.h>
 
-// ============================================================================
-// Getters
-
-// Returns the action id stored in the table entry parameter.
-// Table entries have different types (${table.name}_action),
-// but all of them have to start with an int, the action id.
-int get_entry_action_id(const void* entry) {
-    return *((int*)entry);
-}
-
-// Returns the action id stored in the table entry parameter.
-// Table entries have different types (${table.name}_action),
-// but all of them have to start with an int, the action id.
-char* get_entry_action_name(const void* entry) {
-    return action_canonical_names[get_entry_action_id(entry)];
-}
-
-// Computes the location of the validity field of the entry.
-bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
-    return (bool*)(entry + t->entry.action_size + t->entry.state_size);
-}
 
 // ============================================================================
 // Error messages

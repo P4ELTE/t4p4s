@@ -81,7 +81,7 @@
     MODIFY_INT32_INT32_AUTO(dst_fd, value32); \
 }
 
-#define MASK_AT(value32,mask,bitcount) ((value32 & (mask >> bitcount)) << bitcount)
+#define MASK_AT(value32,mask,bitcount) ((value32 & ((mask) >> (bitcount))) << (bitcount))
 
 // Modifies a field in the packet by a uint32_t value (no byteorder conversion) [MAX 4 BYTES]
 // assuming `uint32_t res32' is in the scope
