@@ -3,287 +3,24 @@
 
 from utils.codegen import format_declaration, format_statement, format_expr, format_type, gen_format_type, get_method_call_env
 from compiler_log_warnings_errors import addError, addWarning
-from compiler_common import types
+from compiler_common import types, generate_var_name, get_hdrfld_name, unique_everseen
 
-#[ #include <stdlib.h>
-#[ #include <string.h>
-#[ #include <stdbool.h>
-#[ #include <netinet/in.h>
+#[ #include "dataplane_impl.h"
+#[ #include "gen_model.h"
 
-#[ #include "dpdk_lib.h"
-#[ #include "actions.h"
-#[ #include "backend.h"
-#[ #include "util_debug.h"
-#[ #include "tables.h"
-#[ #include "gen_include.h"
+# TODO make this an import from hardware_indep
+#[ #include "dpdk_smem.h"
 
-#{ #ifdef T4P4S_P4RT
-#[     #include "PI/proto/pi_server.h"
-#[     #include "p4rt/device_mgr.h"
-#[     extern device_mgr_t *dev_mgr_ptr;
-#} #endif
-
-#[ extern ctrl_plane_backend bg;
-#[ extern char* action_short_names[];
-#[ extern char* action_names[];
-
-#[ extern void parse_packet(STDPARAMS);
-#[ extern void increase_counter(int counterid, int index);
-#[ extern void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
-
-#{ #ifdef T4P4S_STATS
-#[     extern t4p4s_stats_t t4p4s_stats_global;
-#[     extern t4p4s_stats_t t4p4s_stats_per_packet;
-#} #endif
-
-################################################################################
-
-packet_name = hlir.news.main.type.baseType.type_ref.name
-pipeline_elements = hlir.news.main.arguments
-
-#{ typedef struct {
-#[     bool hit;
-#[     int action_run;
-#} } apply_result_t;
-
-for ctl in hlir.controls:
-    #[ void control_${ctl.name}(STDPARAMS);
-    for t in ctl.controlLocals['P4Table']:
-        #[ apply_result_t ${t.name}_apply(STDPARAMS);
-
-################################################################################
-# Table key calculation
-
-for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
-        continue
-
-    #{ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key) {
-    sortedfields = sorted(table.key.keyElements, key=lambda k: k.match_order)
-    #TODO variable length fields
-    #TODO field masks
-    for f in sortedfields:
-        if 'header' in f:
-            hi_name = "all_metadatas" if f.header.urtype.is_metadata else f.header.name
-
-            #{ if (unlikely(!is_header_valid(HDR(${hi_name}), pd))) {
-            #{     #ifdef T4P4S_DEBUG
-            #[         debug(" " T4LIT(!!!!,error) " " T4LIT(Lookup on invalid header,error) " " T4LIT(${hi_name},header) "." T4LIT(${f.field_name},field) ", " T4LIT(it will contain an unspecified value,warning) "\n");
-            #}     #endif
-            #[     return;
-            #} }
-            if f.size <= 32:
-                #[ EXTRACT_INT32_BITS_PACKET(pd, HDR(${hi_name}), FLD(${f.header.name},${f.field_name}), *(uint32_t*)key)
-                #[ key += sizeof(uint32_t);
-            elif f.size > 32 and f.size % 8 == 0:
-                byte_width = (f.size+7)//8
-                #[ EXTRACT_BYTEBUF_PACKET(pd, HDR(${hi_name}), FLD(${f.header.name},${f.field_name}), key)
-                #[ key += ${byte_width};
-            else:
-                addWarning("table key computation", f"Skipping unsupported field {f.id} ({f.size} bits): it is over 32 bits long and not byte aligned")
-        else:
-            # f is a control local
-            if f.size <= 32 or f.size % 8 == 0:
-                byte_width = (f.size+7)//8
-                fld_name = f.expression.path.name
-                #[ memcpy(key, &((control_locals_${table.control.name}_t*) pd->control_locals)->${fld_name}, ${byte_width});
-                #[ key += ${byte_width};
-            else:
-                addWarning("table key computation", f"Skipping unsupported key component {f.expression.path.name} ({f.size} bits): it is over 32 bits long and not byte aligned")
-
-    if table.matchType.name == "lpm":
-        #[ key -= ${table.key_length_bytes};
-    #} }
+table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 ################################################################################
 # Table application
 
-def unique_stable(items):
-    """Returns only the first occurrence of the items in a list.
-    Equivalent to unique_everseen from Python 3."""
-    from collections import OrderedDict
-    return list(OrderedDict.fromkeys(items))
-
-
-for type in unique_stable([comp['type'] for table in hlir.tables for smem in table.direct_meters + table.direct_counters for comp in smem.components]):
+for type in unique_everseen([comp['type'] for table in hlir.tables for smem in table.direct_meters + table.direct_counters for comp in smem.components]):
     #[ void apply_direct_smem_$type(register_uint32_t* smem, uint32_t value, char* table_name, char* smem_type_name, char* smem_name) {
     #[    debug("     : applying apply_direct_smem_$type(register_uint32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name)");
     #[ }
 
-
-#[ #define STD_DIGEST_RECEIVER_ID 1024
-
-# TODO make it unique by digest name
-for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').filter(lambda n: 'path' in n.method and n.method.path.name=='digest'):
-    digest = mcall.typeArguments[0]
-    funname = f'{mcall.method.path.name}__{digest.path.name}'
-
-    #{ ${format_type(mcall.urtype)} $funname(uint32_t /* ignored */ receiver, ctrl_plane_digest cpd, SHORT_STDPARAMS) {
-    #[     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(%d,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(cpd,extern) "\n", STD_DIGEST_RECEIVER_ID);
-
-    #[    /* ctrl_plane_digest cpd = create_digest(bg, "digest");
-
-    for fld in digest.urtype.fields:
-        if fld.urtype.size > 32:
-            #[     dbg_bytes(digest.${fld.name}, (${fld.urtype.size}+7)/8, "       : $[field]{fld.name}/" T4LIT(${fld.urtype.size}) " = ");
-            #[     add_digest_field(cpd, digest.${fld.name}, ${fld.urtype.size});
-        else:
-            #[     debug("       : " T4LIT(ingress_port,field) "/" T4LIT(${fld.urtype.size}) " = " T4LIT(%x) "\n", digest.${fld.name});
-            #[     add_digest_field(cpd, &(digest.${fld.name}), ${fld.urtype.size});
-    #[ */
-    #{ #ifdef T4P4S_P4RT
-    #[        // dev_mgr_send_digest(dev_mgr_ptr, (struct p4_digest*)(((Digest_t*)cpd)->ctrl_plane_digest), STD_DIGEST_RECEIVER_ID);
-    #} #endif
-    #[     send_digest(bg, cpd, STD_DIGEST_RECEIVER_ID);
-    #[     sleep_millis(DIGEST_SLEEP_MILLIS);
-    #} }
-
-
-#{ #ifdef T4P4S_DEBUG
-for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
-        continue
-
-    for dbg_action in table.actions:
-        aoname = dbg_action.action_object.name
-        #{ void ${table.name}_show_params_${aoname}(char* out, const action_${aoname}_params_t* actpar) {
-        params = dbg_action.expression.method.type.parameters.parameters
-
-        def make_value(value):
-            is_hex = value.base == 16
-            split_places = 4 if is_hex else 3
-
-            prefix = '0x' if is_hex else ''
-            val = f'{value.value:x}' if is_hex else f'{value.value}'
-            val = '_'.join(val[::-1][i:i+split_places] for i in range(0, len(val), split_places))[::-1]
-            return f'{prefix}{val}'
-
-        fmt_long_param = lambda sz: ('%02x%02x ' * (sz//2) + ('%02x' if sz%2 == 1 else '')).strip()
-
-        param_fmts = (f'" T4LIT(%d) "=" T4LIT(%0{(sz+3)//4}x,bytes) "' if sz <= 32 else f'(" T4LIT({fmt_long_param((sz+7)//8)},bytes) ")' for param in params for sz in [param.urtype.size])
-        params_str = ", ".join((f'%s" T4LIT({param.name},field) "/" T4LIT({param.urtype.size}b) "={fmt}' for param, fmt in zip(params, param_fmts)))
-        if params_str != "":
-            params_str = f'({params_str})'
-
-        #[ sprintf(out, "${params_str}%s",
-        for param in params:
-            bytesz = (param.urtype.size+7)//8
-            if param.urtype.size <= 32:
-                #[               ${bytesz} > 1 ? "§" : "", // maybe cpu->BE conversion
-                converter = '' if bytesz == 1 else f'rte_cpu_to_be_{bytesz*8}'
-                #[               $converter(actpar->${param.name}), // decimal
-                #[               $converter(actpar->${param.name}), // hex
-            else:
-                #[               "", // no cpu->BE conversion
-                for i in range(bytesz):
-                    #[               (actpar->${param.name})[$i],
-        #[ "");
-        #} }
-        #[
-
-#{ void show_params_by_action_id(char* out, int table_id, int action_id, const void* entry) {
-for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
-        #[     if (table_id == TABLE_${table.name}) { sprintf(out, "%s", ""); return; }
-        continue
-
-    #{     if (table_id == TABLE_${table.name}) {
-    for dbg_action in table.actions:
-        aoname = dbg_action.action_object.name
-        #{         if (action_id == action_${aoname}) {
-        #[             ${table.name}_show_params_${aoname}(out, (action_${aoname}_params_t*)entry);
-        #[             return;
-        #}         }
-    #}     }
-#} }
-
-
-#{ void apply_show_hit_with_key_msg(uint8_t** key, bool hit, int key_size, int key_length_bytes, const char* matchtype_name, const char* action_short_name, const char* params_txt, const char* table_info, STDPARAMS) {
-#[     dbg_bytes(key, key_size,
-#[               " %s Lookup on " T4LIT(%s,table) "/" T4LIT(%s) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
-#[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
-#[               table_info,
-#[               matchtype_name,
-#[               key_length_bytes,
-#[               action_short_name,
-#[               params_txt,
-#[               hit ? "" : " (default)",
-#[               hit ? T4LIT(hit,success) : T4LIT(miss,status)
-#[               );
-#} }
-
-table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
-
-for table, table_info in table_infos:
-    if 'key' not in table or table.key_length_bits == 0:
-        continue
-
-    #{ void ${table.name}_apply_show_hit_with_key(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
-    #[     char params_txt[1024];
-    for dbg_action in table.actions:
-        aoname = dbg_action.action_object.name
-        dbg_action_name = dbg_action.expression.method.path.name
-        #{     if (!strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
-        #[         ${table.name}_show_params_${aoname}(params_txt, &(entry->action.${aoname}_params));
-        #[         apply_show_hit_with_key_msg(key, hit, table_config[TABLE_${table.name}].entry.key_size, ${table.key_length_bytes}, "${table.matchType.name}", action_short_names[entry->action.action_id], params_txt, "${table_info}", STDPARAMS_IN);
-        #}     }
-    #} }
-    #[
-#} #endif
-
-for table, table_info in table_infos:
-    if 'key' in table and table.key_length_bits > 0:
-        continue
-
-    #{ void ${table.name}_apply_show_hit(int action_id, STDPARAMS) {
-    if 'key' not in table:
-        #[     debug(" :::: Lookup on " T4LIT(${table_info},table) ", default action is " T4LIT(%s,action) "\n", action_short_names[action_id]);
-    elif table.key_length_bits == 0:
-        if table.is_hidden or len(table.actions) == 1:
-            #[     debug(" ~~~~ Action $$[action]{}{%s}\n", action_short_names[action_id]);
-        else:
-            #[     debug(" " T4LIT(XXXX,status) " Lookup on $$[table]{table_info}: $$[action]{}{%s} (default)\n", action_short_names[action_id]);
-    #} }
-    #[
-
-for table, table_info in table_infos:
-    if len(table.direct_meters + table.direct_counters) == 0:
-        continue
-
-    #{ void ${table.name}_apply_smems(STDPARAMS) {
-    #[     // applying direct counters and meters
-    for smem in table.direct_meters + table.direct_counters:
-        for comp in smem.components:
-            value = "pd->parsed_length" if comp['for'] == 'bytes' else "1"
-            type  = comp['type']
-            name  = comp['name']
-            #[     extern void apply_${smem.smem_type}(${smem.smem_type}_t*, int, const char*, const char*, const char*);
-            #[     apply_${smem.smem_type}(&(global_smem.${name}_${table.name}), $value, "${table.name}", "${smem.smem_type}", "$name");
-    #} }
-    #[
-
-for table, table_info in table_infos:
-    #{ void ${table.name}_stats(int action_id, STDPARAMS) {
-    #{     #ifdef T4P4S_STATS
-    #[         t4p4s_stats_global.table_apply__${table.name} = true;
-    #[         t4p4s_stats_per_packet.table_apply__${table.name} = true;
-
-    for stat_action in table.actions:
-        stat_action_name = stat_action.expression.method.path.name
-        #{         if (action_${stat_action_name} == action_id) {
-        #[             t4p4s_stats_global.table_action_used__${table.name}_${stat_action_name} = true;
-        #[             t4p4s_stats_per_packet.table_action_used__${table.name}_${stat_action_name} = true;
-        #}         }
-    #}     #endif
-    #} }
-    #[
-
-for table, table_info in table_infos:
-    # note: default_val is set properly only on lcore 0 on each socket
-    #{ table_entry_${table.name}_t* ${table.name}_get_default_entry(STDPARAMS) {
-    #[     return (table_entry_${table.name}_t*)tables[TABLE_${table.name}][0].default_val;
-    #} }
-    #[
 
 for table, table_info in table_infos:
     #{ apply_result_t ${table.name}_apply(STDPARAMS) {
@@ -301,16 +38,16 @@ for table, table_info in table_infos:
         #[         entry = ${table.name}_get_default_entry(STDPARAMS_IN);
         #}     }
 
-        #{ #ifdef T4P4S_DEBUG
-        #[     if (likely(entry != 0))    ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
-        #} #endif
+        #{     #ifdef T4P4S_DEBUG
+        #[         if (likely(entry != 0))    ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
+        #}     #endif
 
-        #{ #ifdef T4P4S_STATS
-        #[     t4p4s_stats_global.table_hit__${table.name} = hit || t4p4s_stats_global.table_hit__${table.name};
-        #[     t4p4s_stats_global.table_miss__${table.name} = !hit || t4p4s_stats_global.table_miss__${table.name};
-        #[     t4p4s_stats_per_packet.table_hit__${table.name} = hit || t4p4s_stats_per_packet.table_hit__${table.name};
-        #[     t4p4s_stats_per_packet.table_miss__${table.name} = !hit || t4p4s_stats_per_packet.table_miss__${table.name};
-        #} #endif
+        #{     #ifdef T4P4S_STATS
+        #[         t4p4s_stats_global.table_hit__${table.name} = hit || t4p4s_stats_global.table_hit__${table.name};
+        #[         t4p4s_stats_global.table_miss__${table.name} = !hit || t4p4s_stats_global.table_miss__${table.name};
+        #[         t4p4s_stats_per_packet.table_hit__${table.name} = hit || t4p4s_stats_per_packet.table_hit__${table.name};
+        #[         t4p4s_stats_per_packet.table_miss__${table.name} = !hit || t4p4s_stats_per_packet.table_miss__${table.name};
+        #}     #endif
 
     if len(table.direct_meters + table.direct_counters) > 0:
         #[     if (likely(hit))    ${table.name}_apply_smems(STDPARAMS_IN);
@@ -351,39 +88,42 @@ for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
     #[     pd->headers[HDR(${hdr.name})].pointer = NULL;
 
+for stk in hlir.header_stacks:
+    #[     pd->stacks[STK(${stk.name})].current = -1;
+
 #[     // reset metadatas
 #[     memset(pd->headers[HDR(all_metadatas)].pointer, 0, hdr_infos[HDR(all_metadatas)].byte_width * sizeof(uint8_t));
 #[
 #[     reset_vw_fields(SHORT_STDPARAMS_IN);
 #} }
 
+
+#{ void init_header(header_instance_t hdrinst, const char* hdrname, SHORT_STDPARAMS) {
+#{     pd->headers[hdrinst] = (header_descriptor_t) {
+#[         .type = hdrinst,
+#[         .length = hdr_infos[hdrinst].byte_width,
+#[         .pointer = NULL,
+#[         .var_width_field_bitwidth = 0,
+#[         #ifdef T4P4S_DEBUG
+#[             .name = hdrname,
+#[         #endif
+#}     };
+#} }
+#[
+
+
 #{ void init_headers(SHORT_STDPARAMS) {
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
-    #{     pd->headers[HDR(${hdr.name})] = (header_descriptor_t) {
-    #[         .type = HDR(${hdr.name}),
-    #[         .length = hdr_infos[HDR(${hdr.name})].byte_width,
-    #[         .pointer = NULL,
-    #[         .var_width_field_bitwidth = 0,
-    #[         #ifdef T4P4S_DEBUG
-    #[             .name = "${hdr.name}",
-    #[         #endif
-    #}     };
-    #[
+    #[     init_header(HDR(${hdr.name}), "${hdr.name}", SHORT_STDPARAMS_IN);
 
 #[     // init metadatas
-#[     pd->headers[HDR(all_metadatas)] = (header_descriptor_t)
-#{     {
+#{     pd->headers[HDR(all_metadatas)] = (header_descriptor_t) {
 #[         .type = HDR(all_metadatas),
 #[         .length = hdr_infos[HDR(all_metadatas)].byte_width,
 #[         .pointer = rte_malloc("all_metadatas_t", hdr_infos[HDR(all_metadatas)].byte_width * sizeof(uint8_t), 0),
 #[         .var_width_field_bitwidth = 0,
 #}     };
 #} }
-
-################################################################################
-
-def is_keyless_single_action_table(table):
-    return table.key_length_bytes == 0 and len(table.actions) == 2 and table.actions[1].action_object.name.startswith('NoAction')
 
 ################################################################################
 
@@ -395,26 +135,17 @@ def is_keyless_single_action_table(table):
 #[     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_INIT_VALUE);
 #} }
 
-for hdr in hlir.header_instances:
-    #{ void update_hdr_${hdr.name}(STDPARAMS) {
-    for fld in hdr.urtype.fields:
-        if fld.preparsed or fld.urtype.size > 32:
-            continue
-
-        #{     if (pd->fields.FLD_ATTR(${hdr.name},${fld.name}) == MODIFIED) {
-        #[         MODIFY_INT32_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), pd->fields.FLD(${hdr.name},${fld.name}));
-        #}     }
-    #} }
-    #[
-
-#{ void update_packet(STDPARAMS) {
-for hdr in hlir.header_instances:
-    #[     update_hdr_${hdr.name}(STDPARAMS_IN);
-#} }
-
 ################################################################################
 # Pipeline
 
+for ctl in hlir.controls:
+    for idx, comp in enumerate(ctl.body.components):
+        #{ void control_stage_${ctl.name}_${idx}(control_locals_${ctl.name}_t* local_vars, STDPARAMS)  {
+        #[     uint32_t value32, res32;
+        #[     (void)value32, (void)res32;
+        #= format_statement(ctl.body.components[idx], ctl)
+        #} }
+        #[
 
 for ctl in hlir.controls:
     if len(ctl.body.components) == 0:
@@ -423,27 +154,26 @@ for ctl in hlir.controls:
 
     #{ void control_${ctl.name}(STDPARAMS)  {
     #[     debug("Control $$[control]{ctl.name}...\n");
-    #[     uint32_t value32, res32;
-    #[     (void)value32, (void)res32;
     #[     control_locals_${ctl.name}_t local_vars_struct;
-    #[     control_locals_${ctl.name}_t* local_vars = &local_vars_struct;
-    #[     pd->control_locals = (void*) local_vars;
-    #= format_statement(ctl.body, ctl)
+    #[     pd->control_locals = (void*)&local_vars_struct;
+    for idx, comp in enumerate(ctl.body.components):
+        #[     control_stage_${ctl.name}_${idx}(&local_vars_struct, STDPARAMS_IN);
     #} }
+    #[
 
 #[ void process_packet(STDPARAMS)
 #{ {
 for idx, ctl in enumerate(hlir.controls):
     if len(ctl.body.components) == 0:
-        #[ // skipping empty control ${ctl.name}
+        #[     // skipping empty control ${ctl.name}
     else:
-        #[ control_${ctl.name}(STDPARAMS_IN);
+        #[     control_${ctl.name}(STDPARAMS_IN);
 
     if hlir.news.model == 'V1Switch' and idx == 1:
-        #[ transfer_to_egress(pd);
+        #[     transfer_to_egress(pd);
     if ctl.name == 'egress':
-        #[ // TODO temporarily disabled
-        #[ // update_packet(STDPARAMS_IN); // we need to update the packet prior to calculating the new checksum
+        #[     // TODO temporarily disabled
+        #[     // update_packet(STDPARAMS_IN); // we need to update the packet prior to calculating the new checksum
 #} }
 
 ################################################################################
@@ -474,7 +204,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #{         if (unlikely(hdr->pointer == NULL)) {
 #{             #ifdef T4P4S_DEBUG
 #{                 if (hdr->was_enabled_at_initial_parse) {
-#[                     debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr->name, hdr->length);
+#[                     debug("        : -" T4LIT(#%02d ,status) "$$[status][%]{longest_hdr_name_len+1}{s}$$[status]{}{/%02dB} (invalidated)\n", pd->header_reorder[i] + 1, hdr->name, hdr->length);
 #}                 }
 #}             #endif
 #[             continue;

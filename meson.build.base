@@ -4,43 +4,15 @@ srcg = 'srcgen'
 
 project_description = meson.project_name()
 
-project_headers = [
-    srcg / 'actions.h',
-    srcg / 'common.h',
-    srcg / 'parser.h',
-    srcg / 'stateful_memory.h',
-    srcg / 'tables.h',
-
-    hdep / 'dpdk/includes/aliases.h',
-    hdep / 'dpdk/includes/dpdk_lib.h',
-    hdep / 'dpdk/includes/dpdk_model_psa.h',
-    hdep / 'dpdk/includes/dpdk_model_v1model.h',
-    hdep / 'dpdk/includes/dpdk_nicoff.h',
-    hdep / 'dpdk/includes/dpdk_nicon.h',
-    hdep / 'dpdk/includes/dpdk_primitives.h',
-    hdep / 'dpdk/includes/dpdk_primitives_impl.h',
-    hdep / 'dpdk/includes/dpdk_smem.h',
-    hdep / 'dpdk/includes/dpdk_smem_reg.h',
-    hdep / 'dpdk/includes/dpdk_tables.h',
-    hdep / 'dpdk/includes/main.h',
-
-    hdep / 'shared/ctrl_plane/ctrl_plane_backend.h',
-
-    hdep / 'shared/includes/backend.h',
-    hdep / 'shared/includes/dataplane.h',
-    hdep / 'shared/includes/dataplane_callback.h',
-    hdep / 'shared/includes/dataplane_hdr_fld_pkt.h',
-    hdep / 'shared/includes/dataplane_lookup.h',
-    hdep / 'shared/includes/ternary_naive.h',
-    hdep / 'shared/includes/test.h',
-    hdep / 'shared/includes/util_debug.h',
-    hdep / 'shared/includes/util_packet.h',
-
-    srcg / 'gen_include.h',
-]
-
 project_source_files = [
     srcg / 'dataplane.c',
+    srcg / 'dataplane_key.c',
+    srcg / 'dataplane_table_default_entry.c',
+    srcg / 'dataplane_stats.c',
+    srcg / 'dataplane_smem.c',
+    srcg / 'dataplane_update.c',
+    srcg / 'dataplane_show.c',
+
     srcg / 'tables.c',
     srcg / 'parser.c',
     srcg / 'actions.c',
