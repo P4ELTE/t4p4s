@@ -1,5 +1,7 @@
 #!/bin/bash
 
+STARTPWD=$(pwd)
+
 [ "${T4P4S_TRACE}" != "" ] && export PS4='trace>:`date +%s.%N`:$0:line $LINENO:' && mkdir -p "./build" && exec 321>"./build/trace.log" && BASH_XTRACEFD=321 && set -x
 
 declare -A KNOWN_COLOURS
@@ -315,7 +317,26 @@ CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
 
 ARCH=${ARCH-dpdk}
 ARCH_OPTS_FILE=${ARCH_OPTS_FILE-opts_${ARCH}.cfg}
-CFGFILES=${CFGFILES-${COLOURS_CONFIG_FILE},${LIGHTS_CONFIG_FILE},!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
+
+colours[$i]="\033[${COLOUR}m"
+
+CFGFILES=${CFGFILES-!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
+
+declare -A OPTS=([cfgfiles]="$CFGFILES")
+
+if [ ! -f "build/tools/${COLOURS_CONFIG_FILE}.sh" ]; then
+    cat ${COLOURS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/COLOUR_\([^ \t]*\)[ \t]*\([^ \t]*\)/KNOWN_COLOURS[\\\"\1\\\"]=\\\"\2\\\"/" > "build/tools/${COLOURS_CONFIG_FILE}.sh"
+    cat ${COLOURS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/COLOUR_\([^ \t]*\)[ \t]*\([^ \t]*\)/colours[\1]=\\\"\\\\033\[\2m\\\"/" >> "build/tools/${COLOURS_CONFIG_FILE}.sh"
+    cat ${COLOURS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/\([^ \t]*\)[ \t]*\([^ \t]*\)/OPTS[\1]=\\\"\2\\\"/" >> "build/tools/${COLOURS_CONFIG_FILE}.sh"
+fi
+
+if [ ! -f "build/tools/${LIGHTS_CONFIG_FILE}.sh" ]; then
+    cat ${LIGHTS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/\([^ \t]*\)[ \t]*\([^ \t]*\)/OPTS[\1]=\2/" > "build/tools/${LIGHTS_CONFIG_FILE}.sh"
+    echo "set_term_light `cat ${LIGHTS_CONFIG_FILE} | cat lights.cfg | grep -e "^light" | sed 's/^light[ \t]*\([^ \t]*\)/\1/'`" >> "build/tools/${LIGHTS_CONFIG_FILE}.sh"
+fi
+
+. build/tools/${COLOURS_CONFIG_FILE}.sh
+. build/tools/${LIGHTS_CONFIG_FILE}.sh
 
 find_tool() {
     SEP=$1
@@ -333,7 +354,7 @@ find_tool() {
         which $tool >/dev/null
         [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
     done
-    exit_on_error "Cannot not find $(cc 2)$tool$nn tool"
+    exit_on_error "1" "Cannot not find $(cc 2)$tool$nn tool"
 }
 
 PYTHON3=${PYTHON3-$(find_tool "." python3)}
@@ -423,7 +444,6 @@ ALL_COLOUR_NAMES=(action bytes control core default error expected extern field 
 # --------------------------------------------------------------------
 # Set defaults
 
-colours=()
 nn="\033[0m"
 
 # Check if configuration is valid
@@ -434,8 +454,6 @@ nn="\033[0m"
 # Parse opts from files and command line
 
 OPT_NOPRINTS=("OPT_NOPRINTS" "cfgfiles")
-
-declare -A OPTS=([cfgfiles]="$CFGFILES")
 
 
 while [ "${OPTS[cfgfiles]}" != "" ]; do
@@ -596,6 +614,7 @@ T4P4S_GEN_INCLUDE_DIR="${T4P4S_SRCGEN_DIR}"
 T4P4S_GEN_LIGHT="gen_light.h"
 T4P4S_GEN_INCLUDE="gen_include.h"
 T4P4S_GEN_DEFS="gen_defs.h"
+T4P4S_GEN_MODEL="gen_model.h"
 
 EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
 
@@ -690,6 +709,13 @@ fi
 
 # Phase 2: C compilation
 if [ "$(optvalue c)" != off ]; then
+    [ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
+
+    sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_MODEL}.tmp"
+    sudo echo "#include \"${ARCH}_model_$(optvalue model).h\"" >> "/tmp/${T4P4S_GEN_MODEL}.tmp"
+    overwrite_on_difference "${T4P4S_GEN_MODEL}" "${T4P4S_GEN_INCLUDE_DIR}"
+
+
     sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_LIGHT}.tmp"
 
     unset colour
@@ -800,19 +826,19 @@ EOT
         cd ${T4P4S_TARGET_DIR}
 
         sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" $MESON_CMD -Dbuildtype=$MESON_BUILDTYPE build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
-        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn (see $(cc 1)$(realpath --relative-to="." "$T4P4S_LOG_DIR")/20_meson.txt$nn)"
+        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn, see $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/20_meson.txt)$nn"
 
         cd - >/dev/null
     fi
 
     cd ${T4P4S_TARGET_DIR}
     # suppresses Meson regeneration message from ninja
-    sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" sudo $MESON_CMD setup --wipe build >$T4P4S_LOG_DIR/20_meson_reconfigure.txt 2>&1
+    sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" sudo $MESON_CMD setup --wipe build >$T4P4S_LOG_DIR/21_meson_reconfigure.txt 2>&1
     cd - >/dev/null
 
     cd ${T4P4S_TARGET_DIR}/build
-    sudo ninja 2>$T4P4S_LOG_DIR/20_meson_reconfigure.txt
-    exit_on_error "$?" "C compilation using ninja $(cc 2)failed"
+    sudo ninja 2>$T4P4S_LOG_DIR/22_ninja.txt
+    exit_on_error "$?" "C compilation using ninja $(cc 2)failed$nn, see log $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/22_ninja.txt)$nn"
     cd - >/dev/null
 fi
 
@@ -920,7 +946,7 @@ if [ "$(optvalue run)" != off ]; then
         msg "Running $(cc 1)debugger $DEBUGGER$nn in $(cc 0)$DBGWAIT$nn seconds"
         sleep $DBGWAIT
         [[ "${DEBUGGER}" = gdb* ]]  && sudo -E ${DEBUGGER} -q -ex run --args "${OPTS[executable]}" ${EXEC_OPTS}
-        [[ "${DEBUGGER}" = lldb* ]] && sudo -E ${DEBUGGER} "${OPTS[executable]}" -o 'run ${EXEC_OPTS}' -o bt
+        [[ "${DEBUGGER}" = lldb* ]] && sudo -E ${DEBUGGER} "${OPTS[executable]}" -o "run ${EXEC_OPTS}" -o bt
     fi
 fi
 
