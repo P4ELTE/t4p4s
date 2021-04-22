@@ -324,6 +324,8 @@ CFGFILES=${CFGFILES-!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
 
 declare -A OPTS=([cfgfiles]="$CFGFILES")
 
+mkdir -p build/tools
+
 if [ ! -f "build/tools/${COLOURS_CONFIG_FILE}.sh" ]; then
     cat ${COLOURS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/COLOUR_\([^ \t]*\)[ \t]*\([^ \t]*\)/KNOWN_COLOURS[\\\"\1\\\"]=\\\"\2\\\"/" > "build/tools/${COLOURS_CONFIG_FILE}.sh"
     cat ${COLOURS_CONFIG_FILE} | grep -ve "^[ \t]*;" | grep -ve "^[ \t]*$" | sed "s/COLOUR_\([^ \t]*\)[ \t]*\([^ \t]*\)/colours[\1]=\\\"\\\\033\[\2m\\\"/" >> "build/tools/${COLOURS_CONFIG_FILE}.sh"
