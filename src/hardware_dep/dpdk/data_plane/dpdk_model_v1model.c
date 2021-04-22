@@ -31,7 +31,7 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), INGRESS_META_FLD, portid);
 }
 
-void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void verify_checksum(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     dbg_bytes(data.buffer, data.buffer_size, "    : " T4LIT(Verifying checksum,extern) " for " T4LIT(%d) " bytes: ", data.buffer_size);
     uint32_t res32, current_cksum = 0, calculated_cksum = 0;
     if (cond) {
@@ -55,7 +55,7 @@ void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t
     }
 }
 
-void update_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void update_checksum(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     dbg_bytes(data.buffer, data.buffer_size, "    : " T4LIT(Updating checksum,extern) " for " T4LIT(%d) " bytes: ", data.buffer_size);
 
     uint32_t res32, calculated_cksum = 0;
@@ -133,20 +133,28 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 
 // ----------------------------------------------------------------
 
+void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    verify_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
 void verify_checksum__b4s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-    verify_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+    verify_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
 }
 
 void verify_checksum__b32s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-    verify_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+    verify_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+}
+
+void update_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    update_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
 }
 
 void update_checksum__b4s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-    update_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+    update_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
 }
 
 void update_checksum__b32s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-    update_checksum__b8s__b16(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
+    update_checksum(cond, data, cksum_field_handle, algorithm, SHORT_STDPARAMS_IN);
 }
 
 void verify_checksum_with_payload__b32s__b16(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
