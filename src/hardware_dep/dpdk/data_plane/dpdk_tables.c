@@ -12,7 +12,11 @@
 
 #include <rte_hash.h>       // EXACT
 #include <rte_hash_crc.h>
+
+#ifndef __aarch64__
 #include <nmmintrin.h>
+#endif
+
 #include <rte_lpm.h>        // LPM (32 bit key)
 #include <rte_lpm6.h>       // LPM (128 bit key)
 #include "ternary_naive.h"  // TERNARY
