@@ -34,8 +34,8 @@ typedef struct {
 } lookup_table_entry_info_t;
 
 typedef struct {
-    char* name;
-    char* canonical_name;
+    const char* name;
+    const char* canonical_name;
 
     unsigned id;
     uint8_t type;
@@ -53,6 +53,6 @@ typedef struct {
     lookup_table_entry_info_t entry;
 #ifdef T4P4S_DEBUG
     int init_entry_count;
-    char* short_name;
+    const char* short_name;
 #endif
 } lookup_table_t;

@@ -62,9 +62,13 @@ typedef struct {
     int                 var_width_field_bitwidth;
     bool                was_enabled_at_initial_parse;
 #ifdef T4P4S_DEBUG
-    char*               name;
+    const char*         name;
 #endif
 } header_descriptor_t;
+
+typedef struct {
+    int current;
+} pkt_header_stack_t;
 
 typedef struct {
     packet_data_t*      data;
@@ -72,6 +76,8 @@ typedef struct {
     header_descriptor_t headers[HEADER_COUNT+1];
     parsed_fields_t     fields;
     packet*             wrapper;
+
+    pkt_header_stack_t  stacks[STACK_COUNT+1];
 
     int emit_hdrinst_count;
     int emit_headers_length;
@@ -96,6 +102,11 @@ typedef struct {
 
 void activate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
 void deactivate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
+
+void stk_next(header_stack_t stk, packet_descriptor_t* pd);
+header_instance_t stk_at_idx(header_stack_t stk, int idx, packet_descriptor_t* pd);
+header_instance_t stk_current(header_stack_t stk, packet_descriptor_t* pd);
+field_instance_t stk_start_fld_idx(header_instance_t hdr);
 
 #define clear_pd_states(pd)\
                 { \

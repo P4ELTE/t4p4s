@@ -337,6 +337,22 @@ void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
     if (is_ok) {
         check_packet_contents(cmd, LCPARAMS_IN);
     }
+    
+    #ifdef T4P4S_STATS
+    
+    if (cmd.require[0]>0 || cmd.forbid[0]>0) {
+    
+		bool requirements_ok = check_controlflow_requirements(cmd);
+		
+		if (requirements_ok) {
+			debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(passing the control-flow requirements, success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+		} else {
+			debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(failing the control-flow requirements, error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+			encountered_error = true;
+		}
+	}
+	
+	#endif
 
     if (lcdata->is_valid) {
         debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());

@@ -17,3 +17,4 @@ typedef rte_spinlock_t lock_t;
 #define FLD_ATTR(hdr,fld) attr_field_instance_##hdr##_##fld
 #define FLD(hdr,fld) field_instance_##hdr##_##fld
 #define HDR(hdr) header_##hdr
+#define STK(stk) stack_##stk

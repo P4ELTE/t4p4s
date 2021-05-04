@@ -17,7 +17,6 @@ Arithmetic operations are only supported on int<8>, int<16> and int<32>.
     %test-arithmetics-nonbyte=test
 
 Header stacks and unions are not supported
-    %test-header-stacks=test
     %test-header-union-1=test
     %test-header-union-2=test
 

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2018 Eotvos Lorand University, Budapest, Hungary
+// Copyright 2021 Eotvos Lorand University, Budapest, Hungary
 
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 1, {"00000000", ""}, 200, 0, {"f0", ""}},
+        {FAKE_PKT, 0, 1, ETH(ETH01, ETH1A, "0000000000000000000000000000000000000000"), NO_CTL_REPLY, 11, ETH(ETH01, ETH1A, "0000000000000000000000000000000000000000")},
         FEND,
     },
+
     {
         FEND,
     },

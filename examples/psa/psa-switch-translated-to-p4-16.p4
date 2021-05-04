@@ -1044,7 +1044,6 @@ parser CommonParser(
         transition select(hdr.int_header.rsvd1, hdr.int_header.total_hop_cnt) {
             (5w0x0, 8w0x0): accept;
             (5w0x0 &&& 5w0xf, 8w0x0 &&& 8w0x0): parse_int_val;
-            default: accept;
             default: parse_all_int_meta_value_heders;
         }
     }
@@ -3599,6 +3598,8 @@ control process_validate_outer_header(inout headers hdr, inout metadata meta, in
     @name(".validate_mpls_header") validate_mpls_header() validate_mpls_header_0;
     apply {
         switch (validate_outer_ethernet.apply().action_run) {
+            malformed_outer_ethernet_packet: {
+            }
             default: {
                 if (hdr.ipv4.isValid()) {
                     validate_outer_ipv4_header_0.apply(hdr, meta, standard_metadata);
@@ -3613,8 +3614,6 @@ control process_validate_outer_header(inout headers hdr, inout metadata meta, in
                         }
                     }
                 }
-            }
-            malformed_outer_ethernet_packet: {
             }
         }
 
@@ -4584,6 +4583,9 @@ control process_tunnel(inout headers hdr, inout metadata meta, inout psa_ingress
         process_ingress_fabric_0.apply(hdr, meta, standard_metadata);
         if (meta.tunnel_metadata.ingress_tunnel_type != 5w0) {
             switch (outer_rmac.apply().action_run) {
+                on_miss: {
+                    process_outer_multicast_0.apply(hdr, meta, standard_metadata);
+                }
                 default: {
                     if (hdr.ipv4.isValid()) {
                         process_ipv4_vtep_0.apply(hdr, meta, standard_metadata);
@@ -4598,9 +4600,6 @@ control process_tunnel(inout headers hdr, inout metadata meta, inout psa_ingress
                             }
                         }
                     }
-                }
-                on_miss: {
-                    process_outer_multicast_0.apply(hdr, meta, standard_metadata);
                 }
             }
 
@@ -6403,6 +6402,9 @@ control ingress(inout headers hdr,
                     process_ip_acl_0.apply(hdr, meta, ostd);
                 }
                 switch (rmac.apply().action_run) {
+                    rmac_miss: {
+                        process_multicast_0.apply(hdr, meta, ostd);
+                    }
                     default: {
                         if ((meta.ingress_metadata.bypass_lookups & 16w0x2) == 16w0) {
                             if (meta.l3_metadata.lkp_ip_type == 2w1 && meta.ipv4_metadata.ipv4_unicast_enabled == 1w1) {
@@ -6419,9 +6421,6 @@ control ingress(inout headers hdr,
                             }
                             process_urpf_bd_0.apply(hdr, meta, ostd);
                         }
-                    }
-                    rmac_miss: {
-                        process_multicast_0.apply(hdr, meta, ostd);
                     }
                 }
 

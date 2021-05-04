@@ -7,8 +7,6 @@
 //=============================================================================
 // Shared
 
-extern struct socket_state state[NB_SOCKETS];
-
 struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
 

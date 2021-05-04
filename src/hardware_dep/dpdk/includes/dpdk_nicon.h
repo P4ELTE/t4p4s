@@ -9,6 +9,8 @@
 #include "dpdk_lib_conf.h"
 #include <stdbool.h>
 
+#include "testsuite.h"
+
 #define T4P4S_BROADCAST_PORT    100
 
 #define MAX_PKT_BURST     32  /* note: this equals to MBUF_TABLE_SIZE in dpdk_lib.h */

@@ -40,6 +40,7 @@ for hdr, fld in parsed_fields:
 
 #[ #define HEADER_COUNT ${max(len(hlir.header_instances), 1)}
 #[ #define FIELD_COUNT ${max(len(all_fields), 1)}
+#[ #define STACK_COUNT ${max(len(hlir.header_stacks), 1)}
 
 #[ extern const char* field_names[FIELD_COUNT];
 #[ extern const char* header_instance_names[HEADER_COUNT];
@@ -55,13 +56,27 @@ nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr in hlir.header_in
 #{ typedef enum {
 for hdr in hlir.header_instances:
     #[     HDR(${hdr.name}),
+if len(hlir.header_instances) == 0:
+    #[ HDR(__dummy__),
 #} } header_instance_t;
+#[
 
 #{ typedef enum {
 for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
         #[   FLD(${hdr.name},${fld.name}),
+if len(hlir.header_instances) == 0:
+    #[ FLD(__dummy__,__dummy__),
 #} } field_instance_t;
+#[
+
+#{ typedef enum {
+for stk in hlir.header_stacks:
+    #[     STK(${stk.name}),
+if len(hlir.header_stacks) == 0:
+    #[ STK(__dummy__),
+#} } header_stack_t;
+#[
 
 #[ // TODO documentation
 #[ #define mod_top(n, bits) (((bits-(n%bits)) % bits))
@@ -78,6 +93,7 @@ for hdr in hlir.header_instances:
 #[     bool        is_metadata;
 #[     int         var_width_field;
 #} } hdr_info_t;
+#[
 
 #{ typedef struct {
 #[     int               bit_width;
@@ -88,6 +104,15 @@ for hdr in hlir.header_instances:
 #[     bool              is_metadata;
 #[     header_instance_t header_instance;
 #} } fld_info_t;
+#[
+
+#{ typedef struct {
+#[     int               size;
+#[     int               fld_count;
+#[     header_instance_t start_hdr;
+#[     field_instance_t  start_fld_idx;
+#} } stk_info_t;
+#[
 
 
 
@@ -117,8 +142,14 @@ if len(hlir.header_instances) == 0:
 
 
 #{ static const fld_info_t fld_infos[FIELD_COUNT] = {
+hdr_startidxs = {}
+fldidx = 0
 for hdr in hlir.header_instances:
     for fld in hdr.urtype.fields:
+        fldidx += 1
+        if hdr.name not in hdr_startidxs:
+            hdr_startidxs[hdr.name] = fldidx
+
         not0 = 0xffffffff
         shift_up = (32 - fld.urtype.size) % 32
         top_bits = (not0 << shift_up) & not0
@@ -139,6 +170,25 @@ for hdr in hlir.header_instances:
         #}     },
         #[
 #} };
+
+
+#{ static const stk_info_t stk_infos[STACK_COUNT] = {
+for stk in hlir.header_stacks:
+    stk0 = f'{stk.name}_0'
+    #[     // stack ${stk.name}
+    #{     {
+    #[         .size      = ${stk.urtype.size.value},
+    #[         .fld_count = ${len(stk.type.elementType.urtype.fields)},
+    #[         .start_hdr = HDR(${stk.name}_0),
+    #[         .start_fld_idx = ${hdr_startidxs[stk0]},
+    #}     },
+    #[
+#} };
+
+
+for stk in hlir.header_stacks:
+    for idx, fld in enumerate(stk.urtype.elementType.urtype.fields):
+        #[ #define stkfld_offset_${stk.name}_${fld.name} $idx
 
 
 #[ // HW optimization related infos

@@ -3,7 +3,7 @@
 
 from compiler_log_warnings_errors import addError, addWarning
 from utils.codegen import format_expr, format_type, format_statement, format_declaration
-from compiler_common import statement_buffer_value, generate_var_name
+from compiler_common import statement_buffer_value, generate_var_name, get_hdr_name
 
 
 #[ #include "dpdk_lib.h"
@@ -82,7 +82,12 @@ for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata)
     #[         return -1; // parsed after end of packet
     #}     }
 
-    #[     header_descriptor_t* hdr = &(pd->headers[HDR(${hdr.name})]);
+    if 'stack' in hdr and hdr.stack is not None:
+        #[     stk_next(STK(${hdr.stack.name}), pd);
+        #[     header_instance_t hdrinst = stk_current(STK(${hdr.stack.name}), pd);
+    else:
+        #[     header_instance_t hdrinst = HDR(${hdr.name});
+    #[     header_descriptor_t* hdr = &(pd->headers[hdrinst]);
 
     #[     hdr->pointer = pd->extract_ptr;
     #[     hdr->was_enabled_at_initial_parse = true;
@@ -91,12 +96,12 @@ for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata)
 
     for fld in hdrtype.fields:
         if fld.preparsed and fld.size <= 32:
-            #[     EXTRACT_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), value32)
-            #[     pd->fields.FLD(${hdr.name},${fld.name}) = value32;
-            #[     pd->fields.ATTRFLD(${hdr.name},${fld.name}) = NOT_MODIFIED;
+            #[     EXTRACT_INT32_AUTO_PACKET(pd, hdr, FLD(hdr,${fld.name}), value32)
+            #[     pd->fields.FLD(hdr,${fld.name}) = value32;
+            #[     pd->fields.ATTRFLD(hdr,${fld.name}) = NOT_MODIFIED;
 
     #[     dbg_bytes(hdr->pointer, hdr->length,
-    #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " $$[header]{hdr.name}/$${}{%dB}: ", hdr_infos[HDR(${hdr.name})].idx, hdr->length);
+    #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " " T4LIT(%s,header) "/$${}{%dB}: ", hdr_infos[hdrinst].idx, hdr_infos[hdrinst].name, hdr->length);
 
     #[     pd->parsed_length += hdrlen;
     #[     pd->extract_ptr += hdrlen;
@@ -114,30 +119,38 @@ def get_hdrinst(arg0, component):
 
         hdrtype = component.header.urtype
         dvar = parser.parserLocals.get(hdrinst_name, 'Declaration_Variable')
-        if dvar:
-            insts = [hi for hi in hlir.header_instances['StructField'] if hi.urtype.name == hdrtype.name]
-            if len(insts) == 1:
-                hdrinst = insts[0]
-            elif len(insts) == 0:
-                # note: it is defined as a local variable
-                return dvar.urtype
-            else:
-                addError("Finding header", f"There is no single header that corresponds to {hdrtype.name}")
-        else:
+        if not dvar:
             return hlir.header_instances.get(hdrinst_name, 'Declaration_Variable', lambda hi: hi.urtype.name == hdrtype.name)
-    elif 'hdr_ref' in (mexpr := component.methodCall.method.expr):
-        hdrinst = mexpr.hdr_ref
-        return hdrinst
-    else:
-        a0e = arg0.expression
-        if "member" in a0e:
-            hdrtype = component.header.urtype
-            hdrinst_name = a0e.member
-            hdrinst = hlir.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.urtype.name == hdrtype.name)
-        else:
-            hdrinst_name = a0e.hdr_ref.name
-            hdrinst = hlir.header_instances.get(hdrinst_name)
-        return hdrinst
+
+        insts = [hi for hi in hlir.header_instances['StructField'] if hi.urtype.name == hdrtype.name]
+        if len(insts) == 1:
+            return insts[0]
+        if len(insts) == 0:
+            # note: it is defined as a local variable
+            return dvar.urtype
+
+        addError("Finding header", f"There is no single header that corresponds to {hdrtype.name}")
+        return None
+
+    if 'hdr_ref' in (mexpr := component.methodCall.method.expr):
+        return mexpr.hdr_ref
+
+    a0e = arg0.expression
+
+    if a0e.node_type == 'ArrayIndex':
+        return hlir.header_instances.get(get_hdr_name(a0e))
+
+    if 'expr' in a0e and a0e.expr.urtype.node_type == 'Type_Stack':
+        # TODO do not always return #0
+        return hlir.header_instances.get(f'{a0e.expr.member}_0')
+
+    if "member" in a0e:
+        hdrtype = component.header.urtype
+        hdrinst_name = a0e.member
+        return hlir.header_instances.get(hdrinst_name, 'StructField', lambda hi: hi.urtype.name == hdrtype.name)
+
+    hdrinst_name = a0e.hdr_ref.name
+    return hlir.header_instances.get(hdrinst_name)
 
 
 for s in parser.states:

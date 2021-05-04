@@ -230,3 +230,33 @@ def unspecified_value(size):
         txt = current_compilation['from'] + current_compilation['to']
         hashed = int(hashlib.md5(txt.encode('utf-8')).hexdigest(), 16) % max_val
         return f'0x{hashed:x} /* pseudorandom {size} bit value */'
+
+# ################################################################################
+
+def get_raw_hdr_name(e):
+    nt = e.node_type
+    if e.node_type == 'ArrayIndex':
+        idx = e.right.value
+        return f'{e.left.member}_{idx}'
+    if 'expr' in e and e.expr.urtype == 'Type_Stack':
+        # TODO implement this properly
+        last_idx = 0
+        return f'{e.left.member}_{last_idx}'
+    if nt == 'PathExpression':
+        return e._expr.path.name
+
+    return e.member
+
+def get_hdr_name(e):
+    raw = get_raw_hdr_name(e)
+    # TODO 'meta' should come from hlir
+    if raw == 'meta':
+        return 'all_metadatas'
+    return raw
+
+def get_hdrfld_name(e):
+    if 'member' not in e:
+        return None, None
+
+    fldname = e.member
+    return get_hdr_name(e.expr), fldname

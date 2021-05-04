@@ -3,7 +3,7 @@
 
 #include <core.p4>
 #include <v1model.p4>
-#include "../include/std_headers.p4"
+#include "../../include/std_headers.p4"
 
 struct metadata {
 }

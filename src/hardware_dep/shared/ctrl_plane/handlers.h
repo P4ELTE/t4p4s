@@ -20,7 +20,7 @@
 #define P4_MAX_NUMBER_OF_ACTION_PARAMETERS 10
 #define P4_MAX_NUMBER_OF_FIELD_MATCHES 10
 
-struct p4_ctrl_msg {
+typedef struct p4_ctrl_msg {
 	uint8_t type;
 	uint32_t xid;
 	char* table_name;
@@ -30,7 +30,7 @@ struct p4_ctrl_msg {
 	struct p4_action_parameter* action_params[P4_MAX_NUMBER_OF_ACTION_PARAMETERS];
 	int num_field_matches;
 	struct p4_field_match_header* field_matches[P4_MAX_NUMBER_OF_FIELD_MATCHES];
-};
+} p4_ctrl_msg_t;
 
 typedef uint32_t* (*p4_cnt_read)(char*, int*, bool);
 typedef void (*p4_msg_callback)(struct p4_ctrl_msg*);

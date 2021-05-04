@@ -58,6 +58,9 @@ def replace_insert(insert):
 
     # replace $$[light][text1]{expr}{text2} inserts, where all parts except {expr} are optional
     m = re.match(r'(?P<type>\$\$?)(\[(?P<light>[^\]]+)\])?(\[(?P<text1>[^\]]+)\])?{\s*(?P<expr>[^}]*)\s*}({(?P<text2>[^}]+)})?', insert)
+    if not m:
+        yield insert
+        return
 
     light = m.group("light")
     txt1  = m.group('text1') or ''
@@ -67,13 +70,13 @@ def replace_insert(insert):
     # no highlighting
     if m.group("type") == '$':
         yield escape_brace(txt1)
-        yield (fmt,)
+        yield (escape_brace(expr),)
         yield escape_brace(txt2)
     else:
         light_param = f",{light}" if light not in (None, "") else ""
         yield '" T4LIT("'
         yield escape_brace(txt1)
-        yield (fmt,)
+        yield (escape_brace(expr),)
         yield escape_brace(txt2)
         if light:
             yield f",{light}"
@@ -110,16 +113,21 @@ def translate_line_main_content(parts, extra_content, no_quote_allowed):
     replaceds = [repl for part in parts for repl in replace_insert(part)]
     raws = [part[0] if type(part) is tuple else part for part in replaceds]
 
-    apostrophe_count = len("'" in raw for raw in raws)
-    quote_count = len('"' in raw for raw in raws)
+    no_apostrophes = all("'" not in raw for raw in raws)
+    no_quotes = all('"' not in raw for raw in raws)
 
-    if quote_count == 0:
-        content = "".join(f'{{{part[0]}}}' if type(part[0]) is tuple else part for part in replaceds)
-        return False, f'{content}'
+    if no_apostrophes or no_quotes:
+        quote = "'" if no_apostrophes else '"'
+        has_inserts = any(type(part) is tuple for part in replaceds)
 
-    if apostrophe_count == 0:
-        content = "".join(f'{{{part[0]}}}' if type(part[0]) is tuple else part for part in replaceds)
-        return False, f"f'{content}'"
+        has_bad_inserts = any(type(part) is tuple and any('(' in p for p in part) for part in replaceds)
+        if has_bad_inserts:
+            return translate_line_main_content2(parts, extra_content, no_quote_allowed)
+
+        esc = escape_brace if has_inserts else (lambda p: p)
+        content = "".join((f'{{{part[0]}}}' if part[0] != '' else '') + "".join(esc(p) for p in part[1:]) if type(part) is tuple else esc(part) for part in replaceds)
+        formatter = 'f' if has_inserts else ''
+        return False, f'{formatter}{quote}{content}{quote}'
 
     return translate_line_main_content2(parts, extra_content, no_quote_allowed)
 
