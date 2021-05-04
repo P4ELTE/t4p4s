@@ -59,16 +59,6 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             hdr.ethernet.dstAddr: exact;
         }
         size = 512;
-
-        #ifdef T4P4S_TEST_1
-            const entries = {
-                (0xD15EA5E): bcast();
-            }
-        #elif T4P4S_TEST_abc
-            const entries = {
-                (0xDEAD_10CC): testing(510, 0xffff_ffff);
-            }
-        #endif
     }
     @name(".smac") table smac {
         actions = {
@@ -83,6 +73,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     apply {
         smac.apply();
         dmac.apply();
+        do_encryption_async();
+        do_decryption_async();
     }
 
 }
