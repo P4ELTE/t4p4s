@@ -107,15 +107,7 @@ typedef struct occurence_counter_s {
     uint64_t start_cycle;
 } occurence_counter_t;
 
-
-typedef struct time_measure_s{
-    uint64_t start_cycle;
-    uint64_t echo_start_cycle;
-    int counter;
-    uint64_t time_sum;
-}time_measure_t;
-
-#if 1==1
+#if ECHO_PACKAGE_COUNTS
     #define COUNTER_INIT(oc) {oc.counter=-1;}
     #define COUNTER_ECHO(oc,print_template){ \
             if(oc.counter == -1) { \
@@ -131,10 +123,24 @@ typedef struct time_measure_s{
     #define COUNTER_STEP(oc){ \
                oc.counter++;  \
             }
+#else
+    #define COUNTER_INIT(oc)
+    #define COUNTER_ECHO(oc,print_template)
+    #define COUNTER_STEP(oc)
+#endif
 
 
-    #define TIME_MEASURE_INIT(tm) {tm.echo_start_cycle = 0;}
-    #define TIME_MEASURE_ECHO(tm,print_template) { \
+
+
+typedef struct time_measure_s{
+    uint64_t start_cycle;
+    uint64_t echo_start_cycle;
+    int counter;
+    uint64_t time_sum;
+}time_measure_t;
+
+#define TIME_MEASURE_INIT(tm) {tm.echo_start_cycle = 0;}
+#define TIME_MEASURE_ECHO(tm,print_template) { \
             if(tm.echo_start_cycle == 0) { \
                 tm.echo_start_cycle = rte_get_tsc_cycles(); \
             } \
@@ -145,23 +151,14 @@ typedef struct time_measure_s{
                 tm.counter = 0; \
             } \
         }
-    #define TIME_MEASURE_START(tm){ \
+#define TIME_MEASURE_START(tm){ \
                tm.start_cycle = rte_get_tsc_cycles();  \
             }
-    #define TIME_MEASURE_STOP(tm){ \
+#define TIME_MEASURE_STOP(tm){ \
                tm.time_sum += rte_get_tsc_cycles() - tm.start_cycle;  \
                tm.counter++; \
             }
-#else
-    #define COUNTER_INIT(oc)
-    #define COUNTER_ECHO(oc,print_template)
-    #define COUNTER_STEP(oc)
 
-    #define TIME_MEASURE_INIT(tm)
-    #define TIME_MEASURE_ECHO(tm,print_template)
-    #define TIME_MEASURE_START(tm)
-    #define TIME_MEASURE_STOP(tm)
-#endif
 
 #define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - timer > rte_get_timer_hz()?(timer = rte_get_tsc_cycles()),true:false)
 
