@@ -47,7 +47,7 @@ def apply_annotations(postfix, extra_args, expr):
 
 
 def search_for_annotations(stmt):
-    available_optimization_annotations = ['offload', 'atomic', 'async']
+    available_optimization_annotations = ['offload', 'atomic']
 
     if stmt.node_type != "BlockStatement":
         return stmt
