@@ -13,7 +13,7 @@ from itertools import takewhile
 
 # note: some functions with well-known names in C have to be renamed
 funname_map = {
-    "log": "logmsg",
+    "log": "log_msg",
     "random": "random_fun",
 }
 
@@ -725,7 +725,7 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
 
 def is_ref(node):
     not_of_type   = node.node_type not in ('Constant', 'BoolLiteral', 'MethodCallExpression')
-    not_of_urtype = node.urtype.node_type not in ('Type_Error', 'Type_Enum', 'Type_List')
+    not_of_urtype = node.urtype.node_type not in ('Type_Error', 'Type_Enum', 'Type_List', 'Type_String')
     return not_of_type and not_of_urtype
 
 
@@ -1043,6 +1043,7 @@ def gen_format_method_parameter(par, buf=None):
         if fmt == '':
             return None
         ref = "&" if is_ref(par.expression) else ""
+        fmt = fmt.replace('"','\\"')
         #= "$ref" + "$fmt"
 
 def gen_extern_decl(mname, m):

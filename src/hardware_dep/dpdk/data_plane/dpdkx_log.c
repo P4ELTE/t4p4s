@@ -3,6 +3,6 @@
 
 #include "dpdk_lib.h"
 
-void logmsg(char* msg, SHORT_STDPARAMS) {
+void log_msg(const char* msg, SHORT_STDPARAMS) {
     debug("    : " T4LIT(Logged,status) ": %s\n", msg);
 }
