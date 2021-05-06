@@ -11,6 +11,8 @@ typedef uint8_t packet_data_t;
 #include <rte_spinlock.h>
 typedef rte_spinlock_t lock_t;
 
+#define INVALID_ACTION -1
+
 #define INVALID_TABLE_ENTRY false
 #define VALID_TABLE_ENTRY   true
 
