@@ -12,6 +12,7 @@ import os
 #[ #include "dpdk_primitives.h" // TODO remove
 #[ #include "actions.h"
 #[ #include "tables.h"
+#[ #include "controlplane.h"
 
 #{ #ifdef T4P4S_P4RT
 #[     #include "PI/proto/pi_server.h"
@@ -221,35 +222,6 @@ for table in hlir.tables:
     #} }
     #[
 
-for table in hlir.tables:
-    #{ void ${table.name}_set_default_table_action(p4_ctrl_msg_t* ctrl_m) {
-    #[     ${table.name}_action_t action;
-    for idx, action in enumerate(table.actions):
-        ao = action.action_object
-        if idx == 0:
-            #{     if (strcmp("${ao.canonical_name}", ctrl_m->action_name) == 0) {
-        else:
-            #[     } else if (strcmp("${ao.canonical_name}", ctrl_m->action_name) == 0) {
-
-        #[         action.action_id = action_${ao.name};
-        #[         p4_action_parameter_t** action_params = (p4_action_parameter_t**)ctrl_m->action_params;
-
-        for j, p in enumerate(ao.parameters.parameters):
-            #[         uint8_t* param_${p.name} = (uint8_t*)action_params[$j]->bitmap;
-            #[         memcpy(&action.${ao.name}_params.${p.name}, param_${p.name}, ${(p.urtype.size+7)//8});
-
-        if not table.is_hidden:
-            #[         debug(" " T4LIT(ctl>,incoming) " " T4LIT(Set default action,action) " for $$[table]{table.short_name}: $$[action]{ao.short_name}\n");
-
-    valid_actions = ", ".join([f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions])
-    #[     } else {
-    #[         debug(" $$[warning]{}{!!!! Table setdefault} on table $$[table]{table.name}: action name $$[warning]{}{mismatch} ($$[action]{}{%s}), expected one of ($valid_actions)\n", ctrl_m->action_name);
-    #[         return;
-    #}     }
-    #[     table_setdefault_promote(TABLE_${table.name}, (actions_t*)&action);
-    #} }
-    #[
-
 
 all_keyed_table_names = ", ".join((f'"T4LIT({table.canonical_name},table)"' for table in hlir.tables))
 common_keyed_table_names = ", ".join((f'"T4LIT({table.canonical_name},table)"' for table in hlir.tables.filterfalse('is_hidden')))
@@ -293,7 +265,9 @@ for table in hlir.tables:
 #{ void ctrl_setdefault(p4_ctrl_msg_t* ctrl_m) {
 for table in hlir.tables:
     #{     if (strcmp("${table.canonical_name}", ctrl_m->table_name) == 0) {
-    #[         ${table.name}_set_default_table_action(ctrl_m);
+    #[         ${table.name}_action_t default_action;
+    #[         ${table.name}_set_default_table_action(&default_action, ctrl_m->action_name, (p4_action_parameter_t**)ctrl_m->action_params);
+    #[         table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action, false);
     #[         return;
     #}     }
 

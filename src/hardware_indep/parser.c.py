@@ -5,10 +5,13 @@ from compiler_log_warnings_errors import addError, addWarning
 from utils.codegen import format_expr, format_type, format_statement, format_declaration
 from compiler_common import statement_buffer_value, generate_var_name, get_hdr_name
 
+import functools
+
 
 #[ #include "dpdk_lib.h"
 #[ #include "util_packet.h"
 #[ #include "gen_include.h"
+#[ #include "parser_stages.h"
 
 #{ #ifdef T4P4S_STATS
 #[     extern t4p4s_stats_t t4p4s_stats_global;
@@ -48,12 +51,6 @@ for local in parser.parserLocals.filter('node_type', 'Declaration_Instance'):
     #[ ${local.urtype.name}_t_init(pstate->${local.name});
 #} }
 
-for s in parser.states:
-    if s.is_reachable:
-        #[ static void parser_state_${s.name}(STDPARAMS);
-    else:
-        #[ // state ${s.name} is not reachable
-
 #{ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, uint32_t hdrlen, STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
 #{         if (pd->parsed_length == pd->wrapper->pkt_len) {
@@ -64,53 +61,7 @@ for s in parser.states:
 #}         }
 #}     #endif
 #} }
-
-
-for hdr in hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata):
-    #{ static int parser_extract_${hdr.name}(uint32_t vwlen, STDPARAMS) {
-    #[     uint32_t value32; (void)value32;
-    #[     uint32_t res32; (void)res32;
-    #[     parser_state_t* local_vars = pstate;
-
-    hdrtype = hdr.urtype
-
-    is_vw = hdrtype.is_vw
-
-    #[     uint32_t hdrlen = (${hdr.urtype.size} + vwlen) / 8;
-    #{     if (unlikely(pd->parsed_length + hdrlen > pd->wrapper->pkt_len)) {
-    #[         cannot_parse_hdr("${"variable width " if is_vw else ""}", "${hdr.name}", hdrlen, STDPARAMS_IN);
-    #[         return -1; // parsed after end of packet
-    #}     }
-
-    if 'stack' in hdr and hdr.stack is not None:
-        #[     stk_next(STK(${hdr.stack.name}), pd);
-        #[     header_instance_t hdrinst = stk_current(STK(${hdr.stack.name}), pd);
-    else:
-        #[     header_instance_t hdrinst = HDR(${hdr.name});
-    #[     header_descriptor_t* hdr = &(pd->headers[hdrinst]);
-
-    #[     hdr->pointer = pd->extract_ptr;
-    #[     hdr->was_enabled_at_initial_parse = true;
-    #[     hdr->length = hdrlen;
-    #[     hdr->var_width_field_bitwidth = vwlen;
-
-    for fld in hdrtype.fields:
-        if fld.preparsed and fld.size <= 32:
-            #[     EXTRACT_INT32_AUTO_PACKET(pd, hdr, FLD(hdr,${fld.name}), value32)
-            #[     pd->fields.FLD(hdr,${fld.name}) = value32;
-            #[     pd->fields.ATTRFLD(hdr,${fld.name}) = NOT_MODIFIED;
-
-    #[     dbg_bytes(hdr->pointer, hdr->length,
-    #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " " T4LIT(%s,header) "/$${}{%dB}: ", hdr_infos[hdrinst].idx, hdr_infos[hdrinst].name, hdr->length);
-
-    #[     pd->parsed_length += hdrlen;
-    #[     pd->extract_ptr += hdrlen;
-
-    #[     return hdrlen;
-
-    #} }
-    #[
-
+#[
 
 # TODO find a less convoluted way to get to the header
 def get_hdrinst(arg0, component):
@@ -154,6 +105,14 @@ def get_hdrinst(arg0, component):
 
 
 for s in parser.states:
+    if s.is_reachable:
+        #[ void parser_state_${s.name}(STDPARAMS);
+    else:
+        #[ // state ${s.name} is not reachable
+#[
+
+
+for s in parser.states:
     if not s.is_reachable:
         continue
 
@@ -163,7 +122,8 @@ for s in parser.states:
     if s.selectExpression.node_type != 'SelectExpression':
         continue
 
-    #{ static void parser_state_${s.name}_next_state(STDPARAMS) {
+    #{ void parser_state_${s.name}_next_state(STDPARAMS) {
+    #[     parser_state_t* local_vars = pstate;
     #[     parser_state_t parameters = *pstate;
     bexpr = format_expr(s.selectExpression)
     prebuf, postbuf = statement_buffer_value()
@@ -179,7 +139,16 @@ def state_component_name(s, idx, component):
         m = mc.method
         if 'expr' not in m:
             return f'_{m.path.name}'
-        hdrname = m.expr.member if 'member' in m.expr else m.expr.path.name
+
+        if m.expr.node_type == 'ArrayIndex':
+            stk_name = m.expr.left.member
+            idx = m.expr.right.value
+            hdrname = f'{stk_name}__{idx}'
+        elif 'member' in m.expr:
+            hdrname = m.expr.member
+        else:
+            hdrname = m.expr.path.name
+
         method_name = m.member
         return f'_{hdrname}_{method_name}'
 
@@ -242,7 +211,7 @@ for s in parser.states:
         continue
 
     for idx, component in enumerate(s.components):
-        #{ static void ${state_component_name(s, idx, component)}(STDPARAMS) {
+        #{ void ${state_component_name(s, idx, component)}(STDPARAMS) {
         #[     uint32_t res32; (void)res32;
         #[     parser_state_t* local_vars = pstate;
 
@@ -274,18 +243,19 @@ for s in parser.states:
         else:
             #[     ${format_statement(component, parser)}
         #} }
-        #[ 
+        #[
 
 
 for s in parser.states:
     if not s.is_reachable:
         continue
 
-    #{ static void parser_state_${s.name}(STDPARAMS) {
+    #{ void parser_state_${s.name}(STDPARAMS) {
     #{     #ifdef T4P4S_STATS
     #[         t4p4s_stats_global.parser_state__${s.name} = true;
     #[         t4p4s_stats_per_packet.parser_state__${s.name} = true;
     #}     #endif
+    #[
 
     if s.name == 'accept':
         #[     pd->payload_length = packet_length(pd) - (pd->extract_ptr - (void*)pd->data);
@@ -318,16 +288,3 @@ for s in parser.states:
 #[     parser_state_start(STDPARAMS_IN);
 #[ }
 #[
-
-
-#{ const char* header_instance_names[HEADER_COUNT] = {
-for hdr in hlir.header_instances:
-    #[     "${hdr.name}",
-#} };
-
-#{ const char* field_names[FIELD_COUNT] = {
-for hdr in hlir.header_instances:
-    #[     // ${hdr.name}
-    for fld in hdr.urtype.fields:
-        #[         "${fld.name}", // ${hdr.name}.${fld.name}
-#} };

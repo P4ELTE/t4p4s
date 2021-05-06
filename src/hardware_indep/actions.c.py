@@ -46,64 +46,24 @@ for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').fil
     #[
 
 
-#{ void do_assignment(header_instance_t dst_hdr, header_instance_t src_hdr, SHORT_STDPARAMS) {
-#{     if (likely(is_header_valid(src_hdr, pd))) {
-#{         if (unlikely(!is_header_valid(dst_hdr, pd))) {
-#[             activate_hdr(dst_hdr, pd);
-#}         }
-#[         memcpy(pd->headers[dst_hdr].pointer, pd->headers[src_hdr].pointer, hdr_infos[src_hdr].byte_width);
-#[         dbg_bytes(pd->headers[dst_hdr].pointer, hdr_infos[src_hdr].byte_width, "    : Set " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(%s,header) " = ", hdr_infos[dst_hdr].name, hdr_infos[src_hdr].byte_width, hdr_infos[src_hdr].name);
-#[     } else {
-#[         debug("   :: Set header " T4LIT(%s,header) "/" T4LIT(%dB) " = " T4LIT(invalid,status) " from " T4LIT(%s,header) "/" T4LIT(%dB) "\n", hdr_infos[dst_hdr].name, hdr_infos[dst_hdr].byte_width, hdr_infos[src_hdr].name, hdr_infos[src_hdr].byte_width);
-#[         deactivate_hdr(dst_hdr, pd);
-#}     }
-#} }
-#[
-
-
-#{ char* action_names[] = {
+#{ const char* action_names[] = {
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     "${action.action_object.name}",
 #} };
 #[
 
-#{ char* action_canonical_names[] = {
+#{ const char* action_canonical_names[] = {
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     "${action.action_object.canonical_name}",
 #} };
 #[
 
-#{ char* action_short_names[] = {
+#{ const char* action_short_names[] = {
 for table in hlir.tables:
     for action in unique_everseen(table.actions):
         #[     "${action.action_object.short_name}",
 #} };
 #[
 
-for ctl in hlir.controls:
-    for act in ctl.actions:
-        name = act.annotations.annotations.get('name')
-        if name:
-            #[ // action name: ${name.expr[0].value}
-        #{ void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
-        if len(act.body.components) != 0:
-            #[     control_locals_${ctl.name}_t* local_vars = (control_locals_${ctl.name}_t*) pd->control_locals;
-
-            for stmt in act.body.components:
-                global pre_statement_buffer
-                global post_statement_buffer
-                pre_statement_buffer = ""
-                post_statement_buffer = ""
-
-                code = format_statement(stmt, ctl)
-                if pre_statement_buffer != "":
-                    #= pre_statement_buffer
-                    pre_statement_buffer = ""
-                #= code
-                if post_statement_buffer != "":
-                    #= post_statement_buffer
-                    post_statement_buffer = ""
-        #} }
-        #[

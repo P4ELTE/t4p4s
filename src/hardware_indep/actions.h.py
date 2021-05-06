@@ -27,6 +27,8 @@ for table in hlir.tables:
         #[     action_${action.action_object.name},
     if len(table.actions) == 0:
         #[     action_,
+if len(hlir.tables) == 0:
+    #[     action_DUMMY_ACTION_0,
 #} } actions_t;
 
 for ctl in hlir.controls:
@@ -39,6 +41,7 @@ for ctl in hlir.controls:
         if len(act.parameters.parameters) == 0:
             #[     FIELD(DUMMY_FIELD, 0);
         #} } action_${act.name}_params_t;
+        #[
 
 for table in hlir.tables:
     #{ typedef struct {
@@ -49,6 +52,7 @@ for table in hlir.tables:
         #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
     #}     };
     #} } ${table.name}_action_t;
+    #[
 
 
 
@@ -65,7 +69,7 @@ non_ctr_locals = ('counter', 'direct_counter', 'meter')
 for ctl in hlir.controls:
     #{ typedef struct {
     for local_var_decl in ctl.local_var_decls.filterfalse('urtype.node_type', 'Type_Header'):
-        #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
+        #[     ${format_type(local_var_decl.urtype, varname = local_var_decl.name, resolve_names = False)};
 
     # TODO is there a more appropriate way to store registers?
     for reg in hlir.registers:
@@ -73,3 +77,7 @@ for ctl in hlir.controls:
 
     #} } control_locals_${ctl.name}_t;
     #[
+
+
+#[ void set_hdr_valid(header_instance_t hdr, SHORT_STDPARAMS);
+#[ void set_hdr_invalid(header_instance_t hdr, SHORT_STDPARAMS);
