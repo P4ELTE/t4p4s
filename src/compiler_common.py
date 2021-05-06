@@ -233,6 +233,10 @@ def unspecified_value(size):
 
 # ################################################################################
 
+def is_meta(node):
+    return 'hdr_ref' in node and node.hdr_ref.urtype('is_metadata', False)
+    # return 'is_metadata' in node and node.is_metadata
+
 def get_raw_hdr_name(e):
     nt = e.node_type
     if e.node_type == 'ArrayIndex':
@@ -248,15 +252,24 @@ def get_raw_hdr_name(e):
     return e.member
 
 def get_hdr_name(e):
-    raw = get_raw_hdr_name(e)
-    # TODO 'meta' should come from hlir
-    if raw == 'meta':
+    if 'expr' in e and is_meta(e.expr):
         return 'all_metadatas'
+
+    raw = get_raw_hdr_name(e)
     return raw
 
 def get_hdrfld_name(e):
     if 'member' not in e:
         return None, None
+
+    if is_meta(e.expr):
+        fldname = e.member
+        return 'all_metadatas', fldname
+
+    if e.expr.node_type == 'PathExpression':
+        if e.expr.urtype.node_type == 'Type_Header':
+            return e.expr.path.name, e.member
+        return e.member, None
 
     fldname = e.member
     return get_hdr_name(e.expr), fldname
