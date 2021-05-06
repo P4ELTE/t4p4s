@@ -59,12 +59,12 @@ void change_replica(int socketid, int tid, int replica) {
 
 #define NO_ACTION_NAME ".NoAction"
 
-#define FORALLNUMANODES_NOKEY(txt1, b) \
+#define FORALLNUMANODES_NOKEY(txt1, b, show_info) \
     for (int socketid = 0; socketid < NB_SOCKETS; socketid++) \
         if (state[socketid].tables[0][0] != NULL) { \
             if (socketid == 0 && !table_config[tableid].is_hidden) { \
                 const char* action_name = get_entry_action_name(action); \
-                if (strcmp(action_name, NO_ACTION_NAME)) { \
+                if (show_info && strcmp(action_name, NO_ACTION_NAME)) { \
                     debug("    : " txt1 " " T4LIT(%s,table) ": " T4LIT(%s,action) "\n", table_config[tableid].short_name, action_name); \
                 } \
             } \
@@ -80,6 +80,6 @@ void lpm_add_promote(table_name_t tableid, uint8_t* key, uint8_t depth, uint8_t*
 void ternary_add_promote(table_name_t tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool is_const_entry, bool should_print) {
     FORALLNUMANODES("Add", "/" T4LIT(ternary), CHANGE_TABLE(ternary_add, key, mask, value), is_const_entry, should_print)
 }
-void table_setdefault_promote(table_name_t tableid, actions_t* action) {
-    FORALLNUMANODES_NOKEY("Set default action on", CHANGE_TABLE(table_set_default_action, action))
+void table_setdefault_promote(table_name_t tableid, actions_t* action, bool show_info) {
+    FORALLNUMANODES_NOKEY("Set default action on", CHANGE_TABLE(table_set_default_action, action), show_info)
 }

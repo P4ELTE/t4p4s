@@ -27,17 +27,17 @@ for table in hlir.tables:
 #[ void exact_add_promote  (table_name_t tableid, uint8_t* key,                uint8_t* value, bool is_const_entry, bool should_print);
 #[ void lpm_add_promote    (table_name_t tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool is_const_entry, bool should_print);
 #[ void ternary_add_promote(table_name_t tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool is_const_entry, bool should_print);
-#[ void table_setdefault_promote(table_name_t tableid, actions_t* value);
+#[ void table_setdefault_promote(table_name_t tableid, actions_t* value, bool show_info);
 
 #[ //=============================================================================
 
 #[ // Returns the action id stored in the table entry parameter.
-#[ // Table entries have different types (${table.name}_action),
+#[ // Table entries have different types (<table.name>_action),
 #[ // but all of them have to start with an int, the action id.
 #[ int get_entry_action_id(const void* entry);
 
 #[ // Returns the action id stored in the table entry parameter.
-#[ // Table entries have different types (${table.name}_action),
+#[ // Table entries have different types (<table.name>_action),
 #[ // but all of them have to start with an int, the action id.
 #[ char* get_entry_action_name(const void* entry);
 
