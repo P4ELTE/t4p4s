@@ -1,4 +1,16 @@
 
+errmsg() {
+    for msgvar in "$@"; do
+        (>&2 echo -e "$msgvar")
+    done
+}
+
+exit_program() {
+    echo -e "$nn"
+    [ "$1" != "" ] && errmsg "${cc}Error$nn: $*"
+    exit $ERROR_CODE
+}
+
 IS_SCRIPT_SOURCED=no
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && IS_SCRIPT_SOURCED=yes
 
@@ -117,6 +129,9 @@ FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
 
 SKIP_CHECK=${SKIP_CHECK-no}
 
+T4P4S_DIR=${T4P4S_DIR-t4p4s}
+T4P4S_BUILD_DIR=${T4P4S_BUILD_DIR-"${T4P4S_DIR}/build"}
+
 
 find_tool() {
     SEP=$1
@@ -126,28 +141,56 @@ find_tool() {
     mkdir -p "${T4P4S_TOOL_DIR}"
     TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
     [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
-    for tool in $*; do
-        for candidate in `apt-cache search --names-only "^${tool}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | tr "\n" " " | tr "-" "$SEP"`; do
+    while [ $# -ne 0 ]; do
+        tool=$1
+        pkgname=$2
+        shift
+        shift
+
+        for postfix in `apt-cache search --names-only "^${pkgname}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed "s/^${pkgname}//g" | tr "\n" " " | sed "s/-/$SEP/g"`; do
+            candidate="${tool}${postfix}"
+
             which $candidate >/dev/null
             [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
         done
+
         which $tool >/dev/null
         [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
     done
-    exit_on_error "Cannot not find $(cc 2)$tool$nn tool"
+    exit_program "Cannot not find $(cc 2)$tool$nn tool"
 }
 
-PYTHON3=${PYTHON3-$(find_tool "." python3)}
-T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang gcc)}
+PYTHON3=${PYTHON3-$(find_tool "." python3 python3)}
+T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang clang gcc gcc)}
 if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
     # note: when using gcc, only lld seems to be supported, not lld-VSN
-    T4P4S_LD=${T4P4S_LD-$(find_tool lld bfd gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "" lld lld bfd bfd gold gold)}
 else
-    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld lld bfd bfd gold gold)}
 fi
 
+T4P4S_CXX=${T4P4S_CXX-$(find_tool "-" "clang++" clang "g++" "g++")}
+
 if [ "$PYTHON3" == "" ]; then
-    echo -e "Could not find appropriate Python 3 version, exiting"
+    echo -e "Could not find ${cc}Python 3$nn tool, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
+
+if [ "$T4P4S_CC" == "" ]; then
+    echo -e "Could not find ${cc}CC$nn tool, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
+
+if [ "$T4P4S_CXX" == "" ]; then
+    echo -e "Could not find ${cc}CXX$nn tool, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
+
+if [ "$T4P4S_LD" == "" ]; then
+    echo -e "Could not find ${cc}LD$nn tool, exiting"
     [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
     exit 1
 fi
@@ -262,7 +305,6 @@ if [ "$USE_OPTIONAL_PACKAGES" == "yes" ]; then
     PIP_PACKAGES="$PIP_PACKAGES backtrace"
 fi
 
-T4P4S_DIR=${T4P4S_DIR-t4p4s}
 [ $# -gt 0 ] && T4P4S_DIR="t4p4s-$1" && T4P4S_CLONE_OPT="$T4P4S_DIR -b $1" && echo -e "Using the $cc$1$nn branch of T4P4S"
 
 
