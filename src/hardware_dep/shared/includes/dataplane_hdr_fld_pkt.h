@@ -92,10 +92,12 @@ typedef struct {
 } packet_descriptor_t;
 
 
+uint8_t* get_fld_pointer(const packet_descriptor_t* pd, field_instance_t fld);
+
 void activate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
 void deactivate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
 
 void stk_next(header_stack_t stk, packet_descriptor_t* pd);
 header_instance_t stk_at_idx(header_stack_t stk, int idx, packet_descriptor_t* pd);
 header_instance_t stk_current(header_stack_t stk, packet_descriptor_t* pd);
-field_instance_t stk_start_fld_idx(header_instance_t hdr);
+field_instance_t stk_start_fld(header_instance_t hdr);
