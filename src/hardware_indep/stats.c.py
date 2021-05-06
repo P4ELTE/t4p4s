@@ -90,14 +90,26 @@ for name in parser_state_names:
 
 #[     stats_counter = 0;
 #[     bool is_used;
+#[     bool is_hit;
+#[     bool is_miss;
 #[     bool is_hidden;
 #[     bool cond;
 for table in sorted(hlir.tables, key=lambda table: table.short_name):
-    #[     is_used = t4p4s_stats->table_apply__${table.name};
+    #[     is_hit  = (is_on && t4p4s_stats->table_hit__${table.name}) || (!is_on && !t4p4s_stats->table_hit__${table.name});
+    #[     is_miss = (is_on && t4p4s_stats->table_miss__${table.name}) || (!is_on && !t4p4s_stats->table_miss__${table.name});
+    #[     if (hidden) {
+    #[         is_used = t4p4s_stats->table_apply__${table.name};
+    #[     } else {
+    #[         is_used = !(is_on ^ (is_hit || is_miss));
+    #[     }
     #[     is_hidden  = ${"true" if table.is_hidden else "false"};
     #[     cond = !(is_used ^ is_on) && !(hidden ^ is_hidden);
     #{     if (cond) {
-    #[         printout += sprintf(printout, "$$[table]{table.short_name}, ");
+    #[         if (hidden || !is_on) {
+    #[             printout += sprintf(printout, "$$[table]{table.name}, ");
+    #[         } else {
+    #[             printout += sprintf(printout, "$$[table]{table.name}[%s%s], ", is_hit ? "hit": "", is_miss ? "miss": "");
+    #[         }
     #[         ++stats_counter;
     #}     }
     #[
