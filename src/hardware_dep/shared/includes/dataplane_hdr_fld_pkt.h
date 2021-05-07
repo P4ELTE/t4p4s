@@ -89,6 +89,14 @@ typedef struct {
     uint8_t header_tmp_storage[NONMETA_HDR_TOTAL_LENGTH];
 
     void * control_locals;
+
+    // async functionality
+    void *context;
+
+    int port_id;
+    unsigned queue_idx;
+    unsigned pkt_idx;
+    int program_state;
 } packet_descriptor_t;
 
 
@@ -101,3 +109,10 @@ void stk_next(header_stack_t stk, packet_descriptor_t* pd);
 header_instance_t stk_at_idx(header_stack_t stk, int idx, packet_descriptor_t* pd);
 header_instance_t stk_current(header_stack_t stk, packet_descriptor_t* pd);
 field_instance_t stk_start_fld(header_instance_t hdr);
+
+#define clear_pd_states(pd)\
+                { \
+                    pd->context = NULL; \
+                    pd->program_state = 0; \
+                }
+

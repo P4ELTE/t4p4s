@@ -769,7 +769,9 @@ project(
     'c',
     version : '1.0.0',
     default_options : [
-        'warning_level=0'
+        'warning_level=0',
+        'optimization=3',
+        'buildtype=release'
     ],
 )
 
@@ -831,6 +833,7 @@ executable(
     gnu_symbol_visibility : 'hidden',
     include_directories   : include_dirs,
     dependencies          : all_dependencies,
+    link_args             : ['/usr/local/lib/x86_64-linux-gnu/librte_bus_vdev.so']
 )
 EOT
 

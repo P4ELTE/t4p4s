@@ -26,6 +26,9 @@
 #define T4LIGHT_ T4LIGHT_default
 
 
+
+#include <pthread.h>
+pthread_mutex_t dbg_mutex;
 #ifdef T4P4S_DEBUG
     extern void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
     extern pthread_mutex_t dbg_mutex;
@@ -74,12 +77,90 @@
             pthread_mutex_unlock(&dbg_mutex); \
         }
 
+    #define debug_mbuf(mbuf,message) \
+    { \
+        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), \
+        "\n--------------------------------\n" T4LIT(%s, port) " (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf)); \
+    }
+
+
+
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)
     #define dbg_print(bytes, bit_count, MSG, ...)
     #define debug(M, ...)
+    #define debug_mbuf(mbuf,message)
 #endif
 
+
+#define lcore_report(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
+
+#define report(M, ...) \
+    { \
+        pthread_mutex_lock(&dbg_mutex); \
+        lcore_report(M, ##__VA_ARGS__); \
+        pthread_mutex_unlock(&dbg_mutex); \
+    }
+
+typedef struct occurence_counter_s {
+    int counter;
+    uint64_t start_cycle;
+} occurence_counter_t;
+
+#if T4P4S_ECHO_PACKAGE_COUNTS
+    #define COUNTER_INIT(oc) {oc.counter=-1;}
+    #define COUNTER_ECHO(oc,print_template){ \
+            if(oc.counter == -1) { \
+                oc.start_cycle = rte_get_tsc_cycles(); \
+                oc.counter++; \
+            } \
+            if(rte_get_tsc_cycles() - oc.start_cycle > rte_get_timer_hz()){ \
+                report(print_template,oc.counter); \
+                oc.start_cycle = rte_get_tsc_cycles(); \
+                oc.counter = 0; \
+            } \
+        }
+    #define COUNTER_STEP(oc){ \
+               oc.counter++;  \
+            }
+#else
+    #define COUNTER_INIT(oc)
+    #define COUNTER_ECHO(oc,print_template)
+    #define COUNTER_STEP(oc)
+#endif
+
+
+
+
+typedef struct time_measure_s{
+    uint64_t start_cycle;
+    uint64_t echo_start_cycle;
+    int counter;
+    uint64_t time_sum;
+}time_measure_t;
+
+#define TIME_MEASURE_INIT(tm) {tm.echo_start_cycle = 0;}
+#define TIME_MEASURE_ECHO(tm,print_template) { \
+            if(tm.echo_start_cycle == 0) { \
+                tm.echo_start_cycle = rte_get_tsc_cycles(); \
+            } \
+            if(rte_get_tsc_cycles() - tm.echo_start_cycle > rte_get_timer_hz() && tm.counter > 0){ \
+                report(print_template,tm.time_sum); \
+                tm.echo_start_cycle = rte_get_tsc_cycles(); \
+                tm.time_sum = 0; \
+                tm.counter = 0; \
+            } \
+        }
+#define TIME_MEASURE_START(tm){ \
+               tm.start_cycle = rte_get_tsc_cycles();  \
+            }
+#define TIME_MEASURE_STOP(tm){ \
+               tm.time_sum += rte_get_tsc_cycles() - tm.start_cycle;  \
+               tm.counter++; \
+            }
+
+
+#define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - timer > rte_get_timer_hz()?(timer = rte_get_tsc_cycles()),true:false)
 
 
 void sleep_millis(int millis);

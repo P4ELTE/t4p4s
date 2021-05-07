@@ -5,8 +5,8 @@
 
 #include "dpdk_lib.h"
 #include "dpdk_nicoff.h"
-
 #include "util_debug.h"
+#include "dpdkx_crypto.h"
 #include "util_packet.h"
 
 #include "main.h"
@@ -85,6 +85,18 @@ testcase_t* current_test_case;
 
 fake_cmd_t get_cmd(LCPARAMS) {
     return (*(current_test_case->steps))[rte_lcore_id()][lcdata->idx];
+}
+
+fake_cmd_t get_command_object(LCPARAMS, unsigned idx){
+    return (*(current_test_case->steps))[rte_lcore_id()][idx];
+}
+
+fake_cmd_t get_cmd_to_verify(LCPARAMS) {
+    while(  get_command_object(LCPARAMS_IN, lcdata->verify_idx).action != FAKE_PKT ||
+            strlen(get_command_object(LCPARAMS_IN, lcdata->verify_idx).out[0]) == 0) {
+        lcdata->verify_idx++;
+    }
+    return get_command_object(LCPARAMS_IN, lcdata->verify_idx++);
 }
 
 
@@ -319,8 +331,7 @@ bool encountered_error = false;
 bool encountered_drops = false;
 
 void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
-    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
-
+    fake_cmd_t cmd = get_cmd_to_verify(LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
@@ -353,8 +364,34 @@ void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
 // ------------------------------------------------------
 // TODO
 
+#ifdef START_CRYPTO_NODE
+bool core_stopped_running[RTE_MAX_LCORE];
+#endif
+
 bool core_is_working(LCPARAMS) {
-    return get_cmd(LCPARAMS_IN).action != FAKE_END;
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        bool ret =
+            get_cmd(LCPARAMS_IN).action != FAKE_END ||
+            lcdata->conf->pending_crypto > 0 ||
+            rte_ring_count(lcdata->conf->async_queue) > 0;
+
+        #ifdef START_CRYPTO_NODE
+            if(ret == false){
+                core_stopped_running[rte_lcore_id()] = true;
+            }
+
+            if(rte_lcore_id() ==  rte_lcore_count() - 1){
+                bool is_any_runing = false;
+                for(int a = 0; a < rte_lcore_count()-1;a++){
+                    is_any_runing |= !core_stopped_running[a];
+                }
+                ret = is_any_runing;
+            }
+        #endif
+        return ret;
+    #else
+        return get_cmd(LCPARAMS_IN).action != FAKE_END;
+    #endif
 }
 
 extern volatile bool ctrl_is_initialized;
@@ -461,7 +498,10 @@ void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 }
 
 unsigned get_pkt_count_in_group(LCPARAMS) {
-    return 1;
+    if(get_cmd(LCPARAMS_IN).action == FAKE_PKT)
+        return 1;
+    else
+        return 0;
 }
 
 unsigned get_queue_count(LCPARAMS) {
@@ -486,31 +526,47 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool sen
 
 bool storage_already_inited = false;
 
-void init_storage() {
-    if (storage_already_inited)    return;
+// defined in main_async.c
+void async_init_storage();
 
-    char str[15];
-    sprintf(str, "testpool");
-    pktmbuf_pool[0] = rte_mempool_create(str, (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
+void init_storage() {
+    if (storage_already_inited) return;
+    pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        async_init_storage();
+    #endif
 
     storage_already_inited = true;
-}
 
+    #ifdef START_CRYPTO_NODE
+        for(int a=0;a<rte_lcore_count();a++){
+            core_stopped_running[a] = false;
+        }
+    #endif
+}
+extern void init_async_data(struct lcore_data *data);
 struct lcore_data init_lcore_data() {
 
     t4p4s_init_global_stats();
-
-    return (struct lcore_data) {
+    struct lcore_data data = (struct lcore_data) {
         .conf     = &lcore_conf[rte_lcore_id()],
         .is_valid = true,
+        .verify_idx = 0,
         .idx      = 0,
         .pkt_idx  = 0,
-        .mempool  = pktmbuf_pool[0],
     };
+    data.conf->mempool  = pktmbuf_pool[0];
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        init_async_data(&data);
+    #endif
+    return data;
 }
 
 void initialize_nic() {
     dpdk_init_nic();
+    #if T4P4S_INIT_CRYPTO
+        init_crypto_devices();
+    #endif
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {
