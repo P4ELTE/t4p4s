@@ -6,7 +6,8 @@ from compiler_log_warnings_errors import addError, addWarning
 from compiler_common import types, generate_var_name, get_hdrfld_name, unique_everseen
 
 #[ #include "dataplane_impl.h"
-#[ #include "gen_model.h"
+#[ #include "dataplane.h"
+#[ #include "dataplane_stages.h"
 
 # TODO make this an import from hardware_indep
 #[ #include "dpdk_smem.h"
@@ -20,60 +21,6 @@ for type in unique_everseen([comp['type'] for table in hlir.tables for smem in t
     #[ void apply_direct_smem_$type(register_uint32_t* smem, uint32_t value, char* table_name, char* smem_type_name, char* smem_name) {
     #[    debug("     : applying apply_direct_smem_$type(register_uint32_t (*smem)[1], uint32_t value, char* table_name, char* smem_type_name, char* smem_name)");
     #[ }
-
-
-for table, table_info in table_infos:
-    #{ apply_result_t ${table.name}_apply(STDPARAMS) {
-    if 'key' not in table or table.key_length_bits == 0:
-        #[     table_entry_${table.name}_t* entry = ${table.name}_get_default_entry(STDPARAMS_IN);
-        #[     bool hit = false;
-        #[     ${table.name}_apply_show_hit(entry->action.action_id, STDPARAMS_IN);
-    else:
-        #[     uint8_t* key[${table.key_length_bytes}];
-        #[     table_${table.name}_key(pd, (uint8_t*)key);
-
-        #[     table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${table.matchType.name}_lookup(tables[TABLE_${table.name}], (uint8_t*)key);
-        #[     bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
-        #{     if (unlikely(!hit)) {
-        #[         entry = ${table.name}_get_default_entry(STDPARAMS_IN);
-        #}     }
-
-        #{     #ifdef T4P4S_DEBUG
-        #[         if (likely(entry != 0))    ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
-        #}     #endif
-
-        #{     #ifdef T4P4S_STATS
-        #[         t4p4s_stats_global.table_hit__${table.name} = hit || t4p4s_stats_global.table_hit__${table.name};
-        #[         t4p4s_stats_global.table_miss__${table.name} = !hit || t4p4s_stats_global.table_miss__${table.name};
-        #[         t4p4s_stats_per_packet.table_hit__${table.name} = hit || t4p4s_stats_per_packet.table_hit__${table.name};
-        #[         t4p4s_stats_per_packet.table_miss__${table.name} = !hit || t4p4s_stats_per_packet.table_miss__${table.name};
-        #}     #endif
-
-    if len(table.direct_meters + table.direct_counters) > 0:
-        #[     if (likely(hit))    ${table.name}_apply_smems(STDPARAMS_IN);
-
-    #[     if (unlikely(entry == 0))    return (apply_result_t) { hit, -1 /* invalid action */ };
-
-    #[     ${table.name}_stats(entry->action.action_id, STDPARAMS_IN);
-
-    # ACTIONS
-    if len(table.actions) == 1:
-        action_name = table.actions[0].action_object.name
-        #[     action_code_${action_name}(entry->action.${action_name}_params, SHORT_STDPARAMS_IN);
-        #[     return (apply_result_t) { hit, action_${action_name} };
-    else:
-        #{     switch (entry->action.action_id) {
-        for action in table.actions:
-            action_name = action.action_object.name
-            #{       case action_${action_name}:
-            #[           action_code_${action_name}(entry->action.${action_name}_params, SHORT_STDPARAMS_IN);
-            #}           return (apply_result_t) { hit, action_${action_name} };
-        #[     }
-        #}     return (apply_result_t) {}; // unreachable
-
-    #} }
-    #[
-
 
 ################################################################################
 
@@ -137,15 +84,6 @@ for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
 
 ################################################################################
 # Pipeline
-
-for ctl in hlir.controls:
-    for idx, comp in enumerate(ctl.body.components):
-        #{ void control_stage_${ctl.name}_${idx}(control_locals_${ctl.name}_t* local_vars, STDPARAMS)  {
-        #[     uint32_t value32, res32;
-        #[     (void)value32, (void)res32;
-        #= format_statement(ctl.body.components[idx], ctl)
-        #} }
-        #[
 
 for ctl in hlir.controls:
     if len(ctl.body.components) == 0:

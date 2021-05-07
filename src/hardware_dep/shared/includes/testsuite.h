@@ -28,9 +28,9 @@ typedef struct {
 
     uint32_t        			out_port;
     const char*     			out[MAX_SECTION_COUNT];
-    
+
     t4p4s_controlflow_name_t  	require[MAX_SECTION_COUNT];
-    t4p4s_controlflow_name_t  	forbid[MAX_SECTION_COUNT];  
+    t4p4s_controlflow_name_t  	forbid[MAX_SECTION_COUNT];
 } fake_cmd_t;
 
 // ------------------------------------------------------

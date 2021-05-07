@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2021 Eotvos Lorand University, Budapest, Hungary
+// Copyright 2018 Eotvos Lorand University, Budapest, Hungary
 
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        FSLEEP(INIT_WAIT_CONTROLPLANE_LONG_MILLIS),
+        {FAKE_PKT, 0, 1, ETH(ETH04, ETH1A), NO_CTL_REPLY, 0, ETH(ETH04, ETH1A)},
         FEND,
     },
-
     {
         FEND,
     },

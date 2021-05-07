@@ -33,9 +33,9 @@ void fill_table(uint8_t addr, uint8_t dd)
     exact->length = 1*8+0;
 
     a = add_p4_action(h, 2048);
-    strcpy(a->description.name, "found");
+    strcpy(a->description.name, "ingress.found");
 
-    ap = add_p4_action_parameter(h, a, 2048);   
+    ap = add_p4_action_parameter(h, a, 2048);
     strcpy(ap->name, "dd");
     memcpy(ap->bitmap, &dd, 1);
     ap->length = 1*8+0;
@@ -82,7 +82,7 @@ void dhf(void* b) {
 
 void init() {
     printf("Set default actions.\n");
-    set_table_default_action("t", "ingress.t", "learn");
+    set_table_default_action("t", "ingress.t", "ingress.learn");
     notify_controller_initialized();
 }
 

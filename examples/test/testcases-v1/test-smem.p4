@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2018 Eotvos Lorand University, Budapest, Hungary
 
-#include <core.p4>
-#include <v1model.p4>
-#include "../../include/std_headers.p4"
-
+#include "v1-boilerplate-pre.p4"
 
 register<bit<32>>(32w100) debug;
 register<bit<1>>(32w1)    reg1;
@@ -30,7 +27,7 @@ struct headers {
     test_etherType_t etherType;
 }
 
-parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+PARSER {
     state start {
         packet.extract(hdr.dstAddr);
         packet.extract(hdr.srcAddr);
@@ -39,7 +36,7 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
 }
 
-control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+CTL_INGRESS {
     counter(  1, CounterType.packets)             c_p;
     counter( 10, CounterType.bytes)               c_b;
     counter(100, CounterType.packets_and_bytes)   c_pb;
@@ -70,28 +67,28 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         c_pb.count(3);
         c_pb.count(3);
 
-        // m_b.execute_meter<bit<32>>(1, meta.gtp_metadata.data32);
-        // m_p.execute_meter<bit<32>>(11, meta.gtp_metadata.data32);
+        m_b.execute_meter<bit<32>>(1, meta.gtp_metadata.data32);
+        m_p.execute_meter<bit<32>>(11, meta.gtp_metadata.data32);
 
 
         debug.write(99, 12345678);
 
 
 
-        // dm_b.read(meta.gtp_metadata.data1);
-        // dm_p.read(meta.gtp_metadata.data32);
+        dm_b.read(meta.gtp_metadata.data1);
+        dm_p.read(meta.gtp_metadata.data32);
 
-        // debug.read(meta.gtp_metadata.regtmp32, 99);
-        // debug.write(99, 12345678);
-        // debug.read(meta.gtp_metadata.regtmp32, 99);
+        debug.read(meta.gtp_metadata.regtmp32, 99);
+        debug.write(99, 12345678);
+        debug.read(meta.gtp_metadata.regtmp32, 99);
 
-        // reg1.read(meta.gtp_metadata.regtmp1, 1);
-        // reg1.write(1, 1);
-        // reg1.read(meta.gtp_metadata.regtmp1, 1);
+        reg1.read(meta.gtp_metadata.regtmp1, 1);
+        reg1.write(1, 1);
+        reg1.read(meta.gtp_metadata.regtmp1, 1);
 
-        // reg16.read(meta.gtp_metadata.regtmp16, 65535);
-        // reg16.write(65535, 0xf0f0);
-        // reg16.read(meta.gtp_metadata.regtmp16, 65535);
+        reg16.read(meta.gtp_metadata.regtmp16, 65535);
+        reg16.write(65535, 0xf0f0);
+        reg16.read(meta.gtp_metadata.regtmp16, 65535);
     }
 
     action mac_learn() {
@@ -130,7 +127,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
 }
 
-control DeparserImpl(packet_out packet, in headers hdr) {
+CTL_EMIT {
     apply {
         packet.emit(hdr.dstAddr);
         packet.emit(hdr.srcAddr);
@@ -138,8 +135,4 @@ control DeparserImpl(packet_out packet, in headers hdr) {
     }
 }
 
-control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) { apply {} }
-control verifyChecksum(inout headers hdr, inout metadata meta) { apply {} }
-control computeChecksum(inout headers hdr, inout metadata meta) { apply {} }
-
-V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
+#include "v1-boilerplate-post.p4"

@@ -322,7 +322,7 @@ colours[$i]="\033[${COLOUR}m"
 
 CFGFILES=${CFGFILES-!cmdline!,!varcfg!${EXAMPLES_CONFIG_FILE},${ARCH_OPTS_FILE}}
 
-declare -A OPTS=([cfgfiles]="$CFGFILES")
+declare -A OPTS=([cfgfiles]="$CFGFILES", [meson_opts]="")
 
 mkdir -p build/tools
 
@@ -606,7 +606,7 @@ fi
 [ "$(optvalue testcase)" != off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}-$(optvalue testcase)}
 T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}"}
 T4P4S_TARGET_DIR="${T4P4S_BUILD_DIR}/last"
-# a synonym of "last", this comest earliest alphabetically
+# a synonym of "last", this comes earliest alphabetically
 T4P4S_AFTERMOST_DIR="${T4P4S_BUILD_DIR}/aftermost"
 
 OPTS[executable]="$T4P4S_TARGET_DIR/build/${OPTS[example]}"
@@ -650,6 +650,9 @@ mkdir -p $T4P4S_SRCGEN_DIR
 
 T4P4S_LOG_DIR=${T4P4S_LOG_DIR-$(realpath ${T4P4S_TARGET_DIR})/log}
 mkdir -p "${T4P4S_LOG_DIR}"
+
+PARALLELISM=${PARALLELISM-$((`nproc`))}
+PARALLELISM=$(($PARALLELISM < 1 ? 1 : $PARALLELISM))
 
 # --------------------------------------------------------------------
 # Checks before execution of phases begins
@@ -704,7 +707,7 @@ if [ "$(optvalue p4)" != off ]; then
     verbosemsg "P4 compiler options: $(print_cmd_opts "${OPTS[p4opts]}")"
 
     IFS=" "
-    $PYTHON3 -B src/compiler.py ${OPTS[p4opts]}
+    $PYTHON3 -B src/compiler.py --multi $PARALLELISM ${OPTS[p4opts]}
     exit_on_error "$?" "P4 to C compilation $(cc 2)failed$nn"
 fi
 
@@ -771,7 +774,10 @@ project(
         'buildtype=release'
     ],
 )
+
 EOT
+
+    echo >> "/tmp/meson.build.tmp"
 
     sudo cat "meson.build.base" >>"/tmp/meson.build.tmp"
 
@@ -801,7 +807,7 @@ EOT
 
     IFS=" "
     for src in ${OPTS[include-srcs]}; do
-        sudo echo "project_source_files += ['$src']" >> "/tmp/meson.build.tmp"
+        sudo echo "project_source_files += [$src]" >> "/tmp/meson.build.tmp"
     done
 
     for flag in ${OPTS[cflags]}; do
@@ -810,6 +816,16 @@ EOT
 
 
     sudo cat <<EOT >>"/tmp/meson.build.tmp"
+
+foreach i: [`seq 0 $(($PARALLELISM-1)) | tr '\n' ','`]
+    foreach multi: ['actions', 'controlplane', 'dataplane', 'parser']
+        multifile = multi + '.stage_' + i.to_string() + '.c'
+        if fs.exists(srcg / 'multi' / multifile)
+            project_source_files += [srcg / 'multi' / multifile]
+        endif
+    endforeach
+endforeach
+
 executable(
     meson.project_name(),
     project_source_files,
@@ -827,24 +843,37 @@ EOT
     msg "[$(cc 0)COMPILE SWITCH$nn]"
     verbosemsg "C compiler options: $(cc 0)$(print_cmd_opts "${OPTS[cflags]}")${nn}"
 
-    if [ ! -d ${T4P4S_TARGET_DIR}/build ];  then
-        cd ${T4P4S_TARGET_DIR}
+    MESON_OPTS=${OPTS[meson_opts]}
 
-        sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" $MESON_CMD -Dbuildtype=$MESON_BUILDTYPE build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
-        exit_on_error "$?" "Meson invocation $(cc 2)failed$nn, see $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/20_meson.txt)$nn"
-
-        cd - >/dev/null
-    fi
+    mkdir -p ${T4P4S_TARGET_DIR}/build
+    cd ${T4P4S_TARGET_DIR}/build
+    sudo rm -rf build.ninja
+    sudo rm -rf compile_commands.json
+    sudo rm -rf .ninja*
+    sudo rm -rf meson-info
+    sudo rm -rf meson-private
+    cd - >/dev/null
 
     cd ${T4P4S_TARGET_DIR}
-    # suppresses Meson regeneration message from ninja
-    sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" sudo $MESON_CMD setup --wipe build >$T4P4S_LOG_DIR/21_meson_reconfigure.txt 2>&1
+    sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" $MESON_CMD $MESON_OPTS -Dbuildtype=$MESON_BUILDTYPE build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
+    exit_on_error "$?" "Meson invocation $(cc 2)failed$nn, see $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/20_meson.txt)$nn"
     cd - >/dev/null
 
     cd ${T4P4S_TARGET_DIR}/build
     sudo ninja 2>$T4P4S_LOG_DIR/22_ninja.txt
     exit_on_error "$?" "C compilation using ninja $(cc 2)failed$nn, see log $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/22_ninja.txt)$nn"
     cd - >/dev/null
+
+    UPX=${UPX-upx}
+    if [ "$(optvalue upx)" != off ]; then
+        if [[ `which $UPX` ]]; then
+            UPX_OPTS=${UPX_OPTS-}
+            [ ${OPTS[upx]} != "on" ] && UPX_OPTS=${OPTS[upx]}
+            sudo $UPX ${UPX_OPTS} ${OPTS[executable]}
+        else
+            msg "Cannot find $(cc 1)$UPX$nn, will not compress executable"
+        fi
+    fi
 fi
 
 

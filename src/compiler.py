@@ -392,35 +392,57 @@ def generate_desugared_py():
     The desugared files are generated here."""
     import glob
     for fromfile in glob.glob("src/utils/*.sugar.py"):
-        tofile = re.sub("[.]sugar[.]py$", ".py", fromfile)
-        compiler_common.current_compilation = { 'from': fromfile, 'to': tofile, 'use_real_random': args['use_real_random'] }
         with open(fromfile, "r") as orig_file:
             code = orig_file.read()
             prefix_lines = "generated_code = \"\"\n"
+
+            tofile = re.sub("[.]sugar[.]py$", ".py", fromfile)
+            compiler_common.current_compilation = { 'from': fromfile, 'to': tofile, 'use_real_random': args['use_real_random'] }
             code = translate_file_contents(fromfile, tofile, code, prefix_lines=prefix_lines, add_lines=False, relpath="src/")
+            compiler_common.current_compilation = None
 
             write_file(tofile, code)
 
+
+def output_desugared_c(filename, filepath, idx):
+    outfile = os.path.join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
+
+    compiler_common.current_compilation = { 'orig': filename, 'from': genfile, 'to': outfile, 'use_real_random': args['use_real_random'], 'multi': args['multi'], 'multi_idx': idx, 'skip_output': False }
+    code = generate_code(filepath, genfile, {'hlir': hlir})
+    is_multicompiled = 'is_multicompiled' in compiler_common.current_compilation
+    skip_output = compiler_common.current_compilation['skip_output']
     compiler_common.current_compilation = None
+
+    if not skip_output:
+        if is_multicompiled:
+            outfile = os.path.join(args['generated_dir'], 'multi', re.sub(r'\.([ch])\.py$', rf'_{idx}.\1', filename))
+
+        write_file(outfile, code)
+
+    return is_multicompiled
 
 
 def generate_desugared_c(filename, filepath):
     global hlir
 
     genfile = os.path.join(args['desugared_path'], re.sub(r'\.([ch])\.py$', r'.\1.gen.py', filename))
-    outfile = os.path.join(args['generated_dir'], re.sub(r'\.([ch])\.py$', r'.\1', filename))
-
-    compiler_common.current_compilation = { 'orig': filename, 'from': genfile, 'to': outfile, 'use_real_random': args['use_real_random'] }
 
     compiler_log_warnings_errors.filename = filename
     compiler_log_warnings_errors.filepath = filepath
     compiler_log_warnings_errors.genfile = genfile
     compiler_log_warnings_errors.outfile = outfile
 
-    code = generate_code(filepath, genfile, {'hlir': hlir})
-    write_file(outfile, code)
+    is_multicompiled = output_desugared_c(filename, filepath, 0)
 
-    compiler_common.current_compilation = None
+    if is_multicompiled:
+        for idx in range(1, args['multi']):
+            output_desugared_c(filename, filepath, idx)
+
+
+def make_dir(path, description):
+    if not os.path.isdir(path):
+        os.makedirs(path)
+        args['verbose'] and print(f" GEN {path} ({description})")
 
 
 def make_dirs(cache_dir_name):
@@ -429,13 +451,9 @@ def make_dirs(cache_dir_name):
         print("Compiler files path is missing", file=sys.stderr)
         sys.exit(1)
 
-    if not os.path.isdir(args['desugared_path']):
-        os.makedirs(args['desugared_path'])
-        args['verbose'] and print(" GEN {0} (desugared compiler files)".format(args['desugared_path']))
-
-    if not os.path.isdir(args['generated_dir']):
-        os.makedirs(args['generated_dir'])
-        args['verbose'] and print(" GEN {0} (generated files)".format(args['generated_dir']))
+    make_dir(args['desugared_path'], 'desugared compiler files')
+    make_dir(args['generated_dir'], 'generated files')
+    make_dir(os.path.join(args['generated_dir'], 'multi'), os.path.join('generated files', 'multi'))
 
     if cache_dir_name and not os.path.isdir(cache_dir_name):
         os.mkdir(cache_dir_name)
@@ -456,6 +474,9 @@ def file_contains_exact_text(filename, text):
 def write_file(filename, text):
     """Writes the given text to the given file."""
 
+    if filename == '?':
+        return
+
     if file_contains_exact_text(filename, text):
         return
 
@@ -466,11 +487,24 @@ def write_file(filename, text):
         genfile.write(text)
 
 
+def get_core_count():
+    try:
+        import psutil
+        return psutil.core_count()
+    except:
+        try:
+            import multiprocessing
+            return multiprocessing.cpu_count()
+        except:
+            return 1
+
+
 def init_args():
     """Parses the command line arguments and loads them
     into the global variable args."""
     parser = argparse.ArgumentParser(description='T4P4S compiler')
     parser.add_argument('p4_file', help='The source file')
+    parser.add_argument('-x', '--multi', help='Multiplex rate for multicompiled modules', required=True, type=int)
     parser.add_argument('-v', '--p4v', help='Use P4-14 (default is P4-16)', required=False, choices=[16, 14], type=int, default=16)
     parser.add_argument('-p', '--p4c_path', help='P4C path', required=False)
     parser.add_argument('-c', '--compiler_files_dir', help='Source directory of the compiler\'s files', required=False, default=os.path.join("src", "hardware_indep"))
@@ -499,11 +533,11 @@ def init_args():
 
 
 def generate_files():
-    base = args['compiler_files_dir']
+    bases = (args['compiler_files_dir'], os.path.join(args['compiler_files_dir'], 'multi'))
     exts = [".c.py", ".h.py"]
 
     generate_desugared_py()
-    for filename in (f for f in os.listdir(base) if os.path.isfile(os.path.join(base, f)) for ext in exts if f.endswith(ext)):
+    for base, filename in ((base, f) for base in bases for f in os.listdir(base) if os.path.isfile(os.path.join(base, f)) for ext in exts if f.endswith(ext)):
         generate_desugared_c(filename, os.path.join(base, filename))
 
 

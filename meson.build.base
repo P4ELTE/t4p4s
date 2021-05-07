@@ -1,5 +1,8 @@
 
+fs = import('fs')
+
 hdep = '../../src/hardware_dep'
+xtrn = hdep / 'dpdk/data_plane/externs'
 srcg = 'srcgen'
 
 project_description = meson.project_name()
@@ -15,8 +18,10 @@ project_source_files = [
 
     srcg / 'tables.c',
     srcg / 'parser.c',
+    srcg / 'hdr_fld.c',
     srcg / 'actions.c',
     srcg / 'controlplane.c',
+    srcg / 'stats.c',
     srcg / 'common.c',
 
     hdep / 'dpdk/main.c',
@@ -39,6 +44,9 @@ project_source_files = [
     hdep / 'shared/util_debug.c',
     hdep / 'shared/backend.c',
     hdep / 'shared/dataplane_hdr_fld_pkt.c',
+
+    srcg / 'stateful_memory.c',
+    xtrn / 'dpdkx_smem.c',
 ]
 
 build_args = [
@@ -47,6 +55,7 @@ build_args = [
 
 include_dirs = include_directories(
     srcg,
+    srcg / 'multi',
     hdep / 'dpdk/includes',
     hdep / 'shared/includes',
     hdep / 'shared/ctrl_plane',
@@ -56,4 +65,3 @@ all_dependencies = [
     dependency('libdpdk'),
     dependency('threads'),
 ]
-

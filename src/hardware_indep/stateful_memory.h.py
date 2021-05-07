@@ -5,7 +5,6 @@ from compiler_log_warnings_errors import addError
 from utils.codegen import format_expr, format_type, format_statement, format_declaration
 from compiler_common import unique_everseen
 
-
 def gen_make_smem_code(smem, table = None):
     size = smem.size
     type = smem.urtype.name
@@ -70,13 +69,10 @@ if len(all_locals) != len(all_locals_dict):
 for locname, loctype in all_locals:
     #[     $loctype $locname;
 
-
-smems = ('counter', 'direct_counter', 'meter', 'direct_meter', 'register')
-
 # Note: currently all control locals are put together into the global state
 for ctl in hlir.controls:
-    for local_var_decl in (ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']).filterfalse('urtype.node_type', 'Type_Header').filterfalse('urtype.name', smems):
-        #[     ${format_type(local_var_decl.type, varname = local_var_decl.name, resolve_names = False)};
+    for local_var_decl in (ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']).filterfalse('urtype.node_type', 'Type_Header').filterfalse(lambda n: 'smem_type' in n):
+        #[     ${format_type(local_var_decl.urtype, varname = local_var_decl.name, resolve_names = False)};
 
 
 

@@ -226,6 +226,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd dbg`
     - In addition, statistics can be displayed at the end
         `./t4p4s.sh :l2fwd dbg stats`
+    - For per-packet statistics, use `stats=1`
+        `./t4p4s.sh :l2fwd dbg stats=1`
     - Suppress EAL messages from the switch output
         `./t4p4s.sh :l2fwd noeal`
     - No output at all (both terminal and switch) except for errors
@@ -286,6 +288,13 @@ Note that for non-testing examples, you will have to setup your network card, an
         `MESON_BUILDTYPE=release ./t4p4s.sh %my_p4`
     - When using `clang`, you may make use of `thin-lto`.
         `./t4p4s.sh %my_p4 lto`
+    - You may pass extra options to `meson` like this.
+        `./t4p4s.sh %my_p4 mopt+=-Db_ndebug=if-release mopt+=-Doptimization=3 mopt+=-Ddebug=false`
+    - Reduce the output file size by about 85% using [`upx`](https://github.com/upx/upx). This is a reasonable compromise between compression ratio and speed.
+        `./t4p4s.sh %my_p4 upx`
+    - To further adjust `upx`, you can pass options to the command. Note that `--brute` and `--ultra-brute` will probably break the executable.
+        `UPX_OPTS=-1 ./t4p4s.sh %my_p4`
+        `./t4p4s.sh %my_p4 upx=--best`
 1. Miscellaneous options
     - Specify the P₄ version manually (usually decided by other options or P₄ file extension)
         `./t4p4s.sh :l2fwd vsn=14`

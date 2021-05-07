@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
-import functools
-
 #[ #pragma once
 
 #[ #include <byteswap.h>
@@ -42,6 +40,7 @@ for hdr, fld in parsed_fields:
 #[ #define FIELD_COUNT ${max(len(all_fields), 1)}
 #[ #define STACK_COUNT ${max(len(hlir.header_stacks), 1)}
 
+# note: implemented in hdr_fld.c.py
 #[ extern const char* field_names[FIELD_COUNT];
 #[ extern const char* header_instance_names[HEADER_COUNT];
 
@@ -86,109 +85,39 @@ if len(hlir.header_stacks) == 0:
 
 
 #{ typedef struct {
-#[     int         idx;
-#[     const char* name;
-#[     int         byte_width;
-#[     int         byte_offset;
-#[     bool        is_metadata;
-#[     int         var_width_field;
+#[     const int              idx;
+#[     const char*            name;
+#[     const int              byte_width;
+#[     const int              byte_offset;
+#[     const bool             is_metadata;
+#[     const field_instance_t var_width_field;
 #} } hdr_info_t;
 #[
 
 #{ typedef struct {
-#[     int               bit_width;
-#[     int               bit_offset;
-#[     int               byte_width;
-#[     int               byte_offset;
-#[     uint32_t          mask;
-#[     bool              is_metadata;
-#[     header_instance_t header_instance;
+#[     const int               bit_width;
+#[     const int               bit_offset;
+#[     const int               byte_width;
+#[     const int               byte_offset;
+#[     const uint32_t          mask;
+#[     const bool              is_metadata;
+#[     const header_instance_t header_instance;
 #} } fld_info_t;
 #[
 
 #{ typedef struct {
-#[     int               size;
-#[     int               fld_count;
-#[     header_instance_t start_hdr;
-#[     field_instance_t  start_fld_idx;
+#[     const int               size;
+#[     const int               fld_count;
+#[     const header_instance_t start_hdr;
+#[     const field_instance_t  start_fld;
 #} } stk_info_t;
 #[
 
 
-
-#{ static const hdr_info_t hdr_infos[HEADER_COUNT] = {
-byte_offsets = ["0"]
-for idx, hdr in enumerate(hlir.header_instances):
-    typ = hdr.urtype
-    typ_bit_width = typ.bit_width if 'bit_width' in typ else 0
-    typ_byte_width = typ.byte_width if 'byte_width' in typ else 0
-
-    #[     // header ${hdr.name}
-    #{     {
-    #[         .idx = ${idx},
-    #[         .name = "${hdr.name}",
-    #[         .byte_width = ${typ_byte_width}, // ${typ_bit_width} bits, ${typ_bit_width/8.0} bytes
-    #[         .byte_offset = ${"+".join(byte_offsets)},
-    #[         .is_metadata = ${'true' if 'is_metadata' in typ and typ.is_metadata else 'false'},
-    #[         .var_width_field = ${functools.reduce((lambda x, f: f.id if hasattr(f, 'is_vw') and f.is_vw else x), hdr.urtype.fields, 'FIXED_WIDTH_FIELD')},
-    #}     },
-    #[
-
-    byte_offsets += [f'{typ_byte_width}']
-
-if len(hlir.header_instances) == 0:
-    #[ {}, // dummy
-#} };
-
-
-#{ static const fld_info_t fld_infos[FIELD_COUNT] = {
-hdr_startidxs = {}
-fldidx = 0
-for hdr in hlir.header_instances:
-    for fld in hdr.urtype.fields:
-        fldidx += 1
-        if hdr.name not in hdr_startidxs:
-            hdr_startidxs[hdr.name] = fldidx
-
-        not0 = 0xffffffff
-        shift_up = (32 - fld.urtype.size) % 32
-        top_bits = (not0 << shift_up) & not0
-        mask = top_bits >> (fld.offset % 8)
-        mask_txt = f'{mask:08x}'
-        binary_txt = '_'.join(f'{mask:032b}'[i:i+8] for i in range(0, 32, 8))
-
-        #[     // field ${hdr.name}.${fld.name}
-        #{     {
-        #[         .byte_width = ${hdr.urtype.byte_width},
-        #[         .is_metadata = ${'true' if hdr.urtype.is_metadata else 'false'},
-        #[         .bit_width = ${fld.urtype.size},
-        #[         .bit_offset = ${fld.offset} % 8,
-        #[         .byte_offset = ${fld.offset} / 8,
-        #[         .mask = __bswap_constant_32(0x${mask_txt}), // ${fld.urtype.size} bits at offset ${fld.offset}: ${binary_txt}
-        #[         // .mask = __bswap_constant_32(uint32_top_bits(${fld.urtype.size}) >> (${fld.offset}%8)),
-        #[         .header_instance = HDR(${'all_metadatas' if hdr.urtype.is_metadata else hdr.name}),
-        #}     },
-        #[
-#} };
-
-
-#{ static const stk_info_t stk_infos[STACK_COUNT] = {
-for stk in hlir.header_stacks:
-    stk0 = f'{stk.name}_0'
-    #[     // stack ${stk.name}
-    #{     {
-    #[         .size      = ${stk.urtype.size.value},
-    #[         .fld_count = ${len(stk.type.elementType.urtype.fields)},
-    #[         .start_hdr = HDR(${stk.name}_0),
-    #[         .start_fld_idx = ${hdr_startidxs[stk0]},
-    #}     },
-    #[
-#} };
-
-
-for stk in hlir.header_stacks:
-    for idx, fld in enumerate(stk.urtype.elementType.urtype.fields):
-        #[ #define stkfld_offset_${stk.name}_${fld.name} $idx
+# note: implemented in hdr_fld.c.py
+#[ extern const hdr_info_t hdr_infos[HEADER_COUNT];
+#[ extern const fld_info_t fld_infos[FIELD_COUNT];
+#[ extern const stk_info_t stk_infos[STACK_COUNT];
 
 
 #[ // HW optimization related infos
@@ -220,3 +149,8 @@ for name in vw_names:
 if len(parser.parserLocals) + len(vw_names) == 0:
     #[     // no parser locals
 #} } parser_state_t;
+
+
+for stk in hlir.header_stacks:
+    for idx, fld in enumerate(stk.urtype.elementType.urtype.fields):
+        #[ #define stkfld_offset_${stk.name}_${fld.name} $idx

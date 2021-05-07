@@ -101,14 +101,16 @@ if [ "$PRECOMPILE" == "yes" ]; then
 
         ARCH_MACRO="USE_${archname[$TESTCASE]^^}"
 
-        [ -f ${TARGET_JSON} ] && [ ${TARGET_JSON} -nt "${src_p4[$TESTCASE]}" ] && continue
+        [ -f ${TARGET_JSON} ] && [ ${TARGET_JSON} -nt "${src_p4[$TESTCASE]}" ] && echo -n "|" && continue
 
-        [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 14 &
-        [ "${ext_p4[$TESTCASE]}" == "p4"    ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 16 &
+        [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 14 && echo -n "|" &
+        [ "${ext_p4[$TESTCASE]}" == "p4"    ] && $P4C/build/p4test "${src_p4[$TESTCASE]}" -D ${ARCH_MACRO}=1 -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v 16 && echo -n "|" &
     done
 fi
 
 wait
+
+echo
 
 cd -
 

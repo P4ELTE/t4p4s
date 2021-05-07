@@ -25,7 +25,20 @@ header_instance_t stk_current(header_stack_t stk, packet_descriptor_t* pd) {
     return stk_at_idx(stk, pd->stacks[stk].current, pd);
 }
 
-field_instance_t stk_start_fld_idx(header_instance_t hdr) {
-	stk_info_t infos = stk_infos[hdr];
-    return infos.start_fld_idx + (hdr - infos.start_hdr) * infos.fld_count;
+field_instance_t stk_start_fld(header_instance_t hdr) {
+    stk_info_t infos = stk_infos[hdr];
+    return infos.start_fld + (hdr - infos.start_hdr) * infos.fld_count;
+}
+
+uint8_t* get_fld_pointer(const packet_descriptor_t* pd, field_instance_t fld) {
+    fld_info_t info = fld_infos[fld];
+    header_instance_t hdr = info.header_instance;
+
+    field_instance_t vw_fld = hdr_infos[hdr].var_width_field;
+
+    uint8_t* ptr = (uint8_t*)pd->headers[hdr].pointer;
+    int static_offset = info.byte_offset;
+    bool is_dyn = fld <= vw_fld || vw_fld == -1;
+    int dyn_offset = is_dyn ? 0 : pd->headers[hdr].var_width_field_bitwidth / 8;
+    return ptr + static_offset + dyn_offset;
 }

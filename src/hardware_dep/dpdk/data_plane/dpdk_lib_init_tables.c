@@ -4,6 +4,8 @@
 // This file is included directly from `dpdk_lib.c`.
 
 
+extern const char* table_short_names_sorted;
+
 extern void create_table(lookup_table_t* t, int socketid);
 extern void flush_table(lookup_table_t* t);
 extern void init_table_const_entries();
@@ -49,7 +51,7 @@ void init_print_table_info()
 {
     char table_names[64*NB_TABLES+256];
     char* nameptr = table_names;
-    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): ", NB_REPLICA);
+    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): %s", NB_REPLICA, table_short_names_sorted);
 
     int common_count = 0;
     int hidden_count = 0;
@@ -60,7 +62,6 @@ void init_print_table_info()
             continue;
         }
         ++common_count;
-        nameptr += sprintf(nameptr, "%s" T4LIT(%s,table), i == 0 ? "" : ", ", t.short_name);
     }
 
     if (hidden_count > 0) {

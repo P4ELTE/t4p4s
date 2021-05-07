@@ -14,6 +14,11 @@ from compiler_common import generate_var_name, prepend_statement
 #[ #include "util_debug.h"
 #[
 
+
+table_short_names_sorted = '", "'.join(sorted(f'T4LIT({table.short_name},table)' for table in hlir.tables if not table.is_hidden))
+#[ const char* table_short_names_sorted = "" ${table_short_names_sorted};
+#[
+
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir.tables:
     tmt = table.matchType.name
@@ -50,27 +55,32 @@ for table in hlir.tables:
 
 
 for table in hlir.tables:
-    #{ void setdefault_${table.name}(actions_t action_id) {
+    #{ void setdefault_${table.name}(actions_t action_id, bool show_info) {
     #{     table_entry_${table.name}_t default_action = {
     #[          .action = { action_id },
     #[          .is_entry_valid = VALID_TABLE_ENTRY,
     #}     };
-    #[     table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action);
+    #[     table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action, show_info);
     #} }
 
 
 #[ #define SOCKET0 0
 
 #[ extern struct socket_state state[NB_SOCKETS];
-#[ extern void table_setdefault_promote(table_name_t tableid, actions_t* action_id);
+#[
+
+nops = list(sorted((t for t in hlir.tables if not t.is_hidden for default in [t.default_action.expression.method.action_ref] if default.canonical_name == '.nop'), key=lambda t: t.short_name))
+nopinfo = "" if len(nops) == 0 else f' ({len(nops)} " T4LIT(nop,action) " defaults: ' + ", ".join(f'" T4LIT({t.short_name},table) "' for t in nops) + ')'
 
 #{ void init_table_default_actions() {
-#[     debug(" :::: Init table default actions\n");
+#[     debug(" :::: Init table default actions${nopinfo}\n");
 
-for table in hlir.tables:
+for table in sorted(hlir.tables, key=lambda table: table.short_name):
+    default_action = table.default_action.expression.method.action_ref
+    show_info = 'false' if table in nops else 'true'
     #[     int current_replica_${table.name} = state[SOCKET0].active_replica[TABLE_${table.name}];
     #{     if (likely(state[SOCKET0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
-    #[         setdefault_${table.name}(action_${table.default_action.expression.method.action_ref.name});
+    #[         setdefault_${table.name}(action_${default_action.name}, ${show_info});
     #}     }
 #} }
 #[

@@ -12,6 +12,7 @@ import os.path
 import sys
 import pkgutil
 import importlib
+import gzip
 
 import pickle
 
@@ -37,6 +38,16 @@ def import_modules(required_modules):
     return [importlib.import_module(modname) for modname in required_modules]
 
 
+def open_for_write(filename):
+    # return open(filename, 'wb')
+    return gzip.open(filename, 'wb')
+
+
+def open_for_read(filename):
+    # return open(filename, 'rb')
+    return gzip.open(filename, 'rb')
+
+
 def load_cache(filename, is_compressed, required_modules, loader):
     if not is_cache_file_loadable(filename):
         return None
@@ -46,9 +57,11 @@ def load_cache(filename, is_compressed, required_modules, loader):
 
     if is_compressed:
         try:
-            with open(filename, 'rb') as cache_file:
+            with open_for_read(filename) as cache_file:
                 return loader(cache_file, None)
-        except:
+        except Exception as e:
+            print(f'The following exception occurred while loading cache file {filename}')
+            print(e)
             return None
 
 
@@ -56,8 +69,8 @@ def write_cache(cache, required_modules, saver, data):
     if import_modules(required_modules) is None:
         return
 
-    with open(cache, 'wb') as cache_file:
-        cache_file.write(saver(data))
+    with open_for_write(cache) as cache_file:
+        saver(data, cache_file)
 
 
 def p4_to_json(files, arg):
@@ -69,6 +82,7 @@ def p4_to_json(files, arg):
 def load_simdjson(file, data):
     import simdjson
     if file is not None:
+        args['verbose'] and print(f"Loading file using simdjson")
         return simdjson.load(file)
 
     with open(data, 'r') as f:
@@ -78,6 +92,7 @@ def load_simdjson(file, data):
 def load_orjson(file, data):
     import orjson
     if file is not None:
+        args['verbose'] and print(f"Loading file using orjson")
         return orjson.load(file)
 
     with open(data, 'r') as f:
@@ -87,6 +102,7 @@ def load_orjson(file, data):
 def load_ujson(file, data):
     import ujson
     if file is not None:
+        args['verbose'] and print(f"Loading file using ujson")
         return ujson.load(file)
 
     with open(data, 'r') as f:
@@ -96,6 +112,7 @@ def load_ujson(file, data):
 def load_json(file, data):
     import json
     if file is not None:
+        args['verbose'] and print(f"Loading file using json")
         return json.load(file)
 
     with open(data, 'r') as f:
@@ -161,6 +178,8 @@ def continue_stages(stages, stage_idx, data):
             try:
                 new_data = loader(None, data)
             except Exception as e:
+                print(f'The following exception occurred while loading cache file {filename}')
+                print(e)
                 last_exception = e
                 continue
 
@@ -175,11 +194,9 @@ def continue_stages(stages, stage_idx, data):
         data = new_data
 
         if 'saver' in stage and stage['saver'] is not None:
-            required_modules, save_data = stage['saver']
-            write_cache(stage['filename'], required_modules, save_data, data)
+            required_modules, saver = stage['saver']
+            write_cache(stage['filename'], required_modules, saver, data)
     return data
-
-    compiler_common.current_compilation = None
 
 
 def load_hlir(filename, cache_dir_name, recompile=False):
@@ -204,7 +221,7 @@ def cache_loader(no_cache_loader):
 
 
 def cache_saver():
-    return ([], lambda data: pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL))
+    return ([], lambda data, cache_file: cache_file.write(pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)))
 
 
 def stage_p4_to_json_file(filename, p4cache):
