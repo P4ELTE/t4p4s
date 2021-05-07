@@ -19,6 +19,8 @@ PARSER {
 
 CTL_INGRESS {
     apply {
+        log_msg("Hello world!");
+
         log_msg("Const8    = {}",{8w0});
         log_msg("Const8    = {}",{8w1});
         log_msg("Const8    = {}",{8w123});
