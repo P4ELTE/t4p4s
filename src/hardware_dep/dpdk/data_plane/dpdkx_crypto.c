@@ -263,3 +263,52 @@ void do_decryption(SHORT_STDPARAMS)
         do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
     #endif
 }
+
+
+
+void do_ipsec_encapsulation(SHORT_STDPARAMS) {
+    debug_mbuf(pd->wrapper,"do_ipsec_encapsulation, wrapper:");
+    fprintf(stderr,"HEEEE:%d\n",pd->headers[1].length);
+    dbg_bytes(pd->headers[1].pointer,pd->headers[1].length,"hello");
+
+    int wrapper_length = rte_pktmbuf_pkt_len(pd->wrapper);
+    int padding_length = (16 - wrapper_length% 16) % 16;
+    int wrapper_and_payload_length = padding_length + wrapper_length;
+    // 1 byte pad length, 1 byte next header, 8 byte esp, 8 byte iv, 12 byte hmac
+    u_int8_t* new_payload = malloc(wrapper_and_payload_length + 1 + 1 + 8 + 8 + 12);
+    memset(new_payload, 0, wrapper_and_payload_length + 1 + 1 + 8 + 8 + 12);
+
+    // the output of the encryption will be after the IV and the simulated ESP
+    u_int8_t* payload_to_encrypt = new_payload + 8 + 8;
+
+    // copy original payload
+    memcpy(payload_to_encrypt, rte_pktmbuf_mtod(pd->wrapper, uint8_t*), wrapper_length);
+    //add padding
+    memset(payload_to_encrypt+wrapper_length,0,padding_length);
+
+    payload_to_encrypt[wrapper_and_payload_length] = (u_int8_t)padding_length;
+    payload_to_encrypt[wrapper_and_payload_length + 1] = 4;
+
+    dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
+    dbg_bytes(payload_to_encrypt,wrapper_and_payload_length+2,"To Encrypt:");
+    // TODO: ENCRYPT
+    u_int8_t* iv = malloc(8);
+    memset(iv,0xbb,8);
+
+    u_int32_t spi = 0xee;
+    u_int32_t esp_counter = 0xcc;
+
+    memcpy(new_payload,&spi,4);
+    memcpy(new_payload + 4,&esp_counter,4);
+    memcpy(new_payload + 8,iv,8);
+
+
+    u_int8_t* hmac = malloc(12);
+    memset(hmac,0xaa,12);
+    int hmac_length;
+    //TODO: hmac(hmac,&hmac_length,new_payload,8 + 8 + wrapper_and_payload_length + 2);
+    memcpy(new_payload + 8 + 8 + wrapper_and_payload_length + 2, hmac, 12);
+
+    dbg_bytes(new_payload,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
+    dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 12,"final");
+}
