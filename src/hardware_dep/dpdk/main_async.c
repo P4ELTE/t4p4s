@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#if ASYNC_MODE != ASYNC_MODE_OFF
 
 #include "dpdk_lib.h"
 #include "gen_include.h"
@@ -527,3 +528,5 @@ void main_loop_async(LCPARAMS)
         }
     }
 }
+
+#endif

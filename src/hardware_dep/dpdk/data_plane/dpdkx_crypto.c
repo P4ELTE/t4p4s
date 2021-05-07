@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if T4P4S_INIT_CRYPTO
+
 #include "dpdkx_crypto.h"
 #include <time.h>
 #include <stdlib.h>
@@ -312,3 +314,5 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     dbg_bytes(new_payload,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
     dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 12,"final");
 }
+
+#endif
