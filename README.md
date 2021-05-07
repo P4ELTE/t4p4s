@@ -296,7 +296,11 @@ grouped by the types of failures.
 You may indicate which tests are to be skipped by listing them in a file.
 See the default skip file, `tests_to_skip.txt`, for further details.
 
-    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg
+    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg stats
+
+The batch file processes all P4 files from the folder `examples` and its subfolders (including symlinked ones) by default. You can override it like this.
+
+    START_DIR=examples/test/testcases-v1/ ./run_tests.sh verbose dbg stats
 
 
 # Using Docker with T₄P₄S
