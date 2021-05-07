@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dpdkx_crypto.h"
+
 #if T4P4S_INIT_CRYPTO
 
-#include "dpdkx_crypto.h"
 #include <time.h>
 #include <stdlib.h>
 #include <rte_dev.h>
@@ -316,3 +317,8 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
 }
 
 #endif
+
+void dummy_crypto(SHORT_STDPARAMS)
+{
+    debug("Dummy crypto!\n");
+}
