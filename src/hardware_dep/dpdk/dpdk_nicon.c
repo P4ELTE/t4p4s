@@ -163,8 +163,9 @@ struct lcore_data init_lcore_data() {
         .is_valid  = lcdata.conf->hw.n_rx_queue != 0,
     };
     lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
-    init_async_data(&lcdata);
-
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        init_async_data(&lcdata);
+    #endif
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());
 
@@ -216,8 +217,9 @@ void init_storage() {
 
     if (clone_pool == NULL)
         rte_exit(EXIT_FAILURE, "Cannot init clone mbuf pool\n");
-
-    async_init_storage();
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        async_init_storage();
+    #endif
 }
 
 void main_loop_pre_rx(LCPARAMS) {
@@ -249,7 +251,9 @@ unsigned get_queue_count(LCPARAMS) {
 
 void initialize_nic() {
     dpdk_init_nic();
-    init_crypto_devices();
+    #if T4P4S_INIT_CRYPTO
+        init_crypto_devices();
+    #endif
 }
 
 int launch_count() {

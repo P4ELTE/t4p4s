@@ -369,26 +369,29 @@ bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
 bool core_is_working(LCPARAMS) {
-    bool ret = get_cmd(LCPARAMS_IN).action != FAKE_END;
-
     #if ASYNC_MODE != ASYNC_MODE_OFF
-        ret = ret || lcdata->conf->pending_crypto > 0 || rte_ring_count(lcdata->conf->async_queue) > 0;
-    #endif
+        bool ret =
+            get_cmd(LCPARAMS_IN).action != FAKE_END ||
+            lcdata->conf->pending_crypto > 0 ||
+            rte_ring_count(lcdata->conf->async_queue) > 0;
 
-    #ifdef START_CRYPTO_NODE
-        if(ret == false){
-            core_stopped_running[rte_lcore_id()] = true;
-        }
-
-        if(rte_lcore_id() ==  rte_lcore_count() - 1){
-            bool is_any_runing = false;
-            for(int a = 0; a < rte_lcore_count()-1;a++){
-                is_any_runing |= !core_stopped_running[a];
+        #ifdef START_CRYPTO_NODE
+            if(ret == false){
+                core_stopped_running[rte_lcore_id()] = true;
             }
-            ret = is_any_runing;
-        }
+
+            if(rte_lcore_id() ==  rte_lcore_count() - 1){
+                bool is_any_runing = false;
+                for(int a = 0; a < rte_lcore_count()-1;a++){
+                    is_any_runing |= !core_stopped_running[a];
+                }
+                ret = is_any_runing;
+            }
+        #endif
+        return ret;
+    #else
+        return get_cmd(LCPARAMS_IN).action != FAKE_END;
     #endif
-    return ret;
 }
 
 extern volatile bool ctrl_is_initialized;
@@ -529,7 +532,10 @@ void async_init_storage();
 void init_storage() {
     if (storage_already_inited) return;
     pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
-    async_init_storage();
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        async_init_storage();
+    #endif
+
     storage_already_inited = true;
 
     #ifdef START_CRYPTO_NODE
@@ -537,7 +543,6 @@ void init_storage() {
             core_stopped_running[a] = false;
         }
     #endif
-
 }
 extern void init_async_data(struct lcore_data *data);
 struct lcore_data init_lcore_data() {
@@ -551,14 +556,17 @@ struct lcore_data init_lcore_data() {
         .pkt_idx  = 0,
     };
     data.conf->mempool  = pktmbuf_pool[0];
-    init_async_data(&data);
-
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        init_async_data(&data);
+    #endif
     return data;
 }
 
 void initialize_nic() {
     dpdk_init_nic();
-    init_crypto_devices();
+    #if T4P4S_INIT_CRYPTO
+        init_crypto_devices();
+    #endif
 }
 
 void t4p4s_abnormal_exit(int retval, int idx) {

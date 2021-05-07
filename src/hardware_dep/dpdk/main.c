@@ -265,12 +265,12 @@ int main(int argc, char** argv)
     initialize_args(argc, argv);
     initialize_nic();
 
-    RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
-    RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
-    #ifdef  DEBUG__CRYPTO_EVERY_N
-        RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
-    #endif
     #if ASYNC_MODE != ASYNC_MODE_OFF
+        RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
+        RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
+        #ifdef  DEBUG__CRYPTO_EVERY_N
+            RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
+        #endif
         RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
         RTE_LOG(INFO, P4_FWD, " -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
         RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
