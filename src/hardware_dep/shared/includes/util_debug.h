@@ -107,7 +107,7 @@ typedef struct occurence_counter_s {
     uint64_t start_cycle;
 } occurence_counter_t;
 
-#if ECHO_PACKAGE_COUNTS
+#if T4P4S_ECHO_PACKAGE_COUNTS
     #define COUNTER_INIT(oc) {oc.counter=-1;}
     #define COUNTER_ECHO(oc,print_template){ \
             if(oc.counter == -1) { \
