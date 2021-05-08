@@ -28,7 +28,7 @@
 
 
 #include <pthread.h>
-pthread_mutex_t dbg_mutex;
+
 #ifdef T4P4S_DEBUG
     extern void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
     extern pthread_mutex_t dbg_mutex;
@@ -77,20 +77,13 @@ pthread_mutex_t dbg_mutex;
             pthread_mutex_unlock(&dbg_mutex); \
         }
 
-    #define debug_mbuf(mbuf,message) \
-    { \
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), \
-        "\n--------------------------------\n" T4LIT(%s, port) " (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf)); \
-    }
-
-
-
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)
     #define dbg_print(bytes, bit_count, MSG, ...)
     #define debug(M, ...)
-    #define debug_mbuf(mbuf,message)
 #endif
+
+void debug_mbuf(struct rte_mbuf* mbuf, const char* message);
 
 
 #define lcore_report(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
@@ -107,7 +100,7 @@ typedef struct occurence_counter_s {
     uint64_t start_cycle;
 } occurence_counter_t;
 
-#if T4P4S_ECHO_PACKAGE_COUNTS
+#if T4P4S_STATS
     #define COUNTER_INIT(oc) {oc.counter=-1;}
     #define COUNTER_ECHO(oc,print_template){ \
             if(oc.counter == -1) { \
