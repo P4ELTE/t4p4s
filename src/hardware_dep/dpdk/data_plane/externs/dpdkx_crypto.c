@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <rte_dev.h>
 #include <rte_bus_vdev.h>
+#include <rte_errno.h>
 
 #ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
     #include <rte_cryptodev_scheduler.h>
@@ -20,6 +21,12 @@
 
 struct rte_mempool *session_pool, *session_priv_pool;
 struct rte_mempool *crypto_pool;
+struct rte_mempool *crypto_task_pool;
+
+struct crypto_task *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+
 
 int cdev_id;
 
@@ -27,6 +34,7 @@ struct rte_cryptodev_sym_session *session_encrypt;
 struct rte_cryptodev_sym_session *session_decrypt;
 
 uint8_t iv[16];
+extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
 // -----------------------------------------------------------------------------
 // Device initialisation and setup
@@ -82,6 +90,20 @@ static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
     unsigned int crypto_op_private_data = AES_CBC_IV_LENGTH;
     crypto_pool = rte_crypto_op_pool_create("crypto_pool", RTE_CRYPTO_OP_TYPE_SYMMETRIC, 16*1024, POOL_CACHE_SIZE, crypto_op_private_data, socket_id);
     if (crypto_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create crypto op pool\n");
+
+    crypto_task_pool = rte_mempool_create("crypto_task_pool", (unsigned)16*1024-1, sizeof(struct crypto_task), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
+    if (crypto_task_pool == NULL) {
+        switch(rte_errno){
+            case E_RTE_NO_CONFIG:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - function could not get pointer to rte_config structure\n"); break;
+            case E_RTE_SECONDARY:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - function was called from a secondary process instance\n"); break;
+            case EINVAL:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - cache size provided is too large\n"); break;
+            case ENOSPC:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - the maximum number of memzones has already been allocated\n"); break;
+            case EEXIST:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - a memzone with the same name already exists\n"); break;
+            case ENOMEM:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - no appropriate memory area found in which to create memzone\n"); break;
+            default:  rte_exit(EXIT_FAILURE, "Cannot create async op pool - Unknown error %d\n",rte_errno); break;
+        }
+    }
+
 }
 
 static int setup_device(const char *crypto_name, uint8_t socket_id)
@@ -106,6 +128,108 @@ static void configure_device(int cdev_id, struct rte_cryptodev_config *conf, str
     if (rte_cryptodev_start(cdev_id) < 0)
         rte_exit(EXIT_FAILURE, "Failed to start device\n");
 }
+
+
+
+// Helper functions
+void reset_pd(packet_descriptor_t *pd)
+{
+    pd->parsed_length = 0;
+    if(pd->wrapper == 0){
+        pd->payload_length = 0;
+    }else{
+        pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
+    }
+    pd->emit_hdrinst_count = 0;
+    pd->is_emit_reordering = false;
+}
+
+void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum crypto_task_type op_type, void* extraInformationForAsyncHandling){
+    unsigned encryption_offset = 0;//14; // TODO
+
+    int ret = rte_mempool_get(crypto_task_pool, (void**)op_out);
+    if(ret < 0){
+        rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
+        //TODO: it should be a packet drop, not total fail
+    }
+    struct crypto_task *op = *op_out;
+    op->op = op_type;
+    op->data = pd->wrapper;
+
+    uint32_t packet_length = op->data->pkt_len;
+    int encrypted_length = packet_length - encryption_offset;
+    int extra_length = 0;
+    debug_mbuf(op->data, " :::: Crypto: preparing packet");
+
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if(extraInformationForAsyncHandling != NULL){
+            void* context = extraInformationForAsyncHandling;
+            rte_pktmbuf_prepend(op->data, sizeof(void*));
+            *(rte_pktmbuf_mtod(op->data, void**)) = context;
+            extra_length += sizeof(void*);
+        }
+    #elif ASYNC_MODE == ASYNC_MODE_PD
+        packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
+        *store_pd = *pd;
+
+        rte_pktmbuf_prepend(op->data, sizeof(packet_descriptor_t*));
+        *(rte_pktmbuf_mtod(op->data, packet_descriptor_t**)) = store_pd;
+        extra_length += sizeof(void**);
+    #endif
+
+    rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
+    *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
+    extra_length += sizeof(int);
+
+    debug_mbuf(op->data, "   :: Added bytes for encryption");
+
+    op->offset = extra_length + encryption_offset;
+    // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
+    if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, 16-encrypted_length%16);
+}
+
+
+void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
+    unsigned int lcore_id = rte_lcore_id();
+
+    control_DeparserImpl(pd, 0, 0);
+    emit_packet(pd, 0, 0);
+
+    create_crypto_op(crypto_tasks[lcore_id],pd,op,NULL);
+    if (rte_crypto_op_bulk_alloc(lcore_conf[lcore_id].crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
+        rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
+    }
+    crypto_task_to_crypto_op(crypto_tasks[lcore_id][0], enqueued_ops[lcore_id][0]);
+    rte_mempool_put_bulk(crypto_task_pool, (void **) crypto_tasks[lcore_id], 1);
+
+    #ifdef START_CRYPTO_NODE
+        if (rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_ops[lcore_id], 1, NULL) <= 0){
+            debug(T4LIT(Enqueing ops in blocking sync op failed... skipping encryption,error) "\n");
+            return;
+        }
+        while(rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_ops[lcore_id], 1, NULL) == 0);
+    #else
+        if(rte_cryptodev_enqueue_burst(cdev_id, lcore_id,enqueued_ops[lcore_id], 1) <= 0){
+            debug(T4LIT(Enqueing ops in blocking sync op failed... skipping encryption,error) "\n");
+            return;
+        }
+        while(rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], 1) == 0);
+    #endif
+    struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
+    int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
+
+    rte_pktmbuf_adj(mbuf, sizeof(int));
+    pd->wrapper = mbuf;
+    pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+    pd->wrapper->pkt_len = packet_length;
+    debug_mbuf(mbuf, "Result of encryption\n");
+
+    rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
+
+    reset_pd(pd);
+    parse_packet(pd, 0, 0);
+}
+
 
 // -----------------------------------------------------------------------------
 // Callbacks

@@ -32,6 +32,19 @@
             } \
         }
 
+
+enum crypto_task_type {
+    CRYPTO_TASK_ENCRYPT,
+    CRYPTO_TASK_DECRYPT,
+};
+
+struct crypto_task {
+    struct rte_mbuf* data;
+    int offset;
+    enum crypto_task_type op;
+};
+extern struct rte_mempool *crypto_task_pool;
+
 // -----------------------------------------------------------------------------
 // Interface
 

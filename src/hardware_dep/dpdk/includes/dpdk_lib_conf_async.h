@@ -58,21 +58,5 @@
 #endif
 #define DEBUG__COUNT_CONTEXT_MISSING_CAUSED_PACKET_DROP
 
-
-// Shall we move these to backend.h?
-
-
-enum crypto_task_type {
-    CRYPTO_TASK_ENCRYPT,
-    CRYPTO_TASK_DECRYPT,
-};
-
-struct crypto_task {
-    struct rte_mbuf* data;
-    int offset;
-    enum crypto_task_type op;
-};
-
 extern struct rte_mempool *context_pool;
-extern struct rte_mempool *crypto_task_pool;
 extern struct rte_ring *context_free_command_ring;
