@@ -36,8 +36,8 @@ void print_log_msg(const char* msg) {
     #endif
 }
 
-void log_msg(const char* msg, SHORT_STDPARAMS) {
-    debug("    : " T4LIT(Logged,status) ": %s\n", msg);
+void log_msg(const char** msg, SHORT_STDPARAMS) {
+    print_log_msg(*msg);
 }
 
 const char* dec_hex_fmt(int size) {

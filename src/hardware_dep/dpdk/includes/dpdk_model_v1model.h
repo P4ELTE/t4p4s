@@ -110,7 +110,7 @@ void update_checksum_with_payload__u32s__u16(bool condition, uint8_buffer_t data
 // v1model.p4: extern void assume(in bool check);
 
 // v1model.p4: extern void log_msg(string msg);
-void log_msg(const char* msg, SHORT_STDPARAMS);
+void log_msg(const char** msg, SHORT_STDPARAMS);
 // v1model.p4: extern void log_msg<T>(string msg, in T data);
 void log_msg__u8s(const char** msg, uint8_buffer_t data, SHORT_STDPARAMS);
 void log_msg__u16s(const char** msg, uint8_buffer_t data, SHORT_STDPARAMS);
