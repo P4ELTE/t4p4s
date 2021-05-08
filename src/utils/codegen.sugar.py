@@ -730,7 +730,6 @@ def gen_methodcall(mcall):
     funname = f'{m.path.name}{type_args_postfix}'
 
     argtypes = ", ".join(mcall.arguments.filter(lambda arg: not arg.is_vec()).map('expression').map(format_with_ref).filter(lambda t: t is not None) + ['SHORT_STDPARAMS'])
-
     funname = funname_map[funname] if funname in funname_map else funname
 
     #[ ${format_expr(mcall, funname_override=funname)};
@@ -1015,9 +1014,9 @@ def gen_list_elems(elems, last):
     #[ ${', ' if len(elems) > 0 else ''}${last}
 
 
-def gen_format_method_parameter(par, buf=None):
-    if 'expression' in par and par.expression.node_type in ('ListExpression'):
-        return buf
+def gen_format_method_parameter(par, listexpr_to_buf):
+    if 'expression' in par and (listexpr := par.expression).node_type in ('ListExpression'):
+        return listexpr_to_buf[listexpr]
 
     if 'expression' in par and 'fld_ref' in par.expression:
         expr = par.expression.expr
@@ -1106,37 +1105,47 @@ def gen_pre_format_call_extern_make_buf_data(component, vardata, varoffset):
         addError('Calling extern', f'Encountered unexpected extern argument of type {component.node_type}')
 
 
+def gen_prepare_listexpr_arg(listexpr):
+    lec = listexpr.components
+    components = lec.flatmap(lambda comp: comp.components if comp.node_type == 'ListExpression' else [comp])
+    hdrflds = components.map(get_hdrfld_name)
+
+    varsize = generate_var_name('size')
+    vardata = generate_var_name('buffer_data')
+
+    gen_pre_format_call_extern_make_buf_size(varsize, vardata, components)
+
+    varoffset = generate_var_name('offset')
+    #pre[     uint8_t $vardata[$varsize];
+    #pre[     int $varoffset = 0;
+    for component in components:
+        gen_pre_format_call_extern_make_buf_data(component, vardata, varoffset)
+        #pre[
+
+    buf = generate_var_name('buffer')
+    #pre{     uint8_buffer_t $buf = {
+    #pre[        .buffer_size = $varsize,
+    #pre[        .buffer = $vardata,
+    #pre}     };
+
+    return buf
+
+
 def gen_format_call_extern(args, mname, m, funname_override=None):
     if funname_override is not None:
         mname = funname_override
 
-    listexprs = args.map('expression').filter('node_type', 'ListExpression')
-    if len(listexprs) > 0:
-        lec = listexprs[0].components
-        components = lec.flatmap(lambda comp: comp.components if comp.node_type == 'ListExpression' else [comp])
-        hdrflds = components.map(get_hdrfld_name)
+    fmt_args = []
+    listexpr_to_buf = {}
 
-        varsize = generate_var_name('size')
-        vardata = generate_var_name('buffer_data')
+    for listexpr in args.map('expression').filter('node_type', 'ListExpression'):
+        buf = gen_prepare_listexpr_arg(listexpr)
+        listexpr_to_buf[listexpr] = buf
 
-        gen_pre_format_call_extern_make_buf_size(varsize, vardata, components)
+    with SugarStyle("inline_comment"):
+        fmt_args += [fmt_arg for arg in args if not arg.is_vec() for fmt_arg in [gen_format_method_parameter(arg, listexpr_to_buf)] if fmt_arg is not None]
 
-        varoffset = generate_var_name('offset')
-        #pre[     uint8_t $vardata[$varsize];
-        #pre[     int $varoffset = 0;
-        for component in components:
-            gen_pre_format_call_extern_make_buf_data(component, vardata, varoffset)
-            #pre[
-
-        buf = generate_var_name('buffer')
-        #pre{     uint8_buffer_t $buf = {
-        #pre[        .buffer_size = $varsize,
-        #pre[        .buffer = $vardata,
-        #pre}     };
-
-        with SugarStyle("inline_comment"):
-            fmt_args = [fmt_arg for arg in args if not arg.is_vec() for fmt_arg in [gen_format_method_parameter(arg, buf)] if fmt_arg is not None]
-            #[     $mname(${gen_list_elems(fmt_args, "SHORT_STDPARAMS_IN")})
+    #[     $mname(${gen_list_elems(fmt_args, "SHORT_STDPARAMS_IN")})
 
 ##############
 
