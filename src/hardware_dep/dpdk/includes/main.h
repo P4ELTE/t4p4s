@@ -38,7 +38,7 @@ void free_packet(LCPARAMS);
 bool is_packet_handled(LCPARAMS);
 void init_storage();
 void main_loop_pre_rx(LCPARAMS);
-void main_loop_post_rx(LCPARAMS);
+void main_loop_post_rx(bool, LCPARAMS);
 void main_loop_post_single_rx(bool got_packet, LCPARAMS);
 uint32_t get_portid(unsigned queue_idx, LCPARAMS);
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS);

@@ -11,7 +11,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#if T4P4S_INIT_CRYPTO
+    #if !defined(ASYNC_MODE)
+        #error Crypto mode is active, but Async option is not set
+    #endif
+
+    #if defined ASYNC_MODE && ASYNC_MODE == ASYNC_MODE_OFF
+        #error Crypto mode is active, but Async option is not set
+    #endif
+#endif
+
+#if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+    #if !defined(T4P4S_INIT_CRYPTO)
+        #error Async option given, but Crypto mode is inactive
+    #endif
+#endif
+
+
 #if ASYNC_MODE != ASYNC_MODE_OFF
+
+#include <unistd.h>
 
 #include "dpdk_lib.h"
 #include "gen_include.h"
@@ -36,7 +56,7 @@ struct rte_mempool *async_pool;
 // INTERFACE
 
 void async_init_storage();
-void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx));
+void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
 void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
 void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
@@ -45,20 +65,17 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
 // -----------------------------------------------------------------------------
 // DEBUG
 
-#define DBG_CONTEXT_SWAP_TO_MAIN        debug(T4LIT(Swapping to main context...,warning) "\n");
-#define DBG_CONTEXT_SWAP_TO_PACKET(ctx) debug(T4LIT(Swapping to packet context (%p)...,warning) "\n", ctx);
-
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
 #if ASYNC_MODE == ASYNC_MODE_PD
     #include <setjmp.h>
 
     void jump_to_main_loop(packet_descriptor_t* pd){
-        if(pd->program_state == 0){
-            debug("========================================================= Jump to the main loop\n");
+        if(pd->program_restore_phase == 0){
+            debug(" " T4LIT(<<<<,async) " Longjump to the " T4LIT(main loop,async) "\n");
             longjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint,1);
         }else{
-            debug("========================================================= Jump to the async loop\n");
+            debug(" " T4LIT(<<<<,async) " Longjump to the " T4LIT(async loop,async) "\n");
             longjmp(lcore_conf[rte_lcore_id()].asyncLoopJumpPoint,1);
         }
     }
@@ -109,19 +126,20 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
         debug_mbuf(mbuf, "Data after removing packet length: ");
         debug("Loaded packet length: %d\n",packet_length);
     #endif
+
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         void* context = *(rte_pktmbuf_mtod(mbuf, void**));
         rte_pktmbuf_adj(mbuf, sizeof(void*));
-
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t* async_pds_id = *(rte_pktmbuf_mtod(mbuf, packet_descriptor_t**));
         rte_pktmbuf_adj(mbuf, sizeof(packet_descriptor_t*));
         //debug("Loading from async PD store! id is %d\n",async_pds_id);
         *pd = *async_pds_id;
-        if(pd->program_state == 1) {
+        if(pd->program_restore_phase == 0) {
             rte_mempool_put_bulk(pd_pool, (void **) &async_pds_id, 1);
         }
     #endif
+
     // Resetting the pd
     init_headers(pd, 0);
     reset_headers(pd, 0);
@@ -135,17 +153,16 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         pd->context = context;
 
-        DBG_CONTEXT_SWAP_TO_PACKET(context)
+        debug("   " T4LIT(<<,async) " Swapping to packet context " T4LIT(%p,async) "\n", context);
         swapcontext(&lcdata->conf->main_loop_context, context);
-        debug("Swapped back to main context.\n");
-
+        debug("   " T4LIT(>>,async) " Swapped back to " T4LIT(main context,async) "\n");
     #elif ASYNC_MODE == ASYNC_MODE_PD
         // parse
         debug("-------------------------\n")
         debug("PD Restoring\n")
         reset_pd(pd);
         parse_packet(pd, 0, 0);
-        pd->program_state += 1;
+        pd->program_restore_phase += 1;
         do_handle_packet(lcdata, pd, pd->port_id, pd->queue_idx, pd->pkt_idx);
     #endif
 }
@@ -156,8 +173,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum async_op_type op_type, void* extraInformationForAsyncHandling){
     unsigned encryption_offset = 0;//14; // TODO
 
-    int ret;
-    ret = rte_mempool_get(async_pool, (void**)op_out);
+    int ret = rte_mempool_get(async_pool, (void**)op_out);
     if(ret < 0){
         rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
         //TODO: it should be a packet drop, not total fail
@@ -169,7 +185,7 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     uint32_t packet_length = op->data->pkt_len;
     int encrypted_length = packet_length - encryption_offset;
     int extra_length = 0;
-    debug_mbuf(op->data, "Create crypto op, packet: ");
+    debug_mbuf(op->data, " :::: Crypto: preparing packet");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(extraInformationForAsyncHandling != NULL){
@@ -183,7 +199,6 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
         *store_pd = *pd;
 
         rte_pktmbuf_prepend(op->data, sizeof(packet_descriptor_t*));
-        //debug("Saving to Async PD store! id is %d\n",store_pd);
         *(rte_pktmbuf_mtod(op->data, packet_descriptor_t**)) = store_pd;
         extra_length += sizeof(void**);
     #endif
@@ -191,9 +206,8 @@ void create_crypto_op(struct async_op **op_out, packet_descriptor_t* pd, enum as
     rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
     *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
     extra_length += sizeof(int);
-    debug("Saved packet length: %d\n",packet_length);
 
-    debug_mbuf(op->data, "Prepared for encryption (added extra informations):");
+    debug_mbuf(op->data, "   :: Added bytes for encryption");
 
     op->offset = extra_length + encryption_offset;
     // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
@@ -206,7 +220,7 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, enum async_op_type op_typ
     create_crypto_op(&op,pd,op_type,extraInformationForAsyncHandling);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
-    debug_mbuf(op->data, "Enqueued for async");
+    debug_mbuf(op->data, "   :: Enqueued for async");
 }
 
 // -----------------------------------------------------------------------------
@@ -263,14 +277,14 @@ void init_async_data(struct lcore_data *data){
     COUNTER_INIT(data->conf->async_drop_counter);
 }
 
-void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx, void (*handler_function)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))
+void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS)
 {
     pd->port_id = port_id;
     pd->queue_idx = queue_idx;
     pd->pkt_idx = pkt_idx;
 
     uint8_t dropped = 0;
-    COUNTER_ECHO(lcdata->conf->async_drop_counter,"dropped async: %d\n");
+    COUNTER_ECHO(lcdata->conf->async_drop_counter,"   :: Dropped async: %d\n");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         ucontext_t *context;
@@ -285,17 +299,16 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             context->uc_stack.ss_flags = 0;
             sigemptyset(&context->uc_sigmask);
             pd->context = context;
-            debug("Packet being handled, context reference is %p\n", context);
 
             getcontext(context);
             context->uc_link = &lcdata->conf->main_loop_context;
-            makecontext(context, handler_function, 5, LCPARAMS_IN, port_id, queue_idx, pkt_idx);
-            DBG_CONTEXT_SWAP_TO_PACKET(context)
+            makecontext(context, (packet_handler_noparams_t)handler_function, 5, port_id, queue_idx, pkt_idx, LCPARAMS_IN);
+            debug("   " T4LIT(<<,async) " Swapping to packet context " T4LIT(%p,async) "\n", context);
             swapcontext(&lcdata->conf->main_loop_context, context);
-            debug("Swapped back to main context.\n");
+            debug("   " T4LIT(>>,async) " Swapped back to " T4LIT(main context,async) "\n");
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        void (*handler_function_with_params)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx) = (void (*)(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt_idx))handler_function;
+        packet_handler_t handler_fun = handler_function;
         packet_descriptor_t *pd_store;
 
         int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
@@ -308,7 +321,7 @@ void async_handle_packet(LCPARAMS, int port_id, unsigned queue_idx, unsigned pkt
             pd->context = pd_store;
 
             if(setjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint) == 0) {
-                handler_function_with_params(LCPARAMS_IN, port_id, queue_idx, pkt_idx);
+                handler_fun(port_id, queue_idx, pkt_idx, LCPARAMS_IN);
             }
         }
     #endif
@@ -350,9 +363,9 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         void* context = extraInformationForAsyncHandling;
         // suspend processing of packet and go back to the main context
-        DBG_CONTEXT_SWAP_TO_MAIN
+        debug("   " T4LIT(<<,async) " Swapping to " T4LIT(main context,async) "\n");
         swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
-        debug("Swapped back to packet context %p.\n", context);
+        debug("   " T4LIT(>>,async) " Swapped back to packet context " T4LIT(%p,async) "\n", context);
         reset_pd(pd);
         parse_packet(pd, 0, 0);
         // restoring standard metadata from context
@@ -374,8 +387,6 @@ void do_async_op(packet_descriptor_t* pd, enum async_op_type op)
 struct async_op *async_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-
-#include <unistd.h>
 
 void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op){
     unsigned int lcore_id = rte_lcore_id();

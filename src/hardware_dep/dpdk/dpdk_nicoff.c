@@ -20,7 +20,8 @@ extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 // ------------------------------------------------------
 
-int packet_with_error_counter = 0;
+extern volatile int packet_counter;
+extern volatile int packet_with_error_counter;
 
 // ------------------------------------------------------
 // Exports
@@ -83,20 +84,24 @@ testcase_t* current_test_case;
 // ------------------------------------------------------
 // Helpers
 
-fake_cmd_t get_cmd(LCPARAMS) {
-    return (*(current_test_case->steps))[rte_lcore_id()][lcdata->idx];
+bool is_FAKE_END(fake_cmd_t cmd) {
+    return cmd.action == FAKE_PKT && strlen(cmd.out[0]) == 0;
 }
 
-fake_cmd_t get_command_object(LCPARAMS, unsigned idx){
+fake_cmd_t get_cmd(unsigned idx) {
     return (*(current_test_case->steps))[rte_lcore_id()][idx];
 }
 
-fake_cmd_t get_cmd_to_verify(LCPARAMS) {
-    while(  get_command_object(LCPARAMS_IN, lcdata->verify_idx).action != FAKE_PKT ||
-            strlen(get_command_object(LCPARAMS_IN, lcdata->verify_idx).out[0]) == 0) {
-        lcdata->verify_idx++;
+fake_cmd_t skip_to_FAKE_CMD(LCPARAMS) {
+    while (true) {
+        fake_cmd_t cmd = get_cmd(lcdata->verify_idx);
+
+        if (cmd.action == FAKE_PKT) {
+            return cmd;
+        }
+
+        ++lcdata->verify_idx;
     }
-    return get_command_object(LCPARAMS_IN, lcdata->verify_idx++);
 }
 
 
@@ -331,7 +336,7 @@ bool encountered_error = false;
 bool encountered_drops = false;
 
 void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
-    fake_cmd_t cmd = get_cmd_to_verify(LCPARAMS_IN);
+    fake_cmd_t cmd = skip_to_FAKE_CMD(LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
@@ -369,9 +374,9 @@ bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
 bool core_is_working(LCPARAMS) {
-    #if ASYNC_MODE != ASYNC_MODE_OFF
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         bool ret =
-            get_cmd(LCPARAMS_IN).action != FAKE_END ||
+            get_cmd(lcdata->idx).action != FAKE_END ||
             lcdata->conf->pending_crypto > 0 ||
             rte_ring_count(lcdata->conf->async_queue) > 0;
 
@@ -380,9 +385,9 @@ bool core_is_working(LCPARAMS) {
                 core_stopped_running[rte_lcore_id()] = true;
             }
 
-            if(rte_lcore_id() ==  rte_lcore_count() - 1){
+            if (is_crypto_node()) {
                 bool is_any_runing = false;
-                for(int a = 0; a < rte_lcore_count()-1;a++){
+                for(int a = 0; a < crypto_node_id();a++){
                     is_any_runing |= !core_stopped_running[a];
                 }
                 ret = is_any_runing;
@@ -390,7 +395,7 @@ bool core_is_working(LCPARAMS) {
         #endif
         return ret;
     #else
-        return get_cmd(LCPARAMS_IN).action != FAKE_END;
+        return get_cmd(lcdata->idx).action != FAKE_END;
     #endif
 }
 
@@ -411,7 +416,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
         await_ctl_init();
     }
 
-    fake_cmd_t cmd = get_cmd(LCPARAMS_IN);
+    fake_cmd_t cmd = get_cmd(lcdata->idx);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
 
@@ -453,18 +458,18 @@ int packet_expected_length(const char* sections[MAX_SECTION_COUNT]) {
 void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 
-    if (get_cmd(LCPARAMS_IN).out_port != -1) {
+    if (get_cmd(lcdata->idx).out_port != -1) {
         ++packet_with_error_counter;
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
-              get_cmd(LCPARAMS_IN).out_port,
-              packet_expected_length(get_cmd(LCPARAMS_IN).out)
+              get_cmd(lcdata->idx).out_port,
+              packet_expected_length(get_cmd(lcdata->idx).out)
         );
     }
 }
 
 bool is_packet_handled(LCPARAMS) {
-    return get_cmd(LCPARAMS_IN).action == FAKE_PKT;
+    return get_cmd(lcdata->idx).action == FAKE_PKT;
 }
 
 void main_loop_pre_rx(LCPARAMS) {
@@ -475,22 +480,29 @@ void main_loop_pre_rx(LCPARAMS) {
     lcdata->is_valid = true;
 }
 
-void main_loop_post_rx(LCPARAMS) {
+void main_loop_post_rx(bool got_packet, LCPARAMS) {
     #if defined T4P4S_STATS && T4P4S_STATS == 1
         t4p4s_print_per_packet_stats();
     #endif
+
+    if (got_packet) {
+        ++packet_counter;
+    } else {
+        // e.g. in case of a FAKE_SETDEF
+        ++lcdata->idx;
+    }
 }
 
 void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
     if (!lcdata->is_valid)    ++packet_with_error_counter;
 
-    if (get_cmd(LCPARAMS_IN).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
+    if (get_cmd(lcdata->idx).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
 
     ++lcdata->idx;
 }
 
 uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
-    return get_cmd(LCPARAMS_IN).in_port;
+    return get_cmd(lcdata->idx).in_port;
 }
 
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
@@ -498,7 +510,7 @@ void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 }
 
 unsigned get_pkt_count_in_group(LCPARAMS) {
-    if(get_cmd(LCPARAMS_IN).action == FAKE_PKT)
+    if(get_cmd(lcdata->idx).action == FAKE_PKT)
         return 1;
     else
         return 0;
@@ -511,7 +523,7 @@ unsigned get_queue_count(LCPARAMS) {
 void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
 
-    if (get_cmd(LCPARAMS_IN).out_port == -1) {
+    if (get_cmd(lcdata->idx).out_port == -1) {
         ++packet_with_error_counter;
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be " T4LIT(dropped,warning) ", but it was " T4LIT(sent,error) " to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data\n",
@@ -532,7 +544,7 @@ void async_init_storage();
 void init_storage() {
     if (storage_already_inited) return;
     pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
-    #if ASYNC_MODE != ASYNC_MODE_OFF
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         async_init_storage();
     #endif
 
@@ -544,22 +556,24 @@ void init_storage() {
         }
     #endif
 }
-extern void init_async_data(struct lcore_data *data);
-struct lcore_data init_lcore_data() {
 
+extern void init_async_data(struct lcore_data *lcdata);
+
+struct lcore_data init_lcore_data() {
     t4p4s_init_global_stats();
-    struct lcore_data data = (struct lcore_data) {
-        .conf     = &lcore_conf[rte_lcore_id()],
-        .is_valid = true,
+    struct lcore_data lcdata = (struct lcore_data) {
+        .conf       = &lcore_conf[rte_lcore_id()],
+        .is_valid   = true,
         .verify_idx = 0,
-        .idx      = 0,
-        .pkt_idx  = 0,
+        .idx        = 0,
+        .pkt_idx    = 0,
+        .mempool    = pktmbuf_pool[0],
     };
-    data.conf->mempool  = pktmbuf_pool[0];
-    #if ASYNC_MODE != ASYNC_MODE_OFF
-        init_async_data(&data);
+
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        init_async_data(&lcdata);
     #endif
-    return data;
+    return lcdata;
 }
 
 void initialize_nic() {

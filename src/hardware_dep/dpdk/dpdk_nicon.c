@@ -226,7 +226,7 @@ void main_loop_pre_rx(LCPARAMS) {
     tx_burst_queue_drain(LCPARAMS_IN);
 }
 
-void main_loop_post_rx(LCPARAMS) {
+void main_loop_post_rx(bool got_packet, LCPARAMS) {
 }
 
 void main_loop_post_single_rx(bool got_packet, LCPARAMS) {

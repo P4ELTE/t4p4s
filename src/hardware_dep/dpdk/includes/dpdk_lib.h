@@ -73,3 +73,9 @@ uint32_t t4p4s2net_4(uint32_t data);
 #else
 #define DIGEST_SLEEP_MILLIS    1000
 #endif
+
+//=============================================================================
+// Packet handling
+
+typedef void (*packet_handler_t)(int port_id, unsigned queue_idx, unsigned pkt_idx, LCPARAMS);
+typedef void (*packet_handler_noparams_t)();
