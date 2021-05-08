@@ -35,10 +35,16 @@ void change_replica(int socketid, int tid, int replica) {
     } \
 }
 
+#if defined T4P4S_DEBUG && T4P4S_DEBUG >= 1
+    #define T4P4S_FORCE_PRINT true
+#else
+    #define T4P4S_FORCE_PRINT false
+#endif
+
 #ifdef T4P4S_DEBUG
 #define FORALL_PRINTOUT(txt1, txt2, b, is_const_entry, should_print) \
     if (!is_const_entry)    ++state[socketid].tables[tableid][0]->init_entry_count; \
-    if (should_print) { \
+    if (should_print || T4P4S_FORCE_PRINT) { \
         lookup_table_entry_info_t entry_info = state[socketid].tables[tableid][0]->entry; \
         lookup_table_t tcfg = table_config[tableid]; \
         int action_id = get_entry_action_id(value); \
