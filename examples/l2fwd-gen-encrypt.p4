@@ -15,6 +15,9 @@ struct headers {
     ethernet_t ethernet;
 }
 
+extern void do_encryption_async();
+extern void do_decryption_async();
+
 parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract(hdr.ethernet);

@@ -18,12 +18,18 @@ PARSER {
 }
 
 extern void dummy_crypto();
+extern void dummy_crypto<T1>(in T1 data1);
+extern void dummy_crypto<T1,T2>(in T1 data1, in T2 data2);
 
 CTL_INGRESS {
     apply {
-        log_msg("Before    = {}",{8w0});
         dummy_crypto();
-        log_msg("After    = {}",{8w0});
+        dummy_crypto({8w1});
+        dummy_crypto({-8w1});
+        dummy_crypto({8w1}, {8w1});
+        dummy_crypto({-8w1}, {-8w1});
+        dummy_crypto({16w1}, {32w1});
+        dummy_crypto({-16w1}, {-32w1});
     }
 }
 
