@@ -441,7 +441,7 @@ sleep 0.1
 # --------------------------------------------------------------------
 # Set defaults
 
-ALL_COLOUR_NAMES=(action bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port queue smem socket status success table testcase warning)
+ALL_COLOUR_NAMES=(action async bytes control core default error expected extern field header headertype incoming off outgoing packet parserstate port queue smem socket status success table testcase warning)
 
 # --------------------------------------------------------------------
 # Set defaults
