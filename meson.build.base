@@ -26,7 +26,6 @@ project_source_files = [
 
     hdep / 'dpdk/main.c',
     hdep / 'dpdk/main_async.c',
-    hdep / 'dpdk/data_plane/dpdkx_crypto.c',
 
     hdep / 'shared/ctrl_plane/ctrl_plane_backend.c',
     hdep / 'shared/ctrl_plane/fifo.c',

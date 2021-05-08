@@ -1,16 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Eotvos Lorand University, Budapest, Hungary
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 
 #include "dpdkx_crypto.h"
 
@@ -20,10 +9,10 @@
 #include <stdlib.h>
 #include <rte_dev.h>
 #include <rte_bus_vdev.h>
-#ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
-#include <rte_cryptodev_scheduler.h>
-#include <dataplane.h>
 
+#ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
+    #include <rte_cryptodev_scheduler.h>
+    #include <dataplane.h>
 #endif
 
 // -----------------------------------------------------------------------------
@@ -179,9 +168,9 @@ void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *cryp
 // Implementation of P4 architecture externs
 
 // defined in main_async.c
-void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
-void do_encryption(SHORT_STDPARAMS);
-void do_decryption(SHORT_STDPARAMS);
+extern void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
+extern void do_encryption(SHORT_STDPARAMS);
+extern void do_decryption(SHORT_STDPARAMS);
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
@@ -197,8 +186,8 @@ void do_encryption_async(SHORT_STDPARAMS)
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->context != NULL) {
-            //debug("-----------------------------------------------Encrypt command, Program State: %d\n",pd->program_state)
-            if(pd->program_state == 0){
+            //debug("-----------------------------------------------Encrypt command, Program Phase: %d\n",pd->program_restore_phase)
+            if(pd->program_restore_phase == 0){
                 COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
                 do_async_op(pd, ASYNC_OP_ENCRYPT);
             }
@@ -224,8 +213,8 @@ void do_decryption_async(SHORT_STDPARAMS)
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->context != NULL) {
-            //debug("-----------------------------------------------DECRYPT command, Program State: %d\n",pd->program_state)
-            if(pd->program_state == 1){
+            //debug("-----------------------------------------------DECRYPT command, Program Phase: %d\n",pd->program_restore_phase)
+            if(pd->program_restore_phase == 1){
                 do_async_op(pd, ASYNC_OP_DECRYPT);
             }
         }
@@ -317,8 +306,3 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
 }
 
 #endif
-
-void dummy_crypto(SHORT_STDPARAMS)
-{
-    debug("Dummy crypto!\n");
-}
