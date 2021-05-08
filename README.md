@@ -224,6 +224,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd verbose`
     - Verbose output for the switch
         `./t4p4s.sh :l2fwd dbg`
+    - Even more verbose output for the switch
+        `./t4p4s.sh :l2fwd dbg=1`
     - In addition, statistics can be displayed at the end
         `./t4p4s.sh :l2fwd dbg stats`
     - For per-packet statistics, use `stats=1`
