@@ -8,6 +8,7 @@
 #include "util_debug.h"
 #include "dpdkx_crypto.h"
 #include "util_packet.h"
+#include "test.h"
 
 #include "main.h"
 
@@ -83,27 +84,6 @@ testcase_t* current_test_case;
 
 // ------------------------------------------------------
 // Helpers
-
-bool is_FAKE_END(fake_cmd_t cmd) {
-    return cmd.action == FAKE_PKT && strlen(cmd.out[0]) == 0;
-}
-
-fake_cmd_t get_cmd(unsigned idx) {
-    return (*(current_test_case->steps))[rte_lcore_id()][idx];
-}
-
-fake_cmd_t skip_to_FAKE_CMD(LCPARAMS) {
-    while (true) {
-        fake_cmd_t cmd = get_cmd(lcdata->verify_idx);
-
-        if (cmd.action == FAKE_PKT) {
-            return cmd;
-        }
-
-        ++lcdata->verify_idx;
-    }
-}
-
 
 uint8_t bytes[8*sizeof(struct ether_header)];
 
@@ -335,8 +315,31 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
 bool encountered_error = false;
 bool encountered_drops = false;
 
+fake_cmd_t get_cmd(int idx) {
+    if(idx < 0){
+        fake_cmd_t ret = {FAKE_PKT, 0, 0, FDATA(""), 0, 0, FDATA("")};
+        return ret;
+    }else{
+        return (*(current_test_case->steps))[rte_lcore_id()][idx];
+    }
+}
+
+bool is_real_fake_packet(fake_cmd_t cmd) {
+    return cmd.action == FAKE_PKT && strlen(cmd.out[0]) != 0;
+}
+
+fake_cmd_t get_next_real_fake_verify_packet(LCPARAMS) {
+    while(true){
+        ++lcdata->verify_idx;
+        fake_cmd_t cmd = get_cmd(lcdata->verify_idx);
+        if(is_real_fake_packet(cmd) || cmd.action == FAKE_END){
+            return cmd;
+        }
+    }
+}
+
 void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
-    fake_cmd_t cmd = skip_to_FAKE_CMD(LCPARAMS_IN);
+    fake_cmd_t cmd = get_next_real_fake_verify_packet(LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
@@ -416,6 +419,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
         await_ctl_init();
     }
 
+    lcdata->idx++;
     fake_cmd_t cmd = get_cmd(lcdata->idx);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
@@ -487,9 +491,6 @@ void main_loop_post_rx(bool got_packet, LCPARAMS) {
 
     if (got_packet) {
         ++packet_counter;
-    } else {
-        // e.g. in case of a FAKE_SETDEF
-        ++lcdata->idx;
     }
 }
 
@@ -497,8 +498,6 @@ void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
     if (!lcdata->is_valid)    ++packet_with_error_counter;
 
     if (get_cmd(lcdata->idx).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
-
-    ++lcdata->idx;
 }
 
 uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
@@ -564,8 +563,8 @@ struct lcore_data init_lcore_data() {
     struct lcore_data lcdata = (struct lcore_data) {
         .conf       = &lcore_conf[rte_lcore_id()],
         .is_valid   = true,
-        .verify_idx = 0,
-        .idx        = 0,
+        .verify_idx = -1,
+        .idx        = -1,
         .pkt_idx    = 0,
         .mempool    = pktmbuf_pool[0],
     };
