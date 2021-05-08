@@ -33,3 +33,6 @@ Currently unsupported
 
     %cpf=v1
     %epg_2020=v1
+
+Test environment needs to be extended to handle async constructs
+    %l2fwd-gen-encrypt=test
