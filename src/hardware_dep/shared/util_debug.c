@@ -2,7 +2,8 @@
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
 #include <unistd.h>
-
+#include "rte_mbuf.h"
+#include "util_debug.h"
 
 #ifdef T4P4S_DEBUG
     #include "backend.h"

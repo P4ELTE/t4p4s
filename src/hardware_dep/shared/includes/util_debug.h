@@ -85,7 +85,6 @@
 
 void debug_mbuf(struct rte_mbuf* mbuf, const char* message);
 
-
 #define lcore_report(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
 
 #define report(M, ...) \

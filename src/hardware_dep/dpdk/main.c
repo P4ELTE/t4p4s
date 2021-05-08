@@ -8,10 +8,8 @@
 #include <rte_mempool.h>
 
 
-#ifdef T4P4S_DEBUG
-    volatile int packet_counter = 0;
-    volatile int packet_with_error_counter = 0;
-#endif
+volatile int packet_counter = 0;
+volatile int packet_with_error_counter = 0;
 
 
 void get_broadcast_port_msg(char result[256], int ingress_port) {
