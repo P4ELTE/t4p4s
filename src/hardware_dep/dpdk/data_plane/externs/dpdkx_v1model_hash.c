@@ -37,6 +37,7 @@ void hash__u16__u16__bufs__u32(uint16_t* result, enum_HashAlgorithm_t hash, uint
 
         case enum_HashAlgorithm_identity:
         {
+            *result = 0;
             memcpy(result, data.buffer, data.buffer_size > 2 ? 2 : data.buffer_size);
         }
             break;
