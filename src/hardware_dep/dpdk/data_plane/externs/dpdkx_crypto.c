@@ -145,20 +145,20 @@ void init_crypto_devices()
     }
 }
 
-void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *crypto_op)
+void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto_op *crypto_op)
 {
-    crypto_op->sym->m_src = async_op->data;
-    crypto_op->sym->cipher.data.offset = async_op->offset;
-    crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - async_op->offset;
+    crypto_op->sym->m_src = crypto_task->data;
+    crypto_op->sym->cipher.data.offset = crypto_task->offset;
+    crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
 
     uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
     memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
-    switch(async_op->op)
+    switch(crypto_task->op)
     {
-    case ASYNC_OP_ENCRYPT:
+    case CRYPTO_TASK_ENCRYPT:
         rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
         break;
-    case ASYNC_OP_DECRYPT:
+    case CRYPTO_TASK_DECRYPT:
         rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
         break;
     }
@@ -168,7 +168,7 @@ void async_op_to_crypto_op(struct async_op *async_op, struct rte_crypto_op *cryp
 // Implementation of P4 architecture externs
 
 // defined in main_async.c
-extern void do_async_op(packet_descriptor_t* pd, enum async_op_type op);
+extern void do_crypto_task(packet_descriptor_t* pd, enum crypto_task_type op);
 extern void do_encryption(SHORT_STDPARAMS);
 extern void do_decryption(SHORT_STDPARAMS);
 
@@ -179,7 +179,7 @@ void do_encryption_async(SHORT_STDPARAMS)
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
-            do_async_op(pd, ASYNC_OP_ENCRYPT);
+            do_crypto_task(pd, CRYPTO_TASK_ENCRYPT);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
@@ -189,7 +189,7 @@ void do_encryption_async(SHORT_STDPARAMS)
             //debug("-----------------------------------------------Encrypt command, Program Phase: %d\n",pd->program_restore_phase)
             if(pd->program_restore_phase == 0){
                 COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
-                do_async_op(pd, ASYNC_OP_ENCRYPT);
+                do_crypto_task(pd, CRYPTO_TASK_ENCRYPT);
             }
         }else{
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
@@ -207,7 +207,7 @@ void do_decryption_async(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
-            do_async_op(pd, ASYNC_OP_DECRYPT);
+            do_crypto_task(pd, CRYPTO_TASK_DECRYPT);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
@@ -215,7 +215,7 @@ void do_decryption_async(SHORT_STDPARAMS)
         if(pd->context != NULL) {
             //debug("-----------------------------------------------DECRYPT command, Program Phase: %d\n",pd->program_restore_phase)
             if(pd->program_restore_phase == 1){
-                do_async_op(pd, ASYNC_OP_DECRYPT);
+                do_crypto_task(pd, CRYPTO_TASK_DECRYPT);
             }
         }
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
@@ -228,19 +228,19 @@ void do_decryption_async(SHORT_STDPARAMS)
 }
 
 // defined in main_async.c
-void do_blocking_sync_op(packet_descriptor_t* pd, enum async_op_type op);
+void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op);
 void do_encryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
             COUNTER_STEP(lcore_conf[rte_lcore_id()].sent_to_crypto_packet);
-            do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+            do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT);
         }else{
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #else
-        do_blocking_sync_op(pd, ASYNC_OP_ENCRYPT);
+        do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT);
     #endif
 }
 
@@ -248,11 +248,11 @@ void do_decryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0) {
-            do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
+            do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT);
         }
         increase_with_rotation(lcore_conf[rte_lcore_id()].crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N);
     #else
-        do_blocking_sync_op(pd, ASYNC_OP_DECRYPT);
+        do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT);
     #endif
 }
 

@@ -62,17 +62,17 @@
 // Shall we move these to backend.h?
 
 
-enum async_op_type {
-    ASYNC_OP_ENCRYPT,
-    ASYNC_OP_DECRYPT,
+enum crypto_task_type {
+    CRYPTO_TASK_ENCRYPT,
+    CRYPTO_TASK_DECRYPT,
 };
 
-struct async_op {
+struct crypto_task {
     struct rte_mbuf* data;
     int offset;
-    enum async_op_type op;
+    enum crypto_task_type op;
 };
 
 extern struct rte_mempool *context_pool;
-extern struct rte_mempool *async_pool;
+extern struct rte_mempool *crypto_task_pool;
 extern struct rte_ring *context_free_command_ring;
