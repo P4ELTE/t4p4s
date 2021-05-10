@@ -64,7 +64,7 @@ for table in hlir.tables:
     #} }
 
 
-#[ #define SOCKET0 0
+#[ extern int main_socket; 
 
 #[ extern struct socket_state state[NB_SOCKETS];
 #[
@@ -78,8 +78,8 @@ nopinfo = "" if len(nops) == 0 else f' ({len(nops)} " T4LIT(nop,action) " defaul
 for table in sorted(hlir.tables, key=lambda table: table.short_name):
     default_action = table.default_action.expression.method.action_ref
     show_info = 'false' if table in nops else 'true'
-    #[     int current_replica_${table.name} = state[SOCKET0].active_replica[TABLE_${table.name}];
-    #{     if (likely(state[SOCKET0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
+    #[     int current_replica_${table.name} = state[main_socket].active_replica[TABLE_${table.name}];
+    #{     if (likely(state[main_socket].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
     #[         setdefault_${table.name}(action_${default_action.name}, ${show_info});
     #}     }
 #} }
