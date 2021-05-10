@@ -36,15 +36,27 @@ void print_log_msg(const char* msg) {
     #endif
 }
 
-void log_msg(const char* msg, SHORT_STDPARAMS) {
-    debug("    : " T4LIT(Logged,status) ": %s\n", msg);
+void log_msg(const char** msg, SHORT_STDPARAMS) {
+    print_log_msg(*msg);
 }
 
 const char* dec_hex_fmt(int size) {
     #ifdef T4P4S_DEBUG
-        return size == 1 ? (T4LIT(%d) " (0x" T4LIT(%02x,bytes) ")") : size == 2 ? (T4LIT(%d) " (0x" T4LIT(%04x,bytes) ")") : (T4LIT(%d) " (0x" T4LIT(%08x,bytes) ")");
+        if(size == 1) {
+            return (T4LIT(%d) " (0x" T4LIT(%02x,bytes) ")");
+        }else if(size == 2) {
+            return (T4LIT(%d) " (0x" T4LIT(%04x,bytes) ")");
+        } else {
+            return (T4LIT(%d) " (0x" T4LIT(%08x,bytes) ")");
+        }
     #else
-        return size == 1 ? "%d (0x%02x)" : size == 2 ? "%d (0x%04x)" : "%d (0x%08x)" : ;
+        if(size == 1) {
+            return "%d (0x%02x)";
+        }else if(size == 2) {
+            return "%d (0x%04x)";
+        } else {
+            return "%d (0x%08x)";
+        }
     #endif
 }
 

@@ -25,6 +25,7 @@ project_source_files = [
     srcg / 'common.c',
 
     hdep / 'dpdk/main.c',
+    hdep / 'dpdk/main_async.c',
 
     hdep / 'shared/ctrl_plane/ctrl_plane_backend.c',
     hdep / 'shared/ctrl_plane/fifo.c',

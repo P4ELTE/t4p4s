@@ -15,10 +15,11 @@ known_parser_state_names = ('start', 'accept', 'reject')
 _, parser_state_names = zip(*sorted((0 if s.name in known_parser_state_names else 1, s.name) for s in parser.states))
 
 #{ #ifndef T4P4S_STATS
-#[     void t4p4s_print_global_stats() { /* do nothing */ }
+#[     void t4p4s_print_global_stats()     { /* do nothing */ }
 #[     void t4p4s_print_per_packet_stats() { /* do nothing */ }
-#[     void t4p4s_init_global_stats()  { /* do nothing */ }
+#[     void t4p4s_init_global_stats()      { /* do nothing */ }
 #[     void t4p4s_init_per_packet_stats()  { /* do nothing */ }
+#[     void print_async_stats(LCPARAMS)    { /* do nothing */ }
 #[ #else
 #[
 #[ t4p4s_stats_t t4p4s_stats_global;
@@ -173,7 +174,7 @@ for table in sorted(hlir.tables, key=lambda table: table.short_name):
 #[
 
 #{     #ifdef T4P4S_DEBUG
-#[         extern int packet_with_error_counter;
+#[         extern volatile int packet_with_error_counter;
 #[         extern volatile int packet_counter;
 #}     #endif
 #[
@@ -264,6 +265,17 @@ for table in hlir.tables:
 
 #[         return ok;
 #}    }
+#[
+
+#{ void print_async_stats(LCPARAMS) {
+#[     COUNTER_ECHO(lcdata->conf->processed_packet_num,"   :: Processed packet count: %d\n");
+#[     COUNTER_STEP(lcdata->conf->processed_packet_num);
+#[     COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"   :: Sent to crypto packet: %d\n");
+#[     COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"   :: Crypto packets in progress: %d\n");
+#[     COUNTER_ECHO(lcdata->conf->fwd_packet,"   :: fwd packet: %d\n");
+#[     COUNTER_ECHO(lcdata->conf->async_packet,"   :: async packet: %d\n");
+#} }
+#[
 
 #} #endif
 #[

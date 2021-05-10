@@ -8,6 +8,9 @@
 #include "dataplane_lookup.h"  // lookup_table_t
 #include "parser.h"     // parser_state_t
 #include "common.h"     // NB_TABLES
+#include "util_debug.h"
+
+#include "dpdk_lib_conf_async.h"
 
 //=============================================================================
 // Unifying renamed types and constants
@@ -87,7 +90,39 @@ struct lcore_hardware_conf {
     struct mbuf_table tx_mbufs[RTE_MAX_ETHPORTS];
 };
 
+#include <ucontext.h>
+#include <signal.h>
+
+// SIGSTKSZ is typically 8192
+#ifdef T4P4S_DEBUG
+#define CONTEXT_STACKSIZE SIGSTKSZ*2
+#else
+#define CONTEXT_STACKSIZE SIGSTKSZ
+#endif
+#include <setjmp.h>
+
 struct lcore_conf {
     struct lcore_hardware_conf hw;
     struct lcore_state         state;
+    struct rte_mempool*        mempool;
+    struct rte_mempool*        crypto_pool;
+    ucontext_t                 main_loop_context;
+    struct rte_ring*           async_queue;
+    unsigned                   pending_crypto;
+    struct rte_ring    *fake_crypto_rx;
+    struct rte_ring    *fake_crypto_tx;
+
+    occurence_counter_t async_drop_counter;
+    occurence_counter_t fwd_packet;
+    occurence_counter_t sent_to_crypto_packet;
+    occurence_counter_t doing_crypto_packet;
+    occurence_counter_t async_packet;
+	occurence_counter_t processed_packet_num;
+
+    jmp_buf mainLoopJumpPoint;
+    jmp_buf asyncLoopJumpPoint;
+
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        int crypto_every_n_counter;
+    #endif
 } __rte_cache_aligned;

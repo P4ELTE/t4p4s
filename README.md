@@ -134,6 +134,34 @@ The format of option definitions is the following.
     | %%myexample=mytestcase  | example=**myexample** variant=test verbose dbg testcase=**mytestcase**  |
     | %%myexample             | example=**myexample** variant=test verbose=lines dbg suite                    |
 
+### Crypto devices for cryptography operations
+
+It is hardcoded in the current prototype to create an OpenSSL-based virtual crypto device in DPDK in order to support encryption and decryption extern functions. The PMD for this virtual device is not compiled in DPDK by default.
+
+To enable the OpenSSL crypto PMD, edit **dpdk-19.02/config/common_base** by changing
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=n
+~~~
+
+to
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=y
+~~~
+
+and do a rebuild on DPDK.
+
+You can also activate a separate crypto node to run the commands with parameter `crypto_node=openssl`. If you run a crypto node, you have to configure an extra core that only will do the external job.
+
+If you want to test with a constant time external function, you can set `crypto_node=fake` and set for example the time with `fake_crypto_time=5000` that sets the external function to run until 5000 clock ticks.
+
+An example call of async mode:
+
+```
+./t4p4s.sh :l2fwd-gen cores=4 ports=3x2 async_mode=pd crypto_node=fake fake_crypto_time=3000
+```
+
 
 ### Execution
 
@@ -196,6 +224,8 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd verbose`
     - Verbose output for the switch
         `./t4p4s.sh :l2fwd dbg`
+    - Even more verbose output for the switch
+        `./t4p4s.sh :l2fwd dbg=1`
     - In addition, statistics can be displayed at the end
         `./t4p4s.sh :l2fwd dbg stats`
     - For per-packet statistics, use `stats=1`
@@ -296,7 +326,11 @@ grouped by the types of failures.
 You may indicate which tests are to be skipped by listing them in a file.
 See the default skip file, `tests_to_skip.txt`, for further details.
 
-    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg
+    SKIP_FILE="my_skip_file" ./run_tests.sh verbose dbg stats
+
+The batch file processes all P4 files from the folder `examples` and its subfolders (including symlinked ones) by default. You can override it like this.
+
+    START_DIR=examples/test/testcases-v1/ ./run_tests.sh verbose dbg stats
 
 
 # Using Docker with T₄P₄S

@@ -89,6 +89,14 @@ typedef struct {
     uint8_t header_tmp_storage[NONMETA_HDR_TOTAL_LENGTH];
 
     void * control_locals;
+
+    // async functionality
+    void *context;
+
+    int port_id;
+    unsigned queue_idx;
+    unsigned pkt_idx;
+    int program_restore_phase;
 } packet_descriptor_t;
 
 
