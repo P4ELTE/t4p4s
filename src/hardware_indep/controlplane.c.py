@@ -342,6 +342,7 @@ for table, smem in hlir.all_counters:
 
 
 #[ ctrl_plane_backend bg;
+#[ extern int main_socket;
 
 #{ #ifdef T4P4S_P4RT
 #[     void init_control_plane()
@@ -361,8 +362,8 @@ for table, smem in hlir.all_counters:
 #{         #ifdef T4P4S_DEBUG
 #{         for (int i = 0; i < NB_TABLES; i++) {
 #[             lookup_table_t t = table_config[i];
-#[             if (state[0].tables[t.id][0]->init_entry_count > 0)
-#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
+#[             if (state[main_socket].tables[t.id][0]->init_entry_count > 0)
+#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[main_socket].tables[t.id][0]->short_name, state[main_socket].tables[t.id][0]->init_entry_count);
 #}             }
 #}         #endif
 #}     }

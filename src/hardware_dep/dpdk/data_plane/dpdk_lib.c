@@ -27,6 +27,8 @@ uint32_t enabled_port_mask;
 uint16_t            nb_lcore_params;
 struct lcore_params lcore_params[MAX_LCORE_PARAMS];
 
+int main_socket;
+
 //=============================================================================
 // Locals
 
