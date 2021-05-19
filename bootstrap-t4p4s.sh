@@ -200,7 +200,7 @@ echo -e "Using CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$n
 if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
     echo -e "You seem to have $cc$FREE_MB MB$nn of free space on the current drive"
-    echo -e "To force installation, run ${cc}SKIP_CHECK=1 . ./bootstrap.sh$nn"
+    echo -e "To force installation, run ${cc}SKIP_CHECK=1 . ./bootstrap-t4p4s.sh$nn"
     [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
     exit 1
 else
