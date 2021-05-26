@@ -213,6 +213,34 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
     debug_mbuf(op->data, " :::: Final crypto task data:");
 }
 
+void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto_op *crypto_op)
+{
+    if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
+        crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
+        crypto_op->sym->auth.digest.phys_addr = rte_pktmbuf_iova_offset(crypto_task->data, crypto_task->padding_length);
+        crypto_op->sym->auth.data.offset = crypto_task->offset;
+        crypto_op->sym->auth.data.length = crypto_task->plain_length - crypto_task->offset;
+
+        rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
+        crypto_op->sym->m_src = crypto_task->data;
+    }else{
+        crypto_op->sym->m_src = crypto_task->data;
+        crypto_op->sym->cipher.data.offset = crypto_task->offset;
+        crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
+
+        uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
+        memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
+        switch(crypto_task->op)
+        {
+        case CRYPTO_TASK_ENCRYPT:
+            rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
+            break;
+        case CRYPTO_TASK_DECRYPT:
+            rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
+            break;
+        }
+    }
+}
 
 
 void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
@@ -313,34 +341,6 @@ void init_crypto_devices()
     }
 }
 
-void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto_op *crypto_op)
-{
-    if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
-        crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
-        crypto_op->sym->auth.digest.phys_addr = rte_pktmbuf_iova_offset(crypto_task->data, crypto_task->padding_length);
-        crypto_op->sym->auth.data.offset = crypto_task->offset;
-        crypto_op->sym->auth.data.length = crypto_task->plain_length - crypto_task->offset;
-
-        rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
-        crypto_op->sym->m_src = crypto_task->data;
-    }else{
-        crypto_op->sym->m_src = crypto_task->data;
-        crypto_op->sym->cipher.data.offset = crypto_task->offset;
-        crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
-
-        uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
-        memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
-        switch(crypto_task->op)
-        {
-        case CRYPTO_TASK_ENCRYPT:
-            rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
-            break;
-        case CRYPTO_TASK_DECRYPT:
-            rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
-            break;
-        }
-    }
-}
 // -----------------------------------------------------------------------------
 // Implementation of P4 architecture externs
 
