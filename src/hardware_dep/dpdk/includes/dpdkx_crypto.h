@@ -36,14 +36,18 @@
 enum crypto_task_type {
     CRYPTO_TASK_ENCRYPT,
     CRYPTO_TASK_DECRYPT,
+    CRYPTO_TASK_MD5_HMAC
 };
 
 struct crypto_task {
+    enum crypto_task_type op;
     struct rte_mbuf* data;
     int offset;
-    enum crypto_task_type op;
+    int padding_length;
+    int plain_length;
 };
 extern struct rte_mempool *crypto_task_pool;
+#define MD5_DIGEST_LEN	16
 
 // -----------------------------------------------------------------------------
 // Interface

@@ -32,6 +32,7 @@ int cdev_id;
 
 struct rte_cryptodev_sym_session *session_encrypt;
 struct rte_cryptodev_sym_session *session_decrypt;
+struct rte_cryptodev_sym_session *session_hmac;
 
 uint8_t iv[16];
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
@@ -42,13 +43,16 @@ extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 static void setup_session(struct rte_cryptodev_sym_session **session, struct rte_mempool *session_pool)
 {
     *session = rte_cryptodev_sym_session_create(session_pool);
-    if (*session == NULL) rte_exit(EXIT_FAILURE, "Session could not be created\n");
+    if (*session == NULL){
+        rte_exit(EXIT_FAILURE, "Session could not be created\n");
+    }
 }
 
 static void init_session(int cdev_id, struct rte_cryptodev_sym_session *session, struct rte_crypto_sym_xform *xform, struct rte_mempool *session_priv_pool)
 {
-    if (rte_cryptodev_sym_session_init(cdev_id, session, xform, session_priv_pool) < 0)
+    if (rte_cryptodev_sym_session_init(cdev_id, session, xform, session_priv_pool) < 0){
         rte_exit(EXIT_FAILURE, "Session could not be initialized for the crypto device\n");
+    }
 }
 
 #define CRYPTO_MODE_OPENSSL 1
@@ -76,10 +80,29 @@ static void setup_sessions()
         cipher_xform_decrypt.cipher.algo = RTE_CRYPTO_CIPHER_NULL;
     #endif
 
+
+    struct rte_crypto_sym_xform cipher_xform_hmac;
+    cipher_xform_hmac.type = RTE_CRYPTO_SYM_XFORM_AUTH;
+	cipher_xform_hmac.next = NULL;
+	cipher_xform_hmac.auth.op = RTE_CRYPTO_AUTH_OP_GENERATE;
+
+	cipher_xform_hmac.auth.algo = RTE_CRYPTO_AUTH_MD5_HMAC;
+
+	cipher_xform_hmac.auth.digest_length = MD5_DIGEST_LEN;
+	cipher_xform_hmac.auth.key.length = 16;
+	uint8_t key_data[64] = {
+			0xF8, 0x2A, 0xC7, 0x54, 0xDB, 0x96, 0x18, 0xAA,
+			0xC3, 0xA1, 0x53, 0xF6, 0x1F, 0x17, 0x60, 0xBD
+		};
+	cipher_xform_hmac.auth.key.data = key_data;
+
+
     setup_session(&session_encrypt, session_pool);
     setup_session(&session_decrypt, session_pool);
+    setup_session(&session_hmac, session_pool);
     init_session(cdev_id, session_encrypt, &cipher_xform_encrypt, session_priv_pool);
     init_session(cdev_id, session_decrypt, &cipher_xform_decrypt, session_priv_pool);
+    init_session(cdev_id, session_hmac, &cipher_xform_hmac, session_priv_pool);
 }
 
 static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
@@ -156,8 +179,8 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
     op->op = op_type;
     op->data = pd->wrapper;
 
-    uint32_t packet_length = op->data->pkt_len;
-    int encrypted_length = packet_length - encryption_offset;
+    op->plain_length = op->data->pkt_len;
+    int encrypted_length = op->plain_length - encryption_offset;
     int extra_length = 0;
     debug_mbuf(op->data, " :::: Crypto: preparing packet");
 
@@ -178,15 +201,18 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
     #endif
 
     rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
-    *(rte_pktmbuf_mtod(op->data, uint32_t*)) = packet_length;
-    extra_length += sizeof(int);
+    *(rte_pktmbuf_mtod(op->data, uint32_t*)) = op->plain_length;
+    extra_length += sizeof(uint32_t);
 
     debug_mbuf(op->data, "   :: Added bytes for encryption");
 
     op->offset = extra_length + encryption_offset;
     // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
-    if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, 16-encrypted_length%16);
+    op->padding_length = 16-encrypted_length%16;
+    if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, op->padding_length);
+    debug_mbuf(op->data, " :::: Final crypto task data:");
 }
+
 
 
 void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
@@ -196,7 +222,7 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
     emit_packet(pd, 0, 0);
 
     create_crypto_op(crypto_tasks[lcore_id],pd,op,NULL);
-    if (rte_crypto_op_bulk_alloc(lcore_conf[lcore_id].crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
+    if (rte_crypto_op_bulk_alloc(crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
         rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
     }
     crypto_task_to_crypto_op(crypto_tasks[lcore_id][0], enqueued_ops[lcore_id][0]);
@@ -215,17 +241,35 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
         }
         while(rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], 1) == 0);
     #endif
-    struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
-    int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
+    if(op == CRYPTO_TASK_MD5_HMAC){
+        //debug("%d\n",crypto_tasks[lcore_id][0]->padding_length);
+        //debug_mbuf(crypto_tasks[lcore_id][0]->data,"FULL HMAC RESULT:");
 
-    rte_pktmbuf_adj(mbuf, sizeof(int));
-    pd->wrapper = mbuf;
-    pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-    pd->wrapper->pkt_len = packet_length;
-    debug_mbuf(mbuf, "Result of encryption\n");
+        uint8_t *auth_tag;
+        if (enqueued_ops[lcore_id][0]->sym->m_dst) {
+            auth_tag = rte_pktmbuf_mtod_offset(enqueued_ops[lcore_id][0]->sym->m_dst,uint8_t *,
+                                               crypto_tasks[lcore_id][0]->padding_length);
+        } else {
+            auth_tag = rte_pktmbuf_mtod_offset(crypto_tasks[lcore_id][0]->data,uint8_t *,
+                               crypto_tasks[lcore_id][0]->padding_length +
+                               crypto_tasks[lcore_id][0]->plain_length +
+                               crypto_tasks[lcore_id][0]->offset
+                               );
+        }
+        dbg_bytes(  auth_tag, MD5_DIGEST_LEN,
+              "HMAC RESULT (" T4LIT(%d) " bytes): ", MD5_DIGEST_LEN);
+    }else{
+        struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
+        int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
 
-    rte_mempool_put_bulk(lcore_conf[lcore_id].crypto_pool, (void **)dequeued_ops[lcore_id], 1);
+        rte_pktmbuf_adj(mbuf, sizeof(int));
+        pd->wrapper = mbuf;
+        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        pd->wrapper->pkt_len = packet_length;
+        debug_mbuf(mbuf, "Result of encryption\n");
 
+        rte_mempool_put_bulk(crypto_pool, (void **)dequeued_ops[lcore_id], 1);
+    }
     reset_pd(pd);
     parse_packet(pd, 0, 0);
 }
@@ -271,23 +315,32 @@ void init_crypto_devices()
 
 void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto_op *crypto_op)
 {
-    crypto_op->sym->m_src = crypto_task->data;
-    crypto_op->sym->cipher.data.offset = crypto_task->offset;
-    crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
+    if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
+        crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
+        crypto_op->sym->auth.digest.phys_addr = rte_pktmbuf_iova_offset(crypto_task->data, crypto_task->padding_length);
+        crypto_op->sym->auth.data.offset = crypto_task->offset;
+        crypto_op->sym->auth.data.length = crypto_task->plain_length - crypto_task->offset;
 
-    uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
-    memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
-    switch(crypto_task->op)
-    {
-    case CRYPTO_TASK_ENCRYPT:
-        rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
-        break;
-    case CRYPTO_TASK_DECRYPT:
-        rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
-        break;
+        rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
+        crypto_op->sym->m_src = crypto_task->data;
+    }else{
+        crypto_op->sym->m_src = crypto_task->data;
+        crypto_op->sym->cipher.data.offset = crypto_task->offset;
+        crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
+
+        uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
+        memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
+        switch(crypto_task->op)
+        {
+        case CRYPTO_TASK_ENCRYPT:
+            rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
+            break;
+        case CRYPTO_TASK_DECRYPT:
+            rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
+            break;
+        }
     }
 }
-
 // -----------------------------------------------------------------------------
 // Implementation of P4 architecture externs
 
@@ -427,6 +480,12 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
 
     dbg_bytes(new_payload,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
     dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 12,"final");
+}
+
+void md5_hmac(SHORT_STDPARAMS)
+{
+    debug("STARTING md5_hmac\n");
+    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC);
 }
 
 #endif

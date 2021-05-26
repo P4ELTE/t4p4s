@@ -12,23 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if T4P4S_INIT_CRYPTO
-    #if !defined(ASYNC_MODE)
-        #error Crypto mode is active, but Async option is not set
-    #endif
-
-    #if defined ASYNC_MODE && ASYNC_MODE == ASYNC_MODE_OFF
-        #error Crypto mode is active, but Async option is not set
-    #endif
-#endif
-
-#if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
-    #if !defined(T4P4S_INIT_CRYPTO)
-        #error Async option given, but Crypto mode is inactive
-    #endif
-#endif
-
-
 #if ASYNC_MODE != ASYNC_MODE_OFF
 
 #include <unistd.h>
