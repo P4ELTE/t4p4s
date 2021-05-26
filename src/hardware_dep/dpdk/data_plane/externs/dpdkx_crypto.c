@@ -90,10 +90,7 @@ static void setup_sessions()
 
 	cipher_xform_hmac.auth.digest_length = MD5_DIGEST_LEN;
 	cipher_xform_hmac.auth.key.length = 16;
-	uint8_t key_data[64] = {
-			0xF8, 0x2A, 0xC7, 0x54, 0xDB, 0x96, 0x18, 0xAA,
-			0xC3, 0xA1, 0x53, 0xF6, 0x1F, 0x17, 0x60, 0xBD
-		};
+	uint8_t key_data[16] = {0x68,0x65,0x6c,0x6c,0x6f,0x74,0x34,0x70,0x34,0x73,0x75,0x73,0x65,0x72,0x7a,0x7a};
 	cipher_xform_hmac.auth.key.data = key_data;
 
 
@@ -208,8 +205,12 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
 
     op->offset = extra_length + encryption_offset;
     // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
-    op->padding_length = 16-encrypted_length%16;
-    if(encrypted_length%16 != 0) rte_pktmbuf_append(op->data, op->padding_length);
+    if(encrypted_length%16 != 0){
+        op->padding_length = 16-encrypted_length%16;
+        rte_pktmbuf_append(op->data, op->padding_length);
+    }else{
+        op->padding_length = 0;
+    }
     debug_mbuf(op->data, " :::: Final crypto task data:");
 }
 
@@ -217,9 +218,8 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
 {
     if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
         crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
-        crypto_op->sym->auth.digest.phys_addr = rte_pktmbuf_iova_offset(crypto_task->data, crypto_task->padding_length);
         crypto_op->sym->auth.data.offset = crypto_task->offset;
-        crypto_op->sym->auth.data.length = crypto_task->plain_length - crypto_task->offset;
+        crypto_op->sym->auth.data.length = crypto_task->plain_length;
 
         rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
         crypto_op->sym->m_src = crypto_task->data;
@@ -246,8 +246,8 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
 void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
     unsigned int lcore_id = rte_lcore_id();
 
-    control_DeparserImpl(pd, 0, 0);
-    emit_packet(pd, 0, 0);
+    //control_DeparserImpl(pd, 0, 0);
+    //emit_packet(pd, 0, 0);
 
     create_crypto_op(crypto_tasks[lcore_id],pd,op,NULL);
     if (rte_crypto_op_bulk_alloc(crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
@@ -271,10 +271,11 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
     #endif
     if(op == CRYPTO_TASK_MD5_HMAC){
         //debug("%d\n",crypto_tasks[lcore_id][0]->padding_length);
-        //debug_mbuf(crypto_tasks[lcore_id][0]->data,"FULL HMAC RESULT:");
+        debug_mbuf(crypto_tasks[lcore_id][0]->data,"FULL HMAC RESULT:");
 
         uint8_t *auth_tag;
         if (enqueued_ops[lcore_id][0]->sym->m_dst) {
+            debug("m_dst not empty\n");
             auth_tag = rte_pktmbuf_mtod_offset(enqueued_ops[lcore_id][0]->sym->m_dst,uint8_t *,
                                                crypto_tasks[lcore_id][0]->padding_length);
         } else {
@@ -286,6 +287,11 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
         }
         dbg_bytes(  auth_tag, MD5_DIGEST_LEN,
               "HMAC RESULT (" T4LIT(%d) " bytes): ", MD5_DIGEST_LEN);
+        memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), auth_tag, MD5_DIGEST_LEN);
+        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        pd->wrapper->pkt_len = MD5_DIGEST_LEN;
+        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        debug_mbuf(pd->wrapper,"FULL HMAC RESULT:");
     }else{
         struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
         int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
@@ -295,11 +301,11 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
         pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         pd->wrapper->pkt_len = packet_length;
         debug_mbuf(mbuf, "Result of encryption\n");
-
-        rte_mempool_put_bulk(crypto_pool, (void **)dequeued_ops[lcore_id], 1);
     }
+
+    rte_mempool_put_bulk(crypto_pool, (void **)dequeued_ops[lcore_id], 1);
     reset_pd(pd);
-    parse_packet(pd, 0, 0);
+    //parse_packet(pd, 0, 0);
 }
 
 
