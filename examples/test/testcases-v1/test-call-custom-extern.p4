@@ -30,6 +30,9 @@ CTL_INGRESS {
         dummy_crypto({-8w1}, {-8w1});
         dummy_crypto({16w1}, {32w1});
         dummy_crypto({-16w1}, {-32w1});
+
+        bit<32> input = 0x1234;
+        dummy_crypto(input);
     }
 }
 
