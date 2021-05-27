@@ -37,6 +37,11 @@ uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 // ------------------------------------------------------
 // Test cases
 
+const char* fake_cmd_e_strings[] = {"FAKE_PKT","FAKE_SETDEF","FAKE_END"};
+
+#define FAKE_CMD_ACTION_TO_STR(cmd) (fake_cmd_e_strings[(int)cmd])
+
+
 testcase_t* current_test_case;
 
 #ifdef T4P4S_TEST_SUITE
@@ -114,7 +119,7 @@ uint8_t tmp[MAX_PACKET_SIZE];
 
 int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
     int retval = 0;
-    while (strlen(*texts) > 0) {
+    while (*texts != 0 && strlen(*texts) > 0) {
         retval += strlen(*texts) / 2;
         ++texts;
     }
@@ -134,7 +139,7 @@ struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
         rte_exit(3, "Could not allocate space for fake packet\n");
     }
 
-    while (strlen(*texts) > 0) {
+    while (*texts != 0 && strlen(*texts) > 0) {
         uint8_t* dst = p2;
         p2 = str2bytes(*texts, p2);
 
@@ -376,9 +381,6 @@ void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
     }
 }
 
-// ------------------------------------------------------
-// TODO
-
 #ifdef START_CRYPTO_NODE
 bool core_stopped_running[RTE_MAX_LCORE];
 #endif
@@ -439,6 +441,14 @@ void await_ctl_init() {
     #endif
 }
 
+void debug_actual_cmd(const char* message, LCPARAMS){
+    fake_cmd_t cmd = get_cmd(lcdata->idx);
+    struct rte_mbuf* temp = fake_packet(cmd.in, LCPARAMS_IN);
+    int length = rte_pktmbuf_pkt_len(temp);
+    dbg_bytes(rte_pktmbuf_mtod(temp, uint8_t*), length,"%s idx:%d type:%s (" T4LIT(%d) " bytes): ", message,(int)lcdata->idx,FAKE_CMD_ACTION_TO_STR(cmd.action),length);
+    rte_pktmbuf_free(temp);
+}
+
 bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     if (pkt_idx == 0) {
         await_ctl_init();
@@ -446,6 +456,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
 
     lcdata->idx++;
     fake_cmd_t cmd = get_cmd(lcdata->idx);
+    debug_actual_cmd("Nicoff receive_packet ", LCPARAMS_IN);
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
 
@@ -534,7 +545,7 @@ void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 }
 
 unsigned get_pkt_count_in_group(LCPARAMS) {
-    if(get_cmd(lcdata->idx).action == FAKE_PKT)
+    if(get_cmd(lcdata->idx).action != FAKE_END)
         return 1;
     else
         return 0;
