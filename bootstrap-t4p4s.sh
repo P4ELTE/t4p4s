@@ -362,7 +362,14 @@ if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
 fi
 
 if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
-    [ ! -d "p4c" ] && git clone "$REPO_PATH_p4c" --no-hardlinks --recursive >$(logfile "get-p4c") 2>&1 && cd p4c && git checkout `git rev-list -1 --before="$P4C_COMMIT_DATE" master` >>$(logfile "get-p4c") 2>&1 && git submodule update --init --recursive &
+    [ ! -d "p4c" ] && \
+        # note: P4C_BRANCH: making sure to find out the name of the default branch of p4c whatever its name may change to in the future
+        git clone "$REPO_PATH_p4c" --no-hardlinks --recursive >$(logfile "get-p4c") 2>&1 && \
+        cd p4c && \
+        P4C_MASTER_BRANCH=`basename $(git symbolic-ref --short refs/remotes/origin/HEAD)` && \
+        P4C_BRANCH=${P4C_BRANCH-$P4C_MASTER_BRANCH} && \
+        git checkout `git rev-list -1 --before="$P4C_COMMIT_DATE" "$P4C_BRANCH"` >>$(logfile "get-p4c") 2>&1 && \
+        git submodule update --init --recursive &
     WAITPROC_P4C="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_P4C" >/dev/null 2>&1
 fi
@@ -511,8 +518,17 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
 
     mkdir p4c/build
     cd p4c/build
-    sed -i 's/-fuse-ld=gold/-fuse-ld=${T4P4S_LD}/g' ../CMakeLists.txt
-    cmake .. -DCMAKE_C_FLAGS="${P4C_CFLAGS} -fPIC" -DCMAKE_CXX_FLAGS="${P4C_CFLAGS} -Wno-cpp -fPIC" -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -GNinja  -DENABLE_P4TEST=ON -DENABLE_EBPF=OFF -DENABLE_UBPF=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_GTESTS=OFF >$(logfile "p4c" ".ninja") 2>&1
+
+    sed -i "s/-fuse-ld=gold/-fuse-ld=${T4P4S_LD}/g" ../CMakeLists.txt
+    # temporary fix
+    sed -i "s/Status::OK/OkStatus()/g" ../control-plane/p4RuntimeSerializer.cpp
+
+    cmake .. -GNinja -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+        -DCMAKE_C_COMPILER="gcc" -DCMAKE_CXX_COMPILER="g++" -DCMAKE_LINKER="${T4P4S_LD}" \
+        -DCMAKE_C_FLAGS="${P4C_CFLAGS} -fPIC" -DCMAKE_CXX_FLAGS="${P4C_CFLAGS} -Wno-cpp -fPIC" \
+        -DENABLE_P4TEST=ON -DENABLE_BMV2=OFF -DENABLE_DOCS=OFF -DENABLE_DPDK=OFF -DENABLE_EBPF=OFF -DENABLE_GTESTS=OFF -DENABLE_MULTITHREAD=OFF -DENABLE_P4C_GRAPHS=OFF -DENABLE_PROTOBUF_STATIC=OFF -DENABLE_UBPF=OFF \
+         >$(logfile "p4c" ".cmake") 2>&1
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}cmake$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
 
     # free up as much memory as possible
@@ -522,11 +538,11 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     JOBS_BY_MEM_FREE=$(($MEM_FREE_KB / $P4C_APPROX_KB_PER_JOB / 1024))
     MAX_MAKE_JOBS_P4C=$(($JOBS_BY_MEM_FREE<$MAX_MAKE_JOBS ? $JOBS_BY_MEM_FREE : $MAX_MAKE_JOBS))
     MAX_MAKE_JOBS_P4C=$(($MAX_MAKE_JOBS_P4C <= 0 ? 1 : $MAX_MAKE_JOBS_P4C))
-    echo -e "Will use $cc$MAX_MAKE_JOBS_P4C$nn for ${cc}p4c$nn compilation"
+    echo -e "Will use $cc$MAX_MAKE_JOBS_P4C$nn jobs for ${cc}p4c$nn compilation"
 
-    [ $ISSKIP -ne 1 ] && sudo ninja -j ${MAX_MAKE_JOBS_P4C} >&2 2>>$(logfile "p4c" ".ninja")
+    [ $ISSKIP -ne 1 ] && sudo ninja -j ${MAX_MAKE_JOBS_P4C} >&2 2>$(logfile "p4c" ".ninja")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
-    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} 2>&1 >>$(logfile "p4c" ".ninja.install")
+    [ $ISSKIP -ne 1 ] && sudo ninja install -j ${MAX_MAKE_JOBS_P4C} 2>&1 >$(logfile "p4c" ".ninja.install")
     ERRCODE=$? && [ $ISSKIP -ne 1 ] && [ $ERRCODE -ne 0 ] && ISSKIP=1 && echo -e "${cc}p4c$nn/${cc}ninja install$nn step ${ee}failed$nn with error code ${ee}$ERRCODE$nn"
     cd "$WORKDIR"
 fi
