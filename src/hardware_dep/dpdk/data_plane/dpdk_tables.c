@@ -30,7 +30,7 @@
 
 void rte_exit_with_errno_text(const char* errno_txt, const char* msg, const char* table_name, const char* error_text)
 {
-    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(rte_errno,error) ", " T4LIT(%s,error) "): Unable to %s " T4LIT(%s,table) ": %s\n", errno_txt, msg, table_name, error_text);
+    rte_exit(EXIT_FAILURE, "DPDK (errno=" T4LIT(%d,error) ", " T4LIT(%s,error) "): Unable to %s " T4LIT(%s,table) ": %s\n", rte_errno, errno_txt, msg, table_name, error_text);
 }
 
 void rte_exit_with_errno(const char* msg, const char* table_name)
