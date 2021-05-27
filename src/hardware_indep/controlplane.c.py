@@ -125,12 +125,12 @@ def gen_fill_key_component(k, idx, byte_width, tmt, kmt):
     elif ke.node_type == 'Slice':
         #[     // TODO fill Slice component properly (call gen_fill_key_component_slice)
     else:
-        #[     memcpy(&(key->${get_key_name(k, idx)}), field_matches[$idx], $byte_width);
+        #[     memcpy(&(key->${get_key_name(k, idx)}), field_matches[$idx]->bitmap, $byte_width);
         if tmt == "lpm":
             if kmt == "exact":
                 #[     prefix_length += ${get_key_byte_width(k)};
             if kmt == "lpm":
-                #[     prefix_length += $byte_width;
+                #[     prefix_length += ${byte_width};
 
 
 for table in hlir.tables:
@@ -140,7 +140,7 @@ for table in hlir.tables:
     extra_init   = {'exact': '', 'lpm': 'uint8_t prefix_length = 0;', 'ternary': ''}
     extra_return = {'exact': '', 'lpm': 'return prefix_length;', 'ternary': ''}
 
-    #[ // note: ${table.name}, $tmt, ${table.key_length_bytes}
+    #[ // note: ${table.canonical_name} alias ${table.name}, $tmt, ${table.key_length_bytes}
     #{ ${return_t[tmt]} ${table.name}_setup_key(p4_field_match_${tmt}_t** field_matches, table_key_${table.name}_t* key) {
     if extra_init[tmt]:
         #[     ${extra_init[tmt]}
@@ -178,17 +178,15 @@ for table in hlir.tables:
 for table in hlir.tables:
     #{ bool ${table.name}_setup_action(${table.name}_action_t* action, p4_action_parameter_t** action_params, const char* action_name) {
     for idx, action in enumerate(table.actions):
+        ao = action.action_object
         if idx == 0:
-            #{     if (strcmp("${action.action_object.canonical_name}", action_name)==0) {
+            #{     if (strcmp("${ao.canonical_name}", action_name)==0) {
         else:
-            #[     } else if (strcmp("${action.action_object.canonical_name}", action_name)==0) {
+            #[     } else if (strcmp("${ao.canonical_name}", action_name)==0) {
 
-        #[         action->action_id = action_${action.action_object.name};
-        for j, p in enumerate(action.action_object.parameters.parameters):
-            #[         memcpy(&action->${action.action_object.name}_params.${p.name}, action_params[$j]->bitmap, ${(p.urtype.size+7)//8});
-
-        for j, p in enumerate(action.action_object.parameters.parameters):
-            size = p.urtype.size
+        #[         action->action_id = action_${ao.name};
+        for pidx, p in enumerate(ao.parameters.parameters):
+            #[         memcpy(&action->${ao.name}_params.${p.name}, action_params[$pidx]->bitmap, ${(p.urtype.size+7)//8});
 
     valid_actions = ", ".join(f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions)
     #[     } else {
@@ -217,7 +215,7 @@ for table in hlir.tables:
 
     extra_params = "".join(f'{p}, ' for p in extra_names[tmt])
     has_fields = "false" if len(action.action_object.parameters.parameters) == 0 else "true"
-    #[     ${table.matchType.name}_add_promote(TABLE_${table.name}, (uint8_t*)&key, ${extra_params} (uint8_t*)&action, false, ${has_fields});
+    #[     ${table.matchType.name}_add_promote(TABLE_${table.name}, (uint8_t*)&key, ${extra_params} (uint8_t*)&action, false, ${has_fields} || ctrl_is_initialized);
 
     #} }
     #[
