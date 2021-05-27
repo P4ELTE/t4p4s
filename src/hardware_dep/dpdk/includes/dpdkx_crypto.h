@@ -65,4 +65,4 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
 void do_encryption_async(SHORT_STDPARAMS);
 void do_decryption_async(SHORT_STDPARAMS);
 
-void md5_hmac(SHORT_STDPARAMS);
+void md5_hmac__u8s(uint8_buffer_t offset, SHORT_STDPARAMS);

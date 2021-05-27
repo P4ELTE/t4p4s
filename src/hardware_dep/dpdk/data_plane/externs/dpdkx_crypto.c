@@ -164,9 +164,7 @@ void reset_pd(packet_descriptor_t *pd)
     pd->is_emit_reordering = false;
 }
 
-void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum crypto_task_type op_type, void* extraInformationForAsyncHandling){
-    unsigned encryption_offset = 0;//14; // TODO
-
+void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum crypto_task_type op_type, int offset, void* extraInformationForAsyncHandling){
     int ret = rte_mempool_get(crypto_task_pool, (void**)op_out);
     if(ret < 0){
         rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
@@ -176,9 +174,8 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
     op->op = op_type;
     op->data = pd->wrapper;
 
-    op->plain_length = op->data->pkt_len;
-    int encrypted_length = op->plain_length - encryption_offset;
-    int extra_length = 0;
+    op->plain_length = op->data->pkt_len - offset;
+    op->offset = offset;
     debug_mbuf(op->data, " :::: Crypto: preparing packet");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -186,7 +183,7 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
             void* context = extraInformationForAsyncHandling;
             rte_pktmbuf_prepend(op->data, sizeof(void*));
             *(rte_pktmbuf_mtod(op->data, void**)) = context;
-            extra_length += sizeof(void*);
+            op->offset += sizeof(void*);
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
@@ -194,23 +191,24 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
 
         rte_pktmbuf_prepend(op->data, sizeof(packet_descriptor_t*));
         *(rte_pktmbuf_mtod(op->data, packet_descriptor_t**)) = store_pd;
-        extra_length += sizeof(void**);
+        op->offset += sizeof(void**);
     #endif
 
     rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
     *(rte_pktmbuf_mtod(op->data, uint32_t*)) = op->plain_length;
-    extra_length += sizeof(uint32_t);
+    op->offset += sizeof(uint32_t);
 
-    debug_mbuf(op->data, "   :: Added bytes for encryption");
+    debug_mbuf(op->data, " :::: Added bytes for encryption");
 
-    op->offset = extra_length + encryption_offset;
-    // This is extremely important, believe me. The pkt_len has to be a multiple of the cipher block size, otherwise the crypto device won't do the operation on the mbuf.
-    if(encrypted_length%16 != 0){
-        op->padding_length = 16-encrypted_length%16;
+    if(op->plain_length%16 != 0){
+        op->padding_length = 16-op->plain_length%16;
         rte_pktmbuf_append(op->data, op->padding_length);
     }else{
         op->padding_length = 0;
     }
+
+    debug(" :::: Padding size:%d\n",op->padding_length);
+    debug(" :::: Offset :%d\n",op->offset);
     debug_mbuf(op->data, " :::: Final crypto task data:");
 }
 
@@ -243,13 +241,13 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
 }
 
 
-void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
+void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op, int offset){
     unsigned int lcore_id = rte_lcore_id();
 
     //control_DeparserImpl(pd, 0, 0);
     //emit_packet(pd, 0, 0);
 
-    create_crypto_op(crypto_tasks[lcore_id],pd,op,NULL);
+    create_crypto_op(crypto_tasks[lcore_id],pd,op,offset,NULL);
     if (rte_crypto_op_bulk_alloc(crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
         rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
     }
@@ -271,7 +269,7 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
     #endif
     if(op == CRYPTO_TASK_MD5_HMAC){
         //debug("%d\n",crypto_tasks[lcore_id][0]->padding_length);
-        debug_mbuf(crypto_tasks[lcore_id][0]->data,"FULL HMAC RESULT:");
+        //debug_mbuf(crypto_tasks[lcore_id][0]->data,"FULL HMAC RESULT:");
 
         uint8_t *auth_tag;
         if (enqueued_ops[lcore_id][0]->sym->m_dst) {
@@ -285,8 +283,8 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op){
                                crypto_tasks[lcore_id][0]->offset
                                );
         }
-        dbg_bytes(  auth_tag, MD5_DIGEST_LEN,
-              "HMAC RESULT (" T4LIT(%d) " bytes): ", MD5_DIGEST_LEN);
+        /*dbg_bytes(  auth_tag, MD5_DIGEST_LEN,
+              "HMAC RESULT (" T4LIT(%d) " bytes): ", MD5_DIGEST_LEN);*/
         memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), auth_tag, MD5_DIGEST_LEN);
         pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         pd->wrapper->pkt_len = MD5_DIGEST_LEN;
@@ -410,20 +408,18 @@ void do_decryption_async(SHORT_STDPARAMS)
     #endif
 }
 
-// defined in main_async.c
-void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op);
 void do_encryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
             COUNTER_STEP(lcore_conf[rte_lcore_id()].sent_to_crypto_packet);
-            do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT);
+            do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, 0);
         }else{
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #else
-        do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT);
+        do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, 0);
     #endif
 }
 
@@ -431,11 +427,11 @@ void do_decryption(SHORT_STDPARAMS)
 {
     #ifdef DEBUG__CRYPTO_EVERY_N
         if(lcore_conf[rte_lcore_id()].crypto_every_n_counter == 0) {
-            do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT);
+            do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT, 0);
         }
         increase_with_rotation(lcore_conf[rte_lcore_id()].crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N);
     #else
-        do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT);
+        do_blocking_sync_op(pd, CRYPTO_TASK_DECRYPT, 0);
     #endif
 }
 
@@ -488,10 +484,9 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 12,"final");
 }
 
-void md5_hmac(SHORT_STDPARAMS)
+void md5_hmac__u8s(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    debug("STARTING md5_hmac\n");
-    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC);
+    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, offset.buffer[0]);
 }
 
 #endif
