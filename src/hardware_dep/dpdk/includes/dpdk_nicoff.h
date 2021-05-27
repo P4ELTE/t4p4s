@@ -16,6 +16,7 @@ struct lcore_data {
     int                 idx;
     int                 verify_idx;
     int                 pkt_idx;
+    int                 iter_idx;
 
     struct rte_mempool* mempool;
 };

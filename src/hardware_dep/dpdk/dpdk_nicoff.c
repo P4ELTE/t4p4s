@@ -25,6 +25,10 @@ extern volatile int packet_counter;
 extern volatile int packet_with_error_counter;
 
 // ------------------------------------------------------
+
+const int REASONABLE_ITER_LIMIT = 100;
+
+// ------------------------------------------------------
 // Exports
 
 uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
@@ -312,8 +316,11 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
     }
 }
 
+const int NO_INFINITE_LOOP = -1;
+
 bool encountered_error = false;
 bool encountered_drops = false;
+int infinite_loop_on_core = NO_INFINITE_LOOP;
 
 fake_cmd_t get_cmd(int idx) {
     if(idx < 0){
@@ -376,7 +383,25 @@ void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
 bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
+bool is_over_iteration_limit(LCPARAMS) {
+    ++lcdata->iter_idx;
+
+    if (lcdata->iter_idx > REASONABLE_ITER_LIMIT) {
+        debug( "   " T4LIT(!!,error) " Detected " T4LIT(%d iterations,error) " on " T4LIT(core %d) ", possible infinite loop\n", lcdata->iter_idx, rte_lcore_id());
+        encountered_error = true;
+        infinite_loop_on_core = rte_lcore_id();
+    }
+
+    return encountered_error;
+}
+
 bool core_is_working(LCPARAMS) {
+    #ifdef T4P4S_DEBUG
+        if (is_over_iteration_limit(LCPARAMS_IN)) {
+            return false;
+        }
+    #endif
+
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         bool ret =
             get_cmd(lcdata->idx).action != FAKE_END ||
@@ -389,11 +414,11 @@ bool core_is_working(LCPARAMS) {
             }
 
             if (is_crypto_node()) {
-                bool is_any_runing = false;
+                bool is_any_running = false;
                 for(int a = 0; a < crypto_node_id();a++){
-                    is_any_runing |= !core_stopped_running[a];
+                    is_any_running |= !core_stopped_running[a];
                 }
-                ret = is_any_runing;
+                ret = is_any_running;
             }
         #endif
         return ret;
@@ -566,6 +591,7 @@ struct lcore_data init_lcore_data() {
         .verify_idx = -1,
         .idx        = -1,
         .pkt_idx    = 0,
+        .iter_idx   = 0,
         .mempool    = pktmbuf_pool[0],
     };
 
@@ -581,6 +607,18 @@ void initialize_nic() {
         init_crypto_devices();
     #endif
 }
+
+typedef enum {
+    T4P4S_EXIT_CODE_NORMAL = 0,
+
+    // note: these cannot happen here
+    T4P4S_EXIT_CODE_FAILED_COMPILATION_P4_TO_C = 1,
+    T4P4S_EXIT_CODE_FAILED_COMPILATION_C = 2,
+
+    T4P4S_EXIT_CODE_ERR_PROCESSING_PACKETS = 3,
+    T4P4S_EXIT_CODE_ERR_DROPS = 4,
+    T4P4S_EXIT_CODE_INFINITE_LOOP = 5,
+} T4P4S_EXIT_CODE_t;
 
 void t4p4s_abnormal_exit(int retval, int idx) {
     t4p4s_print_global_stats();
@@ -603,18 +641,23 @@ void t4p4s_after_launch(int idx) {
 int t4p4s_normal_exit() {
     t4p4s_print_global_stats();
 
+    if (infinite_loop_on_core != NO_INFINITE_LOOP) {
+        debug(T4LIT(Abnormal exit,error) ", too many iterations (" T4LIT(%d) " on lcore " T4LIT(%d,core) "), possible infinite loop.\n", REASONABLE_ITER_LIMIT, infinite_loop_on_core);
+        return T4P4S_EXIT_CODE_INFINITE_LOOP;
+    }
+
     if (encountered_error) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
-        return 3;
+        return T4P4S_EXIT_CODE_ERR_PROCESSING_PACKETS;
     }
 
     if (encountered_drops) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(some packets were unexpectedly dropped/sent,error) "\n");
-        return 4;
+        return T4P4S_EXIT_CODE_ERR_DROPS;
     }
 
     debug(T4LIT(Normal exit.,success) "\n");
-    return 0;
+    return T4P4S_EXIT_CODE_NORMAL;
 }
 
 void t4p4s_post_launch(int idx) {

@@ -204,6 +204,7 @@ else
     fail_codes[2]="C compilation failed"
     fail_codes[3]="Execution finished with wrong output"
     fail_codes[4]="Packets were unexpectedly dropped/sent"
+    fail_codes[5]="Too many iterations, possible infinite loop"
     fail_codes[139]="C code execution: Segmentation fault"
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"
