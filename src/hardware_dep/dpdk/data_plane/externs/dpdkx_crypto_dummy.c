@@ -37,3 +37,9 @@ void dummy_crypto__buf(uint8_t* u8s, SHORT_STDPARAMS) {
     int len = 64/8;
     dbg_bytes(u8s, len, "    : Called extern " T4LIT(dummy_crypto__buf,extern) ": ");
 }
+
+
+void dummy_crypto__ethernet_ts(uint8_buffer_t ethernet, SHORT_STDPARAMS) {
+    int len = 6+6+2;
+    dbg_bytes(ethernet.buffer, len, "    : Called extern " T4LIT(dummy_crypto__ethernet_ts,extern) ": ");
+}

@@ -46,6 +46,14 @@ CTL_INGRESS {
         dummy_crypto(32w0x1234);
 
         dummy_crypto(64w0xFEDCBA9876543210);
+
+        // TODO properly implement these cases, too
+        // dummy_crypto(hdr.ethernet.srcAddr);
+        // dummy_crypto(hdr.ethernet.dstAddr);
+        // dummy_crypto(hdr.ethernet.etherType);
+        // dummy_crypto(hdr.ethernet);
+
+        dummy_crypto({hdr.ethernet});
     }
 }
 

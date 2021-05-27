@@ -25,3 +25,5 @@ void dummy_crypto__u8(uint8_t u8, SHORT_STDPARAMS);
 void dummy_crypto__u16(uint16_t u16, SHORT_STDPARAMS);
 void dummy_crypto__u32(uint32_t u32, SHORT_STDPARAMS);
 void dummy_crypto__buf(uint8_t* u8s, SHORT_STDPARAMS);
+
+void dummy_crypto__ethernet_ts(uint8_buffer_t ethernet, SHORT_STDPARAMS);
