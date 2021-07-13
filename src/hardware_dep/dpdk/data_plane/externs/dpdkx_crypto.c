@@ -284,19 +284,19 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op, int 
             debug("m_dst not empty\n");
             auth_tag = rte_pktmbuf_mtod_offset(enqueued_ops[lcore_id][0]->sym->m_dst,uint8_t *,
                                                crypto_tasks[lcore_id][0]->padding_length);
-        } else {
-            auth_tag = rte_pktmbuf_mtod_offset(crypto_tasks[lcore_id][0]->data,uint8_t *,
-                               crypto_tasks[lcore_id][0]->padding_length +
+            int target_position = crypto_tasks[lcore_id][0]->padding_length +
                                crypto_tasks[lcore_id][0]->plain_length +
-                               crypto_tasks[lcore_id][0]->offset
-                               );
+                               crypto_tasks[lcore_id][0]->offset;
+            uint8_t* target = rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + target_position;
+            memcpy(target,auth_tag,MD5_DIGEST_LEN);
         }
+        rte_pktmbuf_adj(pd->wrapper, sizeof(int));
         /*dbg_bytes(  auth_tag, MD5_DIGEST_LEN,
               "HMAC RESULT (" T4LIT(%d) " bytes): ", MD5_DIGEST_LEN);*/
-        memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), auth_tag, MD5_DIGEST_LEN);
+        /*memcpy(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), auth_tag, MD5_DIGEST_LEN);
         pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         pd->wrapper->pkt_len = MD5_DIGEST_LEN;
-        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);*/
         debug_mbuf(pd->wrapper,"FULL HMAC RESULT:");
     }else{
         struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;

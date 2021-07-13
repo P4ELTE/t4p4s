@@ -29,6 +29,7 @@ CTL_INGRESS {
     apply {
         hdr.offset.offset = hdr.offset.offset + 8w1;
         md5_hmac({hdr.offset.offset});
+        hdr.offset.offset = hdr.offset.offset - 8w1;
     }
 }
 
