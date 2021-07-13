@@ -244,9 +244,6 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
         case CRYPTO_TASK_DECRYPT:
             rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
             break;
-        case CRYPTO_TASK_MD5_HMAC:
-            // TODO
-            break;
         }
     }
 }
@@ -446,53 +443,62 @@ void do_decryption(SHORT_STDPARAMS)
     #endif
 }
 
-
-
 void do_ipsec_encapsulation(SHORT_STDPARAMS) {
-    debug_mbuf(pd->wrapper,"do_ipsec_encapsulation, wrapper:");
-    fprintf(stderr,"HEEEE:%d\n",pd->headers[1].size);
-    dbg_bytes(pd->headers[1].pointer,pd->headers[1].size,"hello");
+    debug_mbuf(pd->wrapper,"START wrapper:");
+
+    const int headers_length = 34;
+    const int pad_length_length = 1;
+    const int next_header_length = 1;
+    const int esp_length = 8;
+    const int iv_length = 8;
 
     int wrapper_length = rte_pktmbuf_pkt_len(pd->wrapper);
-    int padding_length = (16 - wrapper_length% 16) % 16;
-    int wrapper_and_payload_size = padding_length + wrapper_length;
-    // 1 byte pad length, 1 byte next header, 8 byte esp, 8 byte iv, 12 byte hmac
-    u_int8_t* new_payload = malloc(wrapper_and_payload_size + 1 + 1 + 8 + 8 + 12);
-    memset(new_payload, 0, wrapper_and_payload_size + 1 + 1 + 8 + 8 + 12);
-
-    // the output of the encryption will be after the IV and the simulated ESP
-    u_int8_t* payload_to_encrypt = new_payload + 8 + 8;
-
-    // copy original payload
-    memcpy(payload_to_encrypt, rte_pktmbuf_mtod(pd->wrapper, uint8_t*), wrapper_length);
-    //add padding
-    memset(payload_to_encrypt+wrapper_length,0,padding_length);
-
-    payload_to_encrypt[wrapper_and_payload_size] = (u_int8_t)padding_length;
-    payload_to_encrypt[wrapper_and_payload_size + 1] = 4;
-
-    dbg_bytes(new_payload + 8,wrapper_and_payload_size+2 + 8 + 8 + 12,"all buffer:");
-    dbg_bytes(payload_to_encrypt,wrapper_and_payload_size+2,"To Encrypt:");
-    // TODO: ENCRYPT
-    u_int8_t* iv = malloc(8);
-    memset(iv,0xbb,8);
-
-    u_int32_t spi = 0xee;
-    u_int32_t esp_counter = 0xcc;
-
-    memcpy(new_payload,&spi,4);
-    memcpy(new_payload + 4,&esp_counter,4);
-    memcpy(new_payload + 8,iv,8);
+    int original_payload_length = wrapper_length - headers_length;
 
 
-    u_int8_t* hmac = malloc(12);
-    memset(hmac,0xaa,12);
-    int hmac_length;
-    //TODO: hmac(hmac,&hmac_length,new_payload,8 + 8 + wrapper_and_payload_size + 2);
-    memcpy(new_payload + 8 + 8 + wrapper_and_payload_size + 2, hmac, 12);
+    int padding_length = (16 - (wrapper_length + pad_length_length + next_header_length)% 16) % 16;
+    int to_encrypt_length = padding_length + wrapper_length + pad_length_length + next_header_length;
 
-    dbg_bytes(new_payload,wrapper_and_payload_size+2 + 8 + 8 + 12,"all buffer:");
-    dbg_bytes(new_payload + 8,wrapper_and_payload_size+2 + 8 + 12,"final");
+    debug(" :::: Padding length: %d\n",padding_length);
+    debug(" :::: to_encrypt_length: %d\n",to_encrypt_length);
+
+    rte_pktmbuf_append(pd->wrapper,esp_length + iv_length + to_encrypt_length - original_payload_length);
+    uint8_t* data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+
+    uint8_t* data_pointer = data;
+    // Pass the existing header and leave space for the ESP and IV in payload (we forget about the original payload)
+    data_pointer += headers_length + esp_length + iv_length;
+    // Important to use memmove, because the source and destination can overlap
+    memmove(data_pointer, data, wrapper_length);
+
+    // Run to the end of the copied header+payload
+    data_pointer += wrapper_length;
+    // And set the padding bytes
+    memset(data_pointer, 0xef, padding_length);
+
+    // Save the size of padding
+    data_pointer += padding_length;
+    memset(data_pointer, (uint8_t)padding_length, 1);
+
+    // Set next header to ipv4
+    data_pointer += 1;
+    memset(data_pointer, 4, 1);
+
+    // TODO: add ESP
+    // ESP
+    memset(data + headers_length, 0x1a, 8);
+    // TODO: use random IV
+    // IV
+    memset(data + headers_length + esp_length, 0x1b, 8);
+
+    do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, headers_length + esp_length + iv_length);
+
+    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, headers_length);
+
+    // We keep only 12 bytes from 16 byte HMAC
+    rte_pktmbuf_trim(pd->wrapper,4);
+
+    debug_mbuf(pd->wrapper,"final wrapper");
 }
 
 void md5_hmac_impl(uint8_buffer_t offset, SHORT_STDPARAMS)
