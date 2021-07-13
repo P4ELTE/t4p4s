@@ -190,7 +190,7 @@ bool initial_check(LCPARAMS) {
 
     #ifdef START_CRYPTO_NODE
         if (is_crypto_node()){
-            RTE_LOG(INFO, P4_FWD, "lcore %u is the crypto node\n", lcore_id);
+            RTE_LOG(INFO, P4_FWD, "lcore %u is the crypto node\n", rte_lcore_id());
         }
     #endif
 
