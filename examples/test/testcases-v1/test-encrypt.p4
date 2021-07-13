@@ -21,12 +21,8 @@ PARSER {
     }
 }
 
-extern void md5_hmac<T>(in T offset);
 extern void encrypt<T>(in T offset);
 
-extern void symmetric_encrypt<T>(out T result, in T data);
-extern void do_encryption();
-extern void do_decryption();
 CTL_INGRESS {
     apply {
         hdr.offset.offset = hdr.offset.offset + 8w1;
