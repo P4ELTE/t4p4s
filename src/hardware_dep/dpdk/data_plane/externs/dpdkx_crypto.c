@@ -60,9 +60,11 @@ static void init_session(int cdev_id, struct rte_cryptodev_sym_session *session,
 
 #define CRYPTO_MODE CRYPTO_MODE_OPENSSL
 
+
+
 static void setup_sessions()
 {
-    uint8_t cipher_key[16] = {0};
+    uint8_t cipher_key[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
     struct rte_crypto_sym_xform cipher_xform_encrypt = DEFAULT_XFORM;
     #if CRYPTO_MODE == CRYPTO_MODE_OPENSSL
@@ -177,6 +179,9 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
     op->plain_length = op->data->pkt_len - offset;
     op->offset = offset;
     debug_mbuf(op->data, " :::: Crypto: preparing packet");
+    debug(" :::: Pkt length:%d\n",op->data->pkt_len);
+    debug(" :::: Original offset:%d\n",offset);
+    debug(" :::: Plain length:%d\n",op->plain_length);
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(extraInformationForAsyncHandling != NULL){
@@ -202,7 +207,8 @@ void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum
 
     if(op->plain_length%16 != 0){
         op->padding_length = 16-op->plain_length%16;
-        rte_pktmbuf_append(op->data, op->padding_length);
+        void* padding_memory = rte_pktmbuf_append(op->data, op->padding_length);
+        memset(padding_memory,0,op->padding_length);
     }else{
         op->padding_length = 0;
     }
@@ -225,9 +231,11 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
         crypto_op->sym->m_src = crypto_task->data;
         crypto_op->sym->cipher.data.offset = crypto_task->offset;
         crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
+        debug("----------%d %d\n",crypto_op->sym->cipher.data.offset,crypto_op->sym->cipher.data.length);
 
         uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
         memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
+
         switch(crypto_task->op)
         {
         case CRYPTO_TASK_ENCRYPT:
@@ -295,6 +303,7 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op, int 
         int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
 
         rte_pktmbuf_adj(mbuf, sizeof(int));
+        rte_pktmbuf_adj(mbuf, offset);
         pd->wrapper = mbuf;
         pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         pd->wrapper->pkt_len = packet_length;
@@ -337,7 +346,7 @@ void init_crypto_devices()
         configure_device(cdev_id, &conf, &qp_conf, socket_id);
         setup_sessions();
         srand(time(NULL));
-        for(int i = 0; i < 16; i++) iv[i] = rand();
+        for(int i = 0; i < 16; i++) iv[i] = 0;//rand();
     }
     else
     {
@@ -487,6 +496,11 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
 void md5_hmac__u8s(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, offset.buffer[0]);
+}
+
+void encrypt__u8s(uint8_buffer_t offset, SHORT_STDPARAMS)
+{
+    do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, offset.buffer[0]);
 }
 
 #endif
