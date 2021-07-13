@@ -303,10 +303,9 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op, int 
         int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
 
         rte_pktmbuf_adj(mbuf, sizeof(int));
-        rte_pktmbuf_adj(mbuf, offset);
-        pd->wrapper = mbuf;
-        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-        pd->wrapper->pkt_len = packet_length;
+        //pd->wrapper = mbuf;
+        //pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        //pd->wrapper->pkt_len = packet_length;
         debug_mbuf(mbuf, "Result of encryption\n");
     }
 

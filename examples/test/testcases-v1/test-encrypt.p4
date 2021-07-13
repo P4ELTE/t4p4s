@@ -27,12 +27,12 @@ CTL_INGRESS {
     apply {
         hdr.offset.offset = hdr.offset.offset + 8w1;
         encrypt({hdr.offset.offset});
+        hdr.offset.offset = hdr.offset.offset - 8w1;
     }
 }
 
 CTL_EMIT {
     apply {
-        packet.emit(hdr.offset);
     }
 }
 
