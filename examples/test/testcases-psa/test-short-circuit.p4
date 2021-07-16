@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11111000
@@ -46,7 +46,7 @@ control egress(inout headers hdr,
     apply {
 	   hdr.dummy.f1 = 1;
 	   bit<6> zero = hdr.dummy.padding;
-    
+
 	   if (hdr.dummy.f1 == 0 && ((6w1/zero)==0) && 6w1==hdr.dummy2.neverknown) {
 			// NEVER RUNS
 			hdr.dummy.f1 = 2;
@@ -55,7 +55,7 @@ control egress(inout headers hdr,
 				hdr.dummy.f1 = 0;
 			}
 	   }
-	   
+
 	   if (hdr.dummy2.isValid() && 6w1==hdr.dummy2.neverknown) {
 			hdr.dummy.f1 = 3;
 	   }

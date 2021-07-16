@@ -1,11 +1,11 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11110000
 
 struct metadata {
-	bit<28> addr1;	
+	bit<28> addr1;
 }
 
 header dummy_t {
@@ -47,7 +47,7 @@ control egress(inout headers hdr,
     action action3() {meta.addr1 = addr2 + 28w1; }
     action action4(bit<28> data) { addr3 = data + 28w1; }
     action action5(bit<28> data) { meta.addr1 = data + 28w1; }
-    
+
     table t1 {
         actions = {
             action1;
@@ -84,7 +84,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { 
+    apply {
          ostd.egress_port = (PortId_t)12345;
     }
 }

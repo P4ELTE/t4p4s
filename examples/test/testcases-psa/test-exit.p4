@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11110000
@@ -52,7 +52,7 @@ control ingress(inout headers hdr,
                 in    psa_ingress_input_metadata_t  istd,
                 inout psa_ingress_output_metadata_t ostd)
 {
-    apply { 
+    apply {
 	ostd.egress_port = (PortId_t)12345;
     }
 }

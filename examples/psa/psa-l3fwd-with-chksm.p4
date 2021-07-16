@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 struct routing_metadata_t {
     bit<32> nhgroup;
@@ -58,7 +58,7 @@ parser IngressParserImpl(packet_in packet,
                          inout metadata meta,
                          in psa_ingress_parser_input_metadata_t istd,
                          in empty_metadata_t resubmit_meta,
-                         in empty_metadata_t recirculate_meta) 
+                         in empty_metadata_t recirculate_meta)
 {
     InternetChecksum() ck;
     state parse_arp {

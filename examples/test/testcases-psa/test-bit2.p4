@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11111000
@@ -42,13 +42,13 @@ control egress(inout headers hdr,
 {
     bit tmp_bit = 1;
     bit<2> tmp_bit2 = 2w3;
-    
+
     apply {
-       
+
        //note: saturating arithmetic is recognized by T4P4S but treated as regular arithmetic
        hdr.dummy.f11 = (hdr.dummy.f11 |-| tmp_bit) + tmp_bit;
        hdr.dummy.f12 = (hdr.dummy.f12 + tmp_bit) |+| tmp_bit;
-       
+
        // note: shifting by 123 does not make sense, as it is longer than f14 (the spec defines this special case)
        hdr.dummy.f14[0:0] = (bit<1>)((hdr.dummy.f14 >> 123) == (bit<3>)0);
 

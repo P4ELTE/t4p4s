@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 0000000000000000
 // Out: 00000001
@@ -57,7 +57,7 @@ control egress(inout headers hdr,
         A my_a2 = { 8w1 };
         my_a2.setInvalid();
         u.a = my_a;
-        hdr.dummy3 = u.a;    
+        hdr.dummy3 = u.a;
     }
 }
 
