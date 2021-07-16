@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 0000000000000000
 // Out: 1111111110000000
@@ -53,7 +53,7 @@ control egress(inout headers hdr,
 {
     Choice tmp = Choice.A;
     Suits tmp2 = Suits.Clubs;
-    
+
     apply {
        hdr.dummy.f1 = tmp;
        hdr.dummy.f2 = (Choice)2w0x3;

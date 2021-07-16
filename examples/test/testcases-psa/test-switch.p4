@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11110000
@@ -39,9 +39,9 @@ control egress(inout headers hdr,
                in    psa_egress_input_metadata_t  istd,
                inout psa_egress_output_metadata_t ostd)
 {
-    action a() { 
+    action a() {
 	hdr.dummy.f1 = (bit<2>)3;
-	hdr.dummy.f2 = (bit<2>)3; 
+	hdr.dummy.f2 = (bit<2>)3;
     }
 
     table dummy_table {

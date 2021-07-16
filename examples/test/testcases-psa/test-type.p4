@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 10000000
@@ -41,7 +41,7 @@ control egress(inout headers hdr,
                inout psa_egress_output_metadata_t ostd)
 {
     one_bit_t one = 1;
-    
+
     apply {
        hdr.dummy.f1 = one;
     }

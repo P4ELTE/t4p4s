@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 0000000000000000
 // Out: 1111111111111100
@@ -50,7 +50,7 @@ control egress(inout headers hdr,
 {
     bit tmp_bit = 1;
     bit<2> tmp_bit2 = 2w3;
-    
+
     apply {
        hdr.dummy.f1 = hdr.dummy.f1 + (bit<1>)true;
        hdr.dummy.f2 = tmp_bit - hdr.dummy.f2;

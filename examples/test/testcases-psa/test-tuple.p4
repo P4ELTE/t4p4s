@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In: 00000000
 // Out: 11100000
@@ -41,7 +41,7 @@ control egress(inout headers hdr,
 {
     tuple<> empty_tuple = {};
     tuple<bit<1>, bit<2>, bit<5>> x = { hdr.dummy.f1, hdr.dummy.f2, hdr.dummy.padding };
-    
+
     apply {
        hdr.dummy = {1w1, 2w3, 5w0};
     }

@@ -1,6 +1,6 @@
 
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 #include "../../include/std_headers.p4"
 

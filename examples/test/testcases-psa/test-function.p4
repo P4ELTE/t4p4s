@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <psa.p4>
+#include <bmv2/psa.p4>
 
 // In:  0_0_00_00_00
 // Out: 1_1_11_10_11
