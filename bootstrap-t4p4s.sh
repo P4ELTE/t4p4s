@@ -110,7 +110,7 @@ if [ "$CLEANUP" == "yes" ]; then
     mv --backup=numbered grpc $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered PI $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered P4Runtime_GRPCPP $CLEANUP_DIR/ 2>/dev/null
-    mv --backup=numbered t4p4s* $CLEANUP_DIR/ 2>/dev/null
+    mv --backup=numbered t4p4s $CLEANUP_DIR/ 2>/dev/null
     mv --backup=numbered ${T4P4S_ENVVAR_FILE} $CLEANUP_DIR/ 2>/dev/null
 
     CLEANUP_SIZE=`du -hcs $CLEANUP_DIR | head -1 | cut -d$'\t' -f1`
