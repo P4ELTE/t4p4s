@@ -356,7 +356,7 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
 fi
 
 if [ "$INSTALL_STAGE3_PROTOBUF" == "yes" ]; then
-    [ ! -d "protobuf" ] && git clone "$REPO_PATH_protobuf" --no-hardlinks --recursive -b "${PROTOBUF_TAG}" >$(logfile "get-protobuf") 2>&1 &
+    [ ! -d "protobuf" ] && git clone --quiet "$REPO_PATH_protobuf" --no-hardlinks --recursive -b "${PROTOBUF_TAG}" >$(logfile "get-protobuf") 2>&1 &
     WAITPROC_PROTOBUF="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_PROTOBUF" >/dev/null 2>&1
 fi
@@ -364,7 +364,7 @@ fi
 if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
     [ ! -d "p4c" ] && \
         # note: P4C_BRANCH: making sure to find out the name of the default branch of p4c whatever its name may change to in the future
-        git clone "$REPO_PATH_p4c" --no-hardlinks --recursive >$(logfile "get-p4c") 2>&1 && \
+        git clone --quiet "$REPO_PATH_p4c" --no-hardlinks --recursive >$(logfile "get-p4c") 2>&1 && \
         cd p4c && \
         P4C_MASTER_BRANCH=`basename $(git symbolic-ref --short refs/remotes/origin/HEAD)` && \
         P4C_BRANCH=${P4C_BRANCH-$P4C_MASTER_BRANCH} && \
@@ -375,21 +375,21 @@ if [ "$INSTALL_STAGE4_P4C" == "yes" ]; then
 fi
 
 if [ "$INSTALL_STAGE5_GRPC" == "yes" ]; then
-    [ ! -d grpc ] && git clone "$REPO_PATH_grpc" --no-hardlinks --recursive >$(logfile "get-grpc") 2>&1 &
+    [ ! -d grpc ] && git clone --quiet "$REPO_PATH_grpc" --no-hardlinks --recursive >$(logfile "get-grpc") 2>&1 &
     WAITPROC_GRPC="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_GRPC" >/dev/null 2>&1
 
-    [ ! -d PI ] && git clone "$REPO_PATH_PI" --no-hardlinks --recursive >$(logfile "get-PI") 2>&1 &
+    [ ! -d PI ] && git clone --quiet "$REPO_PATH_PI" --no-hardlinks --recursive >$(logfile "get-PI") 2>&1 &
     WAITPROC_PI="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_PI" >/dev/null 2>&1
 
-    [ ! -d P4Runtime_GRPCPP ] && git clone "$REPO_PATH_P4Runtime_GRPCPP" --no-hardlinks --recursive >$(logfile "get-P4Runtime_GRPCPP") 2>&1 &
+    [ ! -d P4Runtime_GRPCPP ] && git clone --quiet "$REPO_PATH_P4Runtime_GRPCPP" --no-hardlinks --recursive >$(logfile "get-P4Runtime_GRPCPP") 2>&1 &
     WAITPROC_P4Runtime_GRPCPP="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_P4Runtime_GRPCPP" >/dev/null 2>&1
 fi
 
 if [ "$INSTALL_STAGE6_T4P4S" == "yes" ]; then
-    [ ! -d t4p4s ] && git clone "$REPO_PATH_t4p4s" --no-hardlinks --recursive $T4P4S_CLONE_OPT >$(logfile "get-t4p4s") 2>&1 &
+    [ ! -d t4p4s ] && git clone --quiet "$REPO_PATH_t4p4s" --no-hardlinks --recursive $T4P4S_CLONE_OPT >$(logfile "get-t4p4s") 2>&1 &
     WAITPROC_T4P4S="$!"
     [ "$PARALLEL_INSTALL" != "yes" ] && wait "$WAITPROC_T4P4S" >/dev/null 2>&1
 fi
