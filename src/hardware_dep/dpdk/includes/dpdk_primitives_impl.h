@@ -44,7 +44,7 @@
 /******************************************************************************/
 
 #define FLD_MASK(fd) (fd.fixed_width ? fd.mask : \
-    rte_cpu_to_be_32((~0 << (32 - fd.bitcount)) & (~0 >> fd.bitoffset)))
+    rte_cpu_to_be_32((~0U << (32 - fd.bitcount)) & (~0U >> fd.bitoffset)))
 
 #define FLD_BYTES(fd) (  fd.bytecount == 1 ? (*(uint8_t*)  fd.byte_addr) : \
                          ( fd.bytecount == 2 ? (*(uint16_t*) fd.byte_addr) : \
@@ -55,7 +55,7 @@
 #define BYTECOUNT(fd)  ((fd.bitcount - 1) / 8)
 
 #define MASK_LOW(fd) (FLD_MASK(fd) & 0xff)
-#define MASK_MID(fd) (FLD_MASK(fd) & (~0 >> ((4 - BYTECOUNT(fd)) * 8)) & ~0xff)
+#define MASK_MID(fd) (FLD_MASK(fd) & (~0U >> ((4 - BYTECOUNT(fd)) * 8)) & ~0xff)
 #define MASK_TOP(fd) (FLD_MASK(fd) & (0xff << (BYTECOUNT(fd) * 8)))
 
 /*******************************************************************************
