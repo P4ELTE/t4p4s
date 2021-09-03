@@ -20,7 +20,7 @@
     #define T4LIT(txt,...)      #txt
     #define T4LIGHT_default
 #else
-    #define T4LIT(txt,...)      "\e[" T4LIGHT_##__VA_ARGS__ "m" #txt "\e[" T4LIGHT_off "m"
+    #define T4LIT(txt,...)      T4COLOR(T4LIGHT_##__VA_ARGS__) #txt T4COLOR(T4LIGHT_off)
 #endif
 
 #define T4LIGHT_ T4LIGHT_default
@@ -30,18 +30,25 @@
 #include <pthread.h>
 
 #ifdef T4P4S_DEBUG
-    extern void dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
+    int dbg_sprint_bytes_limit(char* out, void* bytes, int byte_count, int upper_limit, const char* sep);
+    int dbg_fprint_bytes_limit(FILE* out_file, void* bytes, int byte_count, int upper_limit, const char* sep);
+    int dbg_sprint_bytes(char* out, void* bytes, int byte_count);
+    int dbg_fprint_bytes(FILE* out_file, void* bytes, int byte_count);
+
     extern pthread_mutex_t dbg_mutex;
+
+    void dbg_lock();
+    void dbg_unlock();
 
     #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
     #define dbg_bytes(bytes, byte_count, MSG, ...)   \
         { \
-            pthread_mutex_lock(&dbg_mutex); \
+            dbg_lock(); \
             debug_printf(MSG T4COLOR(T4LIGHT_bytes), ##__VA_ARGS__); \
             dbg_fprint_bytes(stderr, bytes, byte_count); \
             fprintf(stderr, T4COLOR(T4LIGHT_off) "\n"); \
-            pthread_mutex_unlock(&dbg_mutex); \
+            dbg_unlock(); \
         }
 
     #define dbg_print(bytes, bit_count, MSG, ...) \
@@ -59,22 +66,27 @@
     #define SHORTEN(str, len) ((strlen(str) <= (len)) ? (str) : ((str) + (strlen(str) - len)))
 
     #ifdef T4P4S_DEBUG_LINENO
-        #define lcore_debug(M, ...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%2d,core) "@" T4LIT(%d,socket) "] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-        #define no_core_debug(M, ...) fprintf(stderr, "%11.11s@%4d [NO-CORE ] " M "", SHORTEN(__SHORTFILENAME__, 13), __LINE__, ##__VA_ARGS__)
+        #define short_lcore_debug(lcid,sc,lcc,sfn,sid,M,...)   fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%*d,core) "] " M "", sfn, __LINE__, lcc ? 2 : 1, lcid, ##__VA_ARGS__)
+        #define lcore_debug(lcid,sc,lcc,sfn,sid,M,...)         fprintf(stderr, "%11.11s@%4d [CORE" T4LIT(%*d,core) "@" T4LIT(%d,socket) "] " M "", sfn, __LINE__, lcc ? 2 : 1, lcid, sid, ##__VA_ARGS__)
+        #define no_core_debug(lcid,sc,lcc,sfn,sid,M,...)       fprintf(stderr, "%11.11s@%4d [     %s%s] " M "", sfn, __LINE__, lcc ? " " : "", sc == 1 ? "" : "  ", ##__VA_ARGS__)
     #else
         // no filename/line number printout
-        #define lcore_debug(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
-        #define no_core_debug(M, ...) fprintf(stderr, "---- " M "", ##__VA_ARGS__)
+        #define short_lcore_debug(lcid,sc,lcc,sfn,sid,M,...)   fprintf(stderr, T4LIT(%*d,core) " " M "", lcc ? 2 : 1, lcid, ##__VA_ARGS__)
+        #define lcore_debug(lcid,sc,lcc,sfn,sid,M,...)         fprintf(stderr, T4LIT(%*d,core) "@" T4LIT(%d,socket) " " M "", lcc ? 2 : 1, lcid, sid, ##__VA_ARGS__)
+        #define no_core_debug(lcid,sc,lcc,sfn,sid,M,...)       fprintf(stderr, "-%s%s " M "", lcc ? "-" : "", sc == 1 ? "" : "--", ##__VA_ARGS__)
     #endif
 
 
-    #define debug_printf(M, ...)   ((rte_lcore_id() == UINT_MAX) ? no_core_debug(M, ##__VA_ARGS__) : lcore_debug(M, ##__VA_ARGS__)); \
+    #define debug_printf2(lcid, sc, lcc, sfn, M, ...)   ((lcid == UINT_MAX) ? no_core_debug(lcid, sc, lcc, sfn, M, ##__VA_ARGS__) : sc == 1 ? short_lcore_debug(lcid, sc, lcc, sfn, M, ##__VA_ARGS__) : lcore_debug(lcid, sc, lcc, sfn, M, ##__VA_ARGS__));
+
+    #define debug_printf(M, ...)   debug_printf2(rte_lcore_id(), rte_socket_count(), rte_lcore_count() > 9, SHORTEN(__SHORTFILENAME__, 13), rte_lcore_to_socket_id(rte_lcore_id()), M, ##__VA_ARGS__)
+
 
     #define debug(M, ...) \
         { \
-            pthread_mutex_lock(&dbg_mutex); \
+            dbg_lock(); \
             debug_printf(M, ##__VA_ARGS__); \
-            pthread_mutex_unlock(&dbg_mutex); \
+            dbg_unlock(); \
         }
 
 #else
@@ -89,9 +101,9 @@ void debug_mbuf(struct rte_mbuf* mbuf, const char* message);
 
 #define report(M, ...) \
     { \
-        pthread_mutex_lock(&dbg_mutex); \
+        dbg_lock(); \
         lcore_report(M, ##__VA_ARGS__); \
-        pthread_mutex_unlock(&dbg_mutex); \
+        dbg_unlock(); \
     }
 
 typedef struct occurence_counter_s {
