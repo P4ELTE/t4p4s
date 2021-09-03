@@ -62,19 +62,18 @@ void rte_exit_with_errno(const char* msg, const char* table_name)
 // Table entry creation
 
 // Sets up the fields of a table entry.
-void make_table_entry(uint8_t* entry, uint8_t* value, lookup_table_t* t) {
-    memcpy(entry, value, t->entry.action_size);
+void fill_table_entry(uint8_t* entry, const base_table_action_t*const action, lookup_table_t* t) {
+    memcpy(entry, action, t->entry.action_size);
     memset(entry + t->entry.action_size, 0, t->entry.state_size);
-    *entry_validity_ptr(entry, t) = VALID_TABLE_ENTRY;
 }
 
-uint8_t* make_table_entry_on_socket(lookup_table_t* t, uint8_t* value) {
-    int length = t->entry.entry_size;
+uint8_t* make_table_entry(lookup_table_t* t, const base_table_action_t*const action) {
+    int length = t->entry.action_size + t->entry.state_size;
     uint8_t* entry = rte_malloc_socket("uint8_t", sizeof(uint8_t)*length, 0, t->socketid);
     if (unlikely(entry == NULL)) {
-        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "cretate ternary table", t->canonical_name);
+        rte_exit_with_errno(t->type == 0 ? "create hash table" : t->type == 1 ? "create lpm table" : "create ternary table", t->short_name);
     }
-    make_table_entry(entry, value, t);
+    fill_table_entry(entry, action, t);
     return entry;
 }
 
@@ -140,10 +139,9 @@ void flush_table(lookup_table_t* t)
     }
 }
 
-void table_set_default_action(lookup_table_t* t, uint8_t* entry)
+void table_set_default_action(lookup_table_t* t, ENTRYBASE* entry)
 {
     if (t->default_val) rte_free(t->default_val);
 
-    t->default_val = make_table_entry_on_socket(t, entry);
-    *entry_validity_ptr(t->default_val, t) = INVALID_TABLE_ENTRY;
+    t->default_val = make_table_entry(t, entry);
 }

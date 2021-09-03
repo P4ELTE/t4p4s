@@ -23,11 +23,11 @@ void        exact_create (lookup_table_t* t, int socketid);
 void          lpm_create (lookup_table_t* t, int socketid);
 void      ternary_create (lookup_table_t* t, int socketid);
 
-void    table_setdefault (lookup_table_t* t,                              uint8_t* value);
+void    table_setdefault (lookup_table_t* t,                              base_table_action_t* entry);
 
-void           exact_add (lookup_table_t* t, uint8_t* key,                uint8_t* value);
-void             lpm_add (lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value);
-void         ternary_add (lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_t* value);
+void           exact_add (lookup_table_t* t, uint8_t* key,                base_table_action_t* entry);
+void             lpm_add (lookup_table_t* t, uint8_t* key, uint8_t depth, base_table_action_t* entry);
+void         ternary_add (lookup_table_t* t, uint8_t* key, uint8_t* mask, base_table_action_t* entry);
 
 uint8_t*    exact_lookup (lookup_table_t* t, uint8_t* key);
 uint8_t*      lpm_lookup (lookup_table_t* t, uint8_t* key);
@@ -38,7 +38,7 @@ uint8_t*  ternary_lookup (lookup_table_t* t, uint8_t* key);
 
 uint16_t calculate_csum16(const void* buf, uint16_t length);
 
-uint32_t packet_length(packet_descriptor_t* pd);
+uint32_t packet_size(packet_descriptor_t* pd);
 
 //=============================================================================
 // Primitive actions

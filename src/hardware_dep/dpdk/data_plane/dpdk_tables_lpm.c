@@ -68,12 +68,12 @@ void lpm_create(lookup_table_t* t, int socketid)
 }
 
 
-void lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, uint8_t* value)
+void lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, base_table_action_t* action)
 {
     if (t->entry.key_size == 0) return; // don't add entries to keyless tables
 
     extended_table_t* ext = (extended_table_t*)t->table;
-    ext->content[ext->size] = make_table_entry_on_socket(t, value);
+    ext->content[ext->size] = make_table_entry(t, action);
     if (t->entry.key_size <= 4) {
         // the rest is zeroed in case of keys smaller than 4 bytes
         uint32_t key32 = 0;

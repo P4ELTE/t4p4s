@@ -47,10 +47,10 @@ void change_replica(int socketid, int tid, int replica) {
     if (should_print || T4P4S_FORCE_PRINT) { \
         lookup_table_entry_info_t entry_info = state[socketid].tables[tableid][0]->entry; \
         lookup_table_t tcfg = table_config[tableid]; \
-        int action_id = get_entry_action_id(value); \
         char params_str[1024]; \
-        show_params_by_action_id(params_str, tcfg.id, action_id, value + 4); \
-        dbg_bytes(key, entry_info.key_size, " " T4LIT(ctl>,incoming) " " txt1 " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "%s <- ", tcfg.short_name, get_entry_action_name(value), params_str); \
+        show_params_by_action_id(params_str, tcfg.id, entry->id, &(entry->params)); \
+        dbg_bytes(key, entry_info.key_size, " " T4LIT(ctl>,incoming) " " txt1 " " T4LIT(%s,table) txt2 ": " T4LIT(%s,action) "%s <- ", \
+                  tcfg.short_name, action_short_names[entry->id], params_str); \
     }
 #else
 #define FORALL_PRINTOUT(txt1, txt2, b, is_const_entry, should_print)
@@ -69,23 +69,22 @@ void change_replica(int socketid, int tid, int replica) {
     for (int socketid = 0; socketid < NB_SOCKETS; socketid++) \
         if (state[socketid].tables[0][0] != NULL) { \
             if (socketid == 0 && !table_config[tableid].is_hidden) { \
-                const char* action_name = get_entry_action_name(action); \
-                if (show_info && strcmp(action_name, NO_ACTION_NAME)) { \
-                    debug("    : " txt1 " " T4LIT(%s,table) ": " T4LIT(%s,action) "\n", table_config[tableid].short_name, action_name); \
+                if (show_info && strcmp(action_short_names[entry->id], NO_ACTION_NAME)) { \
+                    debug("    : " txt1 " " T4LIT(%s,table) ": " T4LIT(%s,action) "\n", table_config[tableid].short_name, action_short_names[entry->id]); \
                 } \
             } \
             b \
         }
 
-void exact_add_promote(table_name_t tableid, uint8_t* key, uint8_t* value, bool is_const_entry, bool should_print) {
-    FORALLNUMANODES("Add", "/" T4LIT(exact), CHANGE_TABLE(exact_add, key, value), is_const_entry, should_print)
+void exact_add_promote(table_name_e tableid, uint8_t* key, ENTRYBASE* entry, bool is_const_entry, bool should_print) {
+    FORALLNUMANODES("Add", "/" T4LIT(exact), CHANGE_TABLE(exact_add, key, entry), is_const_entry, should_print)
 }
-void lpm_add_promote(table_name_t tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool is_const_entry, bool should_print) {
-    FORALLNUMANODES("Add", "/" T4LIT(LPM), CHANGE_TABLE(lpm_add, key, depth, value), is_const_entry, should_print)
+void lpm_add_promote(table_name_e tableid, uint8_t* key, uint8_t depth, ENTRYBASE* entry, bool is_const_entry, bool should_print) {
+    FORALLNUMANODES("Add", "/" T4LIT(LPM), CHANGE_TABLE(lpm_add, key, depth, entry), is_const_entry, should_print)
 }
-void ternary_add_promote(table_name_t tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool is_const_entry, bool should_print) {
-    FORALLNUMANODES("Add", "/" T4LIT(ternary), CHANGE_TABLE(ternary_add, key, mask, value), is_const_entry, should_print)
+void ternary_add_promote(table_name_e tableid, uint8_t* key, uint8_t* mask, ENTRYBASE* entry, bool is_const_entry, bool should_print) {
+    FORALLNUMANODES("Add", "/" T4LIT(ternary), CHANGE_TABLE(ternary_add, key, mask, entry), is_const_entry, should_print)
 }
-void table_setdefault_promote(table_name_t tableid, actions_t* action, bool show_info) {
-    FORALLNUMANODES_NOKEY("Set default action on", CHANGE_TABLE(table_set_default_action, action), show_info)
+void table_setdefault_promote(table_name_e tableid, ENTRYBASE* entry, bool show_info) {
+    FORALLNUMANODES_NOKEY("Set default action on", CHANGE_TABLE(table_set_default_action, entry), show_info)
 }

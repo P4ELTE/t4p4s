@@ -4,7 +4,10 @@
 // This file is included directly from `dpdk_lib.c`.
 
 
+extern const char* all_table_short_names_sorted;
+extern const int   all_table_short_names_count;
 extern const char* table_short_names_sorted;
+extern const int   table_short_names_count;
 
 extern void create_table(lookup_table_t* t, int socketid);
 extern void flush_table(lookup_table_t* t);
@@ -49,29 +52,33 @@ void create_tables_on_lcore(unsigned lcore_id)
 #ifdef T4P4S_DEBUG
 void init_print_table_info()
 {
-    char table_names[64*NB_TABLES+256];
-    char* nameptr = table_names;
-    nameptr += sprintf(nameptr, " :::: Init tables on all cores (" T4LIT(%d) " replicas each): %s", NB_REPLICA, table_short_names_sorted);
+    #ifdef T4P4S_SHOW_HIDDEN_TABLES
+        debug(" :::: Init " T4LIT(%d) " tables on all cores (" T4LIT(%d) " replicas each): %s", all_table_short_names_count, NB_REPLICA, all_table_short_names_sorted);
+    #else
+        char table_names[64*NB_TABLES+256];
+        char* nameptr = table_names;
+        nameptr += sprintf(nameptr, " :::: Init " T4LIT(%d) " tables on all cores (" T4LIT(%d) " replicas each): %s", table_short_names_count, NB_REPLICA, table_short_names_sorted);
 
-    int common_count = 0;
-    int hidden_count = 0;
-    for (int i = 0; i < NB_TABLES; i++) {
-        lookup_table_t t = table_config[i];
-        if (t.is_hidden) {
-            ++hidden_count;
-            continue;
+        int common_count = 0;
+        int hidden_count = 0;
+        for (int i = 0; i < NB_TABLES; i++) {
+            lookup_table_t t = table_config[i];
+            if (t.is_hidden) {
+                ++hidden_count;
+                continue;
+            }
+            ++common_count;
         }
-        ++common_count;
-    }
 
-    if (hidden_count > 0) {
-        if (common_count > 0) {
-            nameptr += sprintf(nameptr, " and ");
+        if (hidden_count > 0) {
+            if (common_count > 0) {
+                nameptr += sprintf(nameptr, " and ");
+            }
+            nameptr += sprintf(nameptr, T4LIT(%d) " hidden table%s", hidden_count, hidden_count == 1 ? "" : "s");
         }
-        nameptr += sprintf(nameptr, T4LIT(%d) " hidden tables", hidden_count);
-    }
 
-    debug("%s\n", table_names);
+        debug("%s\n", table_names);
+    #endif
 }
 #endif
 

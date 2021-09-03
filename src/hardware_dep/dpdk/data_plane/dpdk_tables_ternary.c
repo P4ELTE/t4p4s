@@ -9,11 +9,11 @@ void ternary_create(lookup_table_t* t, int socketid)
     t->table = naive_ternary_create(t->entry.key_size, t->max_size);
 }
 
-void ternary_add(lookup_table_t* t, uint8_t* key, uint8_t* mask, uint8_t* value)
+void ternary_add(lookup_table_t* t, uint8_t* key, uint8_t* mask, base_table_action_t* action)
 {
     if (t->entry.key_size == 0) return; // don't add lines to keyless tables
 
-    uint8_t* entry = make_table_entry_on_socket(t, value);
+    uint8_t* entry = make_table_entry(t, action);
     naive_ternary_add(t->table, key, mask, entry);
 }
 

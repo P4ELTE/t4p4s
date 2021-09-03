@@ -32,26 +32,25 @@ void exact_create(lookup_table_t* t, int socketid)
     create_ext_table(t, h, socketid);
 }
 
-int32_t hash_add_key(struct rte_hash* h, void *key)
+int32_t hash_add_key(struct rte_hash* h, void* key)
 {
-    int32_t ret;
-    ret = rte_hash_add_key(h,(void *) key);
+    int32_t ret = rte_hash_add_key(h, key);
     if (ret < 0)
         rte_exit(EXIT_FAILURE, "Unable to add entry to the hash.\n");
     return ret;
 }
 
-void exact_add(lookup_table_t* t, uint8_t* key, uint8_t* value)
+void exact_add(lookup_table_t* t, uint8_t* key, base_table_action_t* action)
 {
     if (t->entry.key_size == 0) return; // don't add lines to keyless tables
 
     extended_table_t* ext = (extended_table_t*)t->table;
-    uint32_t index = rte_hash_add_key(ext->rte_table, (void*) key);
+    uint32_t index = rte_hash_add_key(ext->rte_table, key);
 
     if (unlikely(index < 0))
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
 
-    ext->content[index%t->max_size] = make_table_entry_on_socket(t, value);
+    ext->content[index%t->max_size] = make_table_entry(t, action);
 }
 
 void exact_delete(lookup_table_t* t, uint8_t* key)

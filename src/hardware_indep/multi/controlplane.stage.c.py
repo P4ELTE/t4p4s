@@ -25,19 +25,21 @@ else:
     #[ #include "tables.h"
 
     for table in tables:
-        #{ void ${table.name}_set_default_table_action(${table.name}_action_t* action, const char* action_name, p4_action_parameter_t** action_params) {
+        #{ void make_${table.name}_set_default_table_entry(ENTRY(${table.name})* entry, const char* action_name, p4_action_parameter_t** action_params) {
         for action in table.actions:
             ao = action.action_object
 
             #{     if (strcmp("${ao.canonical_name}", action_name) == 0) {
-            #[         action->action_id = action_${ao.name};
+            #[         entry->id = action_${ao.name};
 
-            for j, p in enumerate(ao.parameters.parameters):
-                #[         uint8_t* param_${p.name} = (uint8_t*)action_params[$j]->bitmap;
-                #[         memcpy(&action->${ao.name}_params.${p.name}, param_${p.name}, ${(p.urtype.size+7)//8});
+            for idx, par in enumerate(ao.parameters.parameters):
+                #[         uint8_t* param_${par.name} = (uint8_t*)action_params[$idx]->bitmap;
+
+            for par in ao.parameters.parameters:
+                #[         memcpy(&entry->params.${ao.name}_params.${par.name}, param_${par.name}, ${(par.urtype.size+7) // 8});
 
             if not table.is_hidden:
-                #[         debug(" " T4LIT(ctl>,incoming) " Set " T4LIT(default action,action) " for $$[table]{table.short_name}: $$[action]{ao.short_name}\n");
+                #[         debug(" " T4LIT(ctl>,incoming) " Set " T4LIT(default action,action) " for " T4LIT(${table.short_name},table) ": " T4LIT(${ao.short_name},action) "\n");
 
             #[         return;
 
@@ -45,7 +47,7 @@ else:
 
         valid_actions = ", ".join([f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions])
         #[
-        #[     debug("   $$[warning]{}{!! Table setdefault} on table " T4LIT(%s,table) ": action name $$[warning]{}{mismatch} " T4LIT(%s,action) ", expected one of ($valid_actions)\n", "${table.short_name}", action_name);
-        #[         action->action_id = INVALID_ACTION;
+        #[     debug("   " T4LIT(!!,warning) " Table setdefault on table " T4LIT(${table.short_name},table) ": action name " T4LIT(mismatch,warning) " " T4LIT(%s,action) ", expected one of ($valid_actions)\n", action_name);
+        #[     entry->id = INVALID_ACTION;
         #} }
         #[
