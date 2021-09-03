@@ -6,7 +6,7 @@ compiler_common.current_compilation['is_multicompiled'] = True
 part_count = compiler_common.current_compilation['multi']
 multi_idx = compiler_common.current_compilation['multi_idx']
 
-table_names = (table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "") for table in hlir.tables)
+table_names = (table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "") for table in hlir.tables)
 all_table_infos = sorted(zip(hlir.tables, table_names), key=lambda k: len(k[0].actions))
 table_infos = list(ti for idx, ti in enumerate(all_table_infos) if idx % part_count == multi_idx)
 
@@ -28,55 +28,65 @@ else:
     #[
 
     for table, table_info in table_infos:
-        #{     apply_result_t ${table.name}_apply(STDPARAMS) {
-        if 'key' not in table or table.key_length_bits == 0:
-            #[         table_entry_${table.name}_t* entry = ${table.name}_get_default_entry(STDPARAMS_IN);
+        tname = table.name
+        #{     apply_result_t ${tname}_apply(STDPARAMS) {
+        if 'key' not in table or table.key_bit_size == 0:
+            #[         ENTRY(${tname})* entry = ${tname}_get_default_entry(STDPARAMS_IN);
             #[         bool hit = false;
-            #[         ${table.name}_apply_show_hit(entry->action.action_id, STDPARAMS_IN);
+            #[         ${tname}_apply_show_hit(entry->id, STDPARAMS_IN);
         else:
-            #[         uint8_t* key[${table.key_length_bytes}];
-            #[         table_${table.name}_key(pd, (uint8_t*)key);
+            #{         #ifdef T4P4S_DEBUG
+            #[             char key_txt[4096];
+            #[             int key_txt_idx = 0;
+            #}         #endif
 
-            #[         table_entry_${table.name}_t* entry = (table_entry_${table.name}_t*)${table.matchType.name}_lookup(tables[TABLE_${table.name}], (uint8_t*)key);
-            #[         bool hit = entry != NULL && entry->is_entry_valid != INVALID_TABLE_ENTRY;
+            #[         uint8_t key[${table.key_length_bytes}];
+            #[         table_${tname}_key(pd, key  KEYTXTPARAMS_IN);
+
+            #[         ENTRY($tname)* entry = (ENTRY($tname)*)${table.matchType.name}_lookup(tables[TABLE_$tname], key);
+            #[         bool hit = entry != NULL && entry->id != INVALID_ACTION;
             #{         if (unlikely(!hit)) {
-            #[             entry = ${table.name}_get_default_entry(STDPARAMS_IN);
+            #[             entry = ${tname}_get_default_entry(STDPARAMS_IN);
             #}         }
 
             #{         #ifdef T4P4S_DEBUG
-            #[             if (likely(entry != 0))    ${table.name}_apply_show_hit_with_key(key, hit, entry, STDPARAMS_IN);
+            #[             if (likely(entry != NULL))    ${tname}_apply_show_hit_with_key(hit, entry  KEYTXTPARAM_IN, STDPARAMS_IN);
             #}         #endif
 
             #{         #ifdef T4P4S_STATS
-            #[             t4p4s_stats_global.table_hit__${table.name} = hit || t4p4s_stats_global.table_hit__${table.name};
-            #[             t4p4s_stats_global.table_miss__${table.name} = !hit || t4p4s_stats_global.table_miss__${table.name};
-            #[             t4p4s_stats_per_packet.table_hit__${table.name} = hit || t4p4s_stats_per_packet.table_hit__${table.name};
-            #[             t4p4s_stats_per_packet.table_miss__${table.name} = !hit || t4p4s_stats_per_packet.table_miss__${table.name};
+            #[             t4p4s_stats_global.T4STAT(table,hit,$tname) = hit || t4p4s_stats_global.T4STAT(table,hit,$tname);
+            #[             t4p4s_stats_global.T4STAT(table,miss,$tname) = !hit || t4p4s_stats_global.T4STAT(table,miss,$tname);
+            #[             t4p4s_stats_per_packet.T4STAT(table,hit,$tname) = hit || t4p4s_stats_per_packet.T4STAT(table,hit,$tname);
+            #[             t4p4s_stats_per_packet.T4STAT(table,miss,$tname) = !hit || t4p4s_stats_per_packet.T4STAT(table,miss,$tname);
             #}         #endif
 
         if len(table.direct_meters + table.direct_counters) > 0:
-            #[         if (likely(hit))    ${table.name}_apply_smems(STDPARAMS_IN);
+            #[         if (likely(hit))    ${tname}_apply_smems(STDPARAMS_IN);
 
-        #[         if (unlikely(entry == 0))    return (apply_result_t) { hit, -1 /* invalid action */ };
+        #[         if (unlikely(entry == NULL))    return (apply_result_t) { hit, INVALID_ACTION };
 
-        #[         ${table.name}_stats(entry->action.action_id, STDPARAMS_IN);
+        #[         ${tname}_stats(entry->id, STDPARAMS_IN);
 
         # ACTIONS
         if len(table.actions) == 1:
             ao = table.actions[0].action_object
             if len(ao.body.components) != 0:
-                #[         action_code_${ao.name}(entry->action.${ao.name}_params, SHORT_STDPARAMS_IN);
+                #[         action_code_${ao.name}(entry->params.${ao.name}_params, SHORT_STDPARAMS_IN);
             #[         return (apply_result_t) { hit, action_${ao.name} };
         else:
-            #{         switch (entry->action.action_id) {
-            for action in table.actions:
+            #{         switch (entry->id) {
+            for action in table.actions.filter(lambda act: len(act.action_object.body.components) != 0):
                 ao = action.action_object
-                #{       case action_${ao.name}:
-                if len(ao.body.components) != 0:
-                    #[               action_code_${ao.name}(entry->action.${ao.name}_params, SHORT_STDPARAMS_IN);
-                #}               return (apply_result_t) { hit, action_${ao.name} };
-            #[         }
-            #}         return (apply_result_t) {}; // unreachable
+                #{           case action_${ao.name}:
+                #[              action_code_${ao.name}(entry->params.${ao.name}_params, SHORT_STDPARAMS_IN);
+                #}              return (apply_result_t) { hit, entry->id };
+            if len(acts := table.actions.filter(lambda act: len(act.action_object.body.components) == 0)) > 0:
+                for act in acts:
+                    #[           case action_${act.action_object.name}:
+                #]              return (apply_result_t) { hit, entry->id };
+            #[           default:
+            #[               return (apply_result_t) {}; // unreachable
+            #}         }
 
         #}     }
         #[
@@ -84,9 +94,7 @@ else:
     ################################################################################
 
     for ctl, idx, comp in ctl_stages:
-        #{ void control_stage_${ctl.name}_${idx}(control_locals_${ctl.name}_t* local_vars, STDPARAMS)  {
-        #[     uint32_t value32, res32;
-        #[     (void)value32, (void)res32;
+        #{ void control_stage_${ctl.name}_${idx}(control_locals_${ctl.name}_t* local_vars, STDPARAMS) {
         compiler_common.enclosing_control = ctl
         #= format_statement(comp, ctl)
         compiler_common.enclosing_control = None
