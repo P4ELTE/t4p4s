@@ -5,12 +5,6 @@ errmsg() {
     done
 }
 
-exit_program() {
-    echo -e "$nn"
-    [ "$1" != "" ] && errmsg "${cc}Error$nn: $*"
-    exit $ERROR_CODE
-}
-
 IS_SCRIPT_SOURCED=no
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && IS_SCRIPT_SOURCED=yes
 
@@ -38,6 +32,69 @@ if [ `cat /etc/os-release | grep ID_LIKE= | cut -d= -f2` == "ubuntu" ]; then
     UBUNTU_VSN=`cat /etc/os-release | grep VERSION_ID= | cut -d'"' -f2 | cut -d'.' -f1`
     [ $UBUNTU_VSN -lt $MIN_UBUNTU_VSN ] && echo -e "${cc}Warning$nn: Ubuntu version lower than minimum supported ($cc$MIN_UBUNTU_VSN$nn), installation may fail" && echo
 fi
+
+
+
+T4P4S_DIR=${T4P4S_DIR-t4p4s}
+T4P4S_BUILD_DIR=${T4P4S_BUILD_DIR-"${T4P4S_DIR}/build"}
+
+find_tool() {
+    SEP=$1
+    shift
+    DEFAULT_TOOL=$1
+    T4P4S_TOOL_DIR="${T4P4S_BUILD_DIR}/tools"
+    mkdir -p "${T4P4S_TOOL_DIR}"
+    TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
+    [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
+    while [ $# -ne 0 ]; do
+        tool=$1
+        pkgname=$2
+        shift
+        shift
+
+        for postfix in `apt-cache search --names-only "^${pkgname}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed "s/^${pkgname}//g" | tr "\n" " " | sed "s/-/$SEP/g"`; do
+            candidate="${tool}${postfix}"
+
+            which $candidate >/dev/null
+            [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
+        done
+
+        which $tool >/dev/null
+        [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
+    done
+}
+
+PYTHON3=${PYTHON3-$(find_tool "." python3 python3)}
+T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang clang gcc gcc)}
+if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
+    # note: when using gcc, only lld seems to be supported, not lld-VSN
+    T4P4S_LD=${T4P4S_LD-$(find_tool "" lld lld bfd bfd gold gold)}
+else
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld lld bfd bfd gold gold)}
+fi
+
+T4P4S_CXX=${T4P4S_CXX-$(find_tool "-" "clang++" clang "g++" "g++")}
+
+MISSING_TOOLS=""
+[ "$PYTHON3"   == "" ] && MISSING_TOOLS="${MISSING_TOOLS} Python3"
+[ "$T4P4S_CC"  == "" ] && MISSING_TOOLS="${MISSING_TOOLS} CC"
+[ "$T4P4S_CXX" == "" ] && MISSING_TOOLS="${MISSING_TOOLS} CXX"
+[ "$T4P4S_LD"  == "" ] && MISSING_TOOLS="${MISSING_TOOLS} LD"
+
+FOUND_TOOLS=""
+[ "$PYTHON3"   != "" ] && FOUND_TOOLS="${FOUND_TOOLS} PYTHON3=${cc}${PYTHON3}$nn"
+[ "$T4P4S_CC"  != "" ] && FOUND_TOOLS="${FOUND_TOOLS} CC=${cc}${T4P4S_CC}$nn"
+[ "$T4P4S_CXX" != "" ] && FOUND_TOOLS="${FOUND_TOOLS} CXX=${cc}${T4P4S_CXX}$nn"
+[ "$T4P4S_LD"  != "" ] && FOUND_TOOLS="${FOUND_TOOLS} LD=${cc}${T4P4S_LD}$nn"
+
+echo -e "Found tools:${FOUND_TOOLS}"
+
+if [ "$MISSING_TOOLS" != "" ]; then
+    echo -e "Missing tools:${cc}${MISSING_TOOLS}$nn, exiting"
+    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
+    exit 1
+fi
+
 
 INST_MB_DPDK=420
 INST_MB_PROTOBUF=1500
@@ -129,73 +186,6 @@ FREE_MB="`df --output=avail -m . | tail -1 | tr -d '[:space:]'`"
 
 SKIP_CHECK=${SKIP_CHECK-no}
 
-T4P4S_DIR=${T4P4S_DIR-t4p4s}
-T4P4S_BUILD_DIR=${T4P4S_BUILD_DIR-"${T4P4S_DIR}/build"}
-
-
-find_tool() {
-    SEP=$1
-    shift
-    DEFAULT_TOOL=$1
-    T4P4S_TOOL_DIR="${T4P4S_BUILD_DIR}/tools"
-    mkdir -p "${T4P4S_TOOL_DIR}"
-    TOOL_FILE="${T4P4S_TOOL_DIR}/tool.${DEFAULT_TOOL}.txt"
-    [ -f "${TOOL_FILE}" ] && cat "${TOOL_FILE}" && return
-    while [ $# -ne 0 ]; do
-        tool=$1
-        pkgname=$2
-        shift
-        shift
-
-        for postfix in `apt-cache search --names-only "^${pkgname}[\.\-]?[0-9]*$" | tr "." "-" | cut -f 1 -d " " | sort -t "-" -k 2,2nr | sed "s/^${pkgname}//g" | tr "\n" " " | sed "s/-/$SEP/g"`; do
-            candidate="${tool}${postfix}"
-
-            which $candidate >/dev/null
-            [ $? -eq 0 ] && echo $candidate | tee "${TOOL_FILE}" && return
-        done
-
-        which $tool >/dev/null
-        [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
-    done
-    exit_program "Cannot not find $(cc 2)$tool$nn tool"
-}
-
-PYTHON3=${PYTHON3-$(find_tool "." python3 python3)}
-T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang clang gcc gcc)}
-if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
-    # note: when using gcc, only lld seems to be supported, not lld-VSN
-    T4P4S_LD=${T4P4S_LD-$(find_tool "" lld lld bfd bfd gold gold)}
-else
-    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld lld bfd bfd gold gold)}
-fi
-
-T4P4S_CXX=${T4P4S_CXX-$(find_tool "-" "clang++" clang "g++" "g++")}
-
-if [ "$PYTHON3" == "" ]; then
-    echo -e "Could not find ${cc}Python 3$nn tool, exiting"
-    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-    exit 1
-fi
-
-if [ "$T4P4S_CC" == "" ]; then
-    echo -e "Could not find ${cc}CC$nn tool, exiting"
-    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-    exit 1
-fi
-
-if [ "$T4P4S_CXX" == "" ]; then
-    echo -e "Could not find ${cc}CXX$nn tool, exiting"
-    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-    exit 1
-fi
-
-if [ "$T4P4S_LD" == "" ]; then
-    echo -e "Could not find ${cc}LD$nn tool, exiting"
-    [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-    exit 1
-fi
-
-echo -e "Using CC=${cc}$T4P4S_CC$nn, CXX=${cc}$T4P4S_CXX$nn, LD=${cc}$T4P4S_LD$nn, PYTHON3=${cc}${PYTHON3}$nn"
 
 if [ "$SKIP_CHECK" == "no" ] && [ "$FREE_MB" -lt "$APPROX_INSTALL_MB" ]; then
     echo -e "Bootstrapping requires approximately $cc$APPROX_INSTALL_MB MB$nn of free space"
@@ -211,7 +201,6 @@ if [ "$FREE_MB" -lt "$APPROX_TOTAL_MB" ]; then
     echo -e "Bootstrapping and then compiling all examples requires approximately $cc$APPROX_TOTAL_MB MB$nn of free space"
     echo -e "${cc}Warning$nn: you seem to have $cc$FREE_MB MB$nn of free space on the current drive"
 fi
-
 
 
 function logfile() {
@@ -299,7 +288,7 @@ PKGS_MAKE="ninja-build automake bison flex cmake ccache lld pkg-config"
 PKGS_GRPC=""
 [ "$INSTALL_STAGE5_GRPC" == "yes" ] && PKGS_GRPC="libjudy-dev libssl-dev libboost-thread-dev libboost-dev libboost-system-dev libboost-thread-dev libtool-bin"
 REQUIRED_PACKAGES="$PKGS_PYTHON $PKGS_LIB $PKGS_MAKE $PKGS_GRPC g++ tcpdump"
-PIP_PACKAGES="meson pyelftools pybind11 pysimdjson"
+PIP_PACKAGES="meson more-itertools pyelftools pybind11 pysimdjson"
 if [ "$USE_OPTIONAL_PACKAGES" == "yes" ]; then
     OPT_PACKAGES="python3-ipdb python3-termcolor python3-colored python3-yaml python3-ujson python3-ruamel.yaml gnome-terminal"
     PIP_PACKAGES="$PIP_PACKAGES backtrace"
@@ -420,20 +409,22 @@ if [ "$INSTALL_STAGE1_PACKAGES" == "yes" ]; then
 
     sudo ${PYTHON3} -m pip install $PIP_PACKAGES >$(logfile "python3" ".pip") 2>&1
 
+    INSTALL_MESON=0
+
     MESON_VSN=`sudo $MESONCMD --version 2>/dev/null`
     MESON_ERRCODE=$?
     if [ ${MESON_ERRCODE} -ne 0 ]; then
-        echo -e "${ee}Could not execute$nn ${cc}meson$nn (error code ${ee}${MESON_ERRCODE}$nn), exiting"
-        echo -e "Hint: perhaps ${cc}meson$nn can be found at ${cc}~/.local/bin$nn, if so, consider adding it to your \$PATH"
-        [ "$IS_SCRIPT_SOURCED" == "yes" ] && return 1
-        exit 1
+        INSTALL_MESON=1
+    else
+        MIN_REQ_MESON_VSN=0.53
+        MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
+        if [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ]; then
+            echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, trying to update it"
+            INSTALL_MESON=1
+        fi
     fi
 
-    MIN_REQ_MESON_VSN=0.53
-    MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
-    if [ "$MESON_MIN_VSN" != "$MIN_REQ_MESON_VSN" ]; then
-        echo -e "Available ${cc}meson$nn version ${cc}${MESON_VSN}$nn is ${ee}older than the required$nn ${cc}${MIN_REQ_MESON_VSN}$nn, trying to update it"
-
+    if [ "$INSTALL_MESON" == 1 ]; then
         sudo ${PYTHON3} -m pip install --force meson >$(logfile "python3" ".pip.meson") 2>&1
 
         MESON_MIN_VSN=`echo -e "${MIN_REQ_MESON_VSN}\n${MESON_VSN}" | sort -t '.' -k 1,1 -k 2,2 | head -1`
