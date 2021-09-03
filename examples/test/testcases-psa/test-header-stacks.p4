@@ -14,7 +14,7 @@ header empty_t { }
 
 header dummy_t {
     bit<1> f1;
-    data f2;
+    data   f2;
     bit<4> padding;
 }
 

@@ -337,7 +337,7 @@ control MyIngress(inout headers hdr,
     meter(256, MeterType.bytes) teid_meters;
 
     action drop() {
-        mark_to_drop();
+        mark_to_drop(standard_metadata);
     }
     
     action mac_learn() {

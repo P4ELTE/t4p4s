@@ -9,10 +9,6 @@ header_type ethernet_t {
 header ethernet_t ethernet;
 
 parser start {
-    return parse_ethernet;
-}
-
-parser parse_ethernet {
     extract(ethernet);
     return ingress;
 }

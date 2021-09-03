@@ -295,7 +295,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     
     /***************************** Drop  **************************/
      @name(".drop")action drop() {
-        /*mark_to_drop();*/
+        /*mark_to_drop(standard_metadata);*/
 
     }
     /***************************** set IF info and others  **************************/

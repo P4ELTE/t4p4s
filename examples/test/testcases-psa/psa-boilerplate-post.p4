@@ -5,7 +5,10 @@ control ingress(inout headers hdr,
                 inout psa_ingress_output_metadata_t ostd)
 {
     apply {
-        ostd.egress_port = (PortId_t)12345;
+        PortId_t EGRESS_DROP_VALUE = (PortId_t)200;
+        if (ostd.egress_port != EGRESS_DROP_VALUE) {
+            ostd.egress_port = (PortId_t)12345;
+        }
     }
 }
 
