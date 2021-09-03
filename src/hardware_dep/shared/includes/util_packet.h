@@ -3,33 +3,21 @@
 
 #pragma once
 
-#include "dataplane_hdr_fld_pkt.h"
+#include "util_packet_bitfield.h"
 
-#define SHORT_STDPARAMS packet_descriptor_t* pd, lookup_table_t** tables
-#define SHORT_STDPARAMS_IN pd, tables
-#define STDPARAMS SHORT_STDPARAMS, parser_state_t* pstate
-#define STDPARAMS_IN SHORT_STDPARAMS_IN, pstate
-
-#define LCPARAMS struct lcore_data* lcdata, packet_descriptor_t* pd
-#define LCPARAMS_IN lcdata, pd
-
-typedef struct {
-    uint8_t* byte_addr;
-    int      meta; // endianness / is_host_byte_order
-    int      bitwidth;
-    int      bytewidth;
-    int      bitcount;
-    int      bytecount;
-    int      bitoffset;
-    int      byteoffset;
-    uint32_t mask;
-    int      fixed_width;
-} bitfield_handle_t;
-
+#ifdef T4P4S_DEBUG
+    #define KEYTXTPARAM        , const char* key_txt
+    #define KEYTXTPARAMS       ,       char* key_txt, int* key_txt_idx
+    #define KEYTXTPARAM_IN     , key_txt
+    #define KEYTXTPARAMS_IN    KEYTXTPARAM_IN, &key_txt_idx
+#else
+    #define KEYTXTPARAM
+    #define KEYTXTPARAMS
+    #define KEYTXTPARAM_IN
+    #define KEYTXTPARAMS_IN
+#endif
 
 typedef struct {
-       int      buffer_size;
-       uint8_t* buffer;
+    int      buffer_size;
+    uint8_t* buffer;
 } uint8_buffer_t;
-
-bool is_header_valid(header_instance_t, packet_descriptor_t*);

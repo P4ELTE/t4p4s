@@ -22,7 +22,8 @@ import os
 
 
 for table in hlir.tables:
-    #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
+    if len(table.key.keyElements) > 0:
+        #[ extern void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key); // defined in dataplane.c
 
 
 # Variable width fields are not supported
@@ -60,12 +61,13 @@ def get_key_name(k, idx):
     return f'keyelem_{idx}_{k.node_type}{get_key_name_postfix(k, idx)}'
 
 for table in hlir.tables:
-    #{ typedef struct {
-    for idx, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
-        varname = get_key_name(k, idx)
-        #[     ${format_type(k.expression.type, varname)};
-    #} } table_key_${table.name}_t;
-    #[
+    if len(table.key.keyElements) > 0:
+        #{ typedef struct {
+        for idx, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
+            varname = get_key_name(k, idx)
+            #[     ${format_type(k.expression.type, varname)};
+        #} } table_key_${table.name}_t;
+        #[
 
 
 # TODO move to hlir_attrib
@@ -140,29 +142,30 @@ for table in hlir.tables:
     extra_init   = {'exact': '', 'lpm': 'uint8_t prefix_length = 0;', 'ternary': ''}
     extra_return = {'exact': '', 'lpm': 'return prefix_length;', 'ternary': ''}
 
-    #[ // note: ${table.canonical_name} alias ${table.name}, $tmt, ${table.key_length_bytes}
-    #{ ${return_t[tmt]} ${table.name}_setup_key(p4_field_match_${tmt}_t** field_matches, table_key_${table.name}_t* key) {
-    if extra_init[tmt]:
-        #[     ${extra_init[tmt]}
+    if len(table.key.keyElements) > 0:
+        #[ // note: ${table.short_name} alias ${table.canonical_name} alias ${table.name}, $tmt, ${table.key_length_bytes}
+        #{ ${return_t[tmt]} ${table.name}_setup_key(p4_field_match_${tmt}_t** field_matches, table_key_${table.name}_t* key) {
+        if extra_init[tmt]:
+            #[     ${extra_init[tmt]}
 
-    for i, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
-        kmt = k.matchType.path.name
+        for i, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
+            kmt = k.matchType.path.name
 
-        if kmt == "lpm":
-            #[     prefix_length += field_matches[$i]->prefix_length;
-        if kmt == "ternary":
-            #[     /* TODO ternary */
+            if kmt == "lpm":
+                #[     prefix_length += field_matches[$i]->prefix_length;
+            if kmt == "ternary":
+                #[     /* TODO ternary */
 
 
-    for idx, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
-        byte_width = get_key_byte_width(k)
-        #= gen_fill_key_component(k, idx, byte_width, tmt, kmt)
+        for idx, k in enumerate(sorted(table.key.keyElements, key = lambda k: k.match_order)):
+            byte_width = get_key_byte_width(k)
+            #= gen_fill_key_component(k, idx, byte_width, tmt, kmt)
 
-    if extra_return[tmt]:
-        #[     ${extra_return[tmt]}
+        if extra_return[tmt]:
+            #[     ${extra_return[tmt]}
 
-    #} }
-    #[
+        #} }
+        #[
 
 
 for table in hlir.tables:
@@ -176,7 +179,7 @@ for table in hlir.tables:
 
 
 for table in hlir.tables:
-    #{ bool ${table.name}_setup_action(${table.name}_action_t* action, p4_action_parameter_t** action_params, const char* action_name) {
+    #{ bool ${table.name}_setup_entry(ENTRY(${table.name})* entry, p4_action_parameter_t** action_params, const char* action_name) {
     for idx, action in enumerate(table.actions):
         ao = action.action_object
         if idx == 0:
@@ -184,13 +187,13 @@ for table in hlir.tables:
         else:
             #[     } else if (strcmp("${ao.canonical_name}", action_name)==0) {
 
-        #[         action->action_id = action_${ao.name};
+        #[         entry->id = action_${ao.name};
         for pidx, p in enumerate(ao.parameters.parameters):
-            #[         memcpy(&action->${ao.name}_params.${p.name}, action_params[$pidx]->bitmap, ${(p.urtype.size+7)//8});
+            #[         memcpy(&entry->params.${ao.name}_params.${p.name}, action_params[$pidx]->bitmap, ${(p.urtype.size+7)//8});
 
     valid_actions = ", ".join(f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions)
     #[     } else {
-    #[         debug(" $$[warning]{}{!!!! Table add entry} on table $$[table]{table.canonical_name}: action name $$[warning]{}{mismatch}: $$[action]{}{%s}, expected one of ($valid_actions).\n", action_name);
+    #[         debug(" $$[warning]{}{!!!! Table add entry} on table " T4LIT(${table.short_name},table) ": action name " T4LIT(mismatch,warning) ": " T4LIT(%s,action) ", expected one of ($valid_actions).\n", action_name);
     #[         return false;
     #}     }
 
@@ -201,21 +204,23 @@ for table in hlir.tables:
 for table in hlir.tables:
     tmt = table.matchType.name
     #{ void ${table.name}_add_table_entry(p4_ctrl_msg_t* ctrl_m) {
-    #[     ${table.name}_action_t action;
-    #[     bool success = ${table.name}_setup_action(&action, (p4_action_parameter_t**)ctrl_m->action_params, ctrl_m->action_name);
+    #[     ENTRY(${table.name}) entry;
+    #[     bool success = ${table.name}_setup_entry(&entry, (p4_action_parameter_t**)ctrl_m->action_params, ctrl_m->action_name);
     #[     if (unlikely(!success))    return;
     #[
 
     table_extra_t = {'exact': '', 'lpm': 'int prefix_length = ', 'ternary': ''}
     extra_names = {'exact': [], 'lpm': ['prefix_length'], 'ternary': []}
 
-    #[     table_key_${table.name}_t key;
-    #[     ${table_extra_t[tmt]}${table.name}_setup_key((p4_field_match_${tmt}_t**)ctrl_m->field_matches, &key);
-    #[
+    if len(table.key.keyElements) > 0:
+        #[     table_key_${table.name}_t key;
+        #[     ${table_extra_t[tmt]}${table.name}_setup_key((p4_field_match_${tmt}_t**)ctrl_m->field_matches, &key);
+        #[
 
     extra_params = "".join(f'{p}, ' for p in extra_names[tmt])
     has_fields = "false" if len(action.action_object.parameters.parameters) == 0 else "true"
-    #[     ${table.matchType.name}_add_promote(TABLE_${table.name}, (uint8_t*)&key, ${extra_params} (uint8_t*)&action, false, ${has_fields} || ctrl_is_initialized);
+    keyparam = '(uint8_t*)&key' if len(table.key.keyElements) else 'NULL /* empty key */'
+    #[     ${table.matchType.name}_add_promote(TABLE_${table.name}, $keyparam, ${extra_params} (ENTRYBASE*)&entry, false, ${has_fields} || ctrl_is_initialized);
 
     #} }
     #[
@@ -263,9 +268,9 @@ for table in hlir.tables:
 #{ void ctrl_setdefault(p4_ctrl_msg_t* ctrl_m) {
 for table in hlir.tables:
     #{     if (strcmp("${table.canonical_name}", ctrl_m->table_name) == 0) {
-    #[         ${table.name}_action_t default_action;
-    #[         ${table.name}_set_default_table_action(&default_action, ctrl_m->action_name, (p4_action_parameter_t**)ctrl_m->action_params);
-    #[         table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action, false);
+    #[         ${table.name}_action_t default_entry;
+    #[         make_${table.name}_set_default_table_entry(&default_entry, ctrl_m->action_name, (p4_action_parameter_t**)ctrl_m->action_params);
+    #[         table_setdefault_promote(TABLE_${table.name}, (ENTRYBASE*)&default_entry, false);
     #[         return;
     #}     }
 

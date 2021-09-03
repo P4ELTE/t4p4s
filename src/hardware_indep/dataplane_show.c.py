@@ -7,7 +7,7 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 
 #[ #include "dataplane_impl.h"
 
-table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
+table_infos = [(table, table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 ################################################################################
 
@@ -15,7 +15,7 @@ table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits =
 
 #{     void show_params_by_action_id(char* out, int table_id, int action_id, const void* entry) {
 for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
+    if 'key' not in table or table.key_bit_size == 0:
         #[         if (table_id == TABLE_${table.name}) { sprintf(out, "%s", ""); return; }
         continue
 
@@ -31,7 +31,7 @@ for table in hlir.tables:
 
 
 for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
+    if 'key' not in table or table.key_bit_size == 0:
         continue
 
     for dbg_action in table.actions:
@@ -59,8 +59,7 @@ for table in hlir.tables:
         for param in params:
             bytesz = (param.urtype.size+7)//8
             if param.urtype.size <= 32:
-                bytesz_aligned = 1 if bytesz == 1 else 2 if bytesz == 2 else 4
-                converter = '' if bytesz == 1 else f't4p4s2net_{bytesz_aligned}'
+                converter = ''
 
                 #[               ${bytesz} > 1 ? "§" : "", // maybe cpu->BE conversion
                 #[               $converter(actpar->${param.name}), // decimal
@@ -73,48 +72,52 @@ for table in hlir.tables:
         #}     }
         #[
 
-#{     void apply_show_hit_with_key_msg(uint8_t** key, bool hit, int key_size, int key_length_bytes, const char* matchtype_name, const char* action_short_name, const char* params_txt, const char* table_info, STDPARAMS) {
-#[         dbg_bytes(key, key_size,
-#[                   " %s Lookup on " T4LIT(%s,table) "/" T4LIT(%s) "/" T4LIT(%dB) ": $$[action]{}{%s}%s%s <- %s ",
-#[                   hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
-#[                   table_info,
-#[                   matchtype_name,
-#[                   key_length_bytes,
-#[                   action_short_name,
-#[                   params_txt,
-#[                   hit ? "" : " (default)",
-#[                   hit ? T4LIT(hit,success) : T4LIT(miss,status)
-#[                   );
+#{     void apply_show_hit_with_key_msg(bool hit, int key_size, int key_length_bytes, const char* matchtype_name,
+#[                                      const char* action_short_name, const char* params_txt, const char* table_info  KEYTXTPARAM, STDPARAMS) {
+#[         debug(" %s Lookup on " T4LIT(%s,table) "/" T4LIT(%s) "/" T4LIT(%dB) ": %s-> %s " T4LIT(%s,action) "%s%s\n",
+#[               hit ? T4LIT(++++,success) : T4LIT(XXXX,status),
+#[               table_info,
+#[               matchtype_name,
+#[               key_length_bytes,
+
+#[               key_txt,
+#[               hit ? T4LIT(hit,success) : T4LIT(miss,status),
+#[               action_short_name,
+#[               params_txt,
+#[               hit ? "" : " (default)"
+#[               );
 #}     }
 
 for table, table_info in table_infos:
-    if 'key' not in table or table.key_length_bits == 0:
+    if 'key' not in table or table.key_bit_size == 0:
         continue
 
-    #{     void ${table.name}_apply_show_hit_with_key(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS) {
+    #{     void ${table.name}_apply_show_hit_with_key(bool hit, const ENTRY(${table.name})* entry  KEYTXTPARAM, STDPARAMS) {
     #[         char params_txt[1024];
     for dbg_action in table.actions:
         aoname = dbg_action.action_object.name
         dbg_action_name = dbg_action.expression.method.path.name
-        #{         if (!strcmp("${dbg_action_name}", action_names[entry->action.action_id])) {
-        #[             ${table.name}_show_params_${aoname}(params_txt, &(entry->action.${aoname}_params));
-        #[             apply_show_hit_with_key_msg(key, hit, table_config[TABLE_${table.name}].entry.key_size, ${table.key_length_bytes}, "${table.matchType.name}", action_short_names[entry->action.action_id], params_txt, "${table_info}", STDPARAMS_IN);
+        #{         if (!strcmp("${dbg_action_name}", action_names[entry->id])) {
+        #[             ${table.name}_show_params_${aoname}(params_txt, &(entry->params.${aoname}_params));
+        #[             apply_show_hit_with_key_msg(hit, table_config[TABLE_${table.name}].entry.key_size,
+        #[                                         ${table.key_length_bytes}, "${table.matchType.name}", action_short_names[entry->id], params_txt, "${table_info}"
+        #[                                         KEYTXTPARAM_IN, STDPARAMS_IN);
         #}         }
     #}     }
     #[
 #} #endif
 
 for table, table_info in table_infos:
-    if 'key' in table and table.key_length_bits > 0:
+    if 'key' in table and table.key_bit_size > 0:
         continue
 
     #{ void ${table.name}_apply_show_hit(int action_id, STDPARAMS) {
     if 'key' not in table:
         #[     debug(" :::: Lookup on " T4LIT(${table_info},table) ", default action is " T4LIT(%s,action) "\n", action_short_names[action_id]);
-    elif table.key_length_bits == 0:
+    elif table.key_bit_size == 0:
         if table.is_hidden or len(table.actions) == 1:
-            #[     debug(" ~~~~ Action $$[action]{}{%s}\n", action_short_names[action_id]);
+            #[     debug(" ~~~~ Action " T4LIT(%s,action) "\n", action_short_names[action_id]);
         else:
-            #[     debug(" " T4LIT(XXXX,status) " Lookup on $$[table]{table_info}: $$[action]{}{%s} (default)\n", action_short_names[action_id]);
+            #[     debug(" " T4LIT(XXXX,status) " Lookup on " T4LIT(${table_info},table) ": " T4LIT(%s,action) " (default)\n", action_short_names[action_id]);
     #} }
     #[

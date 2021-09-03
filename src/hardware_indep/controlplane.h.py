@@ -12,4 +12,4 @@ import os
 #[ #include "tables.h"
 
 for table in hlir.tables:
-    #[ void ${table.name}_set_default_table_action(${table.name}_action_t* action, const char* action_name, p4_action_parameter_t** action_params);
+    #[ void make_${table.name}_set_default_table_entry(${table.name}_action_t* action, const char* action_name, p4_action_parameter_t** action_params);
