@@ -8,6 +8,9 @@
 #include <rte_mempool.h>
 
 
+extern bool is_packet_dropped(packet_descriptor_t* pd);
+
+
 volatile int packet_counter = 0;
 volatile int packet_with_error_counter = 0;
 
@@ -39,6 +42,7 @@ void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
     uint32_t port_mask = get_port_mask();
 
     uint8_t nb_port = 0;
+    int broadcast_idx = 0;
     for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
         if (portidx == ingress_port) {
            continue;
@@ -48,9 +52,10 @@ void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
         if (is_port_disabled)   continue;
 
         packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
-        send_single_packet(pkt_out, egress_port, ingress_port, false, LCPARAMS_IN);
+        send_single_packet(pkt_out, egress_port, ingress_port, broadcast_idx != 0, LCPARAMS_IN);
 
-        nb_port++;
+        ++nb_port;
+        ++broadcast_idx;
     }
 
     if (unlikely(nb_port != nb_ports - 1)) {
@@ -68,24 +73,26 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
         #ifdef T4P4S_DEBUG
             char ports_msg[256];
             get_broadcast_port_msg(ports_msg, ingress_port);
-            dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet from port " T4LIT(%d,port) " to all other ports (%s) (" T4LIT(%dB) "): ", ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf));
+            debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Broadcasting,outgoing) " packet " T4LIT(#%03d) "%s from port " T4LIT(%d,port) " to all other ports (%s): " T4LIT(%dB) " of headers, " T4LIT(%dB) " of payload\n",
+                  get_packet_idx(LCPARAMS_IN),  pd->is_deparse_reordering ? "" : " with " T4LIT(unchanged structure),
+                  ingress_port, ports_msg, rte_pktmbuf_pkt_len(mbuf) - pd->payload_size, pd->payload_size);
         #endif
         broadcast_packet(egress_port, ingress_port, LCPARAMS_IN);
     } else {
-        dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf), "   " T4LIT(<<,outgoing) " " T4LIT(Emitting,outgoing) " packet on port " T4LIT(%d,port) " (" T4LIT(%dB) "): ", egress_port, rte_pktmbuf_pkt_len(mbuf));
+        debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Emitting,outgoing) " packet " T4LIT(#%03d) "%s on port " T4LIT(%d,port) ": " T4LIT(%dB) " of headers, " T4LIT(%dB) " of payload\n",
+              get_packet_idx(LCPARAMS_IN),  pd->is_deparse_reordering ? "" : " with " T4LIT(unchanged structure),
+              egress_port, rte_pktmbuf_pkt_len(mbuf) - pd->payload_size, pd->payload_size);
         send_single_packet(pd->wrapper, egress_port, ingress_port, false, LCPARAMS_IN);
     }
 }
 
-void do_single_tx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
+void do_single_tx(LCPARAMS)
 {
-    if (unlikely(GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD) == EGRESS_DROP_VALUE)) {
+    if (unlikely(is_packet_dropped(pd))) {
         free_packet(LCPARAMS_IN);
     } else {
-        debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Egressing,outgoing) " packet\n");
-
-        int egress_port = extract_egress_port(pd);
-        int ingress_port = extract_ingress_port(pd);
+        int egress_port = get_egress_port(pd);
+        int ingress_port = get_ingress_port(pd);
 
         send_packet(egress_port, ingress_port, LCPARAMS_IN);
     }
@@ -99,7 +106,7 @@ void do_handle_packet(int portid, unsigned queue_idx, unsigned pkt_idx, LCPARAMS
     init_parser_state(&(state.parser_state));
 
     handle_packet(portid, get_packet_idx(LCPARAMS_IN), STDPARAMS_IN);
-    do_single_tx(queue_idx, pkt_idx, LCPARAMS_IN);
+    do_single_tx(LCPARAMS_IN);
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if (pd->context != NULL) {
@@ -129,19 +136,17 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
     init_pd_state(pd);
 
     bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
-    if (got_packet) {
-        if (likely(is_packet_handled(LCPARAMS_IN))) {
-            int portid = get_portid(queue_idx, LCPARAMS_IN);
-            #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-                if (PACKET_REQUIRES_ASYNC(lcdata,pd)){
-                    COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
-                    async_handle_packet(portid, queue_idx, pkt_idx, do_handle_packet, LCPARAMS_IN);
-                    return;
-                }
-            #endif
+    if (likely(got_packet && is_packet_handled(LCPARAMS_IN))) {
+        int portid = get_portid(queue_idx, LCPARAMS_IN);
+        #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
+            if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
+                COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
+                async_handle_packet(portid, queue_idx, pkt_idx, do_handle_packet, LCPARAMS_IN);
+                return;
+            }
+        #endif
 
-            do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
-        }
+        do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
     }
 
     main_loop_post_single_rx(got_packet, LCPARAMS_IN);

@@ -44,7 +44,7 @@ uint32_t get_portid(unsigned queue_idx, LCPARAMS);
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS);
 unsigned get_pkt_count_in_group();
 unsigned get_queue_count();
-void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS);
+void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS);
 void send_broadcast_packet(int egress_port, int ingress_port, LCPARAMS);
 struct lcore_data init_lcore_data();
 packet* clone_packet(packet* pd, struct rte_mempool* mempool);

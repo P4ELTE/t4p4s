@@ -21,6 +21,21 @@ extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 // ------------------------------------------------------
 
+const int NO_INFINITE_LOOP = -1;
+
+int last_error_pkt_idx = -1;
+bool encountered_error = false;
+bool encountered_drops = false;
+bool encountered_bad_requirement = false;
+int infinite_loop_on_core = NO_INFINITE_LOOP;
+
+void error_encountered(LCPARAMS) {
+    encountered_error = true;
+    last_error_pkt_idx = lcdata->pkt_idx;
+}
+
+// ------------------------------------------------------
+
 extern volatile int packet_counter;
 extern volatile int packet_with_error_counter;
 
@@ -37,7 +52,7 @@ uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 // ------------------------------------------------------
 // Test cases
 
-const char* fake_cmd_e_strings[] = {"FAKE_PKT","FAKE_SETDEF","FAKE_END"};
+const char* fake_cmd_e_strings[] = {"FAKE_PKT", "FAKE_SETDEF", "FAKE_END"};
 
 #define FAKE_CMD_ACTION_TO_STR(cmd) (fake_cmd_e_strings[(int)cmd])
 
@@ -131,7 +146,6 @@ int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
 struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     int byte_count = total_fake_byte_count(texts);
 
-    // debug("Creating fake " T4LIT(packet #%d,packet) " (" T4LIT(%d) " bytes)\n", lcdata->pkt_idx + 1, byte_count);
     struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
     uint8_t*         p2 = (uint8_t*)rte_pktmbuf_append(p, byte_count);
 
@@ -174,10 +188,14 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
         strcpy(port_designation_cmd, " (broadcast)");
     }
 
-    debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
-          lcdata->pkt_idx + 1, rte_lcore_id(),
-          cmd.out_port, port_designation_cmd,
-          egress_port, port_designation_egress);
+    if (lcdata->pkt_idx != last_error_pkt_idx) {
+        debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
+            lcdata->pkt_idx + 1, rte_lcore_id(),
+            cmd.out_port, port_designation_cmd,
+            egress_port, port_designation_egress);
+        error_encountered(LCPARAMS_IN);
+    }
+
     lcdata->is_valid = false;
     abort_on_strict();
 }
@@ -192,7 +210,7 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
     int expected_byte_count = total_fake_byte_count(cmd.out);
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
     if (expected_byte_count != actual_byte_count) {
-        debug("   " T4LIT(!!,error) " " T4LIT(packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
+        debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
               lcdata->pkt_idx + 1, rte_lcore_id(),
               expected_byte_count, actual_byte_count);
 
@@ -321,63 +339,62 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
     }
 }
 
-const int NO_INFINITE_LOOP = -1;
-
-bool encountered_error = false;
-bool encountered_drops = false;
-int infinite_loop_on_core = NO_INFINITE_LOOP;
-
 fake_cmd_t get_cmd(int idx) {
-    if(idx < 0){
-        fake_cmd_t ret = {FAKE_PKT, 0, 0, FDATA(""), 0, 0, FDATA("")};
+    if (idx < 0) {
+        fake_cmd_t ret = {FAKE_PKT, 0, 0, FDATA(""), 0, 0, FDATA(""), ""};
         return ret;
-    }else{
-        return (*(current_test_case->steps))[rte_lcore_id()][idx];
     }
+
+    return (*(current_test_case->steps))[rte_lcore_id()][idx];
 }
 
 bool is_real_fake_packet(fake_cmd_t cmd) {
     return cmd.action == FAKE_PKT && strlen(cmd.out[0]) != 0;
 }
 
-fake_cmd_t get_next_real_fake_verify_packet(LCPARAMS) {
-    while(true){
+fake_cmd_t get_next_real_fake_verify_packet(bool is_broadcast_nonfirst, LCPARAMS) {
+    if (is_broadcast_nonfirst)    return get_cmd(lcdata->verify_idx);
+
+    while (true) {
         ++lcdata->verify_idx;
         fake_cmd_t cmd = get_cmd(lcdata->verify_idx);
-        if(is_real_fake_packet(cmd) || cmd.action == FAKE_END){
+        if (is_real_fake_packet(cmd) || cmd.action == FAKE_END) {
             return cmd;
         }
     }
 }
 
-void check_sent_packet(int egress_port, int ingress_port, LCPARAMS) {
-    fake_cmd_t cmd = get_next_real_fake_verify_packet(LCPARAMS_IN);
+void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
+    #ifdef T4P4S_STATS
+        if (!is_broadcast_nonfirst && cmd.requirements[0] > 0) {
+            bool requirements_ok = check_controlflow_requirements(cmd);
+
+            if (requirements_ok) {
+                debug( "   " T4LIT(::,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(passed,success) " all control flow requirements\n", lcdata->pkt_idx + 1, rte_lcore_id());
+            } else {
+                if (lcdata->pkt_idx != last_error_pkt_idx) {
+                    debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(failed,error) " some control flow requirements\n", lcdata->pkt_idx + 1, rte_lcore_id());
+                }
+                encountered_bad_requirement = true;
+            }
+        }
+    #endif
+}
+
+void check_sent_packet(int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
+    fake_cmd_t cmd = get_next_real_fake_verify_packet(is_broadcast_nonfirst, LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
     if (is_ok) {
         check_packet_contents(cmd, LCPARAMS_IN);
+        check_cflow_reqs(cmd, is_broadcast_nonfirst, LCPARAMS_IN);
     }
 
-    #ifdef T4P4S_STATS
-
-    if (cmd.require[0]>0 || cmd.forbid[0]>0) {
-        bool requirements_ok = check_controlflow_requirements(cmd);
-
-        if (requirements_ok) {
-            debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(passing the control-flow requirements, success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-        } else {
-            debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(failing the control-flow requirements, error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-            encountered_error = true;
+    if (!lcdata->is_valid) {
+        if (lcdata->pkt_idx != last_error_pkt_idx) {
+            debug("   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
         }
-    }
-
-    #endif
-
-    if (lcdata->is_valid) {
-        debug( "   " T4LIT(<<,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent successfully,success) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-    } else {
-        debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
-        encountered_error = true;
+        error_encountered(LCPARAMS_IN);
     }
 }
 
@@ -390,11 +407,12 @@ bool is_over_iteration_limit(LCPARAMS) {
 
     if (lcdata->iter_idx > REASONABLE_ITER_LIMIT) {
         debug( "   " T4LIT(!!,error) " Detected " T4LIT(%d iterations,error) " on " T4LIT(core %d) ", possible infinite loop\n", lcdata->iter_idx, rte_lcore_id());
-        encountered_error = true;
+        error_encountered(LCPARAMS_IN);
         infinite_loop_on_core = rte_lcore_id();
+        return true;
     }
 
-    return encountered_error;
+    return false;
 }
 
 bool core_is_working(LCPARAMS) {
@@ -456,7 +474,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
 
     lcdata->idx++;
     fake_cmd_t cmd = get_cmd(lcdata->idx);
-    debug_actual_cmd("Nicoff receive_packet ", LCPARAMS_IN);
+
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
 
@@ -475,15 +493,6 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
         return got_packet;
     }
 
-    if (cmd.action == FAKE_SETDEF) {
-        typedef void* (*ctrl_setdef)(const char*);
-
-        ctrl_setdef setdef = (ctrl_setdef)(cmd.ptr);
-        const char* arg = cmd.in[1];
-
-        setdef(arg);
-    }
-
     return false;
 }
 
@@ -498,7 +507,7 @@ int packet_expected_length(const char* sections[MAX_SECTION_COUNT]) {
 void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 
-    if (get_cmd(lcdata->idx).out_port != -1) {
+    if (get_cmd(lcdata->idx).out_port != DROP) {
         ++packet_with_error_counter;
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
@@ -545,17 +554,16 @@ void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 }
 
 unsigned get_pkt_count_in_group(LCPARAMS) {
-    if(get_cmd(lcdata->idx).action != FAKE_END)
-        return 1;
-    else
-        return 0;
+    if (get_cmd(lcdata->idx).action == FAKE_END)   return 0;
+
+    return 1;
 }
 
 unsigned get_queue_count(LCPARAMS) {
     return 1;
 }
 
-void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS) {
+void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
 
     if (get_cmd(lcdata->idx).out_port == -1) {
@@ -563,12 +571,12 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool sen
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be " T4LIT(dropped,warning) ", but it was " T4LIT(sent,error) " to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data\n",
               egress_port,
-              packet_length(pd)
+              packet_size(pd)
         );
         return;
     }
 
-    check_sent_packet(egress_port, ingress_port, LCPARAMS_IN);
+    check_sent_packet(egress_port, ingress_port, is_broadcast_nonfirst, LCPARAMS_IN);
 }
 
 bool storage_already_inited = false;
@@ -619,18 +627,6 @@ void initialize_nic() {
     #endif
 }
 
-typedef enum {
-    T4P4S_EXIT_CODE_NORMAL = 0,
-
-    // note: these cannot happen here
-    T4P4S_EXIT_CODE_FAILED_COMPILATION_P4_TO_C = 1,
-    T4P4S_EXIT_CODE_FAILED_COMPILATION_C = 2,
-
-    T4P4S_EXIT_CODE_ERR_PROCESSING_PACKETS = 3,
-    T4P4S_EXIT_CODE_ERR_DROPS = 4,
-    T4P4S_EXIT_CODE_INFINITE_LOOP = 5,
-} T4P4S_EXIT_CODE_t;
-
 void t4p4s_abnormal_exit(int retval, int idx) {
     t4p4s_print_global_stats();
 
@@ -645,7 +641,7 @@ void t4p4s_after_launch(int idx) {
     if (launch_count() == 1) {
         debug(T4LIT(Execution done.,success) "\n");
     } else {
-        debug("Iteration" T4LIT(%d) "/" T4LIT(%d) " " T4LIT(done,success)".\n", idx, launch_count());
+        debug("Iteration " T4LIT(%d) "/" T4LIT(%d) " " T4LIT(done,success)".\n", idx, launch_count());
     }
 }
 
@@ -654,21 +650,28 @@ int t4p4s_normal_exit() {
 
     if (infinite_loop_on_core != NO_INFINITE_LOOP) {
         debug(T4LIT(Abnormal exit,error) ", too many iterations (" T4LIT(%d) " on lcore " T4LIT(%d,core) "), possible infinite loop.\n", REASONABLE_ITER_LIMIT, infinite_loop_on_core);
-        return T4P4S_EXIT_CODE_INFINITE_LOOP;
+        return T4EXIT(LOOP);
     }
 
     if (encountered_error) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(errors in processing packets,error) "\n");
-        return T4P4S_EXIT_CODE_ERR_PROCESSING_PACKETS;
+        return T4EXIT(WRONG_OUTPUT);
     }
 
     if (encountered_drops) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(some packets were unexpectedly dropped/sent,error) "\n");
-        return T4P4S_EXIT_CODE_ERR_DROPS;
+        return T4EXIT(DROP_SEND);
     }
 
+    #ifdef T4P4S_STATS
+        if (encountered_bad_requirement) {
+            debug(T4LIT(Normal exit,success) " but " T4LIT(some control flow requirements were not met,error) "\n");
+            return T4EXIT(CFLOW_REQ);
+        }
+    #endif
+
     debug(T4LIT(Normal exit.,success) "\n");
-    return T4P4S_EXIT_CODE_NORMAL;
+    return T4EXIT(OK);
 }
 
 void t4p4s_post_launch(int idx) {

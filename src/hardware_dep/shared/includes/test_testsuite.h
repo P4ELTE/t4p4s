@@ -9,28 +9,29 @@
 // ------------------------------------------------------
 // Fake packet data
 
-enum fake_cmd_e {
+typedef enum {
     FAKE_PKT,
     // set default action
     FAKE_SETDEF,
     FAKE_END,
-};
+} fake_cmd_e;
 
 #define MAX_SECTION_COUNT 128
+#define MAX_REQ_LEN       4096
 
 typedef struct {
-    enum fake_cmd_e 			action;
-    void*           			ptr;
-    uint32_t        			in_port;
-    const char*     			in[MAX_SECTION_COUNT];
+    fake_cmd_e  action;
+    void*       ptr;
+    uint32_t    in_port;
+    const char* in[MAX_SECTION_COUNT];
 
-    int             			sleep_millis;
+    int         sleep_millis;
 
-    uint32_t        			out_port;
-    const char*     			out[MAX_SECTION_COUNT];
+    uint32_t    out_port;
+    const char* out[MAX_SECTION_COUNT];
 
-    t4p4s_controlflow_name_t  	require[MAX_SECTION_COUNT];
-    t4p4s_controlflow_name_t  	forbid[MAX_SECTION_COUNT];
+    // the [1] indicates that this part is either present or absent
+    const char* requirements[1];
 } fake_cmd_t;
 
 // ------------------------------------------------------
@@ -53,7 +54,3 @@ typedef struct {
 #define INIT_WAIT_CONTROLPLANE_SHORT_MILLIS 500
 #define INIT_WAIT_CONTROLPLANE_LONG_MILLIS  2000
 #define WAIT_OTHER_CORE_PROCESSES_PACKAGES_MILLIS  500
-
-// ------------------------------------------------------
-
-#define T4P4S_BROADCAST_PORT 100

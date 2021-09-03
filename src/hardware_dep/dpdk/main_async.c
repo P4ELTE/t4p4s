@@ -90,12 +90,12 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
     // Extracting extra content from the mbuf
 
-    int packet_length = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
+    int packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
     rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
 
     #if ASYNC_MODE == ASYNC_MODE_PD
         debug_mbuf(mbuf, "Data after removing packet length: ");
-        debug("Loaded packet length: %d\n",packet_length);
+        debug("Loaded packet length: %d\n",packet_size);
     #endif
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -119,7 +119,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
     pd->wrapper = mbuf;
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 
-    pd->wrapper->pkt_len = packet_length;
+    pd->wrapper->pkt_len = packet_size;
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         pd->context = context;

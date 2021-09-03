@@ -5,7 +5,7 @@
 
 #define T4P4S_NIC_VARIANT off
 
-#include "testsuite.h"
+#include "test_testsuite.h"
 #include <stdbool.h>
 
 struct lcore_data {
@@ -20,3 +20,21 @@ struct lcore_data {
 
     struct rte_mempool* mempool;
 };
+
+
+#define T4EXIT(code)    T4P4S_EXIT_CODE_ ## code
+
+
+typedef enum {
+    T4EXIT(OK) = 0,
+
+    // note: these are external
+    T4EXIT(COMPILE_MESON) = 1,
+    T4EXIT(COMPILE_C) = 2,
+    T4EXIT(COMPILE_P4) = 3,
+
+    T4EXIT(LOOP) = 4,
+    T4EXIT(DROP_SEND) = 5,
+    T4EXIT(WRONG_OUTPUT) = 6,
+    T4EXIT(CFLOW_REQ) = 7,
+} T4EXIT(_t);
