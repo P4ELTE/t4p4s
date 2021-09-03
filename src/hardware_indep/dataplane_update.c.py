@@ -5,6 +5,7 @@ from utils.codegen import format_declaration, format_statement, format_expr, for
 from compiler_log_warnings_errors import addError, addWarning
 from compiler_common import types, generate_var_name, get_hdrfld_name, unique_everseen
 
+#[ #include "dataplane.h"
 #[ #include "dataplane_impl.h"
 
 for hdr in hlir.header_instances:
@@ -14,7 +15,7 @@ for hdr in hlir.header_instances:
             continue
 
         #{     if (pd->fields.FLD_ATTR(${hdr.name},${fld.name}) == MODIFIED) {
-        #[         MODIFY_INT32_INT32_AUTO_PACKET(pd, HDR(${hdr.name}), FLD(${hdr.name},${fld.name}), pd->fields.FLD(${hdr.name},${fld.name}));
+        #[         MODIFY(dst_pkt(pd), FLD(${hdr.name},${fld.name}), src_32(pd->fields.FLD(${hdr.name},${fld.name})), ENDIAN_NET);
         #}     }
     #} }
     #[
@@ -23,3 +24,4 @@ for hdr in hlir.header_instances:
 for hdr in hlir.header_instances:
     #[     update_hdr_${hdr.name}(STDPARAMS_IN);
 #} }
+#[

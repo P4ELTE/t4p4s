@@ -5,54 +5,65 @@
 
 // Function based set field
 
-typedef struct {
-    packet_descriptor_t* pd;
-    header_instance_t    hdr;
-    field_instance_t     fld;
-} fldT;
+typedef enum {
+    ENDIAN_CONVERT_ALWAYS,
+    ENDIAN_CONVERT_AS_NEEDED,
+    ENDIAN_KEEP,
+    ENDIAN_NET, // the source is an array of bytes, not an int
+} endian_strategy_t;
+
+typedef enum {
+    SRCDST_BUF,
+    SRCDST_PKT,
+    SRCDST_HANDLE,
+    SRCDST_32,
+} srcdst_type_t;
 
 typedef struct {
-    uint8_t* buf;
-    int      w;
-    field_instance_t fld;
-} bufT;
+    srcdst_type_t srcdst_type;
 
-#include "dpdk_primitives_impl.h"
+    union {
+        packet_descriptor_t* pd;
+        struct {
+            void* buf;
+            int width;
+        };
+        bitfield_handle_t fd;
+        uint32_t value32;
+    };
+} srcdst_t;
 
+srcdst_t dst_buf(void* buf, int width);
+srcdst_t dst_pkt(packet_descriptor_t* pd);
+srcdst_t dst_handle(bitfield_handle_t fd);
+
+srcdst_t src_buf(void* buf, int width);
+srcdst_t src_pkt(packet_descriptor_t* pd);
+srcdst_t src_32(uint32_t value32);
+srcdst_t src_handle(bitfield_handle_t fd);
 
 // Extract operations
 
-#define GET_INT32_AUTO_PACKET(pd , h, f) GET_INT32_AUTO(handle(header_desc_ins(pd , h), f))
-#define GET_INT32_AUTO_BUFFER(buf, w, f) GET_INT32_AUTO(handle(header_desc_buf(buf, w), f))
-
-#define EXTRACT_BYTEBUF_PACKET(pd , h, f, dst) EXTRACT_BYTEBUF(handle(header_desc_ins(pd , h), f), dst)
-#define EXTRACT_BYTEBUF_BUFFER(buf, w, f, dst) EXTRACT_BYTEBUF(handle(header_desc_buf(buf, w), f), dst)
-
-#define EXTRACT_INT32_AUTO_PACKET(pd , h, f, dst) EXTRACT_INT32_AUTO(handle(header_desc_ins(pd , h), f), dst)
-#define EXTRACT_INT32_AUTO_BUFFER(buf, w, f, dst) EXTRACT_INT32_AUTO(handle(header_desc_buf(buf, w), f), dst)
-
-#define EXTRACT_INT32_BITS_PACKET(pd , h, f, dst) EXTRACT_INT32_BITS(handle(header_desc_ins(pd , h), f), dst)
-#define EXTRACT_INT32_BITS_BUFFER(buf, w, f, dst) EXTRACT_INT32_BITS(handle(header_desc_buf(buf, w), f), dst)
+uint32_t GET32(srcdst_t desc, field_instance_e fld);
+uint32_t GET32_def(srcdst_t src, field_instance_e fld, uint32_t default_value);
+void     GET_BUF(void* dst, srcdst_t src, field_instance_e fld);
 
 // Modify operations
 
-void MODIFY_BYTEBUF_BYTEBUF_PACKET(packet_descriptor_t* pd, header_instance_t hdr, field_instance_t fld, void* src, int srclen);
+void MODIFY(srcdst_t desc, field_instance_e fld, srcdst_t src, endian_strategy_t strategy);
 
-#define MODIFY_BYTEBUF_BYTEBUF_BUFFER(buf, w, f, src, srclen) MODIFY_BYTEBUF_BYTEBUF(handle(header_desc_buf(buf, w), f), src, srclen);
-
-#define MODIFY_INT32_BYTEBUF_PACKET(pd , h, f, src, srclen) MODIFY_INT32_BYTEBUF(handle(header_desc_ins(pd , h), f), src, srclen);
-#define MODIFY_INT32_BYTEBUF_BUFFER(buf, w, f, src, srclen) MODIFY_INT32_BYTEBUF(handle(header_desc_buf(buf, w), f), src, srclen);
-
-#define MODIFY_INT32_INT32_BITS_PACKET(pd , h, f, value32) MODIFY_INT32_INT32_BITS(handle(header_desc_ins(pd , h), f), value32);
-#define MODIFY_INT32_INT32_BITS_BUFFER(buf, w, f, value32) MODIFY_INT32_INT32_BITS(handle(header_desc_buf(buf, w), f), value32);
-
-#define MODIFY_INT32_INT32_AUTO_BUFFER(buf, w, f, value32) MODIFY_INT32_INT32_AUTO(handle(header_desc_buf(buf, w), f), value32);
+void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32);
+void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf);
 
 // Extract statement
 
 void transfer_to_egress(packet_descriptor_t* pd);
 
-// Extract statement
+int get_egress_port(packet_descriptor_t* pd);
+int get_ingress_port(packet_descriptor_t* pd);
 
-int extract_egress_port(packet_descriptor_t* pd);
-int extract_ingress_port(packet_descriptor_t* pd);
+// Helpers
+
+bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_instance_e fld, const char* operation_txt);
+bitfield_handle_t get_handle_buf(void* buf, int width, field_instance_e fld);
+bitfield_handle_t get_handle_32(uint32_t value32, field_instance_e fld);

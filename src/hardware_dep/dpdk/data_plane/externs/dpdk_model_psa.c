@@ -17,23 +17,20 @@ void transfer_to_egress(packet_descriptor_t* pd)
     /*not implemented*/
 }
 
-int extract_egress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD);
+int get_egress_port(packet_descriptor_t* pd) {
+    return GET32(src_pkt(pd), EGRESS_META_FLD);
 }
 
-int extract_ingress_port(packet_descriptor_t* pd) {
-    return GET_INT32_AUTO_PACKET(pd, HDR(all_metadatas), INGRESS_META_FLD);
+int get_ingress_port(packet_descriptor_t* pd) {
+    return GET32(src_pkt(pd), INGRESS_META_FLD);
 }
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 {
-    int res32; // needed for the macro
-    MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), INGRESS_META_FLD, portid);
+    MODIFY(dst_pkt(pd), INGRESS_META_FLD, src_32(portid), ENDIAN_KEEP);
 }
 
 void mark_to_drop(SHORT_STDPARAMS) {
-    debug(" :::: Calling extern " T4LIT(mark_to_drop,extern) "\n");
-
-    uint32_t res32;
-    MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_DROP_VALUE)
+    MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
+    debug("       : " T4LIT(all_metadatas,header) "." T4LIT(EGRESS_META_FLD,field) " = " T4LIT(EGRESS_DROP_VALUE,bytes) "\n");
 }
