@@ -47,20 +47,7 @@
 //=============================================================================
 
 #include "dpdk_lib_conf.h"
-
-//=============================================================================
-
-uint8_t topbits_1(uint8_t data, int bits);
-uint16_t topbits_2(uint16_t data, int bits);
-uint32_t topbits_4(uint32_t data, int bits);
-
-uint8_t net2t4p4s_1(uint8_t data);
-uint16_t net2t4p4s_2(uint16_t data);
-uint32_t net2t4p4s_4(uint32_t data);
-
-uint8_t t4p4s2net_1(uint8_t data);
-uint16_t t4p4s2net_2(uint16_t data);
-uint32_t t4p4s2net_4(uint32_t data);
+#include "dpdk_lib_byteorder.h"
 
 //=============================================================================
 // Timings
@@ -79,3 +66,9 @@ uint32_t t4p4s2net_4(uint32_t data);
 
 typedef void (*packet_handler_t)(int port_id, unsigned queue_idx, unsigned pkt_idx, LCPARAMS);
 typedef void (*packet_handler_noparams_t)();
+
+//=============================================================================
+// Externs
+
+// TODO only include this file if "crypto" is active
+#include "dpdkx_crypto_dummy.h"

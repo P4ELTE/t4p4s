@@ -14,7 +14,6 @@ extern int numa_on;
 
 extern void print_all_ports_link_status(uint8_t port_num, uint32_t port_mask);
 extern void print_port_mac(unsigned portid, uint8_t* mac_bytes);
-extern void table_set_default_action(lookup_table_t* t, actions_t* value);
 
 //=============================================================================
 // Shared
@@ -64,6 +63,7 @@ uint8_t get_port_n_rx_queues(uint8_t port)
 //=============================================================================
 // Direct includes
 
+#include "dpdk_lib_byteorder.c"
 #include "dpdk_lib_change_tables.c"
 #include "dpdk_lib_init_tables.c"
 #include "dpdk_lib_init_hw.c"
@@ -78,7 +78,7 @@ uint16_t calculate_csum16(const void* buf, uint16_t length) {
     return value16;
 }
 
-uint32_t packet_length(packet_descriptor_t* pd) {
+uint32_t packet_size(packet_descriptor_t* pd) {
     return rte_pktmbuf_pkt_len(pd->wrapper);
 }
 
@@ -86,18 +86,3 @@ uint32_t packet_length(packet_descriptor_t* pd) {
 packet* clone_packet(packet* pd, struct rte_mempool* mempool) {
     return rte_pktmbuf_clone(pd, mempool);
 }
-
-//=============================================================================
-// Utils
-
-uint8_t topbits_1(uint8_t data, int bits) { return data >> (8 - bits); }
-uint16_t topbits_2(uint16_t data, int bits) { return data >> (16 - bits); }
-uint32_t topbits_4(uint32_t data, int bits) { return data >> (32 - bits); }
-
-uint8_t net2t4p4s_1(uint8_t data) { return data; }
-uint16_t net2t4p4s_2(uint16_t data) { return rte_be_to_cpu_16(data); }
-uint32_t net2t4p4s_4(uint32_t data) { return rte_be_to_cpu_32(data); }
-
-uint8_t t4p4s2net_1(uint8_t data) { return data; }
-uint16_t t4p4s2net_2(uint16_t data) { return rte_cpu_to_be_16(data); }
-uint32_t t4p4s2net_4(uint32_t data) { return rte_cpu_to_be_32(data); }
