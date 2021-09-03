@@ -10,6 +10,22 @@ declare -A IGNORE_OPTS
 
 PYTHON_PARSE_HELPER_PROCESS=""
 
+
+ERRCODE_OK=0
+
+ERRCODE_COMPILE_MESON=1
+ERRCODE_COMPILE_C=2
+ERRCODE_COMPILE_P4=3
+
+ERRCODE_LOOP=4
+ERRCODE_DROP_SEND=5
+ERRCODE_WRONG_OUTPUT=6
+ERRCODE_CFLOW_REQ=7
+
+ERRCODE_SEGFAULT=139
+ERRCODE_INTERRUPT=254
+ERRCODE_ERROR=255
+
 # --------------------------------------------------------------------
 # Show customisable environment values in this file
 
@@ -60,7 +76,8 @@ errmsg() {
 
 exit_on_error() {
     ERROR_CODE=$1
-    [ "$ERROR_CODE" -eq 0 ] && return
+    [ "$ERROR_CODE" == "0" ] && return
+    [ "$ERROR_CODE" == "" ] && return
 
     exit_program "$2 (error code: $(cc 2)$ERROR_CODE$nn)"
 }
@@ -306,7 +323,7 @@ T4P4S_BUILD_DIR=${T4P4S_BUILD_DIR-"./build"}
 
 mkdir -p ${T4P4S_BUILD_DIR}
 
-ERROR_CODE=1
+ERROR_CODE=$ERRCODE_OK
 
 COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
 LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
@@ -363,7 +380,7 @@ PYTHON3=${PYTHON3-$(find_tool "." python3)}
 
 # note: it is used with sudo
 MESON_CMD="$PYTHON3 -m mesonbuild.mesonmain"
-MESON_BUILDTYPE=${MESON_BUILDTYPE-debug}
+MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
 
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
 
@@ -561,7 +578,7 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             [ "${groups[prefix]}" == "%"  ] && setopt example "$var" && setopt testcase "$value" && setopt variant test && continue
             [ "${groups[prefix]}" == "%%" ] && [ "$value" == "on" ] && setopt example "$var" && setopt suite on && setopt dbg on && setopt variant test && continue
             [ "${groups[prefix]}" == "%%" ] && setopt example "$var" && setopt testcase "$value" && setopt dbg on && setopt variant test && continue
-            [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
+            # [ "${groups[prefix]}" == "@"  ] && setopt variant "$var" && continue
             [ "${groups[prefix]}" == "^"  ] && IGNORE_OPTS["$var"]=on && continue
 
             [ "${groups[letop]}" == "+="  ] && addopt "$var" "$value" " " && continue
@@ -586,8 +603,15 @@ verbosemsg "Parse port is $(cc 0)$PYTHON_PARSE_HELPER_PORT$nn"
 [ "$(optvalue silent)" == on  ] && IGNORE_OPTS[verbose]=on
 
 
-[ "$(optvalue variant)" == off ] && [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ] && OPTS[variant]=test && verbosemsg "Variant $(cc 1)@test$nn is chosen because testing is requested"
-[ "${OPTS[variant]}" == "" -o "${OPTS[variant]}" == "-" ] && OPTS[variant]=std && verbosemsg "Variant $(cc 1)@std$nn is automatically chosen"
+[ "$(optvalue variant)" == off ] && [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ] && setopt variant test && verbosemsg "Variant $(cc 1)@test$nn is chosen because testing is requested"
+[ "${OPTS[variant]}" == "" -o "${OPTS[variant]}" == "-" ] && setopt variant std && verbosemsg "Variant $(cc 1)@std$nn is automatically chosen"
+
+
+# Clean build dir if requested
+if [ "$(optvalue redo)" == on ]; then
+    sudo rm -rf ${T4P4S_BUILD_DIR}
+    mkdir -p ${T4P4S_BUILD_DIR}
+fi
 
 
 # Determine version by extension if possible
@@ -663,6 +687,9 @@ if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
     fi
 fi
 
+
+[ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=t4p4s_testcase_${OPTS[testcase]}" " "
+
 # --------------------------------------------------------------------
 # Environment variable printout
 
@@ -683,7 +710,7 @@ fi
 verbosemsg "Options: $(print_opts)"
 
 # Phase 0a: Check for required programs
-if [ "$(optvalue c)" != off -a ! -f "$P4C/build/p4test" ]; then
+if [ "$(optvalue c)" != off -a ! -f "$P4C/build/p4test" -a ! command -v p4test &> /dev/null ]; then
     exit_program "cannot find P4C compiler at $(cc 1)\$P4C/build/p4test$nn"
 fi
 
@@ -695,6 +722,57 @@ if [ "$(optvalue run)" != off ]; then
     verbosemsg "Root access granted, starting..."
 fi
 
+
+# Phase 3A: Execution (controller)
+if [ "$(optvalue run)" != off ]; then
+    if [ "$(optvalue ctr)" == off ]; then
+        msg "[$(cc 0)NO  CONTROLLER$nn]"
+    else
+        mkdir -p ${T4P4S_LOG_DIR}
+
+        CONTROLLER="dpdk_${OPTS[ctr]}_controller"
+        CONTROLLER_LOG=${T4P4S_LOG_DIR}/controller.log
+
+        sudo killall -q "$CONTROLLER"
+
+        msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
+
+        for ctrcfg in ${OPTS[ctrcfg]}; do
+            [ ! -f $ctrcfg ] && exit_program "Controller config file $(cc 2)$ctrcfg$nn does not exist"
+        done
+
+        verbosemsg "Controller log : $(cc 0)${CONTROLLER_LOG}$nn"
+        verbosemsg "Controller opts: $(print_cmd_opts ${OPTS[ctrcfg]})"
+
+        # Step 3A-1: Compile the controller
+        cd $CTRL_PLANE_DIR
+        if [ "$(optvalue verbose)" == on ]; then
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -j $CONTROLLER
+        elif [ "$(optvalue silent)" != off ]; then
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER
+        else
+            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER >/dev/null
+        fi
+        exit_on_error "$?" "Controller compilation $(cc 2)failed$nn"
+        cd - >/dev/null
+
+        command -v gnome-terminal >/dev/null 2>/dev/null
+        HAS_TERMINAL=$?
+
+        # Step 3A-3: Run controller
+        if [ $(optvalue showctl optv) == y ]; then
+            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+        elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
+            TERMWIDTH=${TERMWIDTH-72}
+            TERMHEIGHT=${TERMHEIGHT-36}
+            gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
+        else
+            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
+        fi
+    fi
+fi
+
+
 # Phase 1: P4 to C compilation
 if [ "$(optvalue p4)" != off ]; then
     msg "[$(cc 0)COMPILE  P4-${OPTS[vsn]}$nn] $(cc 0)$(print_cmd_opts ${OPTS[source]})$nn@$(cc 1)${OPTS[variant]}$nn${OPTS[testcase]+, test case $(cc 1)${OPTS[testcase]-(none)}$nn}${OPTS[dbg]+, $(cc 0)debug$nn mode}"
@@ -704,18 +782,25 @@ if [ "$(optvalue p4)" != off ]; then
     addopt p4opts "-g ${T4P4S_SRCGEN_DIR}" " "
     [ "$(optvalue verbose)" != off ] && addopt p4opts "-verbose" " "
 
-    verbosemsg "P4 compiler options: $(print_cmd_opts "${OPTS[p4opts]}")"
+    verbosemsg "P4 compiler options : $(print_cmd_opts "${OPTS[p4opts]}")"
 
     IFS=" "
     $PYTHON3 -B src/compiler.py --multi $PARALLELISM ${OPTS[p4opts]}
-    exit_on_error "$?" "P4 to C compilation $(cc 2)failed$nn"
+    P4_ERRCODE="$?"
+    [ ${P4_ERRCODE} -ne 0 ] && ERRCODE=$ERRCODE_COMPILE_P4
+    exit_on_error "$ERRCODE" "P4 to C compilation $(cc 2)failed$nn"
 fi
 
 
-# Phase 2: C compilation
+# Phase 2A: Check prerequisites
 if [ "$(optvalue c)" != off ]; then
-    [ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
+    mkdir -p ${T4P4S_TARGET_DIR}/build
 
+    [ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
+fi
+
+# Phase 2B: C compilation, create build files
+if [ "$(optvalue c)" != off ]; then
     sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_MODEL}.tmp"
     sudo echo "#include \"${ARCH}_model_$(optvalue model).h\"" >> "/tmp/${T4P4S_GEN_MODEL}.tmp"
     overwrite_on_difference "${T4P4S_GEN_MODEL}" "${T4P4S_GEN_INCLUDE_DIR}"
@@ -798,8 +883,6 @@ EOT
     if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
         TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
 
-        [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=t4p4s_testcase_${OPTS[testcase]}" " "
-
         sudo echo >>"/tmp/meson.build.tmp"
         sudo echo "project_source_files += ['../../$TESTFILE']" >>"/tmp/meson.build.tmp"
         sudo echo >>"/tmp/meson.build.tmp"
@@ -826,6 +909,8 @@ foreach i: [`seq 0 $(($PARALLELISM-1)) | tr '\n' ','`]
     endforeach
 endforeach
 
+include_dirs = include_directories(incdirs)
+
 executable(
     meson.project_name(),
     project_source_files,
@@ -838,14 +923,15 @@ executable(
 EOT
 
     overwrite_on_difference "meson.build" "${T4P4S_TARGET_DIR}"
+fi
 
-
+# Phase 2C: C compilation
+if [ "$(optvalue c)" != off ]; then
     msg "[$(cc 0)COMPILE SWITCH$nn]"
-    verbosemsg "C compiler options: $(cc 0)$(print_cmd_opts "${OPTS[cflags]}")${nn}"
+    verbosemsg "C compiler options: $(print_cmd_opts "${OPTS[cflags]}")"
 
     MESON_OPTS=${OPTS[meson_opts]}
 
-    mkdir -p ${T4P4S_TARGET_DIR}/build
     cd ${T4P4S_TARGET_DIR}/build
     sudo rm -rf build.ninja
     sudo rm -rf compile_commands.json
@@ -856,14 +942,21 @@ EOT
 
     cd ${T4P4S_TARGET_DIR}
     sudo CC="ccache $T4P4S_CC" CC_LD="$T4P4S_LD" CFLAGS="$FLTO" $MESON_CMD $MESON_OPTS -Dbuildtype=$MESON_BUILDTYPE build >$T4P4S_LOG_DIR/20_meson.txt 2>&1
-    exit_on_error "$?" "Meson invocation $(cc 2)failed$nn, see $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/20_meson.txt)$nn"
+    MESON_ERRCODE="$?"
+    [ "$MESON_ERRCODE" != "0" ] && ERRCODE=$ERRCODE_C
+    exit_on_error "$ERRCODE" "Meson invocation $(cc 2)failed$nn with error code $(cc 3)${MESON_ERRCODE}$nn, see $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/20_meson.txt)$nn"
     cd - >/dev/null
 
     cd ${T4P4S_TARGET_DIR}/build
     sudo ninja 2>$T4P4S_LOG_DIR/22_ninja.txt
-    exit_on_error "$?" "C compilation using ninja $(cc 2)failed$nn, see log $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/22_ninja.txt)$nn"
+    C_ERRCODE="$?"
+    [ "${C_ERRCODE}" != "0" ] && ERRCODE=$ERRCODE_C
+    exit_on_error "${C_ERRCODE}" "C compilation using ninja $(cc 2)failed$nn, see log $(cc 1)$(realpath --relative-to="$STARTPWD" $T4P4S_LOG_DIR/22_ninja.txt)$nn"
     cd - >/dev/null
+fi
 
+# Phase 2D: Compression of executable
+if [ "$(optvalue c)" != off ]; then
     UPX=${UPX-upx}
     if [ "$(optvalue upx)" != off ]; then
         if [[ `which $UPX` ]]; then
@@ -873,56 +966,6 @@ EOT
         else
             msg "Cannot find $(cc 1)$UPX$nn, will not compress executable"
         fi
-    fi
-fi
-
-
-if [ "$(optvalue run)" != off ]; then
-    if [ "$(optvalue ctr)" == off ]; then
-        msg "[$(cc 0)NO  CONTROLLER$nn]"
-    else
-        mkdir -p ${T4P4S_LOG_DIR}
-
-        CONTROLLER="dpdk_${OPTS[ctr]}_controller"
-        CONTROLLER_LOG=${T4P4S_LOG_DIR}/controller.log
-
-        sudo killall -q "$CONTROLLER"
-
-        msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
-
-        for ctrcfg in ${OPTS[ctrcfg]}; do
-            [ ! -f $ctrcfg ] && exit_program "Controller config file $(cc 2)$ctrcfg$nn does not exist"
-        done
-
-        verbosemsg "Controller log : $(cc 0)${CONTROLLER_LOG}$nn"
-        verbosemsg "Controller opts: $(print_cmd_opts ${OPTS[ctrcfg]})"
-
-        # Step 3A-1: Compile the controller
-        cd $CTRL_PLANE_DIR
-        if [ "$(optvalue verbose)" == on ]; then
-            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -j $CONTROLLER
-        elif [ "$(optvalue silent)" != off ]; then
-            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER
-        else
-            CC="ccache $T4P4S_CC" LD="ld.$T4P4S_LD" make -s -j $CONTROLLER >/dev/null
-        fi
-        exit_on_error "$?" "Controller compilation $(cc 2)failed$nn"
-        cd - >/dev/null
-
-        command -v gnome-terminal >/dev/null 2>/dev/null
-        HAS_TERMINAL=$?
-
-        # Step 3A-3: Run controller
-        if [ $(optvalue showctl optv) == y ]; then
-            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
-        elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
-            TERMWIDTH=${TERMWIDTH-72}
-            TERMHEIGHT=${TERMHEIGHT-36}
-            gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
-        else
-            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
-        fi
-        sleep 0.2
     fi
 fi
 
@@ -962,18 +1005,24 @@ if [ "$(optvalue run)" != off ]; then
 
     command -v errno >&2>/dev/null
     ERRNO_EXISTS=$?
-    [ $ERRNO_EXISTS -eq 0 ] && [ $ERROR_CODE -eq 0 ] && ERR_CODE_MSG="($(cc 0)`errno $ERROR_CODE`$nn)"
-    [ $ERRNO_EXISTS -eq 0 ] && [ $ERROR_CODE -ne 0 ] && ERR_CODE_MSG="($(cc 3 2 1)`errno $ERROR_CODE`$nn)"
+    [ $ERRNO_EXISTS -eq 0 ] && [ "$ERROR_CODE" == "0" ] && ERR_CODE_MSG="($(cc 0)`errno $ERROR_CODE`$nn)"
+    [ $ERRNO_EXISTS -eq 0 ] && [ "$ERROR_CODE" != "0" ] && ERR_CODE_MSG="($(cc 3 2 1)`errno $ERROR_CODE`$nn)"
 
-    [ $ERROR_CODE -eq 139 ] && ERR_CODE_MSG="($(cc 3 2 1)Segmentation fault$nn)"
-    [ $ERROR_CODE -eq 255 ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_LOOP" ] && ERR_CODE_MSG="($(cc 3 2 1)Too many iterations, possible infinite loop$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_DROP_SEND" ] && ERR_CODE_MSG="($(cc 3 2 1)Packets were unexpectedly dropped/sent$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_WRONG_OUTPUT" ] && ERR_CODE_MSG="($(cc 3 2 1)Execution finished with wrong output$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_C" ] && ERR_CODE_MSG="($(cc 3 2 1)C compilation failed$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_COMPILE_P4" ] && ERR_CODE_MSG="($(cc 3 2 1)P4 to C compilation failed$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_SEGFAULT" ] && ERR_CODE_MSG="($(cc 3 2 1)C code execution: Segmentation fault$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_INTERRUPT" ] && ERR_CODE_MSG="($(cc 2 1)Execution interrupted$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_ERROR" ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
 
-    [ $ERROR_CODE -eq 0 ] && msg "${nn}T4P4S switch exited $(cc 0)normally$nn"
-    [ $ERROR_CODE -ne 0 ] && msg "\n${nn}T4P4S switch running $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
-    [ $ERROR_CODE -ne 0 ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
+    [ "$ERROR_CODE" == "0" ] && msg "${nn}T₄P₄S switch running $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn exited $(cc 0)normally$nn"
+    [ "$ERROR_CODE" != "0" ] && msg "\n${nn}T₄P₄S switch running $(cc 0)$(print_cmd_opts "${OPTS[source]}")$nn exited with error code $(cc 3 2 1)$ERROR_CODE$nn $ERR_CODE_MSG"
+    [ "$ERROR_CODE" != "0" ] && msg " - Runtime options were: $(print_cmd_opts "${EXEC_OPTS}")"
 
     DBGWAIT=1
-    if [ $ERROR_CODE -ne 0 ] && [ "$(optvalue autodbg)" != off ]; then
+    if [ "$ERROR_CODE" != "0" ] && [ "$(optvalue autodbg)" != off ]; then
         [ "$(optvalue ctr)" != off ] && verbosemsg "Restarting controller $(cc 0)dpdk_${OPTS[ctr]}_controller$nn" && sudo killall -q "dpdk_${OPTS[ctr]}_controller"
         [ "$(optvalue ctr)" != off ] && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &)
 
