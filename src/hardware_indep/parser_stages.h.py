@@ -11,6 +11,6 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 #[ #include "util_packet.h"
 
 for hdr in sorted(hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata), key=lambda hdr: len(hdr.urtype.fields)):
-    #[ int parser_extract_${hdr.name}(uint32_t vwlen, STDPARAMS);
+    #[ int parser_extract_${hdr.name}(int vwlen, STDPARAMS);
 
-#[ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, uint32_t hdrlen, STDPARAMS);
+#[ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, int hdrlen, int vwlen, STDPARAMS);

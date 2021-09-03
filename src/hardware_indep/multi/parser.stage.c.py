@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2021 Eotvos Lorand University, Budapest, Hungary
 
+from compiler_log_warnings_errors import addWarning
+from utils.codegen import to_c_bool
+
 compiler_common.current_compilation['is_multicompiled'] = True
 
 part_count = compiler_common.current_compilation['multi']
 multi_idx = compiler_common.current_compilation['multi_idx']
 
-table_names = (table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "") for table in hlir.tables)
+table_names = (table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "") for table in hlir.tables)
 all_table_infos = sorted(zip(hlir.tables, table_names), key=lambda k: len(k[0].actions))
 table_infos = list(ti for idx, ti in enumerate(all_table_infos) if idx % part_count == multi_idx)
 
@@ -16,48 +19,75 @@ hdrs = list(hdr for idx, hdr in enumerate(all_hdrs) if idx % part_count == multi
 if hdrs == []:
     compiler_common.current_compilation['skip_output'] = True
 else:
-    for hdr in hdrs:
-        #[ #include "parser_stages.h"
+    #[ #include "parser_stages.h"
+    #[ #include "hdr_fld.h"
+    #[ #include "hdr_fld_sprintf.h"
 
-        #{ int parser_extract_${hdr.name}(uint32_t vwlen, STDPARAMS) {
-        #[     uint32_t value32; (void)value32;
-        #[     uint32_t res32; (void)res32;
+    for hdr in hdrs:
+        #{ void print_parsed_hdr_${hdr.name}(packet_descriptor_t* pd, header_descriptor_t* hdr, header_instance_e hdrinst) {
+        #{     #ifdef T4P4S_DEBUG
+        #[         char fields_txt[4096];
+        #[         debug("   :: Parsed header" T4LIT(#%d) " " T4LIT(%s,header) "/" T4LIT(%d) "B%s%s\n",
+        #[               hdr_infos[hdrinst].idx + 1, hdr_infos[hdrinst].name, hdr->size,
+        #[               hdr->size == 0 ? "" : ": ",
+        #[               hdr->size == 0 ? "" : sprintf_hdr_${hdr.name}(fields_txt, pd, hdr));
+        #}     #endif
+        #} }
+
+    for hdr in hdrs:
+        #{ int parser_extract_${hdr.name}(int vwlen, STDPARAMS) {
         #[     parser_state_t* local_vars = pstate;
 
         hdrtype = hdr.urtype
-
         is_vw = hdrtype.is_vw
+        base_size = hdr.urtype.size
 
-        #[     uint32_t hdrlen = (${hdr.urtype.size} + vwlen) / 8;
-        #{     if (unlikely(pd->parsed_length + hdrlen > pd->wrapper->pkt_len)) {
-        #[         cannot_parse_hdr("${"variable width " if is_vw else ""}", "${hdr.name}", hdrlen, STDPARAMS_IN);
-        #[         return -1; // parsed after end of packet
-        #}     }
+        is_stack = 'stack' in hdr and hdr.stack is not None
 
-        if 'stack' in hdr and hdr.stack is not None:
+        if is_stack:
             #[     stk_next(STK(${hdr.stack.name}), pd);
-            #[     header_instance_t hdrinst = stk_current(STK(${hdr.stack.name}), pd);
+            #[     header_instance_e hdrinst = stk_current(STK(${hdr.stack.name}), pd);
         else:
-            #[     header_instance_t hdrinst = HDR(${hdr.name});
+            #[     header_instance_e hdrinst = HDR(${hdr.name});
         #[     header_descriptor_t* hdr = &(pd->headers[hdrinst]);
 
-        #[     hdr->pointer = pd->extract_ptr;
-        #[     hdr->was_enabled_at_initial_parse = true;
-        #[     hdr->length = hdrlen;
-        #[     hdr->var_width_field_bitwidth = vwlen;
+        #[     hdr->was_enabled_at_initial_parse = ${to_c_bool(not hdr.is_skipped)};
+        #[     hdr->size = (${base_size} + vwlen) / 8;
+        if is_vw:
+            #[     hdr->vw_size = vwlen;
 
-        for fld in hdrtype.fields:
-            if fld.preparsed and fld.size <= 32:
-                #[     EXTRACT_INT32_AUTO_PACKET(pd, hdr, FLD(hdr,${fld.name}), value32)
-                #[     pd->fields.FLD(hdr,${fld.name}) = value32;
-                #[     pd->fields.ATTRFLD(hdr,${fld.name}) = NOT_MODIFIED;
+        #{     if (unlikely(pd->parsed_size + hdr->size > pd->wrapper->pkt_len)) {
+        #[         cannot_parse_hdr("${"variable width " if is_vw else ""}", "${hdr.name}", ${base_size}, vwlen, STDPARAMS_IN);
+        #[         return PARSED_AFTER_END_OF_PACKET;
+        #}     }
 
-        #[     dbg_bytes(hdr->pointer, hdr->length,
-        #[               "   :: Parsed ${"variable width " if is_vw else ""}header" T4LIT(#%d) " " T4LIT(%s,header) "/$${}{%dB}: ", hdr_infos[hdrinst].idx, hdr_infos[hdrinst].name, hdr->length);
+        if hdr.is_skipped:
+            #[     hdr->pointer = NULL;
+            skip_size = hdrtype.size
+            skip_pad_txt = ''
+            if hdrtype.size % 8 != 0:
+                padded_skip_size = ((skip_size+7) // 8) * 8
+                addWarning('Skipping bits', f'Only byte aligned skipping is supported, {skip_size}b is padded to {padded_skip_size//8}B')
+                skip_size = padded_skip_size
+                skip_pad_txt = '"->" T4LIT()'
+            #[     debug("   :: Skipping bits: " T4LIT(<${hdrtype.name}>,header) "/" T4LIT(%d) "B\n", ${skip_size} / 8);
+        else:
+            #[     hdr->pointer = pd->extract_ptr;
 
-        #[     pd->parsed_length += hdrlen;
-        #[     pd->extract_ptr += hdrlen;
+            for fld in hdrtype.fields:
+                if fld.preparsed and fld.size <= 32:
+                    #[     pd->fields.FLD(hdr,$name) = GET32(src_pkt(pd), FLD(${hdr.name},$name));
+                    #[     pd->fields.ATTRFLD(hdr,$name) = NOT_MODIFIED;
 
-        #[     return hdrlen;
+            #[     print_parsed_hdr_${hdr.name}(pd, hdr, hdrinst);
+
+            #[     pd->parsed_size += hdr->size;
+    
+        #[     pd->extract_ptr += hdr->size;
+
+        if hdr.is_skipped:
+            #[     return 0; // ${hdr.name} is skipped
+        else:
+            #[     return hdr->size;
         #} }
         #[

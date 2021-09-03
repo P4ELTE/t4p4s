@@ -3,7 +3,7 @@
 
 from compiler_log_warnings_errors import addError, addWarning
 from utils.codegen import format_expr, format_type, format_statement, format_declaration
-from compiler_common import statement_buffer_value, generate_var_name, get_hdr_name
+from compiler_common import statement_buffer_value, generate_var_name, get_hdr_name, unique_everseen
 
 import functools
 
@@ -39,25 +39,67 @@ for loc in parser.parserLocals:
 
 ################################################################################
 
-#{ void drop_packet(STDPARAMS) {
-#[     uint32_t value32; (void)value32;
-#[     uint32_t res32; (void)res32;
-#[     MODIFY_INT32_INT32_BITS_PACKET(pd, HDR(all_metadatas), EGRESS_META_FLD, EGRESS_DROP_VALUE);
+#{ void gen_parse_drop_msg(int apparent_hdr_len, const char* hdrname, int max_stkhdr_count) {
+#{     if (apparent_hdr_len == PARSED_AFTER_END_OF_PACKET) {
+#[         debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) ": tried to parse " T4LIT(%s,header) " but it overshot the end of the packet\n", hdrname);
+#[     } else if (apparent_hdr_len == PARSED_OVER_STACK_SIZE) {
+#[         debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) ": cannot have more than " T4LIT(%d) " headers in stack " T4LIT(%s,header) "\n", max_stkhdr_count, hdrname);
+#[     } else {
+#[         debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) ": its length is negative (%d)\n", apparent_hdr_len);
+#}     }
 #} }
+#[
+
+
+#{ void drop_packet(STDPARAMS) {
+#[     MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
+#} }
+#[
+
+#{ #ifdef T4P4S_DEBUG
+#[     char transition_cond[1024];
+#[
+#{     void set_transition_txt(const char* transition_txt) {
+#[         strcpy(transition_cond, transition_txt);
+#}     }
+#[ #else
+#{     void set_transition_txt(const char* transition_txt) {
+#[         // do nothing
+#}     }
+#} #endif
+#[
+
+for hdr in hlir.header_instances:
+    for fld in hdr.urtype.fields:
+        #{ void check_hdr_valid_${hdr.name}_${fld.name}(packet_descriptor_t* pd, field_instance_e fld, const char* unspec) {
+        #{     #ifdef T4P4S_DEBUG
+        #[         header_instance_e hdr = fld_infos[fld].header_instance;
+        #{         if (unlikely(!is_header_valid(hdr, pd))) {
+        #[             const char* hdrname = hdr_infos[hdr].name;
+        #[             const char* fldname = field_names[fld];
+        #[             debug("   " T4LIT(!!,warning) " Access to field in invalid header " T4LIT(%s,warning) "." T4LIT(%s,field) ", returning \"unspecified\" value " T4LIT(%s) "\n", hdrname, fldname, unspec);
+        #}         }
+        #}     #endif
+        #} }
+        #[
+
 
 
 #{ void init_parser_state(parser_state_t* pstate) {
+#[     set_transition_txt("");
 for local in parser.parserLocals.filter('node_type', 'Declaration_Instance'):
-    #[ ${local.urtype.name}_t_init(pstate->${local.name});
+    #[     ${local.urtype.name}_t_init(pstate->${local.name});
 #} }
 
-#{ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, uint32_t hdrlen, STDPARAMS) {
+#{ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, int hdrlen, int vwlen, STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
-#{         if (pd->parsed_length == pd->wrapper->pkt_len) {
-#[             debug("    " T4LIT(!,warning) " Missing %sheader " T4LIT(%s,header) "/" T4LIT(%d) "B @ offset " T4LIT(%d) "\n", varwidth_txt, hdr_name, hdrlen, pd->parsed_length);
+#[         int total_bytes = (hdrlen + vwlen) / 8;
+#{         if (pd->parsed_size == pd->wrapper->pkt_len) {
+#[             debug("    " T4LIT(!,warning) " Missing %sheader " T4LIT(%s,header) "/" T4LIT(%d) "+" T4LIT(%d) "B at offset " T4LIT(%d) "\n",
+#[                   varwidth_txt, hdr_name, (hdrlen+7) / 8, (vwlen+7) / 8, pd->parsed_size);
 #[         } else {
-#[             debug("    " T4LIT(!,warning) " Trying to parse %sheader " T4LIT(%s,header) "/" T4LIT(%d) "B at offset " T4LIT(%d) ", " T4LIT(missing %d bytes,warning) "\n",
-#[                   varwidth_txt, hdr_name, hdrlen, pd->parsed_length, pd->parsed_length + hdrlen - pd->wrapper->pkt_len);
+#[             debug("    " T4LIT(!,warning) " Trying to parse %sheader " T4LIT(%s,header) "/" T4LIT(%d) "+" T4LIT(%d) "B at offset " T4LIT(%d) ", " T4LIT(missing %d bytes,warning) "\n",
+#[                   varwidth_txt, hdr_name, (hdrlen+7) / 8, (vwlen+7) / 8, pd->parsed_size, pd->parsed_size + total_bytes - pd->wrapper->pkt_len);
 #}         }
 #}     #endif
 #} }
@@ -211,8 +253,7 @@ for s in parser.states:
         continue
 
     for idx, component in enumerate(s.components):
-        #{ void ${state_component_name(s, idx, component)}(STDPARAMS) {
-        #[     uint32_t res32; (void)res32;
+        #{ bool ${state_component_name(s, idx, component)}(STDPARAMS) {
         #[     parser_state_t* local_vars = pstate;
 
         if 'call' in component:
@@ -224,24 +265,40 @@ for s in parser.states:
 
             # TODO remove?
             args = component.methodCall.arguments
-            var = generate_var_name('vwlen')
+            vwlen_var = generate_var_name('vwlen')
             if len(args) == 1:
-                #[     int $var = 0;
+                #[     int ${vwlen_var} = 0;
             else:
                 bexpr = format_expr(args[1].expression)
                 prebuf, postbuf = statement_buffer_value()
                 #[     $prebuf
-                #[     int $var = ${bexpr};
+                #[     int ${vwlen_var} = ${bexpr};
                 #[     $postbuf
 
-            #[     int offset_${hdr.name} = parser_extract_${hdr.name}($var, STDPARAMS_IN);
-            #{     if (unlikely(offset_${hdr.name}) < 0) {
+                #{     if (unlikely(${vwlen_var} < 0)) {
+                #[         debug("    " T4LIT(!,error) " Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) " " T4LIT(is negative,error) "\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var});
+
+                #[         drop_packet(STDPARAMS_IN);
+                #[         return false;
+                #{     #ifdef T4P4S_DEBUG
+                #[     } else {
+                #[         debug("    : Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) "B\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var} / 8);
+                #}     #endif
+                #}     }
+
+            #[     int ${hdr.name}_len = parser_extract_${hdr.name}(${vwlen_var}, STDPARAMS_IN);
+            #{     if (unlikely(${hdr.name}_len < 0)) {
+            #[         gen_parse_drop_msg(${hdr.name}_len, "${hdr.name}", -1 /* ignored */);
             #[         drop_packet(STDPARAMS_IN);
-            #[         debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) "\n");
-            #[         return;
+            #[         return false;
             #}     }
+
+            # if any header is skipped (extracted as (_)), it will not be emitted during deparsing
+            if any(hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata).map(lambda hdr: hdr.is_local)):
+                #[     pd->is_deparse_reordering = true;
         else:
             #[     ${format_statement(component, parser)}
+        #[     return true;
         #} }
         #[
 
@@ -252,27 +309,33 @@ for s in parser.states:
 
     #{ void parser_state_${s.name}(STDPARAMS) {
     #{     #ifdef T4P4S_STATS
-    #[         t4p4s_stats_global.parser_state__${s.name} = true;
-    #[         t4p4s_stats_per_packet.parser_state__${s.name} = true;
+    #[         t4p4s_stats_global.T4STAT(parser,state,${s.name}) = true;
+    #[         t4p4s_stats_per_packet.T4STAT(parser,state,${s.name}) = true;
     #}     #endif
     #[
 
     if s.name == 'accept':
-        #[     pd->payload_length = packet_length(pd) - (pd->extract_ptr - (void*)pd->data);
+        #[     pd->payload_size = packet_size(pd) - (pd->extract_ptr - (void*)pd->data);
 
-        #{     if (pd->payload_length > 0) {
-        #[         dbg_bytes(pd->data + pd->parsed_length, pd->payload_length, " " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_length, pd->payload_length);
+        #{     if (pd->payload_size > 0) {
+        #[         dbg_bytes(pd->data + pd->parsed_size, pd->payload_size, " " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_size, pd->payload_size);
         #[     } else {
-        #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is $$[success]{}{accepted}, " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_length);
+        #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_size);
         #}     }
     elif s.name == 'reject':
-        #[     debug(" " T4LIT(XXXX,status) " Parser state $$[parserstate]{s.name}, packet is $$[status]{}{dropped}\n");
+        #[     debug(" " T4LIT(XXXX,status) " Parser state " T4LIT(${s.name},parserstate) " %s\n", transition_cond);
+        #[     debug("   " T4LIT(XX,status) " Packet is " T4LIT(dropped,status) "\n");
         #[     drop_packet(STDPARAMS_IN);
     else:
-        #[     debug(" %%%%%%%% Parser state $$[parserstate]{s.name}\n");
+        #[     debug(" %%%%%%%% Parser state " T4LIT(${s.name},parserstate) "%s\n", transition_cond);
+        #[     set_transition_txt("");
 
         for idx, component in enumerate(s.components):
-            #[     ${state_component_name(s, idx, component)}(STDPARAMS_IN);
+            #[     bool success$idx = ${state_component_name(s, idx, component)}(STDPARAMS_IN);
+            #{     if (unlikely(!success$idx)) {
+            #[         debug("    " T4LIT(!,error) " Parsing " T4LIT(failed,error) ", " T4LIT(dropping,status) " packet\n");
+            #[         return;
+            #}     }
 
         if s.selectExpression.node_type == 'PathExpression':
             #[     parser_state_${s.selectExpression.path.name}(STDPARAMS_IN);
@@ -283,8 +346,20 @@ for s in parser.states:
     #[
 
 #[ void parse_packet(STDPARAMS) {
-#[     pd->parsed_length = 0;
+#[     pd->parsed_size = 0;
 #[     pd->extract_ptr = pd->data;
 #[     parser_state_start(STDPARAMS_IN);
 #[ }
 #[
+
+all_stk_hdrs = hlir.header_instances.filter(lambda hdr: 'stack' in hdr)
+for stk in unique_everseen(all_stk_hdrs.map('stack')):
+    #{ int parser_extract_${stk.name}(int vwlen, STDPARAMS) {
+    #{     switch (pd->stacks[STK(${stk.name})].current) {
+
+    for idx, stkhdr in enumerate(all_stk_hdrs.filter('stack', stk)):
+        #[         case ${idx-1}: return parser_extract_${stkhdr.name}(vwlen, STDPARAMS_IN);
+    #[         default:     return PARSED_OVER_STACK_SIZE; // cannot be reached
+    #}     }
+    #} }
+    #[
