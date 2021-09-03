@@ -4,7 +4,7 @@
 from utils.codegen import format_expr, make_const
 import utils.codegen
 from compiler_log_warnings_errors import addError, addWarning
-from compiler_common import generate_var_name, prepend_statement
+from compiler_common import generate_var_name, prepend_statement, SugarStyle, to_c_bool
 
 #[ #include "dataplane.h"
 #[ #include "actions.h"
@@ -15,52 +15,53 @@ from compiler_common import generate_var_name, prepend_statement
 #[
 
 
-table_short_names_sorted = '", "'.join(sorted(f'T4LIT({table.short_name},table)' for table in hlir.tables if not table.is_hidden))
-#[ const char* table_short_names_sorted = "" ${table_short_names_sorted};
+#[ #define MAX_TABLE_SIZE 250000
+
+
+
+all_table_short_names_sorted = ' ", " '.join(sorted(f'T4LIT({table.short_name},table)' for table in hlir.tables))
+table_short_names_sorted = ' ", " '.join(sorted(f'T4LIT({table.short_name},table)' for table in hlir.tables if not table.is_hidden))
+#{ #ifdef T4P4S_DEBUG
+#[     const char* all_table_short_names_sorted = "" ${all_table_short_names_sorted};
+#[     const int   all_table_short_names_count  = ${len(hlir.tables)};
+#[     const char* table_short_names_sorted     = "" ${table_short_names_sorted};
+#[     const int   table_short_names_count      = ${len(hlir.tables.filterfalse('is_hidden'))};
+#} #endif
 #[
+
+with SugarStyle("no_comment"):
+    #{ #define TABLE_CONFIG_ENTRY_DEF(tname,cname,sname,mt,hidden,keysize) (lookup_table_t) { \
+    #[  .name           = #tname, \
+    #[  .canonical_name = #cname, \
+    #[  .short_name     = #sname, \
+    #[  .id = TABLE_ ## tname, \
+    #[  .type = LOOKUP_ ## mt, \
+    #[  .default_val = NULL, \
+    #[  .is_hidden = hidden, \
+    #{  .entry = { \
+    #[      .entry_count = 0, \
+    #[      .key_size = keysize, \
+    #[      .action_size = sizeof(tname ## _action_t), \
+    #[      .state_size = 0, \
+    #}      }, \
+    #[  .min_size = 0, \
+    #[  .max_size = MAX_TABLE_SIZE, \
+    #} }
+    #[
+
 
 #[ lookup_table_t table_config[NB_TABLES] = {
 for table in hlir.tables:
     tmt = table.matchType.name
     ks  = table.key_length_bytes
-    #[ {
-    #[  .name           = "${table.name}",
-    #[  .canonical_name = "${table.canonical_name}",
-
-    #[  .id = TABLE_${table.name},
-    #[  .type = LOOKUP_$tmt,
-
-    #[  .default_val = NULL,
-
-    #[  .is_hidden = ${"true" if table.is_hidden else "false"},
-
-    #[  .entry = {
-    #[      .entry_count = 0,
-
-    #[      .key_size = $ks,
-
-    #[      .entry_size = sizeof(${table.name}_action_t) + sizeof(entry_validity_t),
-    #[      .action_size   = sizeof(${table.name}_action_t),
-    #[      .validity_size = sizeof(entry_validity_t),
-    #[  },
-
-    #[  .min_size = 0,
-    #[  .max_size = 250000,
-
-    #{  #ifdef T4P4S_DEBUG
-    #[      .short_name= "${table.short_name}",
-    #}  #endif
-    #[ },
+    #[     TABLE_CONFIG_ENTRY_DEF(${table.name},${table.canonical_name},${table.short_name},$tmt,${to_c_bool(table.is_hidden)},$ks),
 #[ };
 
 
 for table in hlir.tables:
-    #{ void setdefault_${table.name}(actions_t action_id, bool show_info) {
-    #{     table_entry_${table.name}_t default_action = {
-    #[          .action = { action_id },
-    #[          .is_entry_valid = VALID_TABLE_ENTRY,
-    #}     };
-    #[     table_setdefault_promote(TABLE_${table.name}, (actions_t*)&default_action, show_info);
+    #{ void setdefault_${table.name}(actions_e action_id, bool show_info) {
+    #[     ENTRY(${table.name}) default_entry = { .id = action_id };
+    #[     table_setdefault_promote(TABLE_${table.name}, (ENTRYBASE*)&default_entry, show_info);
     #} }
 
 
@@ -71,19 +72,110 @@ for table in hlir.tables:
 
 nops = list(sorted((t for t in hlir.tables if not t.is_hidden for default in [t.default_action.expression.method.action_ref] if default.canonical_name == '.nop'), key=lambda t: t.short_name))
 nopinfo = "" if len(nops) == 0 else f' ({len(nops)} " T4LIT(nop,action) " defaults: ' + ", ".join(f'" T4LIT({t.short_name},table) "' for t in nops) + ')'
+tableinfos = [(t.name, t not in nops and not t.is_hidden, t.default_action.expression.method.action_ref) for t in sorted(hlir.tables, key=lambda table: table.short_name)]
 
 #{ void init_table_default_actions() {
-#[     debug(" :::: Init table default actions${nopinfo}\n");
+if len(nops) > 0:
+    noptxt = ", ".join(f'" T4LIT({t.short_name},table) "' for t in nops)
+    #[     debug(" :::: Init tables: " T4LIT(${len(nops)}) " " T4LIT(nop,action) " default actions: $noptxt\n");
+if len(definfos := list((tname, default_action.name) for tname, show_info, default_action in tableinfos if show_info if default_action.name != '.NoAction')) > 0:
+    deftxt = ", ".join(f'" T4LIT({tname},table) "[" T4LIT({defname},action) "]' for tname, defname in definfos)
 
-for table in sorted(hlir.tables, key=lambda table: table.short_name):
-    default_action = table.default_action.expression.method.action_ref
-    show_info = 'false' if table in nops else 'true'
-    #[     int current_replica_${table.name} = state[SOCKET0].active_replica[TABLE_${table.name}];
-    #{     if (likely(state[SOCKET0].tables[TABLE_${table.name}][current_replica_${table.name}]->default_val == NULL)) {
-    #[         setdefault_${table.name}(action_${default_action.name}, ${show_info});
+if len(tableinfos) > 0:
+    #[     struct socket_state socket0 = state[SOCKET0];
+
+for name, show_info, default_action in tableinfos:
+    #[     int current_replica_${name} = socket0.active_replica[TABLE_${name}];
+    #{     if (likely(socket0.tables[TABLE_${name}][current_replica_${name}]->default_val == NULL)) {
+    #[         setdefault_${name}(action_${default_action.name}, false);
     #}     }
 #} }
 #[
+
+
+# TODO move to a utility module
+def align_to_byte(num):
+    return (num + 7) // 8
+
+
+def gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos):
+    # note: _left is for lpm and ternary that may have a mask
+    key_total_size = sum(entry.keys.components.map('_left.urtype.size').map(align_to_byte))
+    # key_total_size = (sum((key._left.urtype.size for key in entry.keys.components))+7) // 8
+
+    #[     uint8_t ${key_var}[${key_total_size}];
+
+    offsets = ["+".join(["0"] + [f'{ksize}' for ksize in key_sizes[0:idx]]) for idx, ksize in enumerate(key_sizes)]
+
+    for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos):
+        #[     uint8_t ${const_var}[] = {$hex_content};
+
+    for key, ksize, offset, (const_var, hex_content) in zip(keys, key_sizes, offsets, varinfos):
+        #[     memcpy(${key_var} + ((${offset} +7)/8), &${const_var}, ${(ksize+7)//8});
+
+    #{     ENTRY(${table.name}) ${entry_var} = {
+    #[         .id = action_${action_id},
+    #{         .params = {
+    #{             .${action_id}_params = {
+    for param, value_expr in zip(params, args):
+        _, hex_content = make_const(value_expr.expression)
+        if param.urtype.size <= 32:
+            #[                 .${param.name} = ${value_expr.expression.value},
+        else:
+            #[                 .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
+    #}             },
+    #}         },
+    #}     };
+
+
+def gen_add_const_entry(table, key_var, entry_var, keys, key_sizes, varinfos, mt):
+    if mt == 'exact':
+        #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, (ENTRYBASE*)&${entry_var}, true, false);
+    elif mt == 'lpm':
+        # TODO: if there are exact fields as well as an lpm field, make sure that the exact fields are in front
+        lpm_depth = sum((f'{key.right.value:b}'.count('1') if key.node_type == 'Mask' else ksize for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos)))
+        #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${lpm_depth}, (ENTRYBASE*)&${entry_var}, true, false);
+    elif mt == 'ternary':
+        ternary_expr = keys[0].right
+        #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${format_expr(ternary_expr)}, (ENTRYBASE*)&${entry_var}, true, false);
+
+
+def gen_print_const_entry(table, entry, params, args, mt):
+    def make_value(value):
+        is_hex = value.base == 16
+        split_places = 4 if is_hex else 3
+
+        val = f'{value.value:x}' if is_hex else f'{value.value}'
+        val = '_'.join(val[::-1][i:i+split_places] for i in range(0, len(val), split_places))[::-1]
+        return f'0x{val},bytes' if is_hex else f'{val}'
+
+    def make_key(table, key, value):
+        value_str = f'" T4LIT({make_value(value._left)}) "'
+        mask_str = ''
+        if value.node_type == 'Mask':
+            if mt == 'lpm':
+                depth = f'{value.right.value:b}'.count('1')
+                mask_str = f'/" T4LIT({depth}b) "'
+            if mt == 'ternary':
+                mask_str = ' &&& " T4LIT({make_value(value.right)}) "'
+
+        if 'header_name' in key:
+            return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "={value_str}{mask_str}'
+
+        long_name = key.expression.path.name
+        short_name = table.control.controlLocals.get(long_name, 'Declaration_Variable').short_name
+        return f'" T4LIT({short_name},field) "={value_str}{mask_str}'
+
+    def make_param(param, value_expr):
+        return f'" T4LIT({param.name},field) "=" T4LIT({make_value(value_expr.expression)}) "'
+
+    key_str = ", ".join((make_key(table, key, value) for key, value in zip(table.key.keyElements, entry.keys.components)))
+    params_str = ", ".join((make_param(param, value_expr) for param, value_expr in zip(params, args)))
+    if params_str != "":
+        params_str = f'({params_str})'
+
+    #[     debug("   :: Table " T4LIT(${table.short_name},table) "/" T4LIT($mt) ": const entry (${key_str}) -> " T4LIT(${entry.action.method.action_ref.short_name},action) "${params_str}\n");
+
 
 for table in hlir.tables:
     if 'entries' not in table:
@@ -99,90 +191,28 @@ for table in hlir.tables:
 
         action_id = entry.action.method.path.name
 
-        key_total_size = (sum((key._left.urtype.size for key in entry.keys.components))+7) // 8
-
-        # note: _left is for lpm and ternary that may have a mask
         key_var = generate_var_name("key", f"{table.name}__{action_id}")
-        action_var = generate_var_name("action", f"{table.name}__{action_id}")
+        entry_var = generate_var_name("entry", f"{table.name}__{action_id}")
 
         params = entry.action.method.type.parameters.parameters
         args = entry.action.arguments
 
-        #[     ${utils.codegen.pre_statement_buffer}
+        mt = table.matchType.name
 
-        #[     uint8_t ${key_var}[${key_total_size}];
+        keys = entry.keys.components
+        key_sizes = [key._left.urtype.size for key in keys]
 
         def make_var(key, ksize):
             name, hex_content = make_const(key._left)
             const_var = generate_var_name(f"const{ksize}", name)
             return const_var, hex_content
 
-        keys = entry.keys.components
-        key_sizes = [key._left.urtype.size for key in keys]
-        offsets = ["+".join(["0"] + [f'{ksize}' for ksize in key_sizes[0:idx]]) for idx, ksize in enumerate(key_sizes)]
         varinfos = [make_var(key, ksize) for key, ksize in zip(keys, key_sizes)]
 
-        for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos):
-            #[     uint8_t ${const_var}[] = {$hex_content};
-
-        for key, ksize, offset, (const_var, hex_content) in zip(keys, key_sizes, offsets, varinfos):
-            #[     memcpy(${key_var} + ((${offset} +7)/8), &${const_var}, ${(ksize+7)//8});
-
-        #{     ${table.name}_action_t ${action_var} = {
-        #[         .action_id = action_${action_id},
-        #{         .${action_id}_params = {
-        for param, value_expr in zip(params, args):
-            _, hex_content = make_const(value_expr.expression)
-            if param.urtype.size <= 32:
-                #[             .${param.name} = ${value_expr.expression.value},
-            else:
-                #[             .${param.name} = { ${hex_content} }, // ${value_expr.expression.value}
-        #}         },
-        #}     };
-
-        mt = table.matchType.name
-        if mt == 'exact':
-            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, (uint8_t*)&${action_var}, true, false);
-        elif mt == 'lpm':
-            # TODO: if there are exact fields as well as an lpm field, make sure that the exact fields are in front
-            lpm_depth = sum((f'{key.right.value:b}'.count('1') if key.node_type == 'Mask' else ksize for key, ksize, (const_var, hex_content) in zip(keys, key_sizes, varinfos)))
-            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${lpm_depth}, (uint8_t*)&${action_var}, true, false);
-        elif mt == 'ternary':
-            ternary_expr = keys[0].right
-            #[     ${mt}_add_promote(TABLE_${table.name}, ${key_var}, ${format_expr(ternary_expr)}, (uint8_t*)&${action_var}, true, false);
-
-        def make_value(value):
-            is_hex = value.base == 16
-            split_places = 4 if is_hex else 3
-
-            prefix = '0x' if is_hex else ''
-            val = f'{value.value:x}' if is_hex else f'{value.value}'
-            val = '_'.join(val[::-1][i:i+split_places] for i in range(0, len(val), split_places))[::-1]
-            return f'{prefix}{val}'
-
-        def make_key(key, value):
-            value_str = f'" T4LIT({make_value(value._left)}) "'
-            mask_str = ''
-            if value.node_type == 'Mask':
-                if mt == 'lpm':
-                    depth = f'{value.right.value:b}'.count('1')
-                    mask_str = f'/" T4LIT({depth}b) "'
-                if mt == 'ternary':
-                    mask_str = ' &&& " T4LIT({make_value(value.right)}) "'
-
-            if 'header_name' in key:
-                return f'" T4LIT({key.header_name},header) "." T4LIT({key.field_name},field) "={value_str}{mask_str}'
-            return f'" T4LIT({key.expression.path.name}) "={value_str}{mask_str}'
-
-        def make_param(param, value_expr):
-            return f'" T4LIT({param.name},field) "=" T4LIT({make_value(value_expr.expression)}) "'
-
-        key_str = ", ".join((make_key(key, value) for key, value in zip(table.key.keyElements, entry.keys.components)))
-        params_str = ", ".join((make_param(param, value_expr) for param, value_expr in zip(params, args)))
-        if params_str != "":
-            params_str = f'({params_str})'
-
-        #[     debug("   :: Table $$[table]{table.name}/$${}{%s}: const entry (${key_str}) -> $$[action]{action_id}${params_str}\n", "$mt");
+        #[ ${utils.codegen.pre_statement_buffer}
+        #[ ${gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos)}
+        #[ ${gen_add_const_entry(table, key_var, entry_var, keys, key_sizes, varinfos, mt)}
+        #[ ${gen_print_const_entry(table, entry, params, args, mt)}
 
         utils.codegen.pre_statement_buffer = ""
     #} }
@@ -202,15 +232,4 @@ for table in hlir.tables:
 
 #[ extern char* action_names[];
 #[ extern char* action_canonical_names[];
-
-#[ int get_entry_action_id(const void* entry) {
-#[     return *((int*)entry);
-#[ }
-
-#[ char* get_entry_action_name(const void* entry) {
-#[     return action_canonical_names[get_entry_action_id(entry)];
-#[ }
-
-#[ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t) {
-#[     return (bool*)(entry + t->entry.action_size + t->entry.state_size);
-#[ }
+#[ extern char* action_short_names[];

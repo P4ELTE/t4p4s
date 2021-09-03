@@ -6,13 +6,22 @@
 #[ #include "stateful_memory.h"
 #[ #include "actions.h"
 
-#[ typedef bool entry_validity_t;
+
+#[ #define ENTRY(tname)    tname ## _entry_t
+#[ #define ENTRYBASE       ENTRY(base_table)
+
+
+# Note: a table entry contains a (possibly invalid) action and a state
+#       the latter of which is not represented
+#[ typedef base_table_action_t ENTRYBASE;
+#[
+
 
 for table in hlir.tables:
     #{ typedef struct {
-    #[     ${table.name}_action_t  action;
-    #[     entry_validity_t        is_entry_valid;
-    #} } table_entry_${table.name}_t;
+    #[     actions_e                     id;
+    #[     ${table.name}_action_params_t params;
+    #} } ENTRY(${table.name});
     #[
 
 
@@ -20,26 +29,16 @@ for table in hlir.tables:
 for table in hlir.tables:
     #[     TABLE_${table.name},
 #[ TABLE_,
-#} } table_name_t;
+#} } table_name_e;
 #[
 
 
-#[ void exact_add_promote  (table_name_t tableid, uint8_t* key,                uint8_t* value, bool is_const_entry, bool should_print);
-#[ void lpm_add_promote    (table_name_t tableid, uint8_t* key, uint8_t depth, uint8_t* value, bool is_const_entry, bool should_print);
-#[ void ternary_add_promote(table_name_t tableid, uint8_t* key, uint8_t* mask, uint8_t* value, bool is_const_entry, bool should_print);
-#[ void table_setdefault_promote(table_name_t tableid, actions_t* value, bool show_info);
+#[ void exact_add_promote  (table_name_e tableid, uint8_t* key,                ENTRYBASE* entry, bool is_const_entry, bool should_print);
+#[ void lpm_add_promote    (table_name_e tableid, uint8_t* key, uint8_t depth, ENTRYBASE* entry, bool is_const_entry, bool should_print);
+#[ void ternary_add_promote(table_name_e tableid, uint8_t* key, uint8_t* mask, ENTRYBASE* entry, bool is_const_entry, bool should_print);
+#[ void table_setdefault_promote(table_name_e tableid, ENTRYBASE* entry, bool show_info);
 
 #[ //=============================================================================
 
-#[ // Returns the action id stored in the table entry parameter.
-#[ // Table entries have different types (<table.name>_action),
-#[ // but all of them have to start with an int, the action id.
-#[ int get_entry_action_id(const void* entry);
-
-#[ // Returns the action id stored in the table entry parameter.
-#[ // Table entries have different types (<table.name>_action),
-#[ // but all of them have to start with an int, the action id.
-#[ char* get_entry_action_name(const void* entry);
-
 #[ // Computes the location of the validity field of the entry.
-#[ bool* entry_validity_ptr(uint8_t* entry, lookup_table_t* t);
+#[ bool* entry_validity_ptr(ENTRYBASE* entry, lookup_table_t* t);
