@@ -9,13 +9,10 @@ struct headers {
 }
 
 PARSER {
-    state parse_ethernet {
+    state start {
         packet.advance(3*8);
         packet.extract(hdr.dummy);
         transition accept;
-    }
-    state start {
-        transition parse_ethernet;
     }
 }
 

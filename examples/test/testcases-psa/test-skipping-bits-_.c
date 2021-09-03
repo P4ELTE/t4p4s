@@ -5,7 +5,8 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 1, FDATA(/*advanced*/"0000000", "00"), NO_CTL_REPLY, 0, FDATA("01")},
+        {FAKE_PKT, 0, 1, FDATA("ba", "0000", "99", "ab"), NO_CTL_REPLY, 12345, FDATA("0001", "99")},
+        {FAKE_PKT, 0, 1, FDATA("ba", "00ff", "99", "ab"), NO_CTL_REPLY, 12345, FDATA("99")},
         FEND,
     },
     {

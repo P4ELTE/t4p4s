@@ -6,12 +6,15 @@ struct metadata {
 
 struct headers {
     bits16_t inhdr;
+    bits8_t  always_present;
 }
 
 PARSER {
     state start {
         packet.extract<bits8_t>(_);
         packet.extract(hdr.inhdr);
+        packet.extract(hdr.always_present);
+        packet.extract<bits8_t>(_);
         transition accept;
     }
 }
@@ -29,6 +32,7 @@ CTL_EGRESS {
 CTL_EMIT {
     apply {
         buffer.emit(hdr.inhdr);
+        buffer.emit(hdr.always_present);
     }
 }
 
