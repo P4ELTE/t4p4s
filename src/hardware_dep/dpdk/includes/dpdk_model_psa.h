@@ -15,7 +15,8 @@
 #define INGRESS_META_FLD    FLD(all_metadatas,ingress_port)
 #define EGRESS_META_FLD     FLD(all_metadatas,egress_port)
 #define EGRESS_INIT_VALUE   0
-#define EGRESS_DROP_VALUE   true
+// note: EGRESS_DROP_VALUE should not clash with T4P4S_BROADCAST_PORT
+#define EGRESS_DROP_VALUE   200
 
 
 typedef enum_PSA_CounterType_t T4P4S_COUNTER_e;

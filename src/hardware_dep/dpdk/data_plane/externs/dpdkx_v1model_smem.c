@@ -18,7 +18,7 @@ extern void do_counter_count(counter_t* counter, int index, uint32_t value);
 void extern_counter_count(uint32_t counter_array_size, T4P4S_COUNTER_e ct, uint32_t index, counter_t* counter, SHORT_STDPARAMS) {
     index = rte_be_to_cpu_32(index);
     if (index < counter_array_size) {
-        do_counter_count(counter, index, ct == enum_CounterType_packets ? 1 : packet_length(pd));
+        do_counter_count(counter, index, ct == enum_CounterType_packets ? 1 : packet_size(pd));
     }
 }
 

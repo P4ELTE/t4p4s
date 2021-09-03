@@ -16,7 +16,7 @@
 extern void do_counter_count(counter_t* counter, int index, uint32_t value);
 
 void extern_counter_count(uint32_t counter_array_size, T4P4S_COUNTER_e ct, uint32_t index, counter_t* counter, SHORT_STDPARAMS) {
-    do_counter_count(counter, index, ct == enum_PSA_CounterType_t_PACKETS ? 1 : packet_length(pd));
+    do_counter_count(counter, index, ct == enum_PSA_CounterType_t_PACKETS ? 1 : packet_size(pd));
 }
 
 void extern_direct_counter_count(int counter_type, direct_counter_t* smem, SHORT_STDPARAMS) {

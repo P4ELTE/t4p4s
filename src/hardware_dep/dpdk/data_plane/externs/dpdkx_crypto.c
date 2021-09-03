@@ -156,14 +156,14 @@ static void configure_device(int cdev_id, struct rte_cryptodev_config *conf, str
 // Helper functions
 void reset_pd(packet_descriptor_t *pd)
 {
-    pd->parsed_length = 0;
+    pd->parsed_size = 0;
     if(pd->wrapper == 0){
-        pd->payload_length = 0;
+        pd->payload_size = 0;
     }else{
-        pd->payload_length = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_length;
+        pd->payload_size = rte_pktmbuf_pkt_len(pd->wrapper) - pd->parsed_size;
     }
-    pd->emit_hdrinst_count = 0;
-    pd->is_emit_reordering = false;
+    pd->deparse_hdrinst_count = 0;
+    pd->is_deparse_reordering = false;
 }
 
 void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum crypto_task_type op_type, int offset, void* extraInformationForAsyncHandling){
@@ -244,6 +244,9 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
         case CRYPTO_TASK_DECRYPT:
             rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
             break;
+        case CRYPTO_TASK_MD5_HMAC:
+            // TODO
+            break;
         }
     }
 }
@@ -300,12 +303,12 @@ void do_blocking_sync_op(packet_descriptor_t* pd, enum crypto_task_type op, int 
         debug_mbuf(pd->wrapper,"FULL HMAC RESULT:");
     }else{
         struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
-        int packet_length = *(rte_pktmbuf_mtod(mbuf, int*));
+        int packet_size = *(rte_pktmbuf_mtod(mbuf, int*));
 
         rte_pktmbuf_adj(mbuf, sizeof(int));
-        //pd->wrapper = mbuf;
-        //pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-        //pd->wrapper->pkt_len = packet_length;
+        pd->wrapper = mbuf;
+        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+        pd->wrapper->pkt_len = packet_size;
         debug_mbuf(mbuf, "Result of encryption\n");
     }
 
@@ -363,7 +366,7 @@ extern void do_decryption(SHORT_STDPARAMS);
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
-void do_encryption_async(SHORT_STDPARAMS)
+void do_encryption_async_impl(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
@@ -392,7 +395,7 @@ void do_encryption_async(SHORT_STDPARAMS)
     #endif
 }
 
-void do_decryption_async(SHORT_STDPARAMS)
+void do_decryption_async_impl(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
@@ -447,15 +450,15 @@ void do_decryption(SHORT_STDPARAMS)
 
 void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     debug_mbuf(pd->wrapper,"do_ipsec_encapsulation, wrapper:");
-    fprintf(stderr,"HEEEE:%d\n",pd->headers[1].length);
-    dbg_bytes(pd->headers[1].pointer,pd->headers[1].length,"hello");
+    fprintf(stderr,"HEEEE:%d\n",pd->headers[1].size);
+    dbg_bytes(pd->headers[1].pointer,pd->headers[1].size,"hello");
 
     int wrapper_length = rte_pktmbuf_pkt_len(pd->wrapper);
     int padding_length = (16 - wrapper_length% 16) % 16;
-    int wrapper_and_payload_length = padding_length + wrapper_length;
+    int wrapper_and_payload_size = padding_length + wrapper_length;
     // 1 byte pad length, 1 byte next header, 8 byte esp, 8 byte iv, 12 byte hmac
-    u_int8_t* new_payload = malloc(wrapper_and_payload_length + 1 + 1 + 8 + 8 + 12);
-    memset(new_payload, 0, wrapper_and_payload_length + 1 + 1 + 8 + 8 + 12);
+    u_int8_t* new_payload = malloc(wrapper_and_payload_size + 1 + 1 + 8 + 8 + 12);
+    memset(new_payload, 0, wrapper_and_payload_size + 1 + 1 + 8 + 8 + 12);
 
     // the output of the encryption will be after the IV and the simulated ESP
     u_int8_t* payload_to_encrypt = new_payload + 8 + 8;
@@ -465,11 +468,11 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     //add padding
     memset(payload_to_encrypt+wrapper_length,0,padding_length);
 
-    payload_to_encrypt[wrapper_and_payload_length] = (u_int8_t)padding_length;
-    payload_to_encrypt[wrapper_and_payload_length + 1] = 4;
+    payload_to_encrypt[wrapper_and_payload_size] = (u_int8_t)padding_length;
+    payload_to_encrypt[wrapper_and_payload_size + 1] = 4;
 
-    dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
-    dbg_bytes(payload_to_encrypt,wrapper_and_payload_length+2,"To Encrypt:");
+    dbg_bytes(new_payload + 8,wrapper_and_payload_size+2 + 8 + 8 + 12,"all buffer:");
+    dbg_bytes(payload_to_encrypt,wrapper_and_payload_size+2,"To Encrypt:");
     // TODO: ENCRYPT
     u_int8_t* iv = malloc(8);
     memset(iv,0xbb,8);
@@ -485,14 +488,14 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     u_int8_t* hmac = malloc(12);
     memset(hmac,0xaa,12);
     int hmac_length;
-    //TODO: hmac(hmac,&hmac_length,new_payload,8 + 8 + wrapper_and_payload_length + 2);
-    memcpy(new_payload + 8 + 8 + wrapper_and_payload_length + 2, hmac, 12);
+    //TODO: hmac(hmac,&hmac_length,new_payload,8 + 8 + wrapper_and_payload_size + 2);
+    memcpy(new_payload + 8 + 8 + wrapper_and_payload_size + 2, hmac, 12);
 
-    dbg_bytes(new_payload,wrapper_and_payload_length+2 + 8 + 8 + 12,"all buffer:");
-    dbg_bytes(new_payload + 8,wrapper_and_payload_length+2 + 8 + 12,"final");
+    dbg_bytes(new_payload,wrapper_and_payload_size+2 + 8 + 8 + 12,"all buffer:");
+    dbg_bytes(new_payload + 8,wrapper_and_payload_size+2 + 8 + 12,"final");
 }
 
-void md5_hmac__u8s(uint8_buffer_t offset, SHORT_STDPARAMS)
+void md5_hmac_impl(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, offset.buffer[0]);
 }

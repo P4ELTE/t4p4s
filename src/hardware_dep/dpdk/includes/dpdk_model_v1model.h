@@ -17,7 +17,8 @@
 #define INGRESS_META_FLD    FLD(all_metadatas,ingress_port)
 #define EGRESS_META_FLD     FLD(all_metadatas,egress_port)
 #define EGRESS_INIT_VALUE   0
-#define EGRESS_DROP_VALUE   100
+// note: EGRESS_DROP_VALUE should not clash with T4P4S_BROADCAST_PORT
+#define EGRESS_DROP_VALUE   200
 
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
@@ -121,6 +122,7 @@ void log_msg__ethernet_ts(const char** msg, uint8_buffer_t data, SHORT_STDPARAMS
 
 // v1model.p4: extern void mark_to_drop(inout standard_metadata_t standard_metadata);
 void mark_to_drop(SHORT_STDPARAMS);
+void mark_to_drop_impl(SHORT_STDPARAMS);
 
 
 

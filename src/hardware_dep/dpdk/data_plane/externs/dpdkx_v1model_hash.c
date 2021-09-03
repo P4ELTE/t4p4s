@@ -14,6 +14,46 @@
 #include <rte_ip.h>
 
 
+// TODO will this always work for both 32b and 16b hashes?
+void hash_impl(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
+    debug("    : Executing hash on " T4LIT(%d) " using %s\n", data.buffer_size, enum_value_names_HashAlgorithm[hash]);
+    dbg_bytes(data.buffer, data.buffer_size, "    : Executing hash on " T4LIT(%d) " bytes: ", data.buffer_size);
+
+    switch (hash) {
+        case enum_HashAlgorithm_crc32:
+        {
+            *result = rte_hash_crc(data.buffer, data.buffer_size, 0xffffffff);
+        }
+            break;
+
+        case enum_HashAlgorithm_identity:
+        {
+            if (data.buffer_size > 4){
+                memcpy(result, data.buffer, 4);
+            } else {
+                *result = 0;
+                memcpy(result, data.buffer, data.buffer_size);
+            }
+        }
+            break;
+
+        case enum_HashAlgorithm_random:
+        {
+            *result = rte_rand();
+        }
+            break;
+
+        default:
+        {
+            debug("    " T4LIT(Not implemented hash algorithm!,error) " fallback to identity algorithm" "\n");
+            memcpy(result, data.buffer, data.buffer_size > 4 ? 4 : data.buffer_size);
+        }
+    }
+
+    dbg_bytes(result, 4, "        Result:");
+}
+
+
 void hash(uint16_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
     hash__u16__u16__bufs__u32(result,hash,base,data,max, SHORT_STDPARAMS_IN);
 }
