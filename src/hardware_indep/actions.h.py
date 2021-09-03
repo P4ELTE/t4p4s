@@ -29,7 +29,7 @@ for table in hlir.tables:
         #[     action_,
 if len(hlir.tables) == 0:
     #[     action_DUMMY_ACTION_0,
-#} } actions_t;
+#} } actions_e;
 
 for ctl in hlir.controls:
     for act in ctl.actions:
@@ -43,14 +43,20 @@ for ctl in hlir.controls:
         #} } action_${act.name}_params_t;
         #[
 
+
 for table in hlir.tables:
-    #{ typedef struct {
-    #[     int action_id;
-    #{     union {
+    #{ typedef union {
     for action in table.actions:
         action_method_name = action.expression.method.path.name
-        #[         action_${action.action_object.name}_params_t ${action_method_name}_params;
-    #}     };
+        #[     action_${action.action_object.name}_params_t ${action_method_name}_params;
+    #} } ${table.name}_action_params_t;
+    #[
+
+
+for table in hlir.tables:
+    #{ typedef struct {
+    #[     actions_e                     id;
+    #[     ${table.name}_action_params_t params;
     #} } ${table.name}_action_t;
     #[
 
@@ -77,7 +83,3 @@ for ctl in hlir.controls:
 
     #} } control_locals_${ctl.name}_t;
     #[
-
-
-#[ void set_hdr_valid(header_instance_t hdr, SHORT_STDPARAMS);
-#[ void set_hdr_invalid(header_instance_t hdr, SHORT_STDPARAMS);

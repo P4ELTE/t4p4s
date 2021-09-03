@@ -26,8 +26,8 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 #} #endif
 
 #[ extern ctrl_plane_backend bg;
-#[ extern char* action_short_names[];
-#[ extern char* action_names[];
+#[ extern const char* action_short_names[];
+#[ extern const char* action_names[];
 
 #[ void parse_packet(STDPARAMS);
 #[ void increase_counter(int counterid, int index);
@@ -40,19 +40,19 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 
 #[ void update_packet(STDPARAMS);
 
-table_infos = [(table, table.short_name + ("/keyless" if table.key_length_bits == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
+table_infos = [(table, table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
+    if 'key' not in table or table.key_bit_size == 0:
         continue
 
-    #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key);
+    #[ void table_${table.name}_key(packet_descriptor_t* pd, uint8_t* key KEYTXTPARAMS);
 
 for table, table_info in table_infos:
     #[ void ${table.name}_stats(int action_id, STDPARAMS);
 
 for table, table_info in table_infos:
-    #[ table_entry_${table.name}_t* ${table.name}_get_default_entry(STDPARAMS);
+    #[ ENTRY(${table.name})* ${table.name}_get_default_entry(STDPARAMS);
 
 for table, table_info in table_infos:
     if len(table.direct_meters + table.direct_counters) == 0:
@@ -88,10 +88,10 @@ for table, table_info in table_infos:
 #[     void show_params_by_action_id(char* out, int table_id, int action_id, const void* entry);
 
 for table in hlir.tables:
-    if 'key' not in table or table.key_length_bits == 0:
+    if 'key' not in table or table.key_bit_size == 0:
         continue
 
-    #[     void ${table.name}_apply_show_hit_with_key(uint8_t* key[${table.key_length_bytes}], bool hit, const table_entry_${table.name}_t* entry, STDPARAMS);
+    #[     void ${table.name}_apply_show_hit_with_key(bool hit, const ENTRY(${table.name})* entry  KEYTXTPARAM, STDPARAMS);
 
     for dbg_action in table.actions:
         aoname = dbg_action.action_object.name
@@ -100,7 +100,10 @@ for table in hlir.tables:
 #} #endif
 
 for table, table_info in table_infos:
-    if 'key' in table and table.key_length_bits > 0:
+    if 'key' in table and table.key_bit_size > 0:
         continue
 
     #[ void ${table.name}_apply_show_hit(int action_id, STDPARAMS);
+
+
+#[ void table_set_default_action(lookup_table_t* table, ENTRYBASE* entry);

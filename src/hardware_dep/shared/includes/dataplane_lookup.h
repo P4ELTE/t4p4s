@@ -17,7 +17,7 @@ enum lookup_t {
 
 struct type_field_list {
     uint8_t fields_quantity;
-    uint8_t** field_offsets;
+    uint8_t** field_ptrs;
     uint8_t* field_widths;
 };
 
@@ -26,16 +26,15 @@ typedef struct {
 
     uint8_t key_size;
 
-    // entry size == val_size + validity_size + state_size
-    uint8_t entry_size;
+    // Note: entry size == action_size + state_size
     uint8_t action_size;
-    uint8_t validity_size;
     uint8_t state_size;
 } lookup_table_entry_info_t;
 
 typedef struct {
-    const char* name;
-    const char* canonical_name;
+    const char*const name;
+    const char*const canonical_name;
+    const char*const short_name;
 
     unsigned id;
     uint8_t type;
@@ -53,6 +52,16 @@ typedef struct {
     lookup_table_entry_info_t entry;
 #ifdef T4P4S_DEBUG
     int init_entry_count;
-    const char* short_name;
 #endif
 } lookup_table_t;
+
+
+typedef struct {
+    int     id;       // actual type: actions_e (an enum)
+    uint8_t params[];
+} base_table_action_t;
+
+// Note: a table entry contains a (possibly invalid) action and a state
+//       the latter of which is not represented
+typedef base_table_action_t ENTRYBASE;
+

@@ -26,7 +26,7 @@ else:
     #[ #include "util_debug.h"
     #[ #include "util_packet.h"
 
-    #[ #include "util_packet.h"
+    #[ #include "dpdk_primitives.h"
 
     #[ extern const char* action_names[];
     #[ extern const char* action_canonical_names[];
@@ -40,7 +40,7 @@ else:
 
         #[ extern ${format_type(mcall.urtype)} $funname(uint32_t /* ignored */ receiver, ctrl_plane_digest cpd, SHORT_STDPARAMS);
 
-    #[ extern void do_assignment(header_instance_t dst_hdr, header_instance_t src_hdr, SHORT_STDPARAMS);
+    #[ extern void do_assignment(header_instance_e dst_hdr, header_instance_e src_hdr, SHORT_STDPARAMS);
 
     ################################################################################
 
@@ -50,8 +50,6 @@ else:
             #[     // action name: ${name.expr[0].value}
         #{     void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
         if len(act.body.components) != 0:
-            #[         uint32_t value32, res32;
-            #[         (void)value32, (void)res32;
             #[         control_locals_${ctl.name}_t* local_vars = (control_locals_${ctl.name}_t*) pd->control_locals;
 
             for stmt in act.body.components:

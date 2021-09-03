@@ -53,7 +53,7 @@ def search_for_annotations(stmt):
         return stmt
 
     annots = [ann for ann in stmt.annotations.annotations if ann.name in available_optimization_annotations]
-    name   = '_'.join([ann.name for ann in annots])
+    name   = '_'.join(ann.name for ann in annots)
     if "" != name:
         args = [ann.expr for ann in annots]
         stmt.components = map(lambda component: apply_annotations(name, args, component), stmt.components)

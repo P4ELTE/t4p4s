@@ -9,8 +9,10 @@
 #include "aliases.h"
 #include "parser.h"
 
+#include "dataplane_lookup.h"
+
 typedef struct {
-    header_instance_t header;
+    header_instance_e header;
     int meta;
     int bitwidth;
     int bytewidth;
@@ -23,7 +25,7 @@ typedef struct {
 } field_reference_t;
 
 typedef struct {
-    header_instance_t header_instance;
+    header_instance_e header_instance;
     int bytewidth;
     int var_width_field;
 } header_reference_t;
@@ -31,8 +33,8 @@ typedef struct {
 #define FIELD_FIXED_WIDTH_PD(f) (f != hdr_infos[fld_infos[f].header_instance].var_width_field)
 #define FIELD_FIXED_POS_PD(f)   (f <= hdr_infos[fld_infos[f].header_instance].var_width_field || hdr_infos[fld_infos[f].header_instance].var_width_field == -1)
 
-#define FIELD_DYNAMIC_BITWIDTH_PD(pd, f) (FIELD_FIXED_WIDTH_PD(f) ? fld_infos[f].bit_width : (pd)->headers[fld_infos[f].header_instance].var_width_field_bitwidth)
-#define FIELD_DYNAMIC_BYTEOFFSET_PD(pd, f) (fld_infos[f].byte_offset + (FIELD_FIXED_POS_PD(f) ? 0 : ((pd)->headers[fld_infos[f].header_instance].var_width_field_bitwidth / 8)))
+#define FIELD_DYNAMIC_BITWIDTH_PD(pd, f) (FIELD_FIXED_WIDTH_PD(f) ? fld_infos[f].bit_width : (pd)->headers[fld_infos[f].header_instance].vw_size)
+#define FIELD_DYNAMIC_BYTEOFFSET_PD(pd, f) (fld_infos[f].byte_offset + (FIELD_FIXED_POS_PD(f) ? 0 : ((pd)->headers[fld_infos[f].header_instance].vw_size / 8)))
 
 #define field_desc(pd, f) ((field_reference_t) \
                { \
@@ -56,10 +58,10 @@ typedef struct {
                }
 
 typedef struct {
-    header_instance_t   type;
+    header_instance_e   type;
     void *              pointer;
-    uint32_t            length;
-    int                 var_width_field_bitwidth;
+    uint32_t            size;
+    int                 vw_size;
     bool                was_enabled_at_initial_parse;
 #ifdef T4P4S_DEBUG
     const char*         name;
@@ -68,7 +70,7 @@ typedef struct {
 
 typedef struct {
     int current;
-} pkt_header_stack_t;
+} pkt_header_stack_e;
 
 typedef struct {
     packet_data_t*      data;
@@ -77,13 +79,13 @@ typedef struct {
     parsed_fields_t     fields;
     packet*             wrapper;
 
-    pkt_header_stack_t  stacks[STACK_COUNT+1];
+    pkt_header_stack_e  stacks[STACK_COUNT+1];
 
-    int emit_hdrinst_count;
-    int emit_headers_length;
-    int parsed_length;
-    int payload_length;
-    bool is_emit_reordering;
+    int deparse_hdrinst_count;
+    int deparse_size;
+    int parsed_size;
+    int payload_size;
+    bool is_deparse_reordering;
     // note: it is possible to emit a header more than once; +8 is a reasonable upper limit for emits
     int header_reorder[HEADER_COUNT+8];
     uint8_t header_tmp_storage[NONMETA_HDR_TOTAL_LENGTH];
@@ -100,12 +102,26 @@ typedef struct {
 } packet_descriptor_t;
 
 
-uint8_t* get_fld_pointer(const packet_descriptor_t* pd, field_instance_t fld);
+#define SHORT_STDPARAMS packet_descriptor_t* pd, lookup_table_t** tables
+#define STDPARAMS       SHORT_STDPARAMS, parser_state_t* pstate
+#define LCPARAMS        struct lcore_data* lcdata, packet_descriptor_t* pd
 
-void activate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
-void deactivate_hdr(header_instance_t hdr, packet_descriptor_t* pd);
+#define SHORT_STDPARAMS_IN pd, tables
+#define STDPARAMS_IN       SHORT_STDPARAMS_IN, pstate
+#define LCPARAMS_IN        lcdata, pd
 
-void stk_next(header_stack_t stk, packet_descriptor_t* pd);
-header_instance_t stk_at_idx(header_stack_t stk, int idx, packet_descriptor_t* pd);
-header_instance_t stk_current(header_stack_t stk, packet_descriptor_t* pd);
-field_instance_t stk_start_fld(header_instance_t hdr);
+
+uint8_t* get_fld_pointer(const packet_descriptor_t* pd, field_instance_e fld);
+
+void activate_hdr(header_instance_e hdr, packet_descriptor_t* pd);
+void deactivate_hdr(header_instance_e hdr, packet_descriptor_t* pd);
+bool is_header_valid(header_instance_e, packet_descriptor_t*);
+
+void stk_next(header_stack_e stk, packet_descriptor_t* pd);
+header_instance_e stk_at_idx(header_stack_e stk, int idx, packet_descriptor_t* pd);
+header_instance_e stk_current(header_stack_e stk, packet_descriptor_t* pd);
+field_instance_e stk_start_fld(header_instance_e hdr);
+
+void do_assignment(header_instance_e dst_hdr, header_instance_e src_hdr, SHORT_STDPARAMS);
+void set_hdr_valid(header_instance_e hdr, SHORT_STDPARAMS);
+void set_hdr_invalid(header_instance_e hdr, SHORT_STDPARAMS);
