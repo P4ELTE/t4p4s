@@ -42,7 +42,11 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
 
     found=0
     for p4file in "$noc" "$noprefix"; do
-        for file2 in `find -L . -type f -regex ".*${p4file}.*[.]p4\(_[0-9][0-9]*\)?"`; do
+        for file2 in `find -L "${START_DIR}" -type f -regex ".*${p4file}[.]p4\(_[0-9][0-9]*\)?"`; do
+            base2=`basename "$file2"`
+            base2=${base2%.*}
+            [ "$base2" != "$noprefix" ] && [ "$base2" != "test-$noprefix" ] && continue
+
             SRC_P4="$file2"
             found=1
             break 2
@@ -55,7 +59,6 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
         PREPART="$PREFIX"
         if [ -z ${POSTFIX+x} ]; then
             TESTPART="${p4file}=${testcase}"
-            [ "$PREFIX" == "" -a "$testcase" == "test" ] && TESTPART="${p4file}" && PREPART="%"
         else
             TESTPART="${p4file}$POSTFIX"
         fi
@@ -95,7 +98,7 @@ if [ "$PRECOMPILE" == "yes" ]; then
     for TESTCASE in ${testcases[@]}; do
         [ "${skipped[$TESTCASE]+x}" ] && continue
 
-        TARGET_DIR="../build/${dirname[$TESTCASE]}/cache"
+        TARGET_DIR="./build/${dirname[$TESTCASE]}/cache"
         TARGET_JSON="${TARGET_DIR}/${p4files[$TESTCASE]}.${ext_p4[$TESTCASE]}.json.cached"
         mkdir -p ${TARGET_DIR}
 
@@ -104,7 +107,7 @@ if [ "$PRECOMPILE" == "yes" ]; then
         [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && P4VSN=14
         [ "${ext_p4[$TESTCASE]}" == "p4"    ] && P4VSN=16
 
-        $P4C/build/p4test "${src_p4[$TESTCASE]}" -I $P4C/p4include --toJSON ${TARGET_JSON} --Wdisable --p4v $P4VSN --ndebug && \
+        $P4C/build/p4test "${src_p4[$TESTCASE]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug && \
             gzip ${TARGET_JSON} && \
             mv ${TARGET_JSON}.gz ${TARGET_JSON} && \
             echo -n "|"  &
@@ -172,7 +175,7 @@ for TESTCASE in ${sorted_testcases[@]}; do
 
     echo
     echo
-    echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $TESTCASE $*
+    echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $* $TESTCASE
     ./t4p4s.sh $TESTCASE $*
     exitcode["$TESTCASE"]="$?"
 
@@ -201,15 +204,17 @@ else
 
     declare -A fail_codes
     fail_codes[1]="P4 to C compilation failed"
-    fail_codes[2]="C compilation failed"
-    fail_codes[3]="Execution finished with wrong output"
-    fail_codes[4]="Packets were unexpectedly dropped/sent"
-    fail_codes[5]="Too many iterations, possible infinite loop"
+    fail_codes[2]="C compilation failed (meson)"
+    fail_codes[3]="C compilation failed"
+    fail_codes[4]="Too many iterations, possible infinite loop"
+    fail_codes[5]="Packets were unexpectedly dropped/sent"
+    fail_codes[6]="Execution finished with wrong output"
+    fail_codes[7]="Control flow requirements not met"
     fail_codes[139]="C code execution: Segmentation fault"
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"
 
-    for fc in 1 2 3 4 139 254 255; do
+    for fc in 7 6 5 4 3 2 1 139 254 255; do
         failcode_count=0
         for test in ${!exitcode[@]}; do
             [ ${exitcode[$test]} -eq $fc ] && ((++failcode_count))
