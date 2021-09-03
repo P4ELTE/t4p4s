@@ -273,3 +273,7 @@ def get_hdrfld_name(e):
 
     fldname = e.member
     return get_hdr_name(e.expr), fldname
+
+
+def to_c_bool(value):
+    return 'true' if value else 'false'
