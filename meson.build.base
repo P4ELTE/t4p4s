@@ -9,19 +9,22 @@ project_description = meson.project_name()
 
 project_source_files = [
     srcg / 'dataplane.c',
+    srcg / 'dataplane_deparse.c',
     srcg / 'dataplane_key.c',
-    srcg / 'dataplane_table_default_entry.c',
-    srcg / 'dataplane_stats.c',
-    srcg / 'dataplane_smem.c',
-    srcg / 'dataplane_update.c',
     srcg / 'dataplane_show.c',
+    srcg / 'dataplane_smem.c',
+    srcg / 'dataplane_stats.c',
+    srcg / 'dataplane_table_default_entry.c',
+    srcg / 'dataplane_update.c',
 
     srcg / 'tables.c',
     srcg / 'parser.c',
+    srcg / 'hdr_fld.h',
     srcg / 'hdr_fld.c',
     srcg / 'actions.c',
     srcg / 'controlplane.c',
     srcg / 'stats.c',
+    srcg / 'stats_requirements.c',
     srcg / 'common.c',
 
     hdep / 'dpdk/main.c',
@@ -36,9 +39,13 @@ project_source_files = [
 
     hdep / 'dpdk/data_plane/dpdk_lib.c',
     hdep / 'dpdk/data_plane/dpdk_tables.c',
+    hdep / 'dpdk/data_plane/dpdk_primitives.c',
     hdep / 'dpdk/data_plane/dpdk_primitives_impl.c',
 
     hdep / 'shared/data_plane/ternary_naive.c',
+
+    srcg / 'dpdkx_gen_extern.h',
+    srcg / 'dpdkx_gen_extern.c',
 
     hdep / 'shared/util_debug.c',
     hdep / 'shared/backend.c',
@@ -52,13 +59,13 @@ build_args = [
     '-Wno-parentheses-equality',
 ]
 
-include_dirs = include_directories(
+incdirs = [
     srcg,
     srcg / 'multi',
     hdep / 'dpdk/includes',
     hdep / 'shared/includes',
     hdep / 'shared/ctrl_plane',
-)
+]
 
 all_dependencies = [
     dependency('libdpdk'),

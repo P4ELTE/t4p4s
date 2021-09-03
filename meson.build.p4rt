@@ -3,18 +3,12 @@ build_args += [
     '-L' + (grpcpp / 'static_lib'),
 ]
 
-# note: this variable is reassigned because the += operator is not supported here
-include_dirs = include_directories(
-    srcg,
-    hdep / 'dpdk/includes',
-    hdep / 'shared/includes',
-    hdep / 'shared/ctrl_plane',
-
+incdirs += [
     grpcpp,
     grpcpp / 'include',
     grpc / 'include',
     p4pi / 'proto/server',
-)
+]
 
 all_dependencies += [
     dependency('grpc++'),
