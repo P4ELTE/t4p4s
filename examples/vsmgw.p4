@@ -176,91 +176,87 @@ parser MyParser(packet_in packet,
                 inout standard_metadata_t standard_metadata) {
 
     state start {
-        transition parse_ethernet;
-    }
-
-    state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            ETHERTYPE_IPV4: parse_ipv4;
-            ETHERTYPE_ARP: parse_arp;
+            ETHERTYPE_IPV4: ipv4;
+            ETHERTYPE_ARP: arp;
             default: accept;
         }
     }
 
-    state parse_arp {
+    state arp {
         packet.extract(hdr.arp);
         transition select(hdr.arp.htype, hdr.arp.ptype,
                           hdr.arp.hlen,  hdr.arp.plen) {
             (ARP_HTYPE_ETHERNET, ARP_PTYPE_IPV4,
-             ARP_HLEN_ETHERNET,  ARP_PLEN_IPV4) : parse_arp_ipv4;
+             ARP_HLEN_ETHERNET,  ARP_PLEN_IPV4) : arp_ipv4;
             default : accept;
         }
     }
 
-    state parse_arp_ipv4 {
+    state arp_ipv4 {
         packet.extract(hdr.arp_ipv4);
         meta.arp_metadata.dst_ipv4 = hdr.arp_ipv4.tpa;
         transition accept;
     }
 
-    state parse_ipv4 {
+    state ipv4 {
         packet.extract(hdr.ipv4);
         meta.arp_metadata.dst_ipv4 = hdr.ipv4.dstAddr;
         transition select(hdr.ipv4.protocol) {
-            IPPROTO_ICMP : parse_icmp;
-            IPPROTO_UDP  : parse_udp;
+            IPPROTO_ICMP : icmp;
+            IPPROTO_UDP  : udp;
             default      : accept;
         }
     }
 
-    state parse_icmp {
+    state icmp {
         packet.extract(hdr.icmp);
         transition accept;
     }
 
-    state parse_udp {
+    state udp {
         packet.extract(hdr.udp);
         transition select(hdr.udp.dstPort) {
-            GTP_UDP_PORT : parse_gtp;
+            GTP_UDP_PORT : gtp;
             default      : accept;
         }
     }
 
-    state parse_gtp {
+    state gtp {
         packet.extract(hdr.gtp_common);
         transition select(hdr.gtp_common.version, hdr.gtp_common.tFlag) {
-            (1,0)   : parse_teid;
-            (1,1) : parse_teid;
-            (2,1) : parse_teid;
-            (2,0) : parse_gtpv2;
+            (1,0) : teid;
+            (1,1) : teid;
+            (2,1) : teid;
+            (2,0) : gtpv2;
             default : accept;
         }
     }
 
-    state parse_teid {
+    state teid {
         packet.extract(hdr.gtp_teid);
         transition accept;
 /*select( hdr.gtp_common.version, hdr.gtp_common.eFlag, hdr.gtp_common.sFlag, hdr.gtp_common.pnFlag ) {
-            0x10 &  0x18 : parse_gtpv2; / v2 /
-            0x0c & 0x1c : parse_gtpv1optional; / v1 + E /
-            0x0a & 0x1a : parse_gtpv1optional; / v1 + S /
-            0x09 & 0x19 : parse_gtpv1optional; / v1 + PN
-            default     : parse_inner;
+            0x10 &  0x18 : gtpv2; / v2 /
+            0x0c & 0x1c : gtpv1optional; / v1 + E /
+            0x0a & 0x1a : gtpv1optional; / v1 + S /
+            0x09 & 0x19 : gtpv1optional; / v1 + PN
+            default     : inner;
         }*/
     }
 
-    state parse_gtpv2 {
+    state gtpv2 {
         packet.extract(hdr.gtpv2_ending);
         transition accept;
     }
 
-    state parse_gtpv1optional {
+    state gtpv1optional {
         packet.extract(hdr.gtpv1_optional);
-        transition parse_inner;
+        transition inner;
     }
 
-    state parse_inner {
+    state inner {
         packet.extract(hdr.inner_ipv4);
         transition accept;
     }

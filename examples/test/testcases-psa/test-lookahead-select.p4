@@ -24,6 +24,7 @@ PARSER {
         hdr.outhdr.setValid();
         hdr.outhdr.f1.f1 = 0;
         hdr.outhdr.f3.f3 = 0;
+        hdr.outhdr.f7.f7 = 0;
         hdr.outhdr.f8.f8 = 0;
         hdr.outhdr.f9.f9 = 0;
         hdr.outhdr.f16.f16 = 0;
@@ -49,6 +50,13 @@ PARSER {
         transition select(packet.lookahead<bit<3>>()) {
             3w1:     got3_1;
             default: got3_default;
+        }
+    }
+
+    state look7 {
+        transition select(packet.lookahead<bit<7>>()) {
+            7w1:     got7_1;
+            default: got7_default;
         }
     }
 
@@ -87,18 +95,20 @@ PARSER {
         }
     }
 
-    state got1_1       { hdr.outhdr.f1.f1  = 1; transition look3;  }
-    state got3_1       { hdr.outhdr.f3.f3  = 1; transition look8;  }
-    state got8_1       { hdr.outhdr.f8.f8  = 1; transition look9;  }
-    state got9_1       { hdr.outhdr.f9.f9  = 1; transition look16; }
+    state got1_1       { hdr.outhdr.f1.f1   = 1; transition look3;  }
+    state got3_1       { hdr.outhdr.f3.f3   = 1; transition look7;  }
+    state got7_1       { hdr.outhdr.f7.f7   = 1; transition look8;  }
+    state got8_1       { hdr.outhdr.f8.f8   = 1; transition look9;  }
+    state got9_1       { hdr.outhdr.f9.f9   = 1; transition look16; }
     state got16_1      { hdr.outhdr.f16.f16 = 1; transition look17; }
     state got17_1      { hdr.outhdr.f17.f17 = 1; transition look32; }
     state got32_1      { hdr.outhdr.f32.f32 = 1; transition done;   }
 
-    state got1_default  { hdr.outhdr.f1.f1  = packet.lookahead<bits1_t>().f1;   transition look3;  }
-    state got3_default  { hdr.outhdr.f3.f3  = packet.lookahead<bits3_t>().f3;   transition look8;  }
-    state got8_default  { hdr.outhdr.f8.f8  = packet.lookahead<bits8_t>().f8;   transition look16; }
-    state got9_default  { hdr.outhdr.f9.f9  = packet.lookahead<bits9_t>().f9;   transition look16; }
+    state got1_default  { hdr.outhdr.f1.f1   = packet.lookahead<bits1_t>().f1;   transition look3;  }
+    state got3_default  { hdr.outhdr.f3.f3   = packet.lookahead<bits3_t>().f3;   transition look7;  }
+    state got7_default  { hdr.outhdr.f7.f7   = packet.lookahead<bits7_t>().f7;   transition look8;  }
+    state got8_default  { hdr.outhdr.f8.f8   = packet.lookahead<bits8_t>().f8;   transition look9;  }
+    state got9_default  { hdr.outhdr.f9.f9   = packet.lookahead<bits9_t>().f9;   transition look16; }
     state got16_default { hdr.outhdr.f16.f16 = packet.lookahead<bits16_t>().f16; transition look17; }
     state got17_default { hdr.outhdr.f17.f17 = packet.lookahead<bits17_t>().f17; transition look32; }
     state got32_default { hdr.outhdr.f32.f32 = packet.lookahead<bits32_t>().f32; transition done;   }

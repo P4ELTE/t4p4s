@@ -1,111 +1,53 @@
-#include <core.p4>
-#include <psa.p4>
 
-// In: 00000000
-// Out: 11110000
-
-header dummy_t {
-    bool f1;
-    bool f2;
-    bool f3;
-    bool f4;
-    bit<4> padding;
-}
-
-struct empty_metadata_t {
-}
+#include "psa-boilerplate-pre.p4"
 
 struct metadata {
+}
+
+header dummy_t {
+    bool b1;
+    bool b2;
+    bool b3;
+    bool b4;
+    bit<4> padding;
+
+    // padded_bool_t f1;
+    // padded_bool_t f2;
+    // padded_bool_t f3;
+    // padded_bool_t f4;
 }
 
 struct headers {
     dummy_t dummy;
 }
-parser IngressParserImpl(packet_in packet,
-                         out headers hdr,
-                         inout metadata meta,
-                         in psa_ingress_parser_input_metadata_t istd,
-                         in empty_metadata_t resubmit_meta,
-                         in empty_metadata_t recirculate_meta) {
-    state parse_ethernet {
+
+PARSER {
+    state start {
         packet.extract(hdr.dummy);
         transition accept;
     }
-    state start {
-        transition parse_ethernet;
-    }
 }
 
-control egress(inout headers hdr,
-               inout metadata meta,
-               in    psa_egress_input_metadata_t  istd,
-               inout psa_egress_output_metadata_t ostd)
-{
+CTL_EGRESS {
     bool tmp_bool = true;
-    
+
     apply {
-       hdr.dummy.f1 = hdr.dummy.f1 || tmp_bool;
-       hdr.dummy.f2 = !(hdr.dummy.f2 && tmp_bool) == tmp_bool;
-       hdr.dummy.f3 = (hdr.dummy.f3 || tmp_bool) != false;
-       hdr.dummy.f4 = hdr.dummy.f4?false:true;
+       // hdr.dummy.f1.b = hdr.dummy.f1.b || tmp_bool;
+       // hdr.dummy.f2.b = !(hdr.dummy.f2.b && tmp_bool) == tmp_bool;
+       // hdr.dummy.f3.b = (hdr.dummy.f3.b || tmp_bool) != false;
+       // hdr.dummy.f4.b = hdr.dummy.f4.b ? false : true;
+
+       hdr.dummy.b1 = hdr.dummy.b1 || tmp_bool;
+       hdr.dummy.b2 = !(hdr.dummy.b2 && tmp_bool) == tmp_bool;
+       hdr.dummy.b3 = (hdr.dummy.b3 || tmp_bool) != false;
+       hdr.dummy.b4 = hdr.dummy.b4 ? false : true;
     }
 }
 
-
-control ingress(inout headers hdr,
-                inout metadata meta,
-                in    psa_ingress_input_metadata_t  istd,
-                inout psa_ingress_output_metadata_t ostd)
-{
-    apply { 
-         ostd.egress_port = (PortId_t)12345;
-    }
-}
-
-parser EgressParserImpl(packet_in buffer,
-                        out headers hdr,
-                        inout metadata meta,
-                        in psa_egress_parser_input_metadata_t istd,
-                        in empty_metadata_t normal_meta,
-                        in empty_metadata_t clone_i2e_meta,
-                        in empty_metadata_t clone_e2e_meta)
-{
-    state start {
-        transition accept;
-    }
-}
-
-control IngressDeparserImpl(packet_out buffer,
-                            out empty_metadata_t clone_i2e_meta,
-                            out empty_metadata_t resubmit_meta,
-                            out empty_metadata_t normal_meta,
-                            inout headers hdr,
-                            in metadata meta,
-                            in psa_ingress_output_metadata_t istd)
-{
+CTL_EMIT {
     apply {
         buffer.emit(hdr.dummy);
     }
 }
 
-control EgressDeparserImpl(packet_out buffer,
-                           out empty_metadata_t clone_e2e_meta,
-                           out empty_metadata_t recirculate_meta,
-                           inout headers hdr,
-                           in metadata meta,
-                           in psa_egress_output_metadata_t istd,
-                           in psa_egress_deparser_input_metadata_t edstd)
-{
-    apply {
-    }
-}
-
-IngressPipeline(IngressParserImpl(),
-                ingress(),
-                IngressDeparserImpl()) ip;
-
-EgressPipeline(EgressParserImpl(),
-               egress(),
-               EgressDeparserImpl()) ep;
-
-PSA_Switch(ip, PacketReplicationEngine(), ep, BufferingQueueingEngine()) main;
+#include "psa-boilerplate-post.p4"

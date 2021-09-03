@@ -31,7 +31,8 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 
     @name(".parse_ipv4") state parse_ipv4 {
         packet.extract(ipv4_novarbit);
-        packet.extract(ipv4_varbit, (bit<32>)((bit<32>)ipv4_novarbit.ihl * 32w4 * 8 - 160));
+        bit<32> sizeof_ipv4_novarbit = 8*20;
+        packet.extract(ipv4_varbit, (bit<32>)((bit<32>)ipv4_novarbit.ihl * 32w4 * 8 - sizeof_ipv4_novarbit));
 
         hdr.ipv4.setValid();
         hdr.ipv4.version = ipv4_novarbit.version;
