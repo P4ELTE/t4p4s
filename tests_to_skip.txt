@@ -14,7 +14,7 @@ Slice copying not implemented yet
     test-bit2
 
 Arithmetic operations are only supported on int<8>, int<16> and int<32>.
-    %test-arithmetics-nonbyte=test
+    %test-arith-nonbyte=test
 
 Header stacks and unions are not supported
     %test-header-union-1=test
