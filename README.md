@@ -335,19 +335,7 @@ The batch file processes all P4 files from the folder `examples` and its subfold
 
 # Using Docker with T₄P₄S
 
-You can also run `t4p4s-docker.sh` to run T₄P₄S in a Docker container.
-
-- Docker Community Edition has to be configured on your system.
-    - Usually it is available once you install the package `docker.io`.
-    - For more details, see [this guide](https://docs.docker.com/engine/installation/linux/docker-ce/ubuntu/).
-- Running `t4p4s-docker.sh` sets up two containers called `t4p4s` and `t4p4s-sh`.
-    - Both are usable separately.
-    - The `t4p4s-sh` container also takes all arguments for `t4p4s-docker.sh`.
-        - For example, you can run `./t4p4s-docker.sh verbose dbg %l2fwd=payload`
-        - Currently, the containers are run without a network card configuration.
-- The Docker instances rely on having the same version for `linux-headers` as the host system. See the `FROM` clause in the `t4p4s-16.docker` file.
-- The configuration is based on that of [`docker-dpdk` by Jeremy Eder](https://github.com/jeremyeder/docker-dpdk/), which includes using the host's `hugepages` inside the Docker instances.
-    - Make sure you have enough `hugepages` on the host before running the containers.
+Currently, this area of T₄P₄S is under rewrite. Stay tuned.
 
 
 # Working with the compiler
