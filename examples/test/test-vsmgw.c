@@ -139,8 +139,7 @@ fake_cmd_t t4p4s_testcase_gtpv1[][RTE_MAX_LCORE] = {
 fake_cmd_t t4p4s_testcase_gtpv2[][RTE_MAX_LCORE] = {
     {
         #if T4P4S_TESTENTRY == __LINE__ || T4P4S_TESTENTRY == 0
-            FAST(0, BCAST, hETH4(ETH01, ETH1A) hIP4(cUDP, cIP4_0, cIP4_0) hUDP(PORT0, pGTPU, LEN0, CHKSM0) hGTP("40", "00", LEN0) hGTPv2("000000", "00"),
-                 REQ("hit dmac, hit smac")),
+            FASTREQ(0, BCAST, "hit dmac, hit smac", hETH4(ETH01, ETH1A), hIP4(cUDP, cIP4_0, cIP4_0), hUDP(PORT0, pGTPU, LEN0, CHKSM0), hGTP("40", "00", LEN0), hGTPv2("000000", "00")),
         #endif
         FEND,
     },

@@ -5,7 +5,7 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 0, ETH(ETH1A, ETH01, ETH04), 200, 0, FDATA("123456789ABC", ETH01, "1234", ETH04)},
+        FAST(0, 0, INOUT(hETH4(ETH1A, ETH01), hETH("123456789ABC", ETH01, "1234"))),
 
         FEND,
     },
