@@ -70,7 +70,14 @@ else:
                 addWarning('Skipping bits', f'Only byte aligned skipping is supported, {skip_size}b is padded to {padded_skip_size//8}B')
                 skip_size = padded_skip_size
                 skip_pad_txt = '"->" T4LIT()'
-            #[     debug("   :: Skipping bits: " T4LIT(<${hdrtype.name}>,header) "/" T4LIT(%d) "B\n", ${skip_size} / 8);
+            #{     if (unlikely(pd->parsed_size + ${skip_size//8} > pd->wrapper->pkt_len)) {
+            #[         debug("   " T4LIT(!!,error) " Tried to skip " T4LIT(<${hdrtype.name}>,header) "/" T4LIT(%d) "B but it is over packet size\n", ${skip_size} / 8);
+            #[         return PARSED_AFTER_END_OF_PACKET;
+            #[     } else {
+            #[         debug("   :: Skipping " T4LIT(<${hdrtype.name}>,header) "/" T4LIT(%d) "B\n", ${skip_size} / 8);
+            #}     }
+
+            #[     pd->parsed_size += ${skip_size//8};
         else:
             #[     hdr->pointer = pd->extract_ptr;
 
