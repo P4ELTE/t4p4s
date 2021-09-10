@@ -109,6 +109,61 @@ testcase_t* current_test_case;
 // ------------------------------------------------------
 // Helpers
 
+bool is_final_section(const char*const text) {
+    return (text == NULL) || strlen(text) == 0;
+}
+
+bool starts_with_fmt_code(const char*const text) {
+    return text[0] == '<' || text[0] == '|' || text[0] == '>';
+}
+
+// The input may contain <..in..|..out..> parts.
+// Only the part indicated by is_in is kept, the other chars are skipped over.
+const char* skip_chars(const char*const text, bool is_in) {
+    const char* ptr = text;
+    char start, end, skip1;
+
+    if (is_in) {
+        start = '|';
+        end   = '>';
+        skip1 = '<';
+    } else {
+        start = '<';
+        end   = '|';
+        skip1 = '>';
+    }
+
+    char tmp[128];
+
+    if (ptr[0] == skip1) {
+        ++ptr;
+    }
+
+    if (ptr[0] == start) {
+        // skip over <.......| or |......> including the end character
+        ptr = strchr(ptr, end) + 1;
+    }
+
+    return ptr;
+}
+
+int packet_len(const char* texts[MAX_SECTION_COUNT], bool is_in) {
+    int byte_count = 0;
+
+    for (; !is_final_section(*texts); ++texts) {
+        const char* text = *texts;
+        while (text[0] != '\0') {
+            text = skip_chars(text, is_in);
+            if (starts_with_fmt_code(text))   continue;
+
+            ++byte_count;
+            text += 2;
+        }
+    }
+    return byte_count;
+}
+
+
 uint8_t bytes[8*sizeof(struct ether_header)];
 
 // str is a string that contains hex numbers without spaces.
@@ -116,10 +171,12 @@ uint8_t bytes[8*sizeof(struct ether_header)];
 // and the pointer after the last written position is retured.
 static uint8_t* str2bytes(const char* str, uint8_t* dst)
 {
-    size_t len = strlen(str) / 2;
+    const char* pos = str;
+    while (*pos != 0) {
+        const char* prev_pos = pos;
+        pos = skip_chars(pos, true);
+        if (prev_pos != pos) continue;
 
-    const char *pos = str;
-    for (size_t count = 0; count < len; count++) {
         sscanf(pos, "%2hhx", dst);
         pos += 2;
         ++dst;
@@ -132,19 +189,8 @@ static uint8_t* str2bytes(const char* str, uint8_t* dst)
 #define MAX_PACKET_SIZE 1024
 uint8_t tmp[MAX_PACKET_SIZE];
 
-int total_fake_byte_count(const char* texts[MAX_SECTION_COUNT]) {
-    int retval = 0;
-    while (*texts != 0 && strlen(*texts) > 0) {
-        retval += strlen(*texts) / 2;
-        ++texts;
-    }
-
-    return retval;
-}
-
-
 struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
-    int byte_count = total_fake_byte_count(texts);
+    int byte_count = packet_len(texts, true);
 
     struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
     uint8_t*         p2 = (uint8_t*)rte_pktmbuf_append(p, byte_count);
@@ -153,11 +199,8 @@ struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
         rte_exit(3, "Could not allocate space for fake packet\n");
     }
 
-    while (*texts != 0 && strlen(*texts) > 0) {
-        uint8_t* dst = p2;
+    while (!is_final_section(*texts)) {
         p2 = str2bytes(*texts, p2);
-
-        // dbg_bytes(dst, strlen(*texts) / 2, " :::: " T4LIT(%2zd) " bytes: ", strlen(*texts) / 2);
 
         ++texts;
     }
@@ -207,7 +250,7 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
 
     struct rte_mbuf* mbuf = (struct rte_mbuf*)pd->wrapper;
 
-    int expected_byte_count = total_fake_byte_count(cmd.out);
+    int expected_byte_count = packet_len(cmd.out, false);
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
     if (expected_byte_count != actual_byte_count) {
         debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
@@ -221,119 +264,69 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
     return true;
 }
 
-int get_wrong_byte_count(fake_cmd_t cmd, LCPARAMS) {
+
+#define MSG_MAX_LEN 4096
+
+void write_txt(const char*const txt, char** expected, char** wrong) {
+    if (*expected != NULL)    *expected += sprintf(*expected, "%s", txt);
+    if (*wrong != NULL)       *wrong    += sprintf(*wrong,    "%s", txt);
+}
+
+int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
     int wrong_byte_count = 0;
 
     int byte_idx = 0;
-    int section_idx = 0;
-    const char** texts = cmd.out;
-    while (strlen(*texts) > 0) {
-        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
+    for (const char** texts = cmd.out; !is_final_section(*texts); ++texts) {
+        const char* text = *texts;
+
+        write_txt("[", &expected, &wrong);
+
+        while (text[0] != '\0') {
+            text = skip_chars(text, false);
+            if (text[0] == '\0')   break;
+
+            if (starts_with_fmt_code(text))   continue;
+
             uint8_t expected_byte;
-            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
+            sscanf(text, "%2hhx", &expected_byte);
 
             uint8_t actual_byte = pd->data[byte_idx];
             if (expected_byte != actual_byte) {
+                wrong    += sprintf(wrong, T4LIT(%02x,error), actual_byte);
+                expected += sprintf(expected, T4LIT(%02x,expected), expected_byte);
                 ++wrong_byte_count;
+            } else {
+                wrong    += sprintf(wrong, T4LIT(%02x,expected), actual_byte);
+                expected += sprintf(expected, T4LIT(%02x,expected), expected_byte);
             }
 
             ++byte_idx;
+            text += 2;
         }
 
-        ++texts;
-        ++section_idx;
+        write_txt("]", &expected, &wrong);
     }
+
+    write_txt("\0", &expected, &wrong);
 
     return wrong_byte_count;
 }
 
-#define MSG_MAX_LEN 4096
-
-void print_wrong_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
-    char msg[MSG_MAX_LEN];
-    char* msgptr = msg;
-
-    int byte_idx = 0;
-    int section_idx = 0;
-    const char** texts = cmd.out;
-    while (strlen(*texts) > 0) {
-        sprintf(msgptr, "[");
-        msgptr += 1;
-
-        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
-            uint8_t expected_byte;
-            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
-
-            uint8_t actual_byte = pd->data[byte_idx];
-            int written_bytes;
-            if (expected_byte != actual_byte) {
-                written_bytes = sprintf(msgptr, T4LIT(%02x,error), actual_byte);
-            } else {
-                written_bytes = sprintf(msgptr, T4LIT(%02x,expected), actual_byte);
-            }
-            msgptr += written_bytes;
-
-            ++byte_idx;
-        }
-
-        sprintf(msgptr, "]");
-        msgptr += 1;
-
-        ++texts;
-        ++section_idx;
-    }
-
-    msgptr[0] = 0;
-    debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", msg);
-}
-
-void print_expected_bytes(fake_cmd_t cmd, int wrong_byte_count, LCPARAMS) {
-    char msg[MSG_MAX_LEN];
-    char* msgptr = msg;
-
-    int byte_idx = 0;
-    int section_idx = 0;
-    const char** texts = cmd.out;
-    while (strlen(*texts) > 0) {
-        sprintf(msgptr, "[");
-        msgptr += 1;
-
-        for (size_t i = 0; i < strlen(*texts) / 2; ++i) {
-            uint8_t expected_byte;
-            sscanf(*texts + (2*i), "%2hhx", &expected_byte);
-
-            uint8_t actual_byte = pd->data[byte_idx];
-            int written_bytes;
-            if (expected_byte != actual_byte) {
-                written_bytes = sprintf(msgptr, T4LIT(%02x,success), expected_byte);
-            } else {
-                written_bytes = sprintf(msgptr, T4LIT(%02x,expected), expected_byte);
-            }
-            msgptr += written_bytes;
-
-            ++byte_idx;
-        }
-
-        sprintf(msgptr, "]");
-        msgptr += 1;
-
-        ++texts;
-        ++section_idx;
-    }
-
-    msgptr[0] = 0;
-    char tmpmsg[MSG_MAX_LEN];
-    char* tmpmsgptr = tmpmsg;
-    sprintf(tmpmsgptr, "%d", wrong_byte_count);
-    debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(tmpmsgptr), "", msg);
-}
 
 void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
-    int wrong_byte_count = get_wrong_byte_count(cmd, LCPARAMS_IN);
+    char expected[MSG_MAX_LEN];
+    char wrong[MSG_MAX_LEN];
+
+    int wrong_byte_count = wrong_bytes_info(cmd, expected, wrong, LCPARAMS_IN);
 
     if (wrong_byte_count != 0) {
-        print_wrong_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
-        print_expected_bytes(cmd, wrong_byte_count, LCPARAMS_IN);
+        // this is padding for the second line
+        char wronglen[MSG_MAX_LEN];
+        sprintf(wronglen, "%d", wrong_byte_count);
+
+        debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", wrong);
+        debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(wronglen), "", expected);
+
         lcdata->is_valid = false;
         abort_on_strict();
     }
@@ -496,14 +489,6 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     return false;
 }
 
-int packet_expected_length(const char* sections[MAX_SECTION_COUNT]) {
-    int retval = 0;
-    for (int idx = 0; strlen(sections[idx]) != 0; ++idx) {
-        retval += strlen(sections[idx]) / 2;
-    }
-    return retval;
-}
-
 void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 
@@ -512,7 +497,7 @@ void free_packet(LCPARAMS) {
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
               get_cmd(lcdata->idx).out_port,
-              packet_expected_length(get_cmd(lcdata->idx).out)
+              packet_len(get_cmd(lcdata->idx).out, false)
         );
     }
 }
