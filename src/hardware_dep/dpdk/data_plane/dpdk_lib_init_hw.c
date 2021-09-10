@@ -140,6 +140,33 @@ int init_lcore_rx_queues()
     return 0;
 }
 
+void init_mbuf_pool_exit(int socketid) {
+    debug("codes %d %d %d %d %d %d\n", E_RTE_NO_CONFIG, E_RTE_SECONDARY, EINVAL, ENOSPC, EEXIST, ENOMEM);
+    if (E_RTE_NO_CONFIG == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: function could not get pointer to rte_config structure\n", socketid);
+    }
+    if (E_RTE_SECONDARY == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: function was called from a secondary process instance\n", socketid);
+    }
+    if (EINVAL == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: cache size provided is too large\n", socketid);
+    }
+    if (ENOSPC == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: the maximum number of memzones has already been allocated\n", socketid);
+    }
+    if (EEXIST == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: a memzone with the same name already exists\n", socketid);
+    }
+    if (ENOMEM == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: no appropriate memory area found in which to create memzone\n", socketid);
+    }
+    if (ENOENT == errno) {
+        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: strange ENOENT\n", socketid);
+    }
+
+    rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d: seemingly impossible error (code %d)\n", socketid, errno);
+}
+
 void init_mbuf_pool(int socketid)
 {
     if (pktmbuf_pool[socketid] != NULL) return;
@@ -155,8 +182,9 @@ void init_mbuf_pool(int socketid)
             rte_pktmbuf_init, NULL,
             socketid, 0);
 
-    if (pktmbuf_pool[socketid] == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot init mbuf pool on socket %d\n", socketid);
+    if (pktmbuf_pool[socketid] == NULL) {
+        init_mbuf_pool_exit(socketid);
+    }
 }
 
 uint32_t max(uint32_t val1, uint32_t val2) {
