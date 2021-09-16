@@ -3,7 +3,7 @@
 
 #pragma once
 
-#import "util_packet_bitfield.h"
+#include "util_packet_bitfield.h"
 
 int padded_bytecount(bitfield_handle_t fd);
 int padded_bitcount(bitfield_handle_t fd);
