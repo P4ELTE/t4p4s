@@ -148,11 +148,39 @@ if [ $? -ne 0 ]; then
 fi
 echo Root access granted, starting...
 
+
+TOOL_VSN_CFG_FILE=${TOOL_VSN_CFG_FILE-"bootstrap-t4p4s-tools-vsn.cfg"}
+
 if [ "$FRESH" == "yes" ]; then
     unset DPDK_VSN
     unset RTE_SDK
     unset RTE_TARGET
     unset P4C
+fi
+
+if [ "${INSTALL_TOOL_VSN}" != "newest" ]; then
+    GITHUB="https://raw.githubusercontent.com"
+    [ ! -f "${TOOL_VSN_CFG_FILE}" ] && wget $GITHUB/P4ELTE/t4p4s/master/${TOOL_VSN_CFG_FILE} 2>/dev/null
+
+    for assignment in `cat ${TOOL_VSN_CFG_FILE}`; do
+        [[ ! $assignment =~ "=" ]] && echo -e "In file $cc${TOOL_VSN_CFG_FILE}$nn, a non-assignment was found: $cc${assignment}$nn" && continue
+
+        VARNAME="${assignment%%=*}"
+        VARCONTENT="${assignment#*=}"
+        case $VARNAME in
+            DPDK_VSN | PROTOBUF_TAG | P4C_COMMIT_DATE )
+                # these vars are allowed to be set
+                ;;
+            *)
+                echo -e "Version set for unknown tool $cc$VARNAME$nn in file $cc${TOOL_VSN_CFG_FILE}$nn"
+                continue
+        esac
+
+        [ "$VARCONTENT" == "" ] && echo -e "Empty content set for tool $cc$VARNAME$nn in file $cc${TOOL_VSN_CFG_FILE}$nn" && continue
+
+        declare "${VARNAME}=${VARCONTENT}"
+        echo -e "Setting $cc${VARNAME}=${VARCONTENT}$nn from file $cc${TOOL_VSN_CFG_FILE}$nn"
+    done
 fi
 
 if [ "$CLEANUP" == "yes" ]; then
@@ -247,6 +275,20 @@ fi
 if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
     if [ "$DPDK_VSN" != "" ]; then
         echo -e "Using ${cc}user set DPDK version$nn \$DPDK_VSN=$cc${DPDK_VSN}$nn"
+
+        # Get the most recent DPDK version that matches $DPDK_VSN
+        vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
+            | grep ".tar.xz" \
+            | sed -e "s/^[^>]*>dpdk-\([0-9.]*\)\.tar\.xz[^0-9]*\([0-9]\{2\}\)-\([a-zA-Z]\{3\}\)-\([0-9]\{4\}\) \([0-9]\{2\}\):\([0-9]\{2\}\).*$/\4 \3 \2 \5 \6 \1/g" \
+            | sed -e "s/ \([0-9]\{2\}\)[.]\([0-9]\{2\}\)$/ \1.\2.-1/g" \
+            | tr '.' ' ' \
+            | sort -k6,6n -k7,7n -k8,8n -k1,1 -k2,2M -k3,3 -k4,4 -k5,5 \
+            | tac \
+            | cut -d" " -f 6- \
+            | sed -e "s/^\([0-9\-]*\) \([0-9\-]*\) \([0-9\-]*\)$/\3 \1.\2/g" \
+            | uniq -f1 \
+            | grep " ${DPDK_VSN}" \
+            | head -1`
     else
         # Get the most recent DPDK version
         vsn=`curl -s "https://fast.dpdk.org/rel/" --list-only \
@@ -260,13 +302,13 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
             | sed -e "s/^\([0-9\-]*\) \([0-9\-]*\) \([0-9\-]*\)$/\3 \1.\2/g" \
             | uniq -f1 \
             | head -1`
-
-        vsn=($vsn)
-
-        DPDK_NEWEST_VSN="${vsn[1]}"
-        DPDK_VSN=${DPDK_VSN-$DPDK_NEWEST_VSN}
-        echo -e "Using ${cc}DPDK$nn version $cc${DPDK_VSN}$nn"
     fi
+
+    vsn=($vsn)
+
+    DPDK_NEWEST_VSN="${vsn[1]}"
+    DPDK_VSN=${DPDK_VSN-$DPDK_NEWEST_VSN}
+    echo -e "Using ${cc}DPDK$nn version $cc${DPDK_VSN}$nn"
 
     DPDK_FILEVSN="$DPDK_VSN"
     [ "${vsn[0]}" != "-1" ] && DPDK_FILEVSN="$DPDK_VSN.${vsn[0]}"

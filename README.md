@@ -71,11 +71,15 @@ Overriding defaults.
 
     PARALLEL_INSTALL=no . ./bootstrap-t4p4s.sh
 
-- The script installs the newest versions of DPDK and P4C unless overridden by the user.
+- The script installs sensibly recent versions of DPDK, P4C and PROTOBUF by default. To use the most recent versions, set `INSTALL_TOOL_VSN` to `newest`.
+
+    INSTALL_TOOL_VSN=newest . ./bootstrap-t4p4s.sh
+
+- You can also individually override the version/date settings.
 
     DPDK_VERSION=20.05 . ./bootstrap-t4p4s.sh
     DPDK_VERSION=20.05 DPDK_FILEVSN=20.05.0 . ./bootstrap-t4p4s.sh
-    P4C_COMMIT_DATE=20201101 . ./bootstrap-t4p4s.sh
+    P4C_COMMIT_DATE=2020-11-01 . ./bootstrap-t4p4s.sh
 
 - The script uses `clang`, `clang++` and `lld` by default if they are installed unless overridden. It also uses `ccache`.
 
