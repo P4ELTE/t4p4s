@@ -1209,7 +1209,7 @@ def gen_format_lazy_extern(args, mname, m, listexpr_to_buf):
 
 
 def gen_format_call_extern(args, mname, m, base_mname):
-    listexpr_to_buf = {le: gen_prepare_listexpr_arg(listexpr)
+    listexpr_to_buf = {le: gen_prepare_listexpr_arg(le)
                               for le in args.map('expression').filter('node_type', 'ListExpression')}
 
     lazy_externs = 'verify_checksum update_checksum verify_checksum_with_payload update_checksum_with_payload'.split(' ')
