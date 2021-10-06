@@ -446,39 +446,39 @@ void do_decryption(SHORT_STDPARAMS)
 void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     debug_mbuf(pd->wrapper,"START wrapper:");
 
-    const int headers_length = 34;
-    const int pad_length_length = 1;
-    const int next_header_length = 1;
-    const int esp_length = 8;
-    const int iv_length = 8;
+    const int headers_size = 34;
+    const int pad_length_size = 1;
+    const int next_header_size = 1;
+    const int esp_size = 8;
+    const int iv_size = 8;
 
-    int wrapper_length = rte_pktmbuf_pkt_len(pd->wrapper);
-    int original_payload_length = wrapper_length - headers_length;
+    int wrapper_size = rte_pktmbuf_pkt_len(pd->wrapper);
+    int original_payload_size = wrapper_size - headers_size;
 
 
-    int padding_length = (16 - (wrapper_length + pad_length_length + next_header_length)% 16) % 16;
-    int to_encrypt_length = padding_length + wrapper_length + pad_length_length + next_header_length;
+    int padding_size = (16 - (wrapper_size + pad_length_size + next_header_size)% 16) % 16;
+    int to_encrypt_size = padding_size + wrapper_size + pad_length_size + next_header_size;
 
-    debug(" :::: Padding length: %d\n",padding_length);
-    debug(" :::: to_encrypt_length: %d\n",to_encrypt_length);
+    debug(" :::: Padding length: %d\n",padding_size);
+    debug(" :::: to_encrypt_size: %d\n",to_encrypt_size);
 
-    rte_pktmbuf_append(pd->wrapper,esp_length + iv_length + to_encrypt_length - original_payload_length);
+    rte_pktmbuf_append(pd->wrapper,esp_size + iv_size + to_encrypt_size - original_payload_size);
     uint8_t* data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 
     uint8_t* data_pointer = data;
     // Pass the existing header and leave space for the ESP and IV in payload (we forget about the original payload)
-    data_pointer += headers_length + esp_length + iv_length;
+    data_pointer += headers_size + esp_size + iv_size;
     // Important to use memmove, because the source and destination can overlap
-    memmove(data_pointer, data, wrapper_length);
+    memmove(data_pointer, data, wrapper_size);
 
     // Run to the end of the copied header+payload
-    data_pointer += wrapper_length;
+    data_pointer += wrapper_size;
     // And set the padding bytes
-    memset(data_pointer, 0xef, padding_length);
+    memset(data_pointer, 0xef, padding_size);
 
     // Save the size of padding
-    data_pointer += padding_length;
-    memset(data_pointer, (uint8_t)padding_length, 1);
+    data_pointer += padding_size;
+    memset(data_pointer, (uint8_t)padding_size, 1);
 
     // Set next header to ipv4
     data_pointer += 1;
@@ -486,14 +486,14 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
 
     // TODO: add ESP
     // ESP
-    memset(data + headers_length, 0x1a, 8);
+    memset(data + headers_size, 0x1a, 8);
     // TODO: use random IV
     // IV
-    memset(data + headers_length + esp_length, 0x1b, 8);
+    memset(data + headers_size + esp_size, 0x1b, 8);
 
-    do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, headers_length + esp_length + iv_length);
+    do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, headers_size + esp_size + iv_size);
 
-    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, headers_length);
+    do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, headers_size);
 
     // We keep only 12 bytes from 16 byte HMAC
     rte_pktmbuf_trim(pd->wrapper,4);
