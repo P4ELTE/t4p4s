@@ -690,6 +690,15 @@ fi
 
 [ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=t4p4s_testcase_${OPTS[testcase]}" " "
 
+
+if [ "$(optvalue c)" != off ]; then
+    if [ "$(optvalue p4rt)" != off ]; then
+        [ "${GRPC}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPC$nn is not"
+        [ "${P4PI}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$P4PI$nn is not"
+        [ "${GRPCPP}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPCPP$nn is not"
+    fi
+fi
+
 # --------------------------------------------------------------------
 # Environment variable printout
 
@@ -867,10 +876,6 @@ EOT
     sudo cat "meson.build.base" >>"/tmp/meson.build.tmp"
 
     if [ "$(optvalue p4rt)" != off ]; then
-        [ "${GRPC}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPC$nn is not"
-        [ "${P4PI}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$P4PI$nn is not"
-        [ "${GRPCPP}" == "" ] && exit_program "Option $(cc 0)p4rt$nn is set but variable $(cc 0)\$GRPCPP$nn is not"
-
         sudo cat <<EOT >>"/tmp/meson.build.tmp"
 grpc = '$GRPC'
 p4pi = '$P4PI'
