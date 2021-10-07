@@ -48,6 +48,13 @@
 #define SLOWREQ(inport, out, req, pkt, ...)  REQSEND(inport, out == BCAST ? T4P4S_BROADCAST_PORT : out == DROP ? EGRESS_DROP_VALUE : out, CTL_REPLIES, req, pkt, ##__VA_ARGS__)
 
 // ------------------------------------------------------
+// Testcase structuring
+
+#define LCORE(...)           { __VA_ARGS__ , FEND }
+#define LCORES(...)          { __VA_ARGS__ }
+#define SINGLE_LCORE(...)    { LCORE(__VA_ARGS__), { FEND }}
+
+// ------------------------------------------------------
 // Header field changes while processing packet
 
 #define CHANGED(from, to)  "<" from "|" to ">"
