@@ -7,7 +7,7 @@ import sys
 from itertools import takewhile
 
 from hlir16.hlir_utils import align8_16_32
-from hlir16.hlir_attrs import elementwise_binary_ops, simple_binary_ops, complex_binary_ops
+from hlir16.hlir_ops import elementwise_binary_ops, simple_binary_ops, complex_binary_ops
 
 from compiler_log_warnings_errors import addWarning, addError
 from compiler_common import types, with_base, resolve_reference, is_subsequent, groupby, group_references, fldid, fldid2, pp_type_16, make_const, SugarStyle, prepend_statement, append_statement, is_control_local_var, generate_var_name, pre_statement_buffer, post_statement_buffer, enclosing_control, unique_everseen, unspecified_value, get_raw_hdr_name, get_hdr_name, get_hdrfld_name, split_join_text
