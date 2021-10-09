@@ -3,19 +3,16 @@
 
 #include "test.h"
 
-fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
-    {
+fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
+    SINGLE_LCORE(
         // table lookup hits
-        {FAKE_PKT, 0, 1, FDATA("AA00"), 200, 123, FDATA("AA22")},
+        FAST(1, 123, INOUT("AA00", "AA22")),
+        WAIT_FOR_CTL,
+        WAIT_FOR_CTL,
+        WAIT_FOR_CTL,
         // table lookup misses
-        {FAKE_PKT, 0, 1, FDATA("BB00"), 200, 123, FDATA("BB44")},
-
-        FEND,
-    },
-    {
-        FEND,
-    },
-};
+        FAST(1, 123, INOUT("BB00", "BB11"))
+    );
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
     { "test",           &t4p4s_testcase_test },
