@@ -113,8 +113,8 @@ bool is_final_section(const char*const text) {
     return (text == NULL) || strlen(text) == 0;
 }
 
-bool starts_with_fmt_code(const char*const text) {
-    return text[0] == '<' || text[0] == '|' || text[0] == '>';
+bool starts_with_fmt_char(const char*const text) {
+    return text[0] == '\0' || text[0] == '<' || text[0] == '|' || text[0] == '>';
 }
 
 // The input may contain <..in..|..out..> parts.
@@ -154,7 +154,7 @@ int packet_len(const char* texts[MAX_SECTION_COUNT], bool is_in) {
         const char* text = *texts;
         while (text[0] != '\0') {
             text = skip_chars(text, is_in);
-            if (starts_with_fmt_code(text))   continue;
+            if (starts_with_fmt_char(text))   continue;
 
             ++byte_count;
             text += 2;
@@ -285,7 +285,7 @@ int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
             text = skip_chars(text, false);
             if (text[0] == '\0')   break;
 
-            if (starts_with_fmt_code(text))   continue;
+            if (starts_with_fmt_char(text))   continue;
 
             uint8_t expected_byte;
             sscanf(text, "%2hhx", &expected_byte);
