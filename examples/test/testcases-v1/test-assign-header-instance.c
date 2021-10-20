@@ -11,9 +11,7 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     },
 
     {
-        // TODO there seems to be a problem with packets from the second lcore
-
-        // {FAKE_PKT, 0, 0, ETH(ETH1A, ETH03, ETH01), 200, 0, FDATA("123456789ABC", ETH03, "1234", ETH01)},
+        FAST(0, 0, INOUT(hETH4(ETH1A, ETH03), hETH("123456789ABC", ETH03, "1234")), ETH01),
 
         FEND,
     },

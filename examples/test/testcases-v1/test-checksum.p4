@@ -104,13 +104,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             fib_hit_nexthop;
         }
         key = {
-            hdr.ipv4.dstAddr: lpm;
+            hdr.ipv4.dstAddr: exact;  // only for testing reasons, TODO: change it back to lpm
         }
         size = 512;
 
-        // const entries = {
-            // 0xc0a8_016b: fib_hit_nexthop(0x000001000000, 123);
-        // }
+        //const entries = {
+        //    0xc0a8_016b: fib_hit_nexthop(0x000001000000, 123);
+        //}
     }
 
     @name(".sendout") table sendout {
