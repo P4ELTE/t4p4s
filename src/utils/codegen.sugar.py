@@ -276,6 +276,21 @@ def is_atomic_block(blckstmt):
 
 
 def format_source(src):
+    def is_binop(node):
+        nt = node.node_type
+        return nt in simple_binary_ops or nt in complex_binary_ops or nt in elementwise_binary_ops
+
+    def format_binop(node):
+        nt = node.node_type
+        if nt in simple_binary_ops:
+            op = simple_binary_ops[nt]
+        if nt in complex_binary_ops:
+            op = complex_binary_ops[nt]
+        if nt in elementwise_binary_ops:
+            op = elementwise_binary_ops[nt]
+        return f'{format_source(node.left)} "{op}" {format_source(node.right)}'
+
+
     nt = src.node_type
     if nt == 'Constant':
         return f'T4LIT({src.value})'
@@ -287,15 +302,13 @@ def format_source(src):
     if nt == 'PathExpression':
         return f'T4LIT({src.path.name},field)'
     if nt == 'Cast':
+        if is_binop(src.expr):
+            return format_binop(src.expr)
         return f'T4LIT({src.expr.path.name},field)'
     if nt == 'Mux':
         return f'"("{format_source(src.e0)} " ? " {format_source(src.e1)} " : " {format_source(src.e2)} ")"'
-    if nt in simple_binary_ops:
-        op = simple_binary_ops[nt]
-        return f'{format_source(src.left)} "{op}" {format_source(src.right)}'
-    if nt in complex_binary_ops:
-        op = complex_binary_ops[nt]
-        return f'{format_source(src.left)} "{op}" {format_source(src.right)}'
+    if is_binop(src):
+        return format_binop(src)
 
     addWarning('formatting source', f'Unexpected {nt} source found')
     return 'unknown'
