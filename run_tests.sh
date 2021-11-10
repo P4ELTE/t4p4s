@@ -19,6 +19,7 @@ success_count=0
 failure_count=0
 
 START_DIR=${START_DIR-examples}
+HTML_REPORT=${HTML_REPORT-no}
 START_DIR=`realpath "${START_DIR}"`
 SKIP_FILE=${SKIP_FILE-tests_to_skip.txt}
 
@@ -131,6 +132,7 @@ summary_only_echo() {
 
 LOG_DIR=build/all-run-logs
 SUMMARY_FILE=${LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_log.txt
+REPORT_OUTPUT_FILE=${LOG_DIR}/$(date +"%Y%m%d_%H%M%S")_output
 LAST_SUMMARY_FILE=${LOG_DIR}/last_log.txt
 mkdir -p ${LOG_DIR}
 rm -f ${LOG_DIR}/*.result.txt
@@ -167,18 +169,36 @@ done
 
 echo Will run ${total_count} cases and skip ${#skipped[@]} cases
 
-
 current_idx=1
 
+if [ ${HTML_REPORT} == "yes" ]; then
+  COLLECTOR_PATH="examples/test_scripts/data_collector/data_collector.py"
+  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html
+fi
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
 
     echo
     echo
     echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $* $TESTCASE
-    ./t4p4s.sh $TESTCASE $*
-    exitcode["$TESTCASE"]="$?"
 
+    if [ ${HTML_REPORT} == "yes" ]; then
+        tmpFilename="/tmp/t4p4s_output"
+        set -o pipefail
+        ./t4p4s.sh $TESTCASE $*|tee "${tmpFilename}2"
+        exitcode["$TESTCASE"]="$?"
+        set +o pipefail
+
+        echo ${current_idx} > $tmpFilename
+        echo $TESTCASE >> $tmpFilename
+        echo ${exitcode["$TESTCASE"]} >> $tmpFilename
+        cat "${tmpFilename}2" >> $tmpFilename
+
+        python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html $tmpFilename
+    else
+        ./t4p4s.sh $TESTCASE $*
+        exitcode["$TESTCASE"]="$?"
+    fi
     ((++current_idx))
 
     [ ${exitcode["$TESTCASE"]} -eq 0 ] && ((++success_count))
@@ -187,6 +207,9 @@ for TESTCASE in ${sorted_testcases[@]}; do
     # if there is an interrupt, finish executing test cases
     [ ${exitcode["$TESTCASE"]} -eq 254 ] && break 2
 done
+if [ ${HTML_REPORT} == "yes" ]; then
+  python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE json,html
+fi
 
 resultcode=0
 
