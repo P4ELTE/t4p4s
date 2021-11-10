@@ -48,6 +48,7 @@ control MyIngress(inout parsed_packet hdr, inout metadata meta, inout standard_m
     }
 
     action bcast() {
+		standard_metadata.egress_port = 100;
     }
 
     table smac {

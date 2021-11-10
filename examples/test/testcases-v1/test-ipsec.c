@@ -4,15 +4,10 @@
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
-        {
-                FSLEEP(INIT_WAIT_CONTROLPLANE_LONG_MILLIS),
-                {
-                    FAKE_PKT, 0, 0,
-                    ETH("DDDDDDDD0000", ETH01, "0000000000000000000029f0", "12345678", "0a006363", "abcd"),
-                    200, 0,
-                    ETH("DDDDDDDD0000", ETH01, "0000000000000000000029f0", "12345678", "0a006363", "abcd")
-                },
-                FEND,
+        {      
+			FAST(0,0, hETH4("DDDDDDDD0000", ETH01), "0000000000000000000029f0", "12345678", "0a006363", "abcd"),
+			
+            FEND,
         },
 
         {
