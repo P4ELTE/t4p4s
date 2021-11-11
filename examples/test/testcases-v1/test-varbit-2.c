@@ -5,13 +5,13 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
     {
-        {FAKE_PKT, 0, 1, FDATA("00000001", "00"), NO_CTL_REPLY, 0, FDATA("00", "00", "00")},
-        {FAKE_PKT, 0, 1, FDATA("00000001", "01"), NO_CTL_REPLY, 0, FDATA("01", "01", "01")},
-        {FAKE_PKT, 0, 1, FDATA("00000001", "ab"), NO_CTL_REPLY, 0, FDATA("ab", "ab", "ab")},
-        // {FAKE_PKT, 0, 1, FDATA("00000002", "abcd"), NO_CTL_REPLY, 0, FDATA("abcd", "abcd", "abcd")},
-        // {FAKE_PKT, 0, 1, FDATA("00000002", "abcd"), NO_CTL_REPLY, 0, FDATA("abcd", "abcd", "abcd")},
-        // {FAKE_PKT, 0, 1, FDATA("00000008", "0123456789abcdef"), NO_CTL_REPLY, 0, FDATA("0123456789abcdef", "0123456789abcdef", "0123456789abcdef")},
-        // {FAKE_PKT, 0, 1, FDATA("00000016", "fedcba9876543210"), NO_CTL_REPLY, 0, FDATA("fedcba9876543210", "fedcba9876543210", "fedcba9876543210")},
+        FAST(0, 0, INOUT("0000000100", "000000")),
+        FAST(0, 0, INOUT("0000000101", "010101")),
+        FAST(0, 0, INOUT("00000001ab", "ababab")),
+        FAST(0, 0, INOUT("00000002abcd", "abcdabcdabcd")),
+        FAST(0, 0, INOUT("00000002abcd", "abcdabcdabcd")),
+        FAST(0, 0, INOUT("000000080123456789abcdef", "0123456789abcdef0123456789abcdef0123456789abcdef")),
+        //{FAKE_PKT, 0, 1, FDATA("00000016", "fedcba9876543210"), NO_CTL_REPLY, 0, FDATA("fedcba9876543210", "fedcba9876543210", "fedcba9876543210")},
         FEND,
     },
     {
