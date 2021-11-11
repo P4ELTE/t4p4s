@@ -11,7 +11,7 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = {
         FAST(0, 0, INOUT("00000002abcd", "abcdabcdabcd")),
         FAST(0, 0, INOUT("00000002abcd", "abcdabcdabcd")),
         FAST(0, 0, INOUT("000000080123456789abcdef", "0123456789abcdef0123456789abcdef0123456789abcdef")),
-        //{FAKE_PKT, 0, 1, FDATA("00000016", "fedcba9876543210"), NO_CTL_REPLY, 0, FDATA("fedcba9876543210", "fedcba9876543210", "fedcba9876543210")},
+        FAST(0, 0, INOUT("000000160123456789abcdef0123456789abcdef000000000000", "0123456789abcdef0123456789abcdef0000000000000123456789abcdef0123456789abcdef0000000000000123456789abcdef0123456789abcdef000000000000")),
         FEND,
     },
     {
