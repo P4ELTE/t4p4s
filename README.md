@@ -336,6 +336,9 @@ The batch file processes all P4 files from the folder `examples` and its subfold
 
     START_DIR=examples/test/testcases-v1/ ./run_tests.sh verbose dbg stats
 
+The script can generate a HTML and JSON output of the test into the `build/all-run-logs` folder in the following way:
+
+    HTML_REPORT="yes" ./run_tests.sh   
 
 # Using Docker with T₄P₄S
 
