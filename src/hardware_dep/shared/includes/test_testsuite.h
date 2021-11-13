@@ -40,6 +40,7 @@ typedef struct {
 typedef struct {
     const char* name;
     fake_cmd_t (*steps)[][RTE_MAX_LCORE];
+    const char* model;
 } testcase_t;
 
 #define TEST_SUITE_END { "", 0 }

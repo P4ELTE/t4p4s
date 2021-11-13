@@ -7,6 +7,7 @@ declare -A exitcode
 declare -A skips
 declare -A skipped
 declare -A testcases
+declare -A models
 declare -A dirname
 declare -A src_p4
 declare -A ext_p4
@@ -56,7 +57,10 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
 
     [ $found -eq 0 ] && echo "P4 file for $file not found" && continue
 
-    for testcase in `cat $file | grep "&t4p4s_testcase_" | sed -e "s/[\"],.*//g" | sed -e "s/.*[\"]//g"`; do
+    for testcase_row in `cat $file | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[{}\"]//g"`; do
+        testcase=`echo $testcase_row | cut -f1 -d,`
+        model=`echo $testcase_row | cut -f3 -d,`
+
         PREPART="$PREFIX"
         if [ -z ${POSTFIX+x} ]; then
             TESTPART="${p4file}=${testcase}"
@@ -68,6 +72,7 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
         testcases["$testid"]="$testid"
         p4files["$testid"]="$p4file"
         src_p4["$testid"]="$SRC_P4"
+        models["$testid"]=$model
         ext="${SRC_P4##*.}"
         ext_p4["$testid"]="$ext"
 
@@ -108,7 +113,11 @@ if [ "$PRECOMPILE" == "yes" ]; then
         [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && P4VSN=14
         [ "${ext_p4[$TESTCASE]}" == "p4"    ] && P4VSN=16
 
-        $P4C/build/p4test "${src_p4[$TESTCASE]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug && \
+        model_compile_argument=""
+        [ "${models[$TESTCASE]}" == "v1model" ] && model_compile_argument="-D__TARGET_V1__"
+        [ "${models[$TESTCASE]}" == "psa" ] && model_compile_argument="-D__TARGET_PSA__"
+
+        $P4C/build/p4test "${src_p4[$TESTCASE]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument && \
             gzip ${TARGET_JSON} && \
             mv ${TARGET_JSON}.gz ${TARGET_JSON} && \
             echo -n "|"  &
@@ -178,14 +187,15 @@ fi
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
 
+    all_arguments="$TESTCASE ${models[$TESTCASE]:+model=${models[$TESTCASE]}} $*"
     echo
     echo
-    echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $* $TESTCASE
+    echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $all_arguments
 
     if [ ${HTML_REPORT} == "yes" ]; then
         tmpFilename="/tmp/t4p4s_output"
         set -o pipefail
-        ./t4p4s.sh $TESTCASE $*|tee "${tmpFilename}2"
+        ./t4p4s.sh $all_arguments|tee "${tmpFilename}2"
         exitcode["$TESTCASE"]="$?"
         set +o pipefail
 
@@ -196,7 +206,7 @@ for TESTCASE in ${sorted_testcases[@]}; do
 
         python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html $tmpFilename
     else
-        ./t4p4s.sh $TESTCASE $*
+        ./t4p4s.sh $all_arguments
         exitcode["$TESTCASE"]="$?"
     fi
     ((++current_idx))
