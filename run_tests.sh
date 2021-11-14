@@ -193,16 +193,16 @@ for TESTCASE in ${sorted_testcases[@]}; do
     echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $all_arguments
 
     if [ ${HTML_REPORT} == "yes" ]; then
-        tmpFilename="/tmp/t4p4s_output"
+        tmpFilename="/tmp/t4p4s_run_result"
         set -o pipefail
-        ./t4p4s.sh $all_arguments|tee "${tmpFilename}2"
+        ./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
         exitcode["$TESTCASE"]="$?"
         set +o pipefail
 
         echo ${current_idx} > $tmpFilename
         echo $TESTCASE >> $tmpFilename
         echo ${exitcode["$TESTCASE"]} >> $tmpFilename
-        cat "${tmpFilename}2" >> $tmpFilename
+        cat "${tmpFilename}_pure_output" >> $tmpFilename
 
         python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html $tmpFilename
     else
@@ -215,8 +215,9 @@ for TESTCASE in ${sorted_testcases[@]}; do
     [ ${exitcode["$TESTCASE"]} -ne 0 ] && ((++failure_count))
 
     # if there is an interrupt, finish executing test cases
-    [ ${exitcode["$TESTCASE"]} -eq 254 ] && break 2
+    [ ${exitcode["$TESTCASE"]} -eq 254 ] && break
 done
+
 if [ ${HTML_REPORT} == "yes" ]; then
   python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE json,html
 fi
