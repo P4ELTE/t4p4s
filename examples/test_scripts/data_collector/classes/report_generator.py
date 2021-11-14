@@ -14,7 +14,7 @@ class ReportGenerator(ABC):
             '' if self.report_file_extension is None else f'.{self.report_file_extension}'
         )
 
-    def new(self):
+    def new(self, **kwargs):
         Path(self.report_file_path).touch()
 
     def add(self, data_file_path: str):

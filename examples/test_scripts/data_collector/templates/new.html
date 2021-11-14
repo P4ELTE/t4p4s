@@ -1,4 +1,7 @@
-<title>Results</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Results</title>
 <meta charset="UTF-8">
 <link rel="stylesheet" type="text/css"
       href="https://cdn.datatables.net/v/dt/dt-1.11.3/b-2.0.1/sb-1.3.0/datatables.min.css"/>
@@ -16,20 +19,40 @@
             'name': 'Success',
         },
         '1': {
-            'name': 'Compile error',
+            'name': 'P4 to C compilation failed',
+        },
+        '2': {
+            'name': 'C compilation failed (meson)',
+        },
+        '3': {
+            'name': 'C compilation failed',
+        },
+        '4': {
+            'name': 'Too many iterations, possible infinite loop',
+        },
+        '5': {
+            'name': 'Packets were unexpectedly dropped/sent',
         },
         '6': {
             'name': 'Execution finished with wrong output',
         },
+        '7': {
+            'name': 'Control flow requirements not met',
+        },
+        '134': {
+            'name': 'Stack smashing',
+        },
         '139': {
             'name': 'Segmentation fault',
         },
+        '254': {
+            'name': 'Execution interrupted',
+        },
+        '255': {
+            'name': 'Switch execution error',
+        },
     };
 
-    /**
-     * Opens output popup
-     * @param index
-     */
     function openOutput(index) {
         var $body = $('body');
         if (!$body.hasClass('no-scroll')) {
@@ -40,27 +63,24 @@
         openOutputIndex = index;
     }
 
-    /**
-     * Closes output popup
-     * @param index
-     */
     function closeOutput(index) {
         $('#output' + index).hide();
         $('body').removeClass('no-scroll');
         openOutputIndex = null;
     }
 
-    /**
-     * @param self
-     * @param val
-     * @param columnIndex
-     */
     function searchInColumn(self, val, columnIndex) {
         var $inputs = $('.search-buttons').find('input');
+        var isActive = self === null ? false : $(self).hasClass('active');
         $inputs.removeClass('active');
 
-        if(self !== null && !$(self).hasClass('active')) {
-            $(self).addClass('active');
+        if(self !== null) {
+            if (isActive) {
+                val = null;
+                columnIndex = null;
+            } else {
+                $(self).addClass('active');
+            }
         }
 
         if (val === null && columnIndex === null) {
@@ -70,29 +90,28 @@
         }
     }
 
-    /**
-     * Searches for error codes in column with class 'exit-code' and counts them
-     */
     function searchForErrorCodes() {
         $('.exit-code').each(function(index, dom) {
             var errorCode = $(dom).text();
 
             if (!(errorCode in errorCodes)) errorCodes[errorCode] = {'name': ''};
-            if (!('count' in errorCodes[errorCode])) errorCodes[errorCode]['count'] = 1;
+            if (!('count' in errorCodes[errorCode])) errorCodes[errorCode]['count'] = 0;
 
             errorCodes[errorCode]['count']++;
         });
     }
 
-    /**
-     * Add search buttons above the table if the specific error code exists at least once
-     */
     function addSearchButtons() {
         var $container = $('.search-buttons');
         $.each(errorCodes, function(key, errorCodeObj) {
             if (errorCodeObj['count'] !== undefined) {
-                var name = key + ' ' + errorCodeObj['name'] + ' (' + errorCodeObj['count'] + ')';
-                var classColor = key === '0' ? 'green' : 'red';
+                var name = errorCodeObj['count'] + ' ' + errorCodeObj['name'];
+
+                if (key !== '0') {
+                    name += ' (Error Code: ' + key + ')';
+                }
+
+                var classColor = key === '0' ? 'bg-green' : 'bg-red';
                 var functionString = 'searchInColumn(this,' + key + ',' + 2 + ')';
 
                 $container.append(
@@ -105,9 +124,6 @@
         });
     }
 
-    /**
-     * DataTable init
-     */
     function initDataTable(onInitComplete) {
         $dataTable = $('#dataTable').DataTable({
             paging: false,
@@ -150,9 +166,6 @@
             $element.html(ansi_up.ansi_to_html($element.html()));
         })
 
-        /**
-         * Closes output popup if escape button is pressed
-         */
         $(document).on('keyup', function (e) {
             if(e.key === "Escape" && openOutputIndex !== null) {
                 closeOutput(openOutputIndex);
@@ -210,14 +223,6 @@
         word-wrap: break-word; /* Internet Explorer 5.5+ */
     }
 
-    .testcase-name {
-        background: #ff0000;
-    }
-
-    .exitcode0 {
-        background: #00ff00;
-    }
-
     .overlay {
         position: fixed;
         top: 0;
@@ -260,41 +265,46 @@
         font-weight: bold;
     }
 
-    .button.blue {
-        color: #fff;
+    .button.bg-blue {
         background-color: #007bff;
     }
 
-    .button.blue:hover {
+    .button.bg-blue:hover {
         background-color: #0069d9;
     }
 
-    .button.green {
+    .button {
         color: #fff;
-        background-color: #28a745;
     }
 
-    .button.green:hover {
-        background-color: #218838;
-    }
-
-    .button.red {
-        color: #fff;
+    .testcase-name,
+    .bg-red,
+    .button.bg-red {
         background-color: #dc3545;
     }
 
-    .button.red:hover {
+    .button.bg-red:hover {
         background-color: #c82333;
     }
 
+    .testcase-name.exitcode0,
+    .bg-green,
+    .button.bg-green {
+        background-color: #28a745;
+    }
+
+    .button.bg-green:hover {
+        background-color: #218838;
+    }
+
     .button.active {
-        pointer-events: none;
-        box-shadow: 4px 4px 9px 0 black;
+        box-shadow: inset 4px 4px 9px 0 black;
     }
 </style>
-
+</head>
+<body>
 <div class="search-buttons hidden">
-    <input type="button" class="button blue" value="Reset Search" onclick="searchInColumn(null, null, null)">
+    <input type="button" class="button bg-blue" value="Reset Filter" onclick="searchInColumn(null, null, null)">
 </div>
 <table id="dataTable" border="1" style="visibility: hidden">
     <thead>

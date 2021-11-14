@@ -29,13 +29,15 @@ if __name__ == '__main__':
     parser_for_end.add_argument(report_file_prefix_parameter)
     parser_for_end.add_argument(report_types_parameter)
 
-    arguments = vars(argument_parser.parse_known_args()[0])
-    if (action_name := arguments.pop('action', None)) is None:
+    known_arguments, unknown_arguments = argument_parser.parse_known_args()
+
+    known_arguments = vars(known_arguments)
+    if (action_name := known_arguments.pop('action', None)) is None:
         argument_parser.print_usage()
         sys.exit()
 
-    report_file_prefix = arguments.pop(report_file_prefix_parameter)
-    report_types = arguments.pop(report_types_parameter).split(',')
+    report_file_prefix = known_arguments.pop(report_file_prefix_parameter)
+    report_types = known_arguments.pop(report_types_parameter).split(',')
 
     generator_classes = []
     for report_type in report_types:
@@ -43,9 +45,17 @@ if __name__ == '__main__':
             raise NotImplementedError(f'Unknown report type {report_type!r}')
         generator_classes.append(generator_class)
 
+    additional_parameters = dict()
+    for argument in unknown_arguments:
+        argument_parts = argument.split('=')
+        if len(argument_parts) == 2:
+            additional_parameters[argument_parts[0]] = argument_parts[1]
+        else:
+            raise ValueError(f"Invalid additional argument: {argument!r}. Must be a key-value pair separated by '='")
+
     for generator_class in generator_classes:
         report_generator = generator_class(report_file_prefix)
         if callable(action := getattr(report_generator, action_name, None)):
-            action(**arguments)
+            action(**known_arguments, **additional_parameters)
         else:
             raise NotImplementedError(f'Unknown action {action_name!r} in {generator_class.__name__}')
