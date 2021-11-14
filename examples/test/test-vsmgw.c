@@ -149,14 +149,14 @@ fake_cmd_t t4p4s_testcase_gtpv2[][RTE_MAX_LCORE] = {
 };
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
-    { "test",           &t4p4s_testcase_test },
-    { "ipv4",           &t4p4s_testcase_ipv4 },
-    { "icmp",           &t4p4s_testcase_icmp },
-    { "gtp",            &t4p4s_testcase_gtp },
-    { "gtpv1",          &t4p4s_testcase_gtpv1 },
-    { "gtpv2",          &t4p4s_testcase_gtpv2 },
-    { "arp",            &t4p4s_testcase_arp },
-    { "arp_ipv4",       &t4p4s_testcase_arp_ipv4 },
-    { "udp",            &t4p4s_testcase_udp },
+    { "test",           &t4p4s_testcase_test, "v1model" },
+    { "ipv4",           &t4p4s_testcase_ipv4, "v1model" },
+    { "icmp",           &t4p4s_testcase_icmp, "v1model" },
+    { "gtp",            &t4p4s_testcase_gtp, "v1model" },
+    { "gtpv1",          &t4p4s_testcase_gtpv1, "v1model" },
+    { "gtpv2",          &t4p4s_testcase_gtpv2, "v1model" },
+    { "arp",            &t4p4s_testcase_arp, "v1model" },
+    { "arp_ipv4",       &t4p4s_testcase_arp_ipv4, "v1model" },
+    { "udp",            &t4p4s_testcase_udp, "v1model" },
     TEST_SUITE_END,
 };

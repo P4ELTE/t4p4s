@@ -65,9 +65,9 @@ fake_cmd_t t4p4s_testcase_payload[][RTE_MAX_LCORE] = {
 };
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
-    { "bcast",          &t4p4s_testcase_bcast },
-    { "test",           &t4p4s_testcase_test },
-    { "test2",          &t4p4s_testcase_test2 },
-    { "payload",        &t4p4s_testcase_payload },
+    { "bcast",          &t4p4s_testcase_bcast, "psa" },
+    { "test",           &t4p4s_testcase_test, "psa" },
+    { "test2",          &t4p4s_testcase_test2, "psa" },
+    { "payload",        &t4p4s_testcase_payload, "psa" },
     TEST_SUITE_END,
 };
