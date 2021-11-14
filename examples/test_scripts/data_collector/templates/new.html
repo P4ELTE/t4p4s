@@ -15,42 +15,18 @@
     var $dataTable = null;
     var openOutputIndex = null;
     var errorCodes = {
-        '0': {
-            'name': 'Success',
-        },
-        '1': {
-            'name': 'P4 to C compilation failed',
-        },
-        '2': {
-            'name': 'C compilation failed (meson)',
-        },
-        '3': {
-            'name': 'C compilation failed',
-        },
-        '4': {
-            'name': 'Too many iterations, possible infinite loop',
-        },
-        '5': {
-            'name': 'Packets were unexpectedly dropped/sent',
-        },
-        '6': {
-            'name': 'Execution finished with wrong output',
-        },
-        '7': {
-            'name': 'Control flow requirements not met',
-        },
-        '134': {
-            'name': 'Stack smashing',
-        },
-        '139': {
-            'name': 'Segmentation fault',
-        },
-        '254': {
-            'name': 'Execution interrupted',
-        },
-        '255': {
-            'name': 'Switch execution error',
-        },
+        '0': {'name': 'Success'},
+        '1': {'name': 'P4 to C compilation failed'},
+        '2': {'name': 'C compilation failed (meson)'},
+        '3': {'name': 'C compilation failed'},
+        '4': {'name': 'Too many iterations, possible infinite loop'},
+        '5': {'name': 'Packets were unexpectedly dropped/sent'},
+        '6': {'name': 'Execution finished with wrong output'},
+        '7': {'name': 'Control flow requirements not met'},
+        '134': {'name': 'Stack smashing'},
+        '139': {'name': 'Segmentation fault'},
+        '254': {'name': 'Execution interrupted'},
+        '255': {'name': 'Switch execution error'},
     };
 
     function openOutput(index) {
@@ -131,7 +107,6 @@
                 $('#dataTable_filter').remove();
 
                 var $searchButtons = $('.search-buttons');
-                $('#dataTable_wrapper').prepend($searchButtons)
                 $searchButtons.removeClass('hidden');
 
                 $(this).css('visibility', 'visible');
@@ -252,7 +227,7 @@
     }
 
     .search-buttons {
-        padding-bottom: 30px;
+        padding-bottom: 25px;
     }
 
     .button {
@@ -300,12 +275,17 @@
     .button.active {
         box-shadow: inset 4px 4px 9px 0 black;
     }
+
+    .commit-hash {
+        padding-bottom: 4px;
+    }
 </style>
 </head>
 <body>
 <div class="search-buttons hidden">
     <input type="button" class="button bg-blue" value="Reset Filter" onclick="searchInColumn(null, null, null)">
 </div>
+<div class="commit-hash">Commit hash: <span>$__commitHash</span></div>
 <table id="dataTable" border="1" style="visibility: hidden">
     <thead>
     <tr>

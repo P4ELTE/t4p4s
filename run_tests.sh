@@ -182,7 +182,8 @@ current_idx=1
 
 if [ ${HTML_REPORT} == "yes" ]; then
   COLLECTOR_PATH="examples/test_scripts/data_collector/data_collector.py"
-  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html
+  actual_commit_hash=`git rev-parse HEAD`
+  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html commitHash=$actual_commit_hash
 fi
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
