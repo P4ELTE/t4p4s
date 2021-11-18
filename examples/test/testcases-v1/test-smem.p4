@@ -21,10 +21,17 @@ struct metadata {
     gtp_metadata_t gtp_metadata;
 }
 
+header dummy_t {
+    bit<16> r2;
+    bit<1> r1;
+    bit<7> padding;
+}
+
 struct headers {
     test_dstAddr_t   dstAddr;
     test_srcAddr_t   srcAddr;
     test_etherType_t etherType;
+    dummy_t 		 dummy;
 }
 
 PARSER {
@@ -32,6 +39,7 @@ PARSER {
         packet.extract(hdr.dstAddr);
         packet.extract(hdr.srcAddr);
         packet.extract(hdr.etherType);
+        packet.extract(hdr.dummy);
         transition accept;
     }
 }
@@ -85,14 +93,21 @@ CTL_INGRESS {
         reg1.read(meta.gtp_metadata.regtmp1, 1);
         reg1.write(1, 1);
         reg1.read(meta.gtp_metadata.regtmp1, 1);
-
+        
         reg16.read(meta.gtp_metadata.regtmp16, 65535);
         reg16.write(65535, 0xf0f0);
         reg16.read(meta.gtp_metadata.regtmp16, 65535);
+        
+        reg16.write(1, hdr.dummy.r2);
+        bit<16> b2;
+        reg16.read(b2, 1);
+        b2 = b2 + 1;
+        reg16.write(1, b2);
+        reg16.read(hdr.dummy.r2, 1);
     }
 
     action mac_learn() {
-        bcast();
+        _nop();
     }
 
 
