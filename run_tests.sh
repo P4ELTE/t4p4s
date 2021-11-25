@@ -183,7 +183,7 @@ current_idx=1
 if [ ${HTML_REPORT} == "yes" ]; then
   COLLECTOR_PATH="examples/test_scripts/data_collector/data_collector.py"
   actual_commit_hash=`git rev-parse HEAD`
-  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html commitHash=$actual_commit_hash
+  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html,collection commitHash=$actual_commit_hash
 fi
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
@@ -205,7 +205,7 @@ for TESTCASE in ${sorted_testcases[@]}; do
         echo ${exitcode["$TESTCASE"]} >> $tmpFilename
         cat "${tmpFilename}_pure_output" >> $tmpFilename
 
-        python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html $tmpFilename
+        python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html,collection $tmpFilename
     else
         ./t4p4s.sh $all_arguments
         exitcode["$TESTCASE"]="$?"
@@ -220,7 +220,7 @@ for TESTCASE in ${sorted_testcases[@]}; do
 done
 
 if [ ${HTML_REPORT} == "yes" ]; then
-  python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE json,html
+  python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE json,html,collection
 fi
 
 resultcode=0

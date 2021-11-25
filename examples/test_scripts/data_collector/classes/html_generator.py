@@ -6,16 +6,18 @@ from typing import Optional
 
 from .data import Data
 from .report_generator import ReportGenerator
+from error_codes import error_codes
 
 
 class HTMLGenerator(ReportGenerator):
     report_file_extension = 'html'
-    template_directory = path.realpath(path.dirname(path.realpath(__file__)) + '/../templates')
+    template_directory = path.realpath(path.dirname(path.realpath(__file__)) + '/../templates/report')
 
     def __init__(self, report_file_prefix: str):
         super().__init__(report_file_prefix)
 
     def new(self, **kwargs):
+        kwargs['error_codes'] = error_codes
         self._render_to_report_file('new', template_values=kwargs, mode='w')
 
     def _add_data_to_report(self, new_data: Data):

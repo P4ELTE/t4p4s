@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Report</title>
+<meta charset="UTF-8">
+<script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script type="text/javascript">
+    var errorCodes = $__error_codes;
+</script>
+<style>
+    body {
+        margin: 0;
+    }
+
+    table {
+        width: 100%;
+        border-spacing: 0;
+    }
+
+    table td {
+        padding: 5px 15px;
+        text-align: center;
+    }
+
+    thead th {
+        padding: 5px 15px;
+        border-bottom: 1px solid #111;
+        background-color: #e7e7e7;
+    }
+
+    thead th:not(:first-child) {
+        border-left: 1px solid #111;
+    }
+
+    tbody tr > td {
+        border-bottom: 1px solid #d7d7d7;
+    }
+
+    tbody tr > td:not(:first-child) {
+        border-left: 1px solid #d7d7d7;
+    }
+
+    .result .errors .error {
+        padding-right: 15px;
+    }
+
+    .file > a:visited,
+    .file > a {
+        text-decoration: none;
+        color: #002aff;
+    }
+
+    .file > a:hover {
+        color: #0070ff;
+    }
+
+    span.code {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    span.code.dark {
+        color: #dc3545;
+    }
+
+    span.code.number-0 {
+        color: #34a745;
+    }
+</style>
+</head>
+<body>
+<div class="all-results">
+    <table>
+        <thead>
+            <tr class="result-title">
+                <th class="date">Date</th>

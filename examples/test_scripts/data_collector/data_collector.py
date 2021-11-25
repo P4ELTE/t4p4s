@@ -3,10 +3,12 @@ import sys
 
 from classes import HTMLGenerator
 from classes import JSONGenerator
+from classes import ReportCollectionGenerator
 
 report_type_mapping = {
     'html': HTMLGenerator,
     'json': JSONGenerator,
+    'collection': ReportCollectionGenerator,
 }
 
 if __name__ == '__main__':

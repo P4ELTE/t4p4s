@@ -23,9 +23,9 @@ class ReportGenerator(ABC):
     @staticmethod
     def _get_data_from_file(data_file_path: str):
         with open(data_file_path) as data_file:
-            index = int(data_file.readline())
-            name = data_file.readline()
-            exit_code = int(data_file.readline())
+            index = int(data_file.readline().strip())
+            name = data_file.readline().strip()
+            exit_code = int(data_file.readline().strip())
             output = ''.join(data_file.readlines())
 
         return Data(index, name, exit_code, output)
