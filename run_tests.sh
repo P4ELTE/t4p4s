@@ -21,6 +21,7 @@ failure_count=0
 
 START_DIR=${START_DIR-examples}
 HTML_REPORT=${HTML_REPORT-no}
+RUN_COUNT=${RUN_COUNT-1}
 START_DIR=`realpath "${START_DIR}"`
 SKIP_FILE=${SKIP_FILE-tests_to_skip.txt}
 
@@ -196,8 +197,12 @@ for TESTCASE in ${sorted_testcases[@]}; do
     if [ ${HTML_REPORT} == "yes" ]; then
         tmpFilename="/tmp/t4p4s_run_result"
         set -o pipefail
-        ./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
-        exitcode["$TESTCASE"]="$?"
+
+        for i in $(seq $RUN_COUNT); do
+          ./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
+          exitcode["$TESTCASE"]="$?"
+          [ ${exitcode["$TESTCASE"]} -ne 0 ] && break
+        done
         set +o pipefail
 
         echo ${current_idx} > $tmpFilename
@@ -207,8 +212,11 @@ for TESTCASE in ${sorted_testcases[@]}; do
 
         python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html,collection $tmpFilename
     else
-        ./t4p4s.sh $all_arguments
-        exitcode["$TESTCASE"]="$?"
+        for i in $(seq $RUN_COUNT); do
+          ./t4p4s.sh $all_arguments
+          exitcode["$TESTCASE"]="$?"
+          [ ${exitcode["$TESTCASE"]} -ne 0 ] && break
+        done
     fi
     ((++current_idx))
 

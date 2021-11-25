@@ -340,6 +340,12 @@ The script can generate a HTML and JSON output of the test into the `build/all-r
 
     HTML_REPORT="yes" ./run_tests.sh   
 
+There is also a possibility to ask the run_test to run multiple times a test if it not fails. There are cases that is not deterministic, so with this option you can test a case multiple times to find the problem.
+
+```
+RUN_COUNT=3 ./run_tests.sh
+```
+
 # Using Docker with T₄P₄S
 
 Currently, this area of T₄P₄S is under rewrite. Stay tuned.
