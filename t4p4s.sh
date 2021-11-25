@@ -328,6 +328,7 @@ ERROR_CODE=$ERRCODE_OK
 COLOURS_CONFIG_FILE=${COLOURS_CONFIG_FILE-colours.cfg}
 LIGHTS_CONFIG_FILE=${LIGHTS_CONFIG_FILE-lights.cfg}
 EXAMPLES_CONFIG_FILE=${EXAMPLES_CONFIG_FILE-examples.cfg}
+WARNING_LEVEL=${WARNING_LEVEL-0}
 
 P4_SRC_DIR=${P4_SRC_DIR-"./examples/"}
 CTRL_PLANE_DIR=${CTRL_PLANE_DIR-./src/hardware_dep/shared/ctrl_plane}
@@ -863,7 +864,7 @@ project(
     'c',
     version : '1.0.0',
     default_options : [
-        'warning_level=0',
+        'warning_level=${WARNING_LEVEL}',
         'optimization=3',
         'buildtype=release'
     ],
