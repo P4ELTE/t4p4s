@@ -57,10 +57,18 @@ void update_checksum_impl(bool cond, uint8_buffer_t data, uint16_t* checksum, en
     // *checksum = calculated_cksum;
 }
 
+bool is_checksum_bad(struct rte_mbuf* mbuf) {
+    #if RTE_VERSION >= RTE_VERSION_NUM(21,11,0,0)
+        return (mbuf->ol_flags & RTE_MBUF_F_RX_IP_CKSUM_MASK) == RTE_MBUF_F_RX_IP_CKSUM_BAD;
+    #else
+        return (mbuf->ol_flags & PKT_RX_IP_CKSUM_MASK) == PKT_RX_IP_CKSUM_BAD;
+    #endif
+}
+
 void verify_checksum_offload__u8s_impl(bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify_checksum_offload,extern) "\n");
 
-    if (unlikely(pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
+    if (unlikely(is_checksum_bad(pd->wrapper))) {
         // TODO
     }
 }
@@ -68,7 +76,7 @@ void verify_checksum_offload__u8s_impl(bitfield_handle_t cksum_field_handle, enu
 void verify_checksum_offload_impl(enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify_checksum_offload,extern) "\n");
 
-    if (unlikely(pd->wrapper->ol_flags & PKT_RX_IP_CKSUM_BAD) != 0) {
+    if (unlikely(is_checksum_bad(pd->wrapper))) {
         // TODO
     }
 }
@@ -78,7 +86,12 @@ void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum_HashAlgo
 
     pd->wrapper->l2_len = len_l2;
     pd->wrapper->l3_len = len_l3;
-    pd->wrapper->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+
+    #if RTE_VERSION >= RTE_VERSION_NUM(21,11,0,0)
+        pd->wrapper->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IPV4;
+    #else
+        pd->wrapper->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM;
+    #endif
 
     // TODO use proper SET
     // MODIFY_INT32_INT32_BITS(cksum_field_handle, 0);

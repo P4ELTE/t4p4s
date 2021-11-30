@@ -37,7 +37,11 @@ struct rte_eth_conf port_conf = {
 #ifndef T4P4S_VETH_MODE
     .rxmode = {
         .mq_mode = ETH_MQ_RX_RSS,
+#if RTE_VERSION >= RTE_VERSION_NUM(21,11,0,0)
+        .mtu = RTE_ETH_MAX_LEN,
+#else
         .max_rx_pkt_len = RTE_ETH_MAX_LEN,
+#endif
         .split_hdr_size = 0,
 #if RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
 	#ifndef T4P4S_RTE_OFFLOADS
