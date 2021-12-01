@@ -1,9 +1,6 @@
 #include <core.p4>
 #include <psa.p4>
 
-// In: 00000000
-// Out: 11111000
-
 header dummy_t {
     bit<1> f11;
     bit<1> f12;

@@ -58,9 +58,9 @@ CTL_EGRESS {
 
     apply {
         action_top(hdr.all, hdr.all.f1 || true, hdr.all.f2 || true, hdr.all.f3 || true, hdr.all.f4 || true);
-        // action_top1(hdr.all, hdr.all.f1 || true);
-        // action_top1(hdr.all, true);
-        // hdr.all.f1 = true;
+        action_top1(hdr.all, hdr.all.f1 || true);
+        //action_top1(hdr.all, true);
+        //hdr.all.f1 = true;
 
         action_bottom(bot, hdr.all.f1 || true, hdr.all.f2 || true, hdr.all.f3 || true, hdr.all.f4 || true);
         hdr.all.f5 = bot.f5;
