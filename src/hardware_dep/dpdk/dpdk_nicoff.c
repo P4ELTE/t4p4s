@@ -232,10 +232,16 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
     }
 
     if (lcdata->pkt_idx != last_error_pkt_idx) {
-        debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
-            lcdata->pkt_idx + 1, rte_lcore_id(),
-            cmd.out_port, port_designation_cmd,
-            egress_port, port_designation_egress);
+        if (cmd.out_port == DROP) {
+            debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected to drop the packet, but got egress port " T4LIT(%d%s,error) "\n",
+                lcdata->pkt_idx + 1, rte_lcore_id(),
+                egress_port, port_designation_egress);
+        } else {
+            debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
+                lcdata->pkt_idx + 1, rte_lcore_id(),
+                cmd.out_port, port_designation_cmd,
+                egress_port, port_designation_egress);
+        }
         error_encountered(LCPARAMS_IN);
     }
 
