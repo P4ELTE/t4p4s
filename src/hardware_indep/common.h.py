@@ -21,31 +21,6 @@ from compiler_common import unique_everseen
 #[ #define NB_TABLES ${len(hlir.tables)}
 
 
-def short_name(name):
-    return name[:-2] if name.endswith('_t') else name
-
-
-for ee in hlir.errors + hlir.enums:
-    name = short_name(ee.c_name)
-    #[ #define T4P4S_TYPE_${name}
-
-for data in hlir.news.data:
-    #[ #define T4P4S_TYPE_${data.name}
-
-
-for ee in hlir.errors + hlir.enums:
-    kind = 'enum' if ee.node_type == 'Type_Enum' else 'error'
-    name = short_name(ee.c_name)
-    #{ typedef enum {
-    for m in ee.members:
-        #[     ${m.c_name},
-    #} } ${name}_t;
-    #[
-    #[ extern const char* ${kind}_value_names_${ee.name}[${len(ee.members)}];
-    #[
-#[
-
-
 for typedef in hlir.typedefs:
     #[ typedef ${format_type(typedef.type)} ${typedef.name};
 #[
