@@ -26,6 +26,8 @@ ERRCODE_SEGFAULT=139
 ERRCODE_INTERRUPT=254
 ERRCODE_ERROR=255
 
+EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
+
 # --------------------------------------------------------------------
 # Show customisable environment values in this file
 
@@ -258,6 +260,8 @@ change_hugepages() {
 
     [ "$(optvalue hugepages)" == "off" ] && [ "$(optvalue hugemb)" != "off" ] && OPTS[hugepages]=$(($(optvalue hugemb)*1024/($HUGE_FORMULA) + (($(optvalue hugemb)*1024%($HUGE_FORMULA) > 0))))
 
+    [ "$(optvalue hugepages)" == "off" ] && verbosemsg "Amount of required hugepages not given, no change made" && return
+
     HUGE_UNIT=kB
     HUGE_KB=$(($HUGE_FORMULA*OPTS[hugepages]))
     HUGE_AMOUNT=$HUGE_KB
@@ -412,7 +416,7 @@ patterns = (
     ("condvar",   '[a-zA-Z0-9_\-.]+'),
     ("condval",   '[^\s].*'),
     ("condsep",   '(\s*->\s*)'),
-    ("letop",     '\+{0,2}='),
+    ("letop",     '\+{0,2}\??='),
     ("letval",    '[^\s].*'),
     ("var",       '[a-zA-Z0-9_\-.]+'),
     ("comment",   '\s*(;.*)?'),
@@ -493,6 +497,15 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             OPT_ORIGIN="$(cc 0)variant config file$nn $(cc 1)${cfgfile#!varcfg!}$nn"
             examplename="${OPTS[example]}@${OPTS[variant]}"
             [ "${OPTS[variant]}" == "std" ] && examplename="${OPTS[example]}\(@std\)\?"
+
+            # determines model from test case file
+            MAYBE_TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
+            IFS=$'\n'
+            for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[{}\"]//g"`; do
+                testcase_in_file=`echo $testcase_row | cut -f1 -d,`
+                [ "$testcase_in_file" != "${OPTS[testcase]}" ] && continue
+                OPTS[model_by_testcase]=`echo $testcase_row | cut -f3 -d,`
+            done
 
             IFS=$'\n'
             while read -r opts; do
@@ -585,6 +598,11 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             [ "${groups[letop]}" == "+="  ] && addopt "$var" "$value" " " && continue
             [ "${groups[letop]}" == "++=" ] && addopt "$var" "$value" "\n" && continue
 
+            if [ "${groups[letop]}" == "?=" ]; then
+                [ "$(optvalue "$var")" == "off" ] && setopt "$var" "$value" "\n"
+                continue
+            fi
+
             setopt "$var" "$value"
         done
 
@@ -615,6 +633,9 @@ if [ "$(optvalue redo)" == on ]; then
 fi
 
 
+# Make sure model is set
+[ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
+
 # Determine version by extension if possible
 if [ "${OPTS[vsn]}" == "" ]; then
     P4_EXT="$(basename "${OPTS[source]}")"
@@ -629,7 +650,13 @@ fi
 
 [ "$(optvalue testcase)" == off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
 [ "$(optvalue testcase)" != off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}-$(optvalue testcase)}
-T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}"}
+
+if [ "${OPTS[model]}" == "${OPTS[choice]}" ]; then
+    T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}"}
+else
+    T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}-${OPTS[model]}"}
+fi
+
 T4P4S_TARGET_DIR="${T4P4S_BUILD_DIR}/last"
 # a synonym of "last", this comes earliest alphabetically
 T4P4S_AFTERMOST_DIR="${T4P4S_BUILD_DIR}/aftermost"
@@ -642,8 +669,6 @@ T4P4S_GEN_LIGHT="gen_light.h"
 T4P4S_GEN_INCLUDE="gen_include.h"
 T4P4S_GEN_DEFS="gen_defs.h"
 T4P4S_GEN_MODEL="gen_model.h"
-
-EXAMPLES_DIR=${EXAMPLES_DIR-./examples}
 
 # By default use all three phases
 if [ "$(optvalue p4)" == off ] && [ "$(optvalue c)" == off ] && [ "$(optvalue run)" == off ]; then
@@ -785,7 +810,7 @@ fi
 
 # Phase 1: P4 to C compilation
 if [ "$(optvalue p4)" != off ]; then
-    msg "[$(cc 0)COMPILE  P4-${OPTS[vsn]}$nn] $(cc 0)$(print_cmd_opts ${OPTS[source]})$nn@$(cc 1)${OPTS[variant]}$nn${OPTS[testcase]+, test case $(cc 1)${OPTS[testcase]-(none)}$nn}${OPTS[dbg]+, $(cc 0)debug$nn mode}"
+    msg "[$(cc 0)COMPILE  P4-${OPTS[vsn]}$nn] $(cc 0)$(print_cmd_opts ${OPTS[source]})$nn@$(cc 1)${OPTS[variant]}$nn${OPTS[testcase]+, test case $(cc 1)${OPTS[testcase]-(none)}$nn}${OPTS[dbg]+, $(cc 0)debug$nn mode, model $(cc 0)$(optvalue model)$nn}"
 
     addopt p4opts "${OPTS[source]}" " "
     addopt p4opts "--p4v ${OPTS[vsn]}" " "
@@ -805,8 +830,6 @@ fi
 # Phase 2A: Check prerequisites
 if [ "$(optvalue c)" != off ]; then
     mkdir -p ${T4P4S_TARGET_DIR}/build
-
-    [ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
 fi
 
 # Phase 2B: C compilation, create build files

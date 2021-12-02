@@ -189,7 +189,7 @@ fi
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
 
-    all_arguments="$TESTCASE ${models[$TESTCASE]:+model=${models[$TESTCASE]}} $*"
+    all_arguments="$TESTCASE $*"
     echo
     echo
     echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $all_arguments
