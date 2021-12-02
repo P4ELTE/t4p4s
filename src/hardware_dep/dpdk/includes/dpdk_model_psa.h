@@ -54,12 +54,14 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 // p4.psa: Random<T> {...}
 
 // p4.psa: Digest<T> {...}
+/*
 #ifdef T4P4S_TYPE_mac_learn_digest_t
-    void extern_Digest_pack__mac_learn_digest_t(mac_learn_digest_t* mac_learn_digest, Digest_t* out_digest, SHORT_STDPARAMS);
+    void extern_Digest_pack__mac_learn_digest_t(EXTERNTYPE(Digest)* digest, mac_learn_digest_t* mac_learn_digest, SHORT_STDPARAMS);
 #endif
 #ifdef T4P4S_TYPE_learn_digest_t
-    void extern_Digest_pack__learn_digest_t(learn_digest_t* learn_digest, Digest_t* out_digest, SHORT_STDPARAMS);
+    void extern_Digest_pack__learn_digest_t(EXTERNTYPE(Digest)* digest, learn_digest_t* learn_digest, SHORT_STDPARAMS);
 #endif
+*/
 
 // p4.psa: Counter<W, S> {...}
 // p4.psa: DirectCounter<W> {...}
@@ -72,11 +74,12 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
     // void extern_register_write(uint32_t index, uint32_t a, uint32_t b, register_t* c, SHORT_STDPARAMS);
 
 // p4.psa: InternetChecksum {...}
-typedef uint16_t InternetChecksum;
-void InternetChecksum_t_init(InternetChecksum* checksum);
-void extern_InternetChecksum_clear(InternetChecksum* checksum);
-void extern_InternetChecksum_add(InternetChecksum* checksum);
-void InternetChecksum_t_get(InternetChecksum* checksum);
-void InternetChecksum_t_subtract(InternetChecksum* checksum, uint16_t data);
-uint16_t InternetChecksum_t_get_state(InternetChecksum* checksum);
-void InternetChecksum_t_set_state(InternetChecksum* checksum, uint16_t checksum_state);
+// typedef uint16_t InternetChecksum;
+void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL1(InternetChecksum,add,tuple_0)(EXTERNTYPE(InternetChecksum)* checksum, int data, SHORT_STDPARAMS);
+uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS);
+uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS);

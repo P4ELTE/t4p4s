@@ -19,16 +19,16 @@ void transfer_to_egress(packet_descriptor_t* pd) {
 
 // -----------------------------------------------------------------
 
-void digest_impl(int receiver, uint8_buffer_t buf, SHORT_STDPARAMS) {
-    
+void EXTERNIMPL1(digest,u8s)(uint32_t receiver, uint8_buffer_t buf, SHORT_STDPARAMS) {
+    debug("    : TODO Sending digest\n");
 }
 
-void clone_impl(enum_CloneType_t type, uint32_t session, SHORT_STDPARAMS) {
-    
+void EXTERNIMPL0(clone)(enum_CloneType_t type, uint32_t session, SHORT_STDPARAMS) {
+    debug("    : TODO Invoked clone, currently not implemented\n");
 }
 
-void clone3_impl(enum_CloneType_t type, uint32_t session, uint8_buffer_t data, SHORT_STDPARAMS) {
-    
+void EXTERNIMPL0(clone3)(enum_CloneType_t type, uint32_t session, uint8_buffer_t data, SHORT_STDPARAMS) {
+    debug("    : TODO Invoked clone3, currently not implemented\n");
 }
 
 // -----------------------------------------------------------------
@@ -50,7 +50,7 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 
 // -----------------------------------------------------------------
 
-void mark_to_drop_impl(SHORT_STDPARAMS) {
+void EXTERNIMPL0(mark_to_drop)(SHORT_STDPARAMS) {
     MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
     debug("       " T4LIT(X,status) " Packet is " T4LIT(dropped,status) "\n");
 }

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <rte_atomic.h>
+#include "stateful_memory_type.h"
 
 //=============================================================================
 // Registers
@@ -72,44 +73,14 @@ typedef struct {
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
-} counter_t;
-
-
-typedef struct {
-    rte_atomic32_t value;
-    #ifdef T4P4S_DEBUG
-        char name[256];
-    #endif
-} direct_counter_t;
+} SMEMTYPE(direct_meter_uint32);
 
 typedef struct {
     rte_atomic32_t value;
     #ifdef T4P4S_DEBUG
         char name[256];
     #endif
-} direct_meter_uint32_t;
-
-typedef struct {
-    rte_atomic32_t value;
-    #ifdef T4P4S_DEBUG
-        char name[256];
-    #endif
-} direct_meter_uint8_t;
-
-typedef struct {
-    rte_atomic32_t value;
-    #ifdef T4P4S_DEBUG
-        char name[256];
-    #endif
-    // TODO
-} direct_meter_t;
-
-typedef struct {
-    rte_atomic32_t value;
-    #ifdef T4P4S_DEBUG
-        char name[256];
-    #endif
-} meter_t;
+} SMEMTYPE(direct_meter_uint8);
 
 //=============================================================================
 // Locking

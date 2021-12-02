@@ -244,6 +244,9 @@ void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto
         case CRYPTO_TASK_DECRYPT:
             rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
             break;
+        case CRYPTO_TASK_MD5_HMAC:
+            // TODO
+            break;
         }
     }
 }
@@ -363,7 +366,7 @@ extern void do_decryption(SHORT_STDPARAMS);
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
-void do_encryption_async_impl(SHORT_STDPARAMS)
+void EXTERNIMPL0(do_encryption_async)(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
@@ -392,7 +395,7 @@ void do_encryption_async_impl(SHORT_STDPARAMS)
     #endif
 }
 
-void do_decryption_async_impl(SHORT_STDPARAMS)
+void EXTERNIMPL0(do_decryption_async)(SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
@@ -501,14 +504,19 @@ void do_ipsec_encapsulation(SHORT_STDPARAMS) {
     debug_mbuf(pd->wrapper,"final wrapper");
 }
 
-void md5_hmac_impl(uint8_buffer_t offset, SHORT_STDPARAMS)
+void EXTERNIMPL1(md5_hmac,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     do_blocking_sync_op(pd, CRYPTO_TASK_MD5_HMAC, offset.buffer[0]);
 }
 
-void encrypt__u8s(uint8_buffer_t offset, SHORT_STDPARAMS)
+void EXTERNIMPL1(encrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     do_blocking_sync_op(pd, CRYPTO_TASK_ENCRYPT, offset.buffer[0]);
+}
+
+void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS)
+{
+    do_ipsec_encapsulation(SHORT_STDPARAMS_IN);
 }
 
 #endif

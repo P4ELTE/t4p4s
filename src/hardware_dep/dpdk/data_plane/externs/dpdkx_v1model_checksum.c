@@ -10,13 +10,13 @@
 
 #include <rte_ip.h>
 
-void verify_checksum_impl(bool cond, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void EXTERNIMPL0(verify_checksum)(bool cond, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     if (unlikely(!cond)) {
         debug("    " T4LIT(X,status) " Packet checksum does not need to be verified\n");
         return;
     }
 
-    int bytelen = data.buffer_size / 8;
+    int bytelen = data.size / 8;
 
     dbg_bytes(data.buffer, bytelen, "    : " T4LIT(Verifying checksum,extern) " for " T4LIT(%d) " bytes: ", bytelen);
     uint32_t current_cksum = 0;
@@ -35,13 +35,13 @@ void verify_checksum_impl(bool cond, uint8_buffer_t data, uint16_t checksum, enu
     }
 }
 
-void update_checksum_impl(bool cond, uint8_buffer_t data, uint16_t* checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void EXTERNIMPL0(update_checksum)(bool cond, uint8_buffer_t data, uint16_t* checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     if (unlikely(!cond)) {
         debug("    " T4LIT(X,status) " Packet checksum does not need to be verified\n");
         return;
     }
 
-    int bytelen = data.buffer_size / 8;
+    int bytelen = data.size / 8;
 
     dbg_bytes(data.buffer, bytelen, "    : " T4LIT(Updating checksum,extern) " for " T4LIT(%d) " bytes: ", bytelen);
 
@@ -65,7 +65,7 @@ bool is_checksum_bad(struct rte_mbuf* mbuf) {
     #endif
 }
 
-void verify_checksum_offload__u8s_impl(bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void EXTERNIMPL2(verify_checksum_offload,u8s,u16)(uint8_buffer_t data, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify_checksum_offload,extern) "\n");
 
     if (unlikely(is_checksum_bad(pd->wrapper))) {
@@ -73,7 +73,7 @@ void verify_checksum_offload__u8s_impl(bitfield_handle_t cksum_field_handle, enu
     }
 }
 
-void verify_checksum_offload_impl(enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void EXTERNIMPL0(verify_checksum_offload)(enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(verify_checksum_offload,extern) "\n");
 
     if (unlikely(is_checksum_bad(pd->wrapper))) {
@@ -81,7 +81,7 @@ void verify_checksum_offload_impl(enum_HashAlgorithm_t algorithm, SHORT_STDPARAM
     }
 }
 
-void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum_HashAlgorithm_t algorithm, uint8_t len_l2, uint8_t len_l3, SHORT_STDPARAMS) {
+void update_checksum_offload(uint8_buffer_t data, enum_HashAlgorithm_t algorithm, uint8_t len_l2, uint8_t len_l3, SHORT_STDPARAMS) {
     debug("    : Called extern " T4LIT(update_checksum_offload,extern) "\n");
 
     pd->wrapper->l2_len = len_l2;
@@ -101,51 +101,59 @@ void update_checksum_offload(bitfield_handle_t cksum_field_handle, enum_HashAlgo
 }
 
 
-void verify_impl(bool check, error_error_t toSignal, SHORT_STDPARAMS) {
+void EXTERNIMPL0(verify)(bool check, error_error_t toSignal, SHORT_STDPARAMS) {
     // TODO implement call to extern
     debug("    : Called extern " T4LIT(verify,extern) "\n");
 }
 
-void verify_checksum_with_payload_impl(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void EXTERNIMPL0(verify_checksum_with_payload)(bool condition, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     // TODO implement call to extern
     debug("    : Called extern " T4LIT(verify_checksum_with_payload,extern) "\n");
 }
 
-void update_checksum_with_payload_impl(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+void EXTERNIMPL0(update_checksum_with_payload)(bool condition, uint8_buffer_t data, uint16_t* checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
     // TODO implement call to extern
     debug("    : Called extern " T4LIT(update_checksum_with_payload,extern) "\n");
 }
 
 // ----------------------------------------------------------------
 
-// void verify_checksum__u8s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     verify_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL1(verify_checksum,u8s)(bool cond, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    EXTERNIMPL0(verify_checksum)(cond, data, checksum, algorithm, SHORT_STDPARAMS_IN);
+}
 
-// void verify_checksum__u4s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     verify_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL1(update_checksum,u8s)(bool cond, uint8_buffer_t data, uint16_t* checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+    EXTERNIMPL0(update_checksum)(cond, data, checksum, algorithm, SHORT_STDPARAMS_IN);
+}
 
-// void verify_checksum__u32s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     verify_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(verify_checksum_with_payload,u8s,u16)(bool condition, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(verify_checksum_with_payload)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
 
-// void update_checksum__u8s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     update_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(update_checksum_with_payload,u8s,u16)(bool condition, uint8_buffer_t data, uint16_t* /* inout */  checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(update_checksum_with_payload)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
 
-// void update_checksum__u4s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     update_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(verify_checksum,u8s,u16)(bool condition, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(verify_checksum)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
 
-// void update_checksum__u32s__u16(bool cond, uint8_buffer_t data, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
-//     update_checksum_impl(cond, data, algorithm, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(verify_checksum,u32s,u16)(bool condition, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(verify_checksum)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
 
-// void verify_checksum_with_payload__u32s__u16(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
-//     verify_checksum_with_payload_impl(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(update_checksum,u8s,u16)(bool condition, uint8_buffer_t data, uint16_t* /* inout */ checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(update_checksum)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
 
-// void update_checksum_with_payload__u32s__u16(bool condition, uint8_buffer_t data, bitfield_handle_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
-//     update_checksum_with_payload_impl(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
-// }
+void EXTERNIMPL2(update_checksum,u32s,u16)(bool condition, uint8_buffer_t data, uint16_t* /* inout */ checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(update_checksum)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
+
+void EXTERNIMPL2(verify_checksum_with_payload,u32s,u16)(bool condition, uint8_buffer_t data, uint16_t checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(verify_checksum_with_payload)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}
+
+void EXTERNIMPL2(update_checksum_with_payload,u32s,u16)(bool condition, uint8_buffer_t data, uint16_t* /* inout */ checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
+    EXTERNIMPL0(update_checksum_with_payload)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+}

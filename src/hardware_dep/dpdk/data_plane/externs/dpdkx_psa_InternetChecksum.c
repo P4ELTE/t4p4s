@@ -9,30 +9,30 @@
 #include "dpdk_lib.h"
 
 
-void InternetChecksum_t_init(InternetChecksum* checksum) {
-    debug(" :::: calling extern " T4LIT(InternetChecksum_t_init,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,init)(InternetChecksum* checksum, SHORT_STDPARAMS) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/init,extern) "\n");
 }
 
-void extern_InternetChecksum_clear(InternetChecksum* checksum) {
-    debug(" :::: calling extern " T4LIT(extern_InternetChecksum_clear,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,clear)(InternetChecksum* checksum, SHORT_STDPARAMS) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/clear,extern) "\n");
 }
 
-void extern_InternetChecksum_add(InternetChecksum* checksum) {
-    debug(" :::: calling extern " T4LIT(extern_InternetChecksum_add,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,add)(InternetChecksum* checksum) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/add,extern) "\n");
 }
 
-void InternetChecksum_t_get(InternetChecksum* checksum) {
-    debug(" :::: calling extern " T4LIT(InternetChecksum_t_get,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,get)(InternetChecksum* checksum, SHORT_STDPARAMS) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/get,extern) "\n");
 }
 
-void InternetChecksum_t_subtract(InternetChecksum* checksum, uint16_t data) {
-    debug(" :::: calling extern " T4LIT(InternetChecksum_t_subtract,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,subtract)(InternetChecksum* checksum, uint16_t data, SHORT_STDPARAMS) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/subtract,extern) "\n");
 }
 
-uint16_t InternetChecksum_t_get_state(InternetChecksum* checksum) {
-    debug(" :::: calling extern " T4LIT(InternetChecksum_t_get_state,extern) "\n");
+uint16_t EXTERNIMPL0(InternetChecksum,get_state)(InternetChecksum* checksum) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/get_state,extern) "\n");
 }
 
-void InternetChecksum_t_set_state(InternetChecksum* checksum, uint16_t checksum_state) {
-    debug(" :::: calling extern " T4LIT(InternetChecksum_t_set_state,extern) "\n");
+void EXTERNIMPL0(InternetChecksum,set_state)(InternetChecksum* checksum, uint16_t checksum_state, SHORT_STDPARAMS) {
+    debug(" :::: calling extern " T4LIT(InternetChecksum/set_state,extern) "\n");
 }

@@ -70,5 +70,5 @@ typedef void (*packet_handler_noparams_t)();
 //=============================================================================
 // Externs
 
-// TODO only include this file if "crypto" is active
-#include "dpdkx_crypto_dummy.h"
+#include "dpdkx_gen_extern.h"
+

@@ -36,8 +36,8 @@ void print_log_msg(const char* msg) {
     #endif
 }
 
-void log_msg(const char** msg, SHORT_STDPARAMS) {
-    print_log_msg(*msg);
+void EXTERNIMPL0(log_msg)(const char* msg, SHORT_STDPARAMS) {
+    print_log_msg(msg);
 }
 
 const char* dec_hex_fmt(int size) {
@@ -133,4 +133,8 @@ void log_msg__ethernet_ts(const char** msg, uint8_buffer_t data, SHORT_STDPARAMS
     sprintf(text, fmt, src1, src2, dst1, dst2, typ);
 
     print_log_msg(text);
+}
+
+void EXTERNIMPL1(log_msg,u8s)(const char* msg, uint8_buffer_t data, SHORT_STDPARAMS) {
+    log_msg__bufs(&msg, data, SHORT_STDPARAMS_IN);
 }

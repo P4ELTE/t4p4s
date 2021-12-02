@@ -17,7 +17,17 @@
     #define KEYTXTPARAMS_IN
 #endif
 
+
+#define MAX_BUF_PART_COUNT 16
+
 typedef struct {
-    int      buffer_size;
+    int      size;
     uint8_t* buffer;
+
+    int part_count;
+    int part_bit_offsets[MAX_BUF_PART_COUNT];
+    int part_bit_sizes[MAX_BUF_PART_COUNT];
+
+    const char*const name;
+    const char*const part_names[MAX_BUF_PART_COUNT];
 } uint8_buffer_t;
