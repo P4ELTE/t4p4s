@@ -167,10 +167,6 @@ for table in sorted(hlir.tables, key=lambda table: table.short_name):
 
     #[     name_counter = 0;
     is_hidden_ok = "" if table.is_hidden else "!"
-    if 'udp_srcPort_filter' in unique_everseen(table.actions.map('expression.method.path.name')):
-        print(table.name)
-        print(unique_everseen(table.actions.map('expression.method.path.name')))
-        breakpoint()
     for action_name in unique_everseen(table.actions.map('expression.method.path.name')):
         #[     if (${is_hidden_ok}hidden)   t4p4s_print_stats_${table.name}_${action_name}(&printout_name, is_on, real_action, t4p4s_stats);
     #[     print_table_name(&printout, "${table.short_name}", real_action);
