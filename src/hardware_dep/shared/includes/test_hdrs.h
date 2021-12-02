@@ -57,8 +57,8 @@
 #define hETH4(dsteth, srceth)                      dsteth srceth cIPV4
 #define hETH6(dsteth, srceth)                      dsteth srceth cIPV6
 
-//                                                 12     1         [1]     4       4
-#define hIP4(protocol, srcip4, dstip4)             hxIPv4(protocol, CHKSM0) srcip4 dstip4
+//                                                 12     1          [1]     4       4
+#define hIP4(protocol8, srcip32, dstip32)          hxIPv4(protocol8, CHKSM0) srcip32 dstip32
 //  2       2       4     4     4b         4b  1     2      2        2
 #define hTCP(srcPort,dstPort,seqNo,ackNo,dataOffset,res,flags,window,checksum,urgentPtr)   srcPort dstPort seqNo ackNo dataOffset res flags window checksum urgentPtr
 
@@ -69,15 +69,14 @@
 #define hTEID(teid)                                teid
 
 // the name only makes it easy to identify the header
-#define hMISC(name, content)                       content
+#define hMISC(name, part1, ...)                    part1, ##__VA_ARGS__
 
 
 // bytes: [2+2+1+1], 2
 #define hARP(oper)                                 ARP_HTYPE_ETHERNET cIPV4 ARP_HLEN_ETHERNET ARP_PLEN_IPV4 oper
 //                                                 6B  4B  6B  4B
 #define hARP4(sha, spa, tha, tpa)                  sha spa tha tpa
-//                                                 3+1b    12b 2B
-#define hVLAN(pcp_cfi, vid, ether_type)            pcp_cfi vid ether_type
+#define hVLAN(pcp_cfi3_1, vid12, ether_type16)     pcp_cfi3_1 vid12 ether_type16
 #define hVXLAN()                                   "0000000000000000"
 #define hBAAS()                                    "0000000000000000"
 //           (3b+5x1b)  1        2
@@ -89,6 +88,9 @@
 #define hRLC()                                     "00000000000000000000000000"
 #define hPDCPbefore()                              "00000000000000000000000000000000000000000000000000000000000000000000"
 #define hPDCP()                                    "0000000000"
+
+#define hICMP4(type8,code8,checksum16)             type8 code8 checksum16
+
 #define PAYLOAD(payload)                           payload
 
 
