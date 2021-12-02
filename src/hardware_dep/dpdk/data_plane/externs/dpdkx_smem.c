@@ -38,8 +38,14 @@ void do_counter_count_pob32(rte_atomic32_t* smem_pob, int index, uint32_t value,
 
 
 void do_counter_count(SMEMTYPE(counter)* counter, int index, uint32_t value) {
-    if (counter->pob == pob_packets || counter->pob == pob_packets_and_bytes)    do_counter_count_pob32(&(counter[index].packets), index, value, counter->name);
-    if (counter->pob == pob_bytes   || counter->pob == pob_packets_and_bytes)    do_counter_count_pob32(&(counter[index].bytes), index, value, counter->name);
+    #ifdef T4P4S_DEBUG
+        const char*const counter_name = counter->name;
+    #else
+        const char*const counter_name = NULL;
+    #endif
+
+    if (counter->pob == pob_packets || counter->pob == pob_packets_and_bytes)    do_counter_count_pob32(&(counter[index].packets), index, value, counter_name);
+    if (counter->pob == pob_bytes   || counter->pob == pob_packets_and_bytes)    do_counter_count_pob32(&(counter[index].bytes), index, value, counter_name);
 }
 
 

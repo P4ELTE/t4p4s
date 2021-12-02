@@ -11,9 +11,11 @@ from compiler_common import unique_everseen
 
 for stype in unique_everseen(smem.smem_type for table, smem in hlir.smem.all_meters + hlir.smem.all_counters):
     #{ void init_${stype}_smem(SMEMTYPE($stype) smem[], int amount, const char*const name, const char*const purpose) {
-    #{     for (int idx = 0; idx < amount; ++idx) {
-    #[         sprintf(smem[idx].name, "%s/%s", name, purpose);
-    #}     }
+    #{     #ifdef T4P4S_DEBUG
+    #{         for (int idx = 0; idx < amount; ++idx) {
+    #[             sprintf(smem[idx].name, "%s/%s", name, purpose);
+    #}         }
+    #}     #endif
     #} }
     #[
 
