@@ -14,6 +14,11 @@ struct empty_metadata_t {
                                         in empty_metadata_t resubmit_meta, \
                                         in empty_metadata_t recirculate_meta)
 
+#define CTL_INGRESS control ingress(inout headers hdr, \
+                                    inout metadata meta, \
+                                    in    psa_ingress_input_metadata_t  istd, \
+                                    inout psa_ingress_output_metadata_t ostd)
+
 #define CTL_EGRESS control egress(inout headers hdr, \
                                   inout metadata meta, \
                                   in    psa_egress_input_metadata_t  istd, \
@@ -26,3 +31,5 @@ struct empty_metadata_t {
                                              inout headers hdr, \
                                              in metadata meta, \
                                              in psa_ingress_output_metadata_t istd)
+
+#define USE_DEFAULT_CTL_INGRESS

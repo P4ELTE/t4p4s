@@ -1,16 +1,29 @@
 
-control ingress(inout headers hdr,
-                inout metadata meta,
-                in    psa_ingress_input_metadata_t  istd,
-                inout psa_ingress_output_metadata_t ostd)
-{
-    apply {
-        PortId_t EGRESS_DROP_VALUE = (PortId_t)200;
-        if (ostd.egress_port != EGRESS_DROP_VALUE) {
-            ostd.egress_port = (PortId_t)12345;
+#if defined(USE_DEFAULT_CTL_INGRESS)
+    control ingress(inout headers hdr,
+                    inout metadata meta,
+                    in    psa_ingress_input_metadata_t  istd,
+                    inout psa_ingress_output_metadata_t ostd)
+    {
+        apply {
+            PortId_t EGRESS_DROP_VALUE = (PortId_t)200;
+            if (ostd.egress_port != EGRESS_DROP_VALUE) {
+                ostd.egress_port = (PortId_t)12345;
+            }
         }
     }
-}
+#endif
+
+
+#if defined(USE_DEFAULT_CTL_EGRESS)
+    control egress(inout headers hdr, \
+                                  inout metadata meta, \
+                                  in    psa_egress_input_metadata_t  istd, \
+                                  inout psa_egress_output_metadata_t ostd)
+    {
+        apply {}
+    }
+#endif
 
 parser EgressParserImpl(packet_in buffer,
                         out headers hdr,
