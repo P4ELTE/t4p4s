@@ -2,15 +2,19 @@
 # Copyright 2017 Eotvos Lorand University, Budapest, Hungary
 
 from inspect import getmembers, isfunction
+from enum import Enum
 import sys
 
 from itertools import takewhile
 
 from hlir16.hlir_utils import align8_16_32
 from hlir16.hlir_ops import elementwise_binary_ops, simple_binary_ops, complex_binary_ops
+from hlir16.hlir_model import packets_by_model
+from hlir16.p4node import P4Node
 
 from compiler_log_warnings_errors import addWarning, addError
 from compiler_common import types, with_base, resolve_reference, is_subsequent, groupby, group_references, fldid, fldid2, pp_type_16, make_const, SugarStyle, prepend_statement, append_statement, is_control_local_var, generate_var_name, pre_statement_buffer, post_statement_buffer, enclosing_control, unique_everseen, unspecified_value, get_raw_hdr_name, get_hdr_name, get_hdrfld_name, split_join_text
+from utils.extern import get_smem_name
 
 ################################################################################
 
@@ -24,6 +28,11 @@ funname_map = {
 def sizeup(size, use_array):
     return 8 if use_array else 8 if size <= 8 else 16 if size <= 16 else 32 if size <= 32 else 8
 
+def add_prefix(prefix, txt):
+    if txt.startswith(prefix):
+        return txt
+    return f'{prefix}{txt}'
+
 
 def type_to_str(t):
     if t.node_type == 'Type_Bits':
@@ -34,7 +43,15 @@ def type_to_str(t):
 def append_type_postfix(name):
     return name if name.endswith('_t') else f'{name}_t'
 
-def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_ptr = False):
+def inf_int_c_type():
+    ### Our C representation of the "indefinite length int" type.
+    return 'int32_t'
+
+def inf_int_short_c_type():
+    ### The short name of the "indefinite length int" type.
+    return 'i32'
+
+def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False):
     """Returns a type. If the type has a part that has to come after the variable name in a declaration,
     such as [20] in uint8_t varname[20], it should be separated with a space."""
 
@@ -44,6 +61,8 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
         #[ int /*TODO_Stack_t*/
     elif t.node_type == 'Type_Void':
         #[ void
+    elif t.node_type == 'Type_InfInt':
+        #[ ${inf_int_c_type()}
     elif t.node_type == 'Type_Boolean':
         #[ bool $addon
     elif t.node_type == 'Type_Error':
@@ -52,7 +71,10 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
     elif t.node_type == 'Type_List':
         #[ uint8_buffer_t
     elif t.node_type == 'Type_String':
-        #[ char*
+        if is_const:
+            #[ const char*
+        else:
+            #[ char*
     elif t.node_type == 'Type_Varbits':
         #[ uint8_t $addon[${(t.size+7)//8}] /* preliminary type for varbits */
     elif t.node_type == 'Type_Struct':
@@ -73,7 +95,7 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
             # types for externs (smems)
 
             if 'baseType' in t:
-                constructor = t.urtype.methods.get(t.urtype.name)
+                constructor = t.urtype.constructors[0]
                 datatype = constructor.type.parameters.parameters[0].urtype
                 #= format_type(datatype)
             else:
@@ -84,16 +106,19 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
                 #[ ${t.baseType.path.name}_${int_type}${size}_t
     elif t.node_type == 'Type_Bits':
         size = sizeup(t.size, use_array)
-        base = f'int{size}_t' if t.isSigned else f'uint{size}_t'
+        base = f'rte_atomic{size}_t' if is_atomic else f'int{size}_t' if t.isSigned else f'uint{size}_t'
         if use_array:
             #[ $base $addon[(${t.size} + 7) / 8]
         else:
             ptr = '*' if t.size > 32 else ''
             #[ $base$ptr $addon
     elif t.node_type == 'Type_Enum':
-        name = t.c_name if 'c_name' in t else t.name
-        name = f'enum_{name}' if not name.startswith('enum_') else name
-        #[ ${append_type_postfix(name)}
+        if is_atomic:
+            name = 'rte_atomic32_t'
+        else:
+            name = t.c_name if 'c_name' in t else t.name
+            name = append_type_postfix(add_prefix('enum_', name))
+        #[ $name $addon
     elif t.node_type == 'Type_Name':
         t2 = t.urtype
         if not resolve_names and 'name' in t2:
@@ -101,16 +126,15 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
         else:
             #= gen_format_type(t2, resolve_names, use_array, addon)
     elif t.node_type == 'Type_Extern':
-        is_smem = 'smem_type' in t or t.name in ('register')
+        is_smem = 'smem_type' in t
         if not is_smem:
-            #[ ${t.name}_t
+            #[ EXTERNTYPE(${t.name})
+        elif (reg := t).smem_type in ('register'):
+            signed = 'uint' if reg.repr.isSigned else 'int'
+            size = align8_16_32(reg.repr.size)
+            #[ REGTYPE($signed,$size)
         else:
-            params = t.typeParameters.parameters
-
-            postfix = ''.join(f'_{type_to_str(par.urtype)}' for par in params if par is not None if par.urtype is not None)
-            postfix = '_t' if postfix == '' else postfix
-
-            #[ ${t.name}${postfix}
+            #[ SMEMTYPE(${t.smem_type})
     else:
         addError('formatting type', f'Type {t.node_type} for node ({t}) is not supported yet')
         #[ TODO_TYPE_FOR_${t.name} /* placeholder type for ${t.node_type} */
@@ -270,27 +294,12 @@ def gen_format_statement_fieldref(dst, src):
 
 def is_atomic_block(blckstmt):
     try:
-        return any(blckstmt.annotations.annotations.filter('name', 'atomic'))
+        return any(blckstmt.annotations.annotations.filter('name', 'is_atomic'))
     except:
         return False
 
 
 def format_source(src):
-    def is_binop(node):
-        nt = node.node_type
-        return nt in simple_binary_ops or nt in complex_binary_ops or nt in elementwise_binary_ops
-
-    def format_binop(node):
-        nt = node.node_type
-        if nt in simple_binary_ops:
-            op = simple_binary_ops[nt]
-        if nt in complex_binary_ops:
-            op = complex_binary_ops[nt]
-        if nt in elementwise_binary_ops:
-            op = elementwise_binary_ops[nt]
-        return f'{format_source(node.left)} "{op}" {format_source(node.right)}'
-
-
     nt = src.node_type
     if nt == 'Constant':
         return f'T4LIT({src.value})'
@@ -302,13 +311,21 @@ def format_source(src):
     if nt == 'PathExpression':
         return f'T4LIT({src.path.name},field)'
     if nt == 'Cast':
-        if is_binop(src.expr):
-            return format_binop(src.expr)
-        return f'T4LIT({src.expr.path.name},field)'
+        if src.expr.node_type in simple_binary_ops:
+            return f'T4LIT(simple-binary-op,field)'
+        if src.expr.node_type in complex_binary_ops:
+            return f'T4LIT(complex-binary-op,field)'
+        if src.expr.node_type in elementwise_binary_ops:
+            return f'T4LIT(elementwise-binary-op,field)'
+        return format_source(src.expr)
     if nt == 'Mux':
         return f'"("{format_source(src.e0)} " ? " {format_source(src.e1)} " : " {format_source(src.e2)} ")"'
-    if is_binop(src):
-        return format_binop(src)
+    if nt in simple_binary_ops:
+        op = simple_binary_ops[nt]
+        return f'{format_source(src.left)} "{op}" {format_source(src.right)}'
+    if nt in complex_binary_ops:
+        op = complex_binary_ops[nt]
+        return f'{format_source(src.left)} "{op}" {format_source(src.right)}'
 
     addWarning('formatting source', f'Unexpected {nt} source found')
     return 'unknown'
@@ -399,13 +416,19 @@ def gen_do_assignment(dst, src, ctl=None):
                 #[ dbg_bytes(&($srcexpr), $size, "    : Set " T4LIT($hdrname,header) "." T4LIT($fldname,field) "/" T4LIT(${size}B) " = " $srctxt " = ");
                 #[ MODIFY(dst_pkt(pd), FLD($hdrname,$fldname), src_buf(&$tmpvar, $size), ENDIAN_NET);
             else:
-                needs_dereferencing = src.node_type in ("Constant", "Member") and size <= 4
-                deref = "*" if needs_dereferencing else ""
-                #[ ${format_type(dst.type)} $tmpvar = $deref(${format_type(dst.type)}$deref)((${format_expr(src, expand_parameters=True, needs_variable=True)}));
+                nt = src.node_type
+                is_op_node = nt in simple_binary_ops or nt in complex_binary_ops or nt in elementwise_binary_ops
+                is_local = nt == 'PathExpression'
+                is_nonref_node = is_op_node or nt in ('Constant', 'MethodCallExpression', 'Cast') or is_local
+                is_ref_node = is_op_node or nt in ('Constant', 'Member', 'MethodCallExpression', 'Cast') or is_local
 
-                needs_referencing = src.node_type in ("Constant", "Member", "MethodCallExpression") and size <= 4
+                needs_dereferencing = not is_nonref_node and size <= 4
+                deref = "*" if needs_dereferencing else ""
+                #[ ${format_type(dst.type)} $tmpvar = $deref(${format_type(dst.type)}$deref)((${format_expr(src, expand_parameters=True, needs_variable=True)})); // dbg ${is_op_node} ${is_local} ${is_nonref_node} ${nt}->${dst.node_type}
+
+                needs_referencing = is_ref_node and size <= 4
                 ref = f'&' if needs_referencing else f''
-                #[ memcpy(&(${format_expr(dst)}), $ref$tmpvar, $size);
+                #[ memcpy(&(${format_expr(dst)}), $ref$tmpvar /* dbg ${is_op_node} ${is_local} ${is_nonref_node} ${nt}->${dst.node_type} */, $size);
 
                 dstname = dst.path.name
                 short_name = ctl.locals.get(dstname, 'Declaration_Variable').short_name
@@ -497,7 +520,7 @@ def gen_format_statement(stmt, ctl=None):
         elif 'expr' in m and m.expr.urtype.node_type == 'Type_Stack':
             #[ /* TODO stack */
         else:
-            #[ ${gen_methodcall(mcall)};
+            #[ ${gen_short_extern_call(mcall)};
     elif stmt.node_type == 'SwitchStatement':
         #[ switch(${format_expr(stmt.expression)}) {
         for case in stmt.cases:
@@ -585,7 +608,7 @@ def gen_fmt_methodcall(mcall, m):
         #= gen_stk_$op(stk, mcall)
         #[ /* done calling stack operation $op */
     else:
-        #[ ${gen_methodcall(mcall)}
+        #[ ${gen_short_extern_call(mcall)}
 
 def gen_fmt_methodcall_extern(m, mcall):
     # TODO treat smems and digests separately
@@ -594,30 +617,38 @@ def gen_fmt_methodcall_extern(m, mcall):
     smem_type = dref.smem_type if 'decl_ref' in m.expr and 'smem_type' in dref else m.expr.urtype.name
 
     # if the extern is about both packets and bytes, it takes two separate calls
-    is_possibly_multiple = smem_type in ("counter", "meter", "direct_counter", "direct_meter", "Counter")
+    is_possibly_multiple = smem_type in ("counter", "meter", "direct_counter", "direct_meter")
     if is_possibly_multiple:
-        if dref.packets_or_bytes == "packets_and_bytes":
-            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, "packets")
-            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, "bytes")
+        pobs, reverse_pobs = packets_by_model(compiler_common.current_compilation['hlir'])
+        if dref.packets_or_bytes == 'packets_and_bytes':
+            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, pobs["packets"])
+            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, pobs["bytes"])
         else:
-            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, dref.packets_or_bytes)
+            #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, pobs[dref.packets_or_bytes])
     else:
         #= gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple)
 
 
 def gen_smem_expr(smem, packets_or_bytes):
     if smem.type.node_type == 'Type_Specialized':
-        #= format_expr(smem)
+        if 'packets_or_bytes' in smem and smem.packets_or_bytes == 'packets_and_bytes':
+            pobs, reverse_pobs = packets_by_model(compiler_common.current_compilation['hlir'])
+            revpb = reverse_pobs[packets_or_bytes]
+            smem_inst = smem.get_attr(f'smem_{revpb}_inst')
+            #= format_expr(smem_inst)
+        else:
+            #= format_expr(smem)
     else:
         smem_name = smem.urtype.name
-        prefix = '' if smem_name == 'Digest' else f'{smem_name}_'
+        prefix = '' if smem_name == 'Digest' else f'{smem_name}'
         pob = packets_or_bytes or ('packets_or_bytes' in smem and smem.packets_or_bytes)
-        postfix = f'_{pob}' if smem_name in ('counter', 'meter', 'direct_counter') else ''
-        postfix2 = f'_{smem.table.name}' if 'table' in smem else ''
-        # TODO improve this for PSA smems
+        # postfix_pob = f'{pob}' if smem_name in ('counter', 'meter', 'direct_counter') else ''
+        postfix_table = f'{smem.table.name}' if 'table' in smem else ''
         is_direct = 'is_direct' in smem and smem.is_direct
-        postfix3 = '[0]' if not is_direct else ''
-        #[ &(global_smem.${prefix}${smem.name}${postfix}${postfix2}${postfix3})
+        postfix_idx = '[0]'
+
+        name_parts = [part for part in (prefix, smem.name, postfix_table) if part != '']
+        #[ &(global_smem.SMEM${len(name_parts)}(${','.join(name_parts)})${postfix_idx})
 
 def get_pob_arg_idx(args, m, packets_or_bytes):
     pobs = [idx for idx, ae in enumerate(args.map('expression')) if ae.node_type not in ('Constant') if ae.member in ('packets', 'bytes', 'packets_or_bytes', 'packets_and_bytes', packets_or_bytes)]
@@ -641,10 +672,16 @@ def format_expr_ref(arg, var, is_ref):
         return f'&{var}'
     return format_expr(arg.expression)
 
-def gen_extern_call_problem_type(m, mcall, smem_type, is_possibly_multiple, dref, args, packets_or_bytes = None):
-    no_msg_all_ok = 0
-    msg_idx_too_high = 1
+ExternCallProblemType = Enum('ExternCallProblemType', 'no_msg_all_ok msg_idx_too_high', start=0)
 
+# TODO move this to one of the headers, then use it in gen_format_extern_single
+#{ enum {
+for ecpt in ExternCallProblemType:
+    #[     $ecpt,
+#} } ExternCallProblemType_e;
+#[
+
+def gen_extern_call_problem_type(m, mcall, smem_type, is_possibly_multiple, dref, args, packets_or_bytes = None):
     amount_idxs = {
         ('register', 'read'): 2,
         ('register', 'write'): 1,
@@ -655,11 +692,13 @@ def gen_extern_call_problem_type(m, mcall, smem_type, is_possibly_multiple, dref
         amount_idx = amount_idxs[smem_info]
         arg, var, is_ref = args[amount_idx]
         amount_type = format_type(arg.expression.type)
-        #[ ((${amount_type})(${dref.amount}) /* max. amount */ < ${var} /* actual amount */ ? ${msg_idx_too_high} : ${no_msg_all_ok})
+        #[ ((${amount_type})(${dref.amount}) /* max. amount */ < ${var} /* actual amount */ ? ${ExternCallProblemType.msg_idx_too_high.value} : ${ExternCallProblemType.no_msg_all_ok.value})
     else:
-        #[ ${no_msg_all_ok}
+        #[ ${ExternCallProblemType.no_msg_all_ok.value}
 
 def get_short_type(n):
+    if n.node_type == 'Type_InfInt':
+        return f'{inf_int_short_c_type()}'
     if n.node_type == 'Type_List':
         return f'{get_short_type(n.components[0])}s'
     if n.node_type == 'Type_Bits':
@@ -671,7 +710,8 @@ def get_short_type(n):
     return n.name
 
 def get_mcall_type_args(mcall):
-    from hlir16.p4node import P4Node
+    if 'type_parameters' in (e := mcall.method.expr):
+        return P4Node(e.type_parameters)
     extern_type = [mcall.method.expr.urtype] if 'expr' in mcall.method else []
     method_type = [mcall.method.urtype]
     return P4Node(extern_type + method_type).flatmap('typeParameters.parameters').filter('node_type', ('Type_Var'))
@@ -691,20 +731,38 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
     else:
         dref = mcall.method.expr.decl_ref
 
-        args = [(arg, generate_var_name('declarg'), False) for arg in dref.arguments] + [(arg, generate_var_name(f'arg_{par.name}'), par.direction == 'out') for arg, par in zip(mcall.arguments, mcall.method.type.parameters.parameters)]
+        args = [(arg, generate_var_name('declarg'), False) for arg in dref.arguments] + [(arg, generate_var_name(f'arg_{par.name}'), par.direction != 'in') for arg, par in zip(mcall.arguments, mcall.method.type.parameters.parameters)]
 
-        tuples = ((var, format_type_ref(arg, is_ref)) for arg, var, is_ref in args)
-        funargs, argtypes = zip(*tuples)
+        funargs = [var for arg, var, is_ref in args]
+        argtypes = [format_type_ref(arg, is_ref) for arg, var, is_ref in args]
 
         if packets_or_bytes is not None:
             funargs = replace_pob(m, funargs, packets_or_bytes)
 
-        funargs = ", ".join(list(funargs) + [gen_smem_expr(dref, packets_or_bytes), 'SHORT_STDPARAMS_IN'])
-        argtypes = ", ".join(list(argtypes) + [f'{format_type(dref.urtype)}*', 'SHORT_STDPARAMS'])
+        if (extern := dref.urtype).node_type == 'Type_Extern' and 'smem_type' not in extern:
+            smemref = []
+            externtype, externref = [f'{extern_name}*'], [f'&global_smem.EXTERNNAME({dref.name})']
+        else:
+            smemref = [gen_smem_expr(dref, packets_or_bytes)]
+            externtype, externref = [], []
 
-        type_args_postfix = "".join(get_mcall_type_args(mcall).map('urtype').map(get_short_type).map(lambda n: f'__{n}'))
+        funargs = ", ".join(externref + list(funargs) + smemref + ['SHORT_STDPARAMS_IN'])
+        targs = dref.type('arguments', [])
+        argtypes = ", ".join(externtype + list(argtypes) + [f'{format_type(dref.urtype, type_args = targs)}*', 'SHORT_STDPARAMS'])
 
-        funname = f'extern_{extern_name}_{m.member}{type_args_postfix}'
+        def find_param_type(mcall_type_arg):
+            if 'type_ref' in mcall_type_arg and (tref := mcall_type_arg.type_ref).node_type == 'Parameter':
+                margs = mcall.method.urtype.parameters.parameters
+                marg = margs.get(tref.name, 'Parameter')
+                argidx = margs.vec.index(marg)
+
+                return mcall.arguments[argidx].expression.urtype
+
+            return mcall_type_arg.urtype
+
+        type_args_postfix_parts = get_mcall_type_args(mcall).map(find_param_type).map(get_short_type)
+
+        funname = f'EXTERNCALL{len(type_args_postfix_parts)}({extern_name},{",".join([m.member] + list(type_args_postfix_parts))})'
 
         for arg, var, is_ref in args:
             argexpr = arg.expression
@@ -720,20 +778,23 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
         with SugarStyle("inline_comment"):
             problem_code = gen_extern_call_problem_type(m, mcall, smem_type, is_possibly_multiple, dref, args, packets_or_bytes = None)
 
-        vars_txt = ''.join(f', {var}' for arg, var, is_ref in args)
+        formatted_args = args[2:]
+        vars_txt = ''.join(f', {var}' for arg, var, is_ref in formatted_args)
 
         dollar = '$'
         #[ int $problem = ${problem_code};
+
         #{ if (likely($problem == 0)) {
         #[     $funname($funargs);
         #[ } else {
         #{     #ifdef T4P4S_DEBUG
-        #{         const char* cause_fmt[] = {
-        #[             "(no problem)",
-        #[             "register index (" T4LIT(%2${dollar}d = 0x%2${dollar}x) ") is too high",
-        #}         };
         #[         char cause_txt[256];
-        #[         sprintf(cause_txt, cause_fmt[$problem] ${vars_txt});
+
+        if smem_type == 'register':
+            #{         if ($problem == ${ExternCallProblemType.msg_idx_too_high.value}) {
+            #[             sprintf(cause_txt, "register index (" T4LIT(%1${dollar}d = 0x%1${dollar}x) ") is too high" ${vars_txt});
+            #}         }
+
         #[         debug("   " T4LIT(!!,warning) " Call to extern " T4LIT($extern_name) " was " T4LIT(denied,warning) ", cause: %s\n", cause_txt);
         #}     #endif
         #} }
@@ -749,12 +810,12 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
 
 
 def is_ref(node):
-    not_of_type   = node.node_type not in ('Constant', 'BoolLiteral', 'MethodCallExpression', 'StructExpression')
+    not_of_type   = node.node_type not in ('Constant', 'BoolLiteral', 'MethodCallExpression', 'StructExpression', 'StringLiteral')
     not_of_urtype = node.urtype.node_type not in ('Type_Error', 'Type_Enum', 'Type_List')
     return not_of_type and not_of_urtype
 
 
-def gen_methodcall(mcall):
+def gen_short_extern_call(mcall):
     m = mcall.method
 
     def format_with_ref(e):
@@ -766,14 +827,14 @@ def gen_methodcall(mcall):
         ref = "*" if is_ref(e) else ""
         return f'{format_type(e.type)}{ref}'
 
-    mname, _parinfos, _ret, partypenames = get_mcall_infos(mcall)
-    partype_suffix = ''.join(f'__{partypename}' for partypename in partypenames)
-    funname = f'{mname}{partype_suffix}'
+    mname_parts, _parinfos, _ret, partypeinfos = get_mcall_infos(mcall)
+    partype_suffix = ''.join(f',{partypename}' for partype, partypename in partypeinfos)
+    funname = f'SHORT_EXTERNCALL{len(partypeinfos) + len(mname_parts)-1}({",".join(mname_parts)}{partype_suffix})'
 
-    # TODO clone operations are not supported currently,
-    #      but the call should be generated to an implementation with an empty body
-    if mname.startswith('clone'):
-        return
+    # # TODO clone operations are not supported currently,
+    # #      but the call should be generated to an implementation with an empty body
+    # if mname.startswith('clone'):
+    #     return None
 
     #[ ${format_expr(mcall, funname_override=funname)};
 
@@ -934,7 +995,6 @@ def get_transition_constant_lhs(k):
         if 'stk_name' in k:
             if k.expr.member == 'last':
                 hdrname, fldname, joiner = k.stk_name, k.member, '.last().'
-                # breakpoint()
             else:
                 addWarning('evaluating stack based condition', 'unexpected condition')
         else:
@@ -1097,21 +1157,21 @@ def gen_list_elems(elems, last):
     #[ ${', ' if len(elems) > 0 else ''}${last}
 
 
-def gen_format_method_parameter(par, listexpr_to_buf):
-    pe = par.expression
+def gen_format_method_arg(par, arg, listexpr_to_buf):
+    ae = arg.expression
 
-    if 'expression' in par and pe.node_type in ('ListExpression'):
-        return listexpr_to_buf[pe]
+    if ae.node_type in ('ListExpression'):
+        return listexpr_to_buf[ae]
 
-    if 'expression' in par and 'fld_ref' in pe:
-        hdrname, fldname = get_hdrfld_name(pe)
-        #[ get_handle_fld(pd, FLD($hdrname, $fldname), "parameter")
+    if 'fld_ref' in ae:
+        hdrname, fldname = get_hdrfld_name(ae)
+        #[ (${format_type(par.urtype)})get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer
     else:
-        fmt = format_expr(par)
+        fmt = format_expr(arg)
         if fmt == '':
             return None
 
-        ref = "&" if is_ref(pe) else ""
+        ref = "&" if is_ref(ae) else ""
         #[ $ref$fmt
 
 
@@ -1191,7 +1251,7 @@ def gen_prepare_listexpr_arg(listexpr):
 
     buf = generate_var_name('buffer')
     #pre{     uint8_buffer_t $buf = {
-    #pre[        .buffer_size = $varsize,
+    #pre[        .size = $varsize,
     #pre[        .buffer = $vardata,
     #pre}     };
 
@@ -1209,7 +1269,8 @@ def gen_format_lazy_extern(args, mname, m, listexpr_to_buf):
     compiler_common.pre_statement_buffer = ""
 
     with SugarStyle("inline_comment"):
-        fmt_args = [fmt_arg for arg in args if not arg.is_vec() for fmt_arg in [gen_format_method_parameter(arg, listexpr_to_buf)] if fmt_arg is not None]
+        pars = m.type.parameters.parameters
+        fmt_args = [fmt_arg for par, arg in zip(pars, args) if not arg.is_vec() for fmt_arg in [gen_format_method_arg(par, arg, listexpr_to_buf)] if fmt_arg is not None]
 
     prebuf2 = compiler_common.pre_statement_buffer
     compiler_common.pre_statement_buffer = ""
@@ -1227,11 +1288,27 @@ def gen_format_call_extern(args, mname, m, base_mname):
 
     lazy_externs = 'verify_checksum update_checksum verify_checksum_with_payload update_checksum_with_payload'.split(' ')
     if base_mname in lazy_externs:
-        #=     gen_format_lazy_extern(args, mname, m, listexpr_to_buf)
+        #= gen_format_lazy_extern(args, mname, m, listexpr_to_buf)
     else:
         with SugarStyle("inline_comment"):
-            fmt_args = [fmt_arg for arg in args if not arg.is_vec() for fmt_arg in [gen_format_method_parameter(arg, listexpr_to_buf)] if fmt_arg is not None]
-        #[     $mname(${gen_list_elems(fmt_args, "SHORT_STDPARAMS_IN")})
+            pars = m.type.parameters.parameters
+            fmt_args = [fmt_arg for par, arg in zip(pars, args) if not arg.is_vec() for fmt_arg in [gen_format_method_arg(par, arg, listexpr_to_buf)] if fmt_arg is not None]
+
+        if 'expr' in m:
+            extern_name = f'EXTERNCALL0({m.expr.urtype.name},{mname})'
+            xvar = m.expr.decl_ref.name
+
+            if 'smem_type' in (smem := m.expr.decl_ref):
+                smem_part = get_smem_name(smem)
+                name = f'&global_smem.{smem_part}'
+            else:
+                name = f'&global_smem.EXTERNNAME({xvar})'
+
+            fmt_args = [name] + fmt_args
+        else:
+            extern_name = mname
+
+        #[ ${extern_name}(${gen_list_elems(fmt_args, "SHORT_STDPARAMS_IN")})
 
 ##############
 
@@ -1306,7 +1383,7 @@ def gen_fmt_ListExpression(e, format_as_value=True, expand_parameters=False, nee
                 idxflds = idxflds[len(neighbour_flds):]
                 offset += f'+{width}'
 
-    #[ (uint8_buffer_t) { .buffer = buffer${e.id}, .buffer_size = buffer${e.id}_size } /* ListExpression */
+    #[ (uint8_buffer_t) { .buffer = buffer${e.id}, .size = buffer${e.id}_size } /* ListExpression */
 
 def gen_fmt_StructInitializerExpression(e, fldsvar, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
     member_offset = 0
@@ -1337,7 +1414,7 @@ def gen_fmt_StructInitializerExpression(e, fldsvar, format_as_value=True, expand
 
 def gen_fmt_StructExpression(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
     fldsvar = gen_var_name(e, 'long_fields')
-    structvar = gen_var_name(e, 'struct')
+    structvar = gen_var_name(e, f'struct_{e.type.name}')
 
     ces = e.components.map('expression')
 
@@ -1359,8 +1436,8 @@ def gen_fmt_StructExpression(e, format_as_value=True, expand_parameters=False, n
 
 def gen_fmt_Constant(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
     if e.type.node_type == 'Type_Bits':
-        if e.type.size > 32 or needs_variable:
-            name, hex_content = make_const(e)
+        name, hex_content = make_const(e)
+        if e.type.size > 32:
             const_var = generate_var_name(f"const{e.type.size}_", name)
 
             #pre[ uint8_t ${const_var}[] = {$hex_content};
@@ -1368,7 +1445,13 @@ def gen_fmt_Constant(e, format_as_value=True, expand_parameters=False, needs_var
         else:
             is_not_too_big = e.type.size <= 4 or e.value < 2**(e.type.size-1)
             value_hint = "" if is_not_too_big else f" /* probably -{2**e.type.size - e.value} */"
-            #[ ${with_base(e.value, e.base)}${value_hint}
+            if needs_variable:
+                const_var = generate_var_name(f"const{e.type.size}_", name)
+                size = align8_16_32(e.type.size)
+                #pre[ uint${size}_t ${const_var} = ${with_base(e.value, e.base)}${value_hint};
+                #[ ${const_var}
+            else:
+                #[ ${with_base(e.value, e.base)}${value_hint}
     else:
         #[ ${e.value}
 
@@ -1468,18 +1551,30 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
 
     nt = e.node_type
 
-    if nt == 'Declaration_Instance':
-        dinst_name = e.urtype.name
-        prefix = '' if dinst_name == 'Digest' else f'{dinst_name}_'
-        postfix = f'_{e.packets_or_bytes}' if dinst_name in ('counter', 'meter', 'direct_meter') else ''
-        postfix2 = f'_{e.table.name}' if 'table' in e else ''
-        # TODO improve this
-        if 'smem_type' in e:
-            type_name = e.components[0]['type']
+    if nt == 'Declaration_Instance' or nt == 'Smem_Instance':
+        if e.urtype.name == 'Digest':
+            # smem_name = f'EXTERNNAME(Digest{e.name})'
+            # type_name = f'EXTERNTYPE(Digest{e.name})'
+            smem_name = f'EXTERNNAME({e.name})'
+            type_name = f'EXTERNTYPE(Digest)'
+            deref = '&'
         else:
-            type_name = f'{dinst_name}_t'
-        deref = '' if dinst_name == 'register' else '&'
-        smem_name = f'{prefix}{e.name}{postfix}{postfix2}'
+            pobs, reverse_pobs = packets_by_model(compiler_common.current_compilation['hlir'])
+
+            # postfix = f'{pobs[e.packets_or_bytes]}' if e._smem.smem_type in ('counter', 'meter', 'direct_meter') else ''
+            postfix2 = f'{e.table.name}' if 'table' in e and e.table is not None else ''
+            deref = '' if e._smem.smem_type == 'register' else '&'
+
+            name_parts = [part for part in (e._smem.smem_type, e.name, postfix2) if part != '']
+
+            if e._smem.smem_type in ('register'):
+                signed = 'int' if e.is_signed else 'uint'
+                size = align8_16_32(e.size)
+                type_name = f'REGTYPE({signed},{size})'
+            else:
+                type_name = f'SMEMTYPE({e._smem.smem_type})'
+
+            smem_name = f'SMEM{len(name_parts)}({",".join(name_parts)})'
         #[ (${type_name}*)${deref}(global_smem.${smem_name})
     elif nt == 'Member' and 'expr' in e and 'expr' in e.expr and e.expr.expr.urtype.node_type == 'Type_Stack':
         fldname = e.member
@@ -1675,14 +1770,14 @@ def format_declaration(d, varname_override = None):
         return gen_format_declaration(d, varname_override)
 
 # TODO use the varname argument in all cases where a variable declaration is created
-def format_type(t, varname = None, resolve_names = True, addon = "", no_ptr = False):
+def format_type(t, varname = None, resolve_names = True, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False):
     with SugarStyle("inline_comment"):
         use_array = varname is not None
         if t.node_type == 'Type_Stack':
             use_array = True
         elif 'size' in t.urtype and t.urtype.size <= 32:
             use_array = False
-        result = gen_format_type(t, resolve_names, use_array=use_array, addon=addon, no_ptr=no_ptr).strip()
+        result = gen_format_type(t, resolve_names, use_array=use_array, addon=addon, no_ptr=no_ptr, type_args=type_args, is_atomic = is_atomic, is_const = is_const).strip()
 
     if varname is None:
         return result
@@ -1737,26 +1832,56 @@ def gen_var_name(node, prefix = None):
 ###########################
 
 def get_mcall_infos(mcall):
-    mtype = mcall.method.urtype
-    tps = mtype.typeParameters.parameters
+    m = mcall.method
+
+    if 'expr' in m:
+        mname_parts = (m.expr.urtype.name, m.member)
+        mtype = m.expr.urtype
+        rettype = mcall.urtype
+        tps = m.expr.type_parameters
+    else:
+        mname_parts = (m.path.name,)
+        mtype = m.urtype
+        rettype = mtype.returnType
+        tps = mtype.typeParameters.parameters
 
     if mtype.node_type == 'Type_Unknown':
         return None
 
-    parinfos = tuple((argexpr.path.name if argexpr.node_type == 'PathExpression' else par.name, par.direction, par.urtype, get_c_type(par, argexpr)) for par, argexpr in zip(mtype.parameters.parameters, mcall.arguments.map('expression')) if not (par.urtype.node_type == 'Type_Header' and par.urtype.is_metadata))
-    ret = format_type(mtype.returnType)
+    ret = format_type(rettype)
 
-    mname = mcall.method.path.name
+    def find_index(vec_node, elem):
+        return None if elem not in vec_node else vec_node.vec.index(elem)
 
-    typepars = tuple(get_partypename_ctype(typePar, None, '')[0] for typePar in tps)
+    def make_parinfo(argexpr, par):
+        parname = argexpr.path.name if argexpr.node_type == 'PathExpression' else par.name
+        pardir = par.direction
+        partype = par.urtype
+        ctype = get_c_type(par, argexpr)
+        type_par_idx = find_index(tps.map('type_ref'), par.urtype)
+        return (parname, pardir, partype, ctype, type_par_idx)
 
-    return (mname, parinfos, ret, typepars)
+    pars = m.urtype.parameters.parameters
+    argexprs = mcall.arguments.map('expression')
+    partypeinfos = tuple((type_par, get_partypename_ctype(type_par, None, '')[0]) for type_par in tps)
+    parinfos = tuple(make_parinfo(argexpr, par) for par, argexpr in zip(pars, argexprs) if not (par.urtype.node_type == 'Type_Header' and par.urtype.is_metadata))
+
+    return (mname_parts, parinfos, ret, partypeinfos)
 
 
 def get_all_extern_call_infos(hlir):
-    handled_separately = ('log_msg')
-    methods = hlir.groups.pathexprs.under_mcall.filter('type.node_type', 'Type_Method').filterfalse('path.name', handled_separately)
-    return methods.map(lambda pe: pe.parent()).map(get_mcall_infos).filter(lambda info: info is not None)
+    def is_not_smem(e):
+        ut = e.method.expr.decl_ref.urtype
+        return 'extern_type' not in ut or ut.extern_type != 'smem'
+
+    methods = hlir.groups.pathexprs.under_mcall.filter('type.node_type', 'Type_Method')
+
+    mcalls = methods.map(lambda pe: pe.parent())
+    control_local_mcalls = hlir.all_nodes.by_type('MethodCallExpression').filter('method.node_type', 'Member').filter('method.expr.type.node_type', 'Type_SpecializedCanonical').filter(is_not_smem)
+
+    all_mcalls = mcalls + control_local_mcalls
+
+    return all_mcalls.map(get_mcall_infos)
 
 
 # ------------------------------------------------------------------------------
@@ -1767,7 +1892,7 @@ def to_c_bool(value):
     return 'true' if value else 'false'
 
 
-def get_arginfo(par, arg, ptr):
+def get_arginfo(par, arg, ptr, is_out):
     if arg is None:
         return None, ""
     if (ee := par.urtype).node_type in ('Type_Enum', 'Type_Error'):
@@ -1778,11 +1903,13 @@ def get_arginfo(par, arg, ptr):
     if arg.node_type == 'BoolLiteral':
         return f'bool{ptr}', par.name
     if arg.node_type == 'StringLiteral':
-        return format_type(arg.type), f'"{arg.value}"'
+        return format_type(arg.type, is_const=not is_out), f'"{arg.value}"'
     if arg.node_type == 'StructExpression':
-        # size = '+'.join(f'get_fld_vw_size(FLD({par.name},{fld.name}))' if fld.urtype.node_type == 'Type_Varbits' else f'{fld.urtype.size}' for fld in par.urtype.fields)
-        size = '+'.join(f'{fld.urtype.size} /* TODO find the appropriate way to get size of the varwidth field */' if fld.urtype.node_type == 'Type_Varbits' else f'{fld.urtype.size}' for fld in par.urtype.fields)
-        return 'uint8_buffer_t', f'(uint8_buffer_t) {{.buffer_size={size}, .buffer=(uint8_t*){par.name}}}'
+        if arg.urtype.node_type == 'Type_Struct':
+            return f'{arg.urtype.name}*', f'{par.name}'
+        else:
+            size = '+'.join(f'{fld.urtype.size} /* TODO find the appropriate way to get size of the varwidth field */' if fld.urtype.node_type == 'Type_Varbits' else f'{fld.urtype.size}' for fld in par.urtype.fields)
+            return 'uint8_buffer_t', f'to_uint8_buffer_t({size}, {par.name})'
     if arg.node_type == 'Constant':
         # note: this is not really a constant, just a dummy
         return format_type(arg.type), par.name
@@ -1815,7 +1942,7 @@ def get_partypename_ctype(par, arg, ptr):
         size = align8_16_32(bits.size)
         return f'u{size}', f'uint{size}_t{ptr}'
     if (struct := purtype).node_type == 'Type_Struct':
-        return f'{struct.name}', f'{struct.name}_t*{ptr}'
+        return f'{struct.name}', f'{append_type_postfix(struct.name)}*{ptr}'
     if (param := purtype).node_type == 'Parameter':
         size = align8_16_32(bits.size)
         return None, f'uint{size}_t{ptr}'
@@ -1830,9 +1957,10 @@ def get_c_type(par, arg):
     if 'is_metadata' in purtype and purtype.is_metadata:
         return None, None, None, None
 
-    ptr = f'* /* {par.direction} */ ' if par.direction in ('out', 'inout') else ''
+    is_out = par.direction in ('out', 'inout')
+    ptr = f'* /* {par.direction} */ ' if is_out else ''
 
-    argtype, argvalue = get_arginfo(par, arg, ptr)
+    argtype, argvalue = get_arginfo(par, arg, ptr, is_out)
     partypename, ctype = get_partypename_ctype(par, arg, ptr)
 
     return partypename, ctype, argtype, argvalue

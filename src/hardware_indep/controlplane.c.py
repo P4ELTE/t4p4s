@@ -3,6 +3,7 @@
 
 from compiler_common import unique_everseen, generate_var_name, get_hdr_name, get_hdrfld_name
 from utils.codegen import format_expr, format_type, gen_format_slice
+from utils.extern import get_smem_name
 
 import os
 
@@ -241,9 +242,9 @@ hidden_table_count = len(hlir.tables.filter('is_hidden'))
 #{     void debug_show_possible_tables() {
 #[         if (possible_tables_already_shown)   return;
 #{         if (show_hidden_tables) {
-#[             debug("   !! Possible table names: $all_keyed_table_names\n");
+#[             debug("   " T4LIT(!!,warning) " Possible table names: $all_keyed_table_names\n");
 #[         } else {
-#[             debug("   !! Possible table names: $common_keyed_table_names and " T4LIT(%d) " hidden tables\n", $hidden_table_count);
+#[             debug("   " T4LIT(!!,warning) " Possible table names: $common_keyed_table_names and " T4LIT(%d) " hidden tables\n", $hidden_table_count);
 #}         }
 #[         possible_tables_already_shown = true;
 #}     }
@@ -280,44 +281,28 @@ for table in hlir.tables:
 #}     #endif
 #} }
 
-hack_i={}
-for table, smem in hlir.all_counters:
-    for target in smem.smem_for:
-        if not smem.smem_for[target]:
-            continue
-        for c in smem.components:
-            cname = c['name']
-            if cname not in hack_i:
-                hack_i[cname] = 1
-                if smem.smem_type not in ["register", "direct_counter", "direct_meter"]:
-                    #[ uint32_t ctrl_${cname}[${smem.amount}];
 
-#{ uint32_t* read_counter_value_by_name(char* counter_name, int* size, bool is_bytes){
-#[ int i;
-hack_i = {}
-for table, smem in hlir.all_counters:
-    for target in smem.smem_for:
-        if not smem.smem_for[target]:
-            continue
+for inst in hlir.smem_insts.filterfalse('smem.smem_type', ('register', 'direct_counter', 'direct_meter')):
+    #[ uint32_t ${get_smem_name(inst, ['ctrl'])}[${inst.amount}];
 
-        for c in smem.components:
-            cname = c['name']
-            if cname in hack_i:
-                continue
-            hack_i[cname] = 1
-            pre_bytes = ''
-            if c['for'] == "packets":
-                pre_bytes = '!'
-            if smem.smem_type not in ["register", "direct_counter", "direct_meter"]:
-                #{ if ((strcmp("${smem.canonical_name}", counter_name) == 0) && (${pre_bytes}is_bytes)) {
-                #[   *size = ${smem.amount};
-                #[   for (i=0;i<${smem.amount};++i) ctrl_${cname}[i] = global_smem.${cname}[i].value.cnt;
-                #[   return ctrl_${cname};
-                #} }
-#[   *size = -1;
-#[   return 0;
+for packets_or_bytes in ('packets', 'bytes'):
+    #{ uint32_t* read_counter_value_by_name_${packets_or_bytes}(char* counter_name, int* size, bool is_bytes) {
+    for inst in hlir.smem_insts.filterfalse('smem.smem_type', ('register', 'direct_counter', 'direct_meter')):
+        #{ if (strcmp("${inst.smem.canonical_name}", counter_name) == 0) {
+        #[     *size = ${inst.amount};
+        #[     for (int i=0;i<${inst.amount};++i) ${get_smem_name(inst, ['ctrl'])}[i] = rte_atomic32_read(&global_smem.${get_smem_name(inst.smem)}[i].${packets_or_bytes});
+        #[     return ${get_smem_name(inst, ['ctrl'])};
+        #} }
+        #[
+    #[     *size = -1;
+    #[     return 0;
+    #} }
+    #[
+
+#{ uint32_t* read_counter_value_by_name(char* counter_name, int* size, bool is_bytes) {
+#[     return is_bytes ? read_counter_value_by_name_bytes(counter_name, size, is_bytes) : read_counter_value_by_name_packets(counter_name, size, is_bytes);
 #} }
-
+#[
 
 
 #[ extern struct socket_state state[NB_SOCKETS];

@@ -2,6 +2,7 @@
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
 from utils.codegen import format_type
+from utils.extern import get_smem_name
 from compiler_common import unique_everseen
 
 #[ #pragma once
@@ -11,6 +12,7 @@ from compiler_common import unique_everseen
 #[ #include "gen_include.h"
 
 #[ #include "util_packet.h"
+#[ #include "stateful_memory_type.h"
 
 # Note: this is for Digest_t
 #[ #include "ctrl_plane_backend.h"
@@ -52,7 +54,6 @@ for table in hlir.tables:
     #} } ${table.name}_action_params_t;
     #[
 
-
 for table in hlir.tables:
     #{ typedef struct {
     #[     actions_e                     id;
@@ -70,16 +71,25 @@ for table in hlir.tables:
 
         #[ void action_code_$aname(action_${mname}_params_t, SHORT_STDPARAMS);
 
-non_ctr_locals = ('counter', 'direct_counter', 'meter')
-
 for ctl in hlir.controls:
     #{ typedef struct {
     for local_var_decl in ctl.local_var_decls.filterfalse('urtype.node_type', 'Type_Header'):
-        #[     ${format_type(local_var_decl.urtype, varname = local_var_decl.name, resolve_names = False)};
+        if 'smem_type' in (smem := local_var_decl):
+            if (reg := smem).smem_type == 'register':
+                varnames = [get_smem_name(reg)]
+            else:
+                varnames = [get_smem_name(inst) for inst in smem.insts]
+        elif (extern := local_var_decl.urtype).node_type == 'Type_Extern':
+            if extern.repr is None:
+                continue
+            
+            varnames = [f'EXTERNNAME({local_var_decl.name})']
+        else:
+            varnames = [local_var_decl.name]
 
-    # TODO is there a more appropriate way to store registers?
-    for reg in hlir.registers:
-        #[     ${format_type(reg.type, resolve_names = False)} register_${reg.name};
+        targs = local_var_decl.type('arguments', [])
+        for varname in varnames:
+            #[     ${format_type(local_var_decl.urtype, varname = varname, resolve_names = False, type_args = targs)};
 
     #} } control_locals_${ctl.name}_t;
     #[
