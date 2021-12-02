@@ -52,9 +52,6 @@ for cond in reqconds:
 #[     char* tmp = strdup(reqs);
 #[     while ( (parts[count] = strsep(&tmp,separator)) != NULL )  ++count;
 #[     free(tmp);
-
-#[     for (int i = 0; i < count; ++i)   debug("txt %s\n", parts[i]);
-
 #[     return count;
 #} }
 #[
