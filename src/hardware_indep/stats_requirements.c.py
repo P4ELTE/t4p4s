@@ -40,10 +40,21 @@ for cond in reqconds:
 #[ #define MAX_PART_COUNT 128
 #[
 
+#{ const char*const prefix_skip_char(const char*const txt, char c) {
+#[     const char* ptr = txt;
+#[     while (*ptr == c)  ++ptr;
+#[     return ptr;
+#} }
+#[
+
 #{ int split(char* parts[MAX_PART_COUNT], const char* reqs, const char* separator) {
 #[     int count = 0;
 #[     char* tmp = strdup(reqs);
-#[     while( (parts[count] = strsep(&tmp,separator)) != NULL )  ++count;
+#[     while ( (parts[count] = strsep(&tmp,separator)) != NULL )  ++count;
+#[     free(tmp);
+
+#[     for (int i = 0; i < count; ++i)   debug("txt %s\n", parts[i]);
+
 #[     return count;
 #} }
 #[
@@ -84,6 +95,7 @@ for table in hlir.tables:
 
 
 #{ bool check_cond(const char*const cond) {
+#[     const char*const ltrimmed_cond = prefix_skip_char(cond, ' ');
 #[     bool on = true;
 
 #[     bool result = true;
@@ -95,7 +107,8 @@ for table in hlir.tables:
 for cond in reqconds:
     #{         if (!strcmp("$cond", parts[i])) {
     #{             if (reqcond != reqcond_NONE) {
-    #[                 debug("    " T4LIT(!,warning) " More than one requirement (" T4LIT($cond,warning) " and " T4LIT(%s,warning) ") found in condition " T4LIT(%s,warning) "\n", parts[i], cond);
+    #[                 debug("    " T4LIT(!,warning) " More than one requirement (" T4LIT($cond,warning) " and " T4LIT(%s,warning) ") found in condition " T4LIT(%s,warning) "\n",
+    #[                       parts[i], ltrimmed_cond);
     #[                 result = false;
     #[                 goto free_mem; // breaking out of outermost loop
     #}             }
@@ -105,7 +118,7 @@ for cond in reqconds:
 
 #{         if (!strcmp("not", parts[i])) {
 #{             if (!on) {
-#[                 debug("    " T4LIT(!,warning) " Condition contains multiple negation: " T4LIT(%s,warning) "\n", cond);
+#[                 debug("    " T4LIT(!,warning) " Condition contains multiple negation: " T4LIT(%s,warning) "\n", ltrimmed_cond);
 #[                 result = false;
 #[                 goto free_mem; // breaking out of outermost loop
 #}             }
@@ -116,14 +129,14 @@ for cond in reqconds:
 #[         // we have found a table name
 
 #{         if (reqcond == reqcond_NONE) {
-#[             debug("    " T4LIT(!,warning) " Table " T4LIT(%s,table) " found, but no check (e.g. " T4LIT(hit) ") given in condition " T4LIT(%s,warning) "\n", parts[i], cond);
+#[             debug("    " T4LIT(!,warning) " Table " T4LIT(%s,table) " found, but no check (e.g. " T4LIT(hit) ") given in condition " T4LIT(%s,warning) "\n", parts[i], ltrimmed_cond);
 #[             result = false;
 #[             goto free_mem; // breaking out of outermost loop
 #}         }
 
 #[         result &= check_table_name(parts[i]);
 #{         if (!result) {
-#[             debug("    " T4LIT(!,warning) " Nonexistent table " T4LIT(%s,table) " given in condition " T4LIT(%s,warning) "\n", parts[i], cond);
+#[             debug("    " T4LIT(!,warning) " Nonexistent table " T4LIT(%s,table) " given in condition " T4LIT(%s,warning) "\n", parts[i], ltrimmed_cond);
 #[             result = false;
 #[             goto free_mem; // breaking out of outermost loop
 #}         }

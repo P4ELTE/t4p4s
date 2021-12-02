@@ -59,11 +59,7 @@ for stk in hlir.header_stacks:
 #[
 
 
-#{ void init_headers(SHORT_STDPARAMS) {
-for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
-    #[     init_header(HDR(${hdr.name}), "${hdr.name}", SHORT_STDPARAMS_IN);
-
-#[     // init metadatas
+#{ void init_metadata_header(SHORT_STDPARAMS) {
 #{     pd->headers[HDR(all_metadatas)] = (header_descriptor_t) {
 #[         .type = HDR(all_metadatas),
 #[         .size = hdr_infos[HDR(all_metadatas)].byte_width * 8,
@@ -71,6 +67,16 @@ for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
 #[         .vw_size = 0,
 #}     };
 #} }
+#[
+
+
+#{ void init_headers(SHORT_STDPARAMS) {
+for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
+    #[     init_header(HDR(${hdr.name}), "${hdr.name}", SHORT_STDPARAMS_IN);
+
+#[     init_metadata_header(SHORT_STDPARAMS_IN);
+#} }
+#[
 
 ################################################################################
 

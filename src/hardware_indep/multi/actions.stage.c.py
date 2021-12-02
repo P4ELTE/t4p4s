@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
-from utils.codegen import format_expr, format_type
 from compiler_common import get_hdrfld_name, generate_var_name, SugarStyle, make_const
 
 compiler_common.current_compilation['is_multicompiled'] = True
@@ -27,6 +26,7 @@ else:
     #[ #include "util_packet.h"
 
     #[ #include "dpdk_primitives.h"
+    #[ #include "dpdkx_gen_extern.h"
 
     #[ extern const char* action_names[];
     #[ extern const char* action_canonical_names[];
@@ -47,7 +47,9 @@ else:
     for ctl, act in ctl_acts:
         name = act.annotations.annotations.get('name')
         if name:
-            #[     // action name: ${name.expr[0].value}
+            #[     // action name: ${name.expr[0].value}; ${act.canonical_name}
+        else:
+            #[     // action name: ${act.canonical_name}
         #{     void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
         if len(act.body.components) != 0:
             #[         control_locals_${ctl.name}_t* local_vars = (control_locals_${ctl.name}_t*) pd->control_locals;

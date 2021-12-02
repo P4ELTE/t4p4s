@@ -126,7 +126,7 @@ void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t 
     #endif
 }
 
-void print_set_fld(field_instance_e fld, uint8_t* buf, int size) {
+void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf, int size) {
     #ifdef T4P4S_DEBUG
         int byte_width = (size+7)/8;
         uint32_t value32 = *(uint32_t*)buf;
@@ -157,7 +157,7 @@ void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
 void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32) {
     int size = fld_infos[fld].size;
 
-    print_set_fld(fld, (uint8_t*)&value32, size);
+    print_set_fld(pd, fld, (uint8_t*)&value32, size);
     MODIFY(dst_pkt(pd), fld, src_32(value32), ENDIAN_KEEP);
 }
 

@@ -12,6 +12,7 @@ from utils.codegen import format_type
 #[ #include <stdbool.h>
 #[ #include "aliases.h"
 #[ #include "hdr_fld.h"
+#[ #include "common_enums.h"
 
 
 #[ #define to_bytes(bits) (((bits) + 7) / 8)
@@ -43,8 +44,10 @@ for hdr in hlir.header_instances:
         raise NotImplementedError("Header unions are not supported")
 
 #{ typedef struct {
-for hdr, fld in parsed_fields:
-    #[     uint32_t FLD(${hdr.name},${fld._expression.name});
+for hdr, fld in all_fields:
+    fldtype = fld.type.type if fld.type.node_type == 'StructField' else fld.type
+    varname = f'FLD({hdr.name},{fld._expression.name})'
+    #[     ${format_type(fldtype, varname=varname)};
 #[
 
 for hdr, fld in parsed_fields:
@@ -78,10 +81,9 @@ if len(hlir.header_instances) == 0:
 #[
 
 #{ typedef enum {
-for hdr in hlir.header_instances:
-    for fld in hdr.urtype.fields:
-        #[   FLD(${hdr.name},${fld.name}),
-if len(hlir.header_instances) == 0:
+for hdr, fld in all_fields:
+    #[   FLD(${hdr.name},${fld.name}),
+if len(all_fields) == 0:
     #[     FLD(__dummy__,__dummy__),
 #} } field_instance_e;
 #[
