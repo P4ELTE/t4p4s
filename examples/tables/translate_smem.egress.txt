@@ -1,0 +1,7 @@
+TRANSLATION smac egress.smac
+TRANSLATION dmac egress.dmac
+TRANSLATION forward egress.forward
+TRANSLATION mac_learn egress.mac_learn
+TRANSLATION bcast egress.bcast
+TRANSLATION _nop egress._nop
+TRANSLATION NoAction .NoAction
