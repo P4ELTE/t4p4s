@@ -52,5 +52,6 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 
 void EXTERNIMPL0(mark_to_drop)(SHORT_STDPARAMS) {
     MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
-    debug("       " T4LIT(X,status) " Packet is " T4LIT(dropped,status) "\n");
+    MODIFY(dst_pkt(pd), FLD(all_metadatas,mcast_grp), src_32(0), ENDIAN_KEEP);
+    debug("       " T4LIT(X,status) " Packet is set to be " T4LIT(dropped,status) "\n");
 }
