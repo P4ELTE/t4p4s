@@ -17,6 +17,8 @@ extern int get_socketid(unsigned lcore_id);
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 extern void dpdk_init_nic();
 
+bool is_valid_fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS);
+
 extern struct rte_mempool* pktmbuf_pool[NB_SOCKETS];
 
 // ------------------------------------------------------
@@ -108,6 +110,10 @@ testcase_t* current_test_case;
 
 // ------------------------------------------------------
 // Helpers
+
+int get_packet_idx(LCPARAMS) {
+    return lcdata->pkt_idx + 1;
+}
 
 bool is_final_section(const char*const text) {
     return (text == NULL) || strlen(text) == 0;
@@ -234,11 +240,11 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
     if (lcdata->pkt_idx != last_error_pkt_idx) {
         if (cmd.out_port == DROP) {
             debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected to drop the packet, but got egress port " T4LIT(%d%s,error) "\n",
-                lcdata->pkt_idx + 1, rte_lcore_id(),
+                get_packet_idx(LCPARAMS_IN), rte_lcore_id(),
                 egress_port, port_designation_egress);
         } else {
             debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
-                lcdata->pkt_idx + 1, rte_lcore_id(),
+                get_packet_idx(LCPARAMS_IN), rte_lcore_id(),
                 cmd.out_port, port_designation_cmd,
                 egress_port, port_designation_egress);
         }
@@ -260,7 +266,7 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
     int actual_byte_count = rte_pktmbuf_pkt_len(mbuf);
     if (expected_byte_count != actual_byte_count) {
         debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected " T4LIT(%d,expected) " bytes, got " T4LIT(%d,error) "\n",
-              lcdata->pkt_idx + 1, rte_lcore_id(),
+              get_packet_idx(LCPARAMS_IN), rte_lcore_id(),
               expected_byte_count, actual_byte_count);
 
         lcdata->is_valid = false;
@@ -369,10 +375,10 @@ void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
             bool requirements_ok = check_controlflow_requirements(cmd);
 
             if (requirements_ok) {
-                debug( "   " T4LIT(::,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(passed,success) " all control flow requirements\n", lcdata->pkt_idx + 1, rte_lcore_id());
+                debug( "   " T4LIT(::,success) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(passed,success) " all control flow requirements\n", get_packet_idx(LCPARAMS_IN), rte_lcore_id());
             } else {
                 if (lcdata->pkt_idx != last_error_pkt_idx) {
-                    debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(failed,error) " some control flow requirements\n", lcdata->pkt_idx + 1, rte_lcore_id());
+                    debug( "   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " " T4LIT(failed,error) " some control flow requirements\n", get_packet_idx(LCPARAMS_IN), rte_lcore_id());
                 }
                 encountered_bad_requirement = true;
             }
@@ -391,7 +397,7 @@ void check_sent_packet(int egress_port, int ingress_port, bool is_broadcast_nonf
 
     if (!lcdata->is_valid) {
         if (lcdata->pkt_idx != last_error_pkt_idx) {
-            debug("   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", lcdata->pkt_idx + 1, rte_lcore_id());
+            debug("   " T4LIT(!!,error)" " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) " is " T4LIT(sent with errors,error) "\n", get_packet_idx(LCPARAMS_IN), rte_lcore_id());
         }
         error_encountered(LCPARAMS_IN);
     }
@@ -476,6 +482,12 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
 
     if (cmd.action == FAKE_PKT) {
         bool got_packet = strlen(cmd.in[0]) > 0;
+
+        if (!is_valid_fake_packet(cmd.out, LCPARAMS_IN)) {
+            lcdata->is_valid = false;
+            abort_on_strict();
+            return false;
+        }
 
         if (got_packet) {
             pd->wrapper = fake_packet(cmd.in, LCPARAMS_IN);
@@ -678,8 +690,4 @@ uint32_t get_port_mask() {
 // TODO make this parameterizable
 uint8_t get_port_count() {
     return __builtin_popcount(get_port_mask());
-}
-
-int get_packet_idx(LCPARAMS) {
-    return lcdata->pkt_idx + 1;
 }
