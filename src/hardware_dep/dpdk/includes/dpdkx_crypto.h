@@ -33,19 +33,19 @@
         }
 
 
-enum crypto_task_type {
+typedef enum {
     CRYPTO_TASK_ENCRYPT,
     CRYPTO_TASK_DECRYPT,
     CRYPTO_TASK_MD5_HMAC
-};
+} crypto_task_type_e;
 
-struct crypto_task {
-    enum crypto_task_type op;
+typedef struct {
+    crypto_task_type_e op;
     struct rte_mbuf* data;
     int offset;
     int padding_length;
     int plain_length;
-};
+} crypto_task_s;
 extern struct rte_mempool *crypto_task_pool;
 #define MD5_DIGEST_LEN	16
 
@@ -60,9 +60,7 @@ extern struct rte_cryptodev_sym_session *session_decrypt;
 extern struct rte_mempool *crypto_pool;
 
 void init_crypto_devices();
-void crypto_task_to_crypto_op(struct crypto_task *crypto_task, struct rte_crypto_op *crypto_op);
+void crypto_task_to_crypto_op(crypto_task_s *crypto_task, struct rte_crypto_op *crypto_op);
 
 void do_encryption_async_impl(SHORT_STDPARAMS);
 void do_decryption_async_impl(SHORT_STDPARAMS);
-
-void md5_hmac__u8s(uint8_buffer_t offset, SHORT_STDPARAMS);
