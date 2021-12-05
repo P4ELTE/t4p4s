@@ -388,6 +388,7 @@ MESON_CMD="$PYTHON3 -m mesonbuild.mesonmain"
 MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
 
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
+declare -A VSN_TO_EXT=([16]="p4" [14]="p4_14")
 
 # --------------------------------------------------------------------
 
@@ -501,10 +502,11 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
             # determines model from test case file
             MAYBE_TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
             IFS=$'\n'
-            for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[{}\"]//g"`; do
+            for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[&{}\"]//g"`; do
                 testcase_in_file=`echo $testcase_row | cut -f1 -d,`
                 [ "$testcase_in_file" != "${OPTS[testcase]}" ] && continue
                 OPTS[model_by_testcase]=`echo $testcase_row | cut -f3 -d,`
+                break
             done
 
             IFS=$'\n'
@@ -707,6 +709,20 @@ PARALLELISM=$(($PARALLELISM < 1 ? 1 : $PARALLELISM))
 # --------------------------------------------------------------------
 # Checks before execution of phases begins
 
+# determines testcase from test case file if it is not given already
+# useful if the example was entered as a file on the command line rather than by name
+if [ "$(optvalue testcase)" != off ]; then
+    MAYBE_TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
+    IFS=$'\n'
+    for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[&{}\"]//g"`; do
+        testcase_in_file=`echo $testcase_row | cut -f1 -d,`
+        [ "$testcase_in_file" != "${OPTS[testcase]}" ] && continue
+        OPTS[testcase_function]=`echo $testcase_row | cut -f2 -d,`
+        break
+    done
+fi
+
+
 if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
     if [ $(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c" | wc -l) -ne 1 ]; then
         exit_program "No test input file found for example $(cc 0)${OPTS[example]}$nn under $(cc 0)$EXAMPLES_DIR$nn (expected filename: $(cc 0)test-${OPTS[example]##test-}.c$nn)"
@@ -714,7 +730,7 @@ if [ "$(optvalue testcase)" != off -o "$(optvalue suite)" != off ]; then
 fi
 
 
-[ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=t4p4s_testcase_${OPTS[testcase]}" " "
+[ "$(optvalue testcase)" != off -a "$(optvalue suite)" == off ] && addopt cflags "-DT4P4S_TESTCASE=${OPTS[testcase_function]}" " "
 
 
 if [ "$(optvalue c)" != off ]; then
@@ -772,6 +788,7 @@ if [ "$(optvalue run)" != off ]; then
 
         msg "[$(cc 0)RUN CONTROLLER$nn] $(cc 1)${CONTROLLER}$nn (default for $(cc 0)${OPTS[example]}$nn@$(cc 1)${OPTS[variant]}$nn)"
 
+        IFS=$' '
         for ctrcfg in ${OPTS[ctrcfg]}; do
             [ ! -f $ctrcfg ] && exit_program "Controller config file $(cc 2)$ctrcfg$nn does not exist"
         done
@@ -811,6 +828,10 @@ fi
 # Phase 1: P4 to C compilation
 if [ "$(optvalue p4)" != off ]; then
     msg "[$(cc 0)COMPILE  P4-${OPTS[vsn]}$nn] $(cc 0)$(print_cmd_opts ${OPTS[source]})$nn@$(cc 1)${OPTS[variant]}$nn${OPTS[testcase]+, test case $(cc 1)${OPTS[testcase]-(none)}$nn}${OPTS[dbg]+, $(cc 0)debug$nn mode, model $(cc 0)$(optvalue model)$nn}"
+
+    LINKED_P4="${T4P4S_COMPILE_DIR}/${OPTS[example]}.${VSN_TO_EXT[${OPTS[vsn]}]}"
+    rm -f $LINKED_P4
+    ln -s "`realpath "${OPTS[source]}"`" $LINKED_P4
 
     addopt p4opts "${OPTS[source]}" " "
     addopt p4opts "--p4v ${OPTS[vsn]}" " "
