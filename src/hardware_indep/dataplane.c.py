@@ -17,6 +17,11 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 table_infos = [(table, table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 ################################################################################
+
+for parser in hlir.parsers:
+    #[ void parser_state_${parser.name}_start(STDPARAMS);
+
+################################################################################
 # Table application
 
 for type in unique_everseen([comp['type'] for table in hlir.tables for smem in table.direct_meters + table.direct_counters for comp in smem.components]):
@@ -103,24 +108,41 @@ for ctl in hlir.controls:
     #} }
     #[
 
-#[ void process_packet(STDPARAMS)
-#{ {
-for idx, ctl in enumerate(hlir.controls):
-    if len(ctl.body.components) == 0:
-        #[     // skipping empty control ${ctl.name}
-    else:
-        #[     control_${ctl.name}(STDPARAMS_IN);
-
-    if hlir.news.model == 'V1Switch' and idx == 1:
-        #[     transfer_to_egress(pd);
-    if ctl.name == 'egress':
-        #[     // TODO temporarily disabled
-        #[     // update_packet(STDPARAMS_IN); // we need to update the packet prior to calculating the new checksum
-#} }
-
 ################################################################################
 
-#[ extern void deparse_packet(STDPARAMS);
+def has_annotation(node, annot_name):
+    return node.annotations.get(annot_name) is not None
+
+def gen_use_package(decl, depth):
+    for arg in decl.arguments.map('expression'):
+        if arg.node_type == 'PathExpression':
+            decl2 = hlir.decl_instances.get(arg.path.name)
+            #[ // ${arg.urtype.name} ${arg.path.name}
+            #{ {
+            #= gen_use_package(decl2, depth+1)
+            #} }
+        elif (ctl := arg.urtype).node_type == 'Type_Control':
+            if len(hlir.controls.get(ctl.name).body.components) == 0:
+                #[ // control ${ctl.name} is empty
+                continue
+            #[ control_${ctl.name}(STDPARAMS_IN);
+            if ctl.name in hlir.news.deparsers or has_annotation(ctl, 'deparser'):
+                #[     deparse_packet(SHORT_STDPARAMS_IN);
+        elif (parser := arg.urtype).node_type == 'Type_Parser':
+            #[ pd->is_deparse_reordering = false;
+            #[ parser_state_${parser.name}_start(STDPARAMS_IN);
+        elif (extern := arg.urtype).node_type == 'Type_Extern':
+            #[ // nonpkg ${arg.urtype.name} ${arg.urtype.node_type}
+        else:
+            addWarning('Unknown item in package', f'Item {arg.name} in package {pkg.urtype.name} {pkg.name} is of unknown type {arg.urtype.name}')
+
+main_decl = hlir.decl_instances.filter('urtype.name', hlir.news.model)[0]
+#{ void process_packet(STDPARAMS) {
+#= gen_use_package(main_decl, 0)
+#} }
+#[
+
+#[ extern void deparse_packet(SHORT_STDPARAMS);
 #[
 
 #[ void handle_packet(uint32_t portid, int pkt_idx, STDPARAMS)
@@ -131,13 +153,12 @@ for idx, ctl in enumerate(hlir.controls):
 #[     dbg_bytes(pd->data, packet_size(pd), "Handling packet " T4LIT(#%03d) " (port " T4LIT(%d,port) ", $${}{%02dB}): ", pkt_idx, get_ingress_port(pd), packet_size(pd));
 #[
 #[     pd->parsed_size = 0;
-#[     pd->is_deparse_reordering = false;
-#[     parse_packet(STDPARAMS_IN);
+#[     pd->extract_ptr = pd->data;
 #[
 #[     pd->deparse_hdrinst_count = 0;
 #[
 #[     process_packet(STDPARAMS_IN);
 #[
-#[     deparse_packet(STDPARAMS_IN);
+#[     deparse_packet(SHORT_STDPARAMS_IN);
 #} }
 #[

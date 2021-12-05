@@ -96,7 +96,7 @@ for table in hlir.tables:
 
                 #{     #ifdef T4P4S_DEBUG
                 if mname == 'isValid':
-                    #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, "$mname() =" T4LIT(%s,bytes) " ", pd->headers[HDR(${hi_name})].pointer == NULL ? "false" : "true");
+                    #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, "$mname() =" T4LIT(%s,bytes) " ", is_header_valid(HDR(${hi_name}), pd) ? "false" : "true");
                 else:
                     #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, "$mname() =" T4COLOR(T4LIGHT_bytes));
                     #[         *key_txt_idx += dbg_sprint_bytes_limit(key_txt + *key_txt_idx, get_fld_ptr(pd, FLD(${hi_name},${key.field_name})), ${byte_width}, ${field_size_print_limit}, "_");

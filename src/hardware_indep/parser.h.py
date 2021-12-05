@@ -149,24 +149,24 @@ if len(hlir.header_stacks) == 0:
 #[ // Parser state local vars
 #[ // -----------------------
 
-parser = hlir.parsers[0]
-
 vw_names = [hdr.name for hdr in hlir.header_instances.filter(lambda hdr: not hdr.urtype.is_metadata and hdr.urtype.is_vw)]
 
 #{ typedef struct {
-for loc in parser.parserLocals:
-    if 'type_ref' in loc.type:
-        if loc.urtype.node_type == 'Type_Extern':
-            #[     ${loc.urtype.name}_t ${loc.name};
+for parser in hlir.parsers:
+    for loc in parser.parserLocals:
+        locname = f'LOCALNAME({parser.name},{loc.name})'
+        if 'type_ref' in loc.type:
+            if loc.urtype.node_type == 'Type_Extern':
+                #[     ${loc.urtype.name}_t ${locname};
+            else:
+                #[     ${format_type(loc.type, addon=locname)}; // type: ${loc.urtype.name}
         else:
-            #[     ${format_type(loc.type, addon=loc.name)}; // type: ${loc.urtype.name}
-    else:
-        #[     ${format_type(loc.type, addon=loc.name)};
+            #[     ${format_type(loc.type, addon=locname)};
 
 for name in vw_names:
     #[     uint8_t ${name}_var; // Width of the variable width field // type: ${name}
 
-if len(parser.parserLocals) + len(vw_names) == 0:
+if all(len(parser.parserLocals) == 0 for parser in hlir.parsers) and len(vw_names) == 0:
     #[     // no parser locals
 #} } parser_state_t;
 

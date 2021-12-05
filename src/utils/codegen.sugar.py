@@ -366,6 +366,7 @@ def gen_do_assignment(dst, src, ctl=None):
                             srcbuf = casting(dst.type, is_local, format_expr(src, expand_parameters=True))
                             #[ MODIFY(dst_pkt(pd), FLD($hdrname,$fldname), src_32($srcbuf), ENDIAN_KEEP);
                         else:
+                            #TODO
                             pass
 
                         #[ debug("       : " T4LIT($hdrname,header) "." T4LIT($fldname,field) " = " T4LIT(%d,bytes) " (" T4LIT(%${(src.type.size+7)//8}x,bytes) ")\n", ${format_expr(dst)}, ${format_expr(dst)});
@@ -460,7 +461,7 @@ def gen_format_statement(stmt, ctl=None):
         if is_atomic:
             #[ LOCK(&${stmt.enclosing_control.type.name}_lock)
         for c in stmt.components:
-            #= gen_format_statement(c)
+            #= gen_format_statement(c, ctl=ctl)
         if is_atomic:
             #[ UNLOCK(&${stmt.enclosing_control.type.name}_lock)
     elif stmt.node_type == 'IfStatement':
@@ -474,10 +475,10 @@ def gen_format_statement(stmt, ctl=None):
 
         #[ ${pre}
         #{ if ($cond) {
-        #=     format_statement(stmt.ifTrue)
+        #=     format_statement(stmt.ifTrue, ctl=ctl)
         if 'ifFalse' in stmt:
             #[ } else {
-            #=     format_statement(stmt.ifFalse)
+            #=     format_statement(stmt.ifFalse, ctl=ctl)
         #} }
         #[ ${post}
     elif stmt.node_type == 'MethodCallStatement':
@@ -522,7 +523,7 @@ def gen_format_statement(stmt, ctl=None):
         else:
             #[ ${gen_short_extern_call(mcall)};
     elif stmt.node_type == 'SwitchStatement':
-        #[ switch(${format_expr(stmt.expression)}) {
+        #[ switch (${format_expr(stmt.expression)}) {
         for case in stmt.cases:
             if case.label.node_type == "DefaultExpression":
                 #[ default:
@@ -1080,7 +1081,8 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
         if transition_cond_txt:
             #[     set_transition_txt(" <== " ${''.join(transition_cond_txt)});
 
-        #[     parser_state_${case.state.path.name}(STDPARAMS_IN);
+        enclosing_parser = case.parents.filter('node_type', 'P4Parser')[-1]
+        #[     parser_state_${enclosing_parser.name}_${case.state.path.name}(STDPARAMS_IN);
     #} }
 
 def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):

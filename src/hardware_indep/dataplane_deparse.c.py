@@ -20,7 +20,7 @@ longest_hdr_name_len = max({len(h.name) for h in hlir.header_instances if not h.
 
 pkt_name_indent = " " * longest_hdr_name_len
 
-#{ void print_headers(STDPARAMS) {
+#{ void print_headers(SHORT_STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
 #[         int skips = 0;
 #{         for (int i = 0; i < pd->deparse_hdrinst_count; ++i) {
@@ -34,7 +34,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 #[
 
-#{ void store_headers_for_deparse(STDPARAMS) {
+#{ void store_headers_for_deparse(SHORT_STDPARAMS) {
 #[     pd->deparse_size = 0;
 #{     for (int i = 0; i < pd->deparse_hdrinst_count; ++i) {
 #[         header_descriptor_t* hdr = &(pd->headers[pd->header_reorder[i]]);
@@ -67,7 +67,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 #[
 
-#[ void resize_packet_on_deparse(STDPARAMS)
+#[ void resize_packet_on_deparse(SHORT_STDPARAMS)
 #{ {
 #[     int old_size = packet_size(pd);
 #[     int new_size = pd->deparse_size + pd->payload_size;
@@ -91,7 +91,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[
 
 #[ // if (some of) the deparsed headers are one after another, this function copies them in one go
-#[ void copy_deparse_contents(STDPARAMS)
+#[ void copy_deparse_contents(SHORT_STDPARAMS)
 #{ {
 #[     uint8_t* dst_start = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 #[     uint8_t* dst = dst_start;
@@ -128,16 +128,16 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 
 
-#[ void deparse_packet(STDPARAMS)
+#[ void deparse_packet(SHORT_STDPARAMS)
 #{ {
 #{     if (unlikely(pd->is_deparse_reordering)) {
 #{         if (unlikely(is_packet_dropped(pd))) {
 #[             return;
 #}         }
-#[         print_headers(STDPARAMS_IN);
-#[         store_headers_for_deparse(STDPARAMS_IN);
-#[         resize_packet_on_deparse(STDPARAMS_IN);
-#[         copy_deparse_contents(STDPARAMS_IN);
+#[         print_headers(SHORT_STDPARAMS_IN);
+#[         store_headers_for_deparse(SHORT_STDPARAMS_IN);
+#[         resize_packet_on_deparse(SHORT_STDPARAMS_IN);
+#[         copy_deparse_contents(SHORT_STDPARAMS_IN);
 #[     } else {
 #{         if (unlikely(is_packet_dropped(pd))) {
 #[             return;

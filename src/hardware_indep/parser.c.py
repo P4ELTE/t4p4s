@@ -20,25 +20,6 @@ import functools
 
 ################################################################################
 
-# TODO more than one parser can be present
-parser = hlir.parsers[0]
-
-################################################################################
-
-#[ // Returns the sum of all collected variable widths.
-#{ int get_var_width_bitwidth(parser_state_t* pstate) {
-#[     int retval = 0
-for loc in parser.parserLocals:
-    if 'is_vw' in loc.urtype and loc.urtype.is_vw:
-        #[ + pstate->${loc.name}_var
-#[     ;
-
-#[ return retval;
-
-#} }
-
-################################################################################
-
 #{ void gen_parse_drop_msg(int apparent_hdr_len, const char* hdrname, int max_stkhdr_count) {
 #{     if (apparent_hdr_len == PARSED_AFTER_END_OF_PACKET) {
 #[         debug("   " T4LIT(XX,status) " " T4LIT(Dropping packet,status) ": tried to parse " T4LIT(%s,header) " but it overshot the end of the packet\n", hdrname);
@@ -84,12 +65,13 @@ for hdr in hlir.header_instances:
         #[
 
 
-
 #{ void init_parser_state(parser_state_t* pstate) {
 #[     set_transition_txt("");
-for local in parser.parserLocals.filter('node_type', 'Declaration_Instance'):
-    #[     ${local.urtype.name}_t_init(pstate->${local.name});
+for parser in hlir.parsers:
+    for local in parser.parserLocals.filter('node_type', 'Declaration_Instance'):
+        #[     ${local.urtype.name}_t_init(pstate->${local.name});
 #} }
+#[
 
 #{ void cannot_parse_hdr(const char* varwidth_txt, const char* hdr_name, int hdrlen, int vwlen, STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
@@ -146,37 +128,41 @@ def get_hdrinst(arg0, component):
     return hlir.header_instances.get(hdrinst_name)
 
 
-for s in parser.states:
-    if s.is_reachable:
-        #[ void parser_state_${s.name}(STDPARAMS);
-    else:
-        #[ // state ${s.name} is not reachable
+for parser in hlir.parsers:
+    for s in parser.states:
+        if s.is_reachable:
+            #[ void parser_state_${parser.name}_${s.name}(STDPARAMS);
+        else:
+            #[ // state ${s.name} is not reachable
+    #[
 #[
 
 
-for s in parser.states:
-    if not s.is_reachable:
-        continue
+for parser in hlir.parsers:
+    for s in parser.states:
+        if not s.is_reachable:
+            continue
 
-    if s.name in ('accept', 'reject'):
-        continue
+        if s.name in ('accept', 'reject'):
+            continue
 
-    if s.selectExpression.node_type != 'SelectExpression':
-        continue
+        # note: this is a direct state transition, complex select code is not needed
+        if s.selectExpression.node_type == 'PathExpression':
+            continue
 
-    #{ void parser_state_${s.name}_next_state(STDPARAMS) {
-    #[     parser_state_t* local_vars = pstate;
-    #[     parser_state_t parameters = *pstate;
-    bexpr = format_expr(s.selectExpression)
-    prebuf, postbuf = statement_buffer_value()
-    #[     $prebuf
-    #=     bexpr
-    #[     $postbuf
-    #} }
-    #[
+        #{ void parser_state_${parser.name}_${s.name}_next_state(STDPARAMS) {
+        #[     parser_state_t* local_vars = pstate;
+        #[     parser_state_t parameters = *pstate;
+        bexpr = format_expr(s.selectExpression)
+        prebuf, postbuf = statement_buffer_value()
+        #[     $prebuf
+        #=     bexpr
+        #[     $postbuf
+        #} }
+        #[
 
 
-def state_component_name(s, idx, component):
+def state_component_name(parser_name, s, idx, component):
     def methodcall_info(mc):
         m = mc.method
         if 'expr' not in m:
@@ -227,7 +213,7 @@ def state_component_name(s, idx, component):
         else:
             info = f'_extract_{hdr.name}'
 
-    return f'parser_state_{s.name}_{idx:03}{info}'
+    return f'parser_state_{parser_name}_{s.name}_{idx:03}{info}'
 
 
 def component_extract_info(component):
@@ -247,110 +233,123 @@ def component_extract_info(component):
 
     return is_underscore_header, hdr, hdrt
 
-
-for s in parser.states:
-    if not s.is_reachable:
-        continue
-
-    for idx, component in enumerate(s.components):
-        #{ bool ${state_component_name(s, idx, component)}(STDPARAMS) {
-        #[     parser_state_t* local_vars = pstate;
-
-        if 'call' in component:
-            if component.call != 'extract_header':
-                addWarning('invoking state component', f'Unknown state component call of type {component.call}')
-                continue
-
-            is_underscore_header, hdr, hdrt = component_extract_info(component)
-
-            # TODO remove?
-            args = component.methodCall.arguments
-            vwlen_var = generate_var_name('vwlen')
-            if len(args) == 1:
-                #[     int ${vwlen_var} = 0;
-            else:
-                bexpr = format_expr(args[1].expression)
-                prebuf, postbuf = statement_buffer_value()
-                #[     $prebuf
-                #[     int ${vwlen_var} = ${bexpr};
-                #[     $postbuf
-
-                #{     if (unlikely(${vwlen_var} < 0)) {
-                #[         debug("    " T4LIT(!,error) " Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) " " T4LIT(is negative,error) "\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var});
-
-                #[         drop_packet(STDPARAMS_IN);
-                #[         return false;
-                #{     #ifdef T4P4S_DEBUG
-                #[     } else {
-                #[         debug("    : Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) "B\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var} / 8);
-                #}     #endif
-                #}     }
-
-            #[     int ${hdr.name}_len = parser_extract_${hdr.name}(${vwlen_var}, STDPARAMS_IN);
-            #{     if (unlikely(${hdr.name}_len < 0)) {
-            #[         gen_parse_drop_msg(${hdr.name}_len, "${hdr.name}", -1 /* ignored */);
-            #[         drop_packet(STDPARAMS_IN);
-            #[         return false;
-            #}     }
-
-            # if any header is skipped (extracted as (_)), it will not be emitted during deparsing
-            if any(hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata).map(lambda hdr: hdr.is_local)):
-                #[     pd->is_deparse_reordering = true;
-        else:
-            #[     ${format_statement(component, parser)}
-        #[     return true;
-        #} }
-        #[
-
-
-for s in parser.states:
-    if not s.is_reachable:
-        continue
-
-    #{ void parser_state_${s.name}(STDPARAMS) {
-    #{     #ifdef T4P4S_STATS
-    #[         t4p4s_stats_global.T4STAT(parser,state,${s.name}) = true;
-    #[         t4p4s_stats_per_packet.T4STAT(parser,state,${s.name}) = true;
-    #}     #endif
-    #[
-
-    if s.name == 'accept':
-        #[     pd->payload_size = packet_size(pd) - (pd->extract_ptr - (void*)pd->data);
-
-        #{     if (pd->payload_size > 0) {
-        #[         dbg_bytes(pd->data + pd->parsed_size, pd->payload_size, " " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B of headers, " T4LIT(%d) "B of payload: ", pd->parsed_size, pd->payload_size);
-        #[     } else {
-        #[         debug(" " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B of headers, " T4LIT(empty payload) "\n", pd->parsed_size);
-        #}     }
-    elif s.name == 'reject':
-        #[     debug(" " T4LIT(XXXX,status) " Parser state " T4LIT(${s.name},parserstate) " %s\n", transition_cond);
-        #[     debug("   " T4LIT(XX,status) " Packet is " T4LIT(dropped,status) "\n");
-        #[     drop_packet(STDPARAMS_IN);
-    else:
-        #[     debug(" %%%%%%%% Parser state " T4LIT(${s.name},parserstate) "%s\n", transition_cond);
-        #[     set_transition_txt("");
+for parser in hlir.parsers:
+    for s in parser.states:
+        if not s.is_reachable:
+            continue
 
         for idx, component in enumerate(s.components):
-            #[     bool success$idx = ${state_component_name(s, idx, component)}(STDPARAMS_IN);
-            #{     if (unlikely(!success$idx)) {
-            #[         debug("    " T4LIT(!,error) " Parsing " T4LIT(failed,error) ", " T4LIT(dropping,status) " packet\n");
-            #[         return;
-            #}     }
+            #{ bool ${state_component_name(parser.name, s, idx, component)}(STDPARAMS) {
+            #[     parser_state_t* local_vars = pstate;
 
-        if s.selectExpression.node_type == 'PathExpression':
-            #[     parser_state_${s.selectExpression.path.name}(STDPARAMS_IN);
-        else:
-            #[     parser_state_${s.name}_next_state(STDPARAMS_IN);
+            if 'call' in component:
+                if component.call != 'extract_header':
+                    addWarning('invoking state component', f'Unknown state component call of type {component.call}')
+                    continue
 
-    #} }
-    #[
+                is_underscore_header, hdr, hdrt = component_extract_info(component)
 
-#[ void parse_packet(STDPARAMS) {
-#[     pd->parsed_size = 0;
-#[     pd->extract_ptr = pd->data;
-#[     parser_state_start(STDPARAMS_IN);
-#[ }
+                args = component.methodCall.arguments
+                vwlen_var = generate_var_name('vwlen')
+                if len(args) == 1:
+                    #[     int ${vwlen_var} = 0;
+                else:
+                    bexpr = format_expr(args[1].expression)
+                    prebuf, postbuf = statement_buffer_value()
+                    #[     $prebuf
+                    #[     int ${vwlen_var} = ${bexpr};
+                    #[     $postbuf
+
+                    #{     if (unlikely(${vwlen_var} < 0)) {
+                    #[         debug("    " T4LIT(!,error) " Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) " " T4LIT(is negative,error) "\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var});
+
+                    #[         drop_packet(STDPARAMS_IN);
+                    #[         return false;
+                    #{     #ifdef T4P4S_DEBUG
+                    #[     } else {
+                    #[         debug("    : Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) "B\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var} / 8);
+                    #}     #endif
+                    #}     }
+
+                #[     int ${hdr.name}_len = parser_extract_${hdr.name}(${vwlen_var}, STDPARAMS_IN);
+                #{     if (unlikely(${hdr.name}_len < 0)) {
+                #[         gen_parse_drop_msg(${hdr.name}_len, "${hdr.name}", -1 /* ignored */);
+                #[         drop_packet(STDPARAMS_IN);
+                #[         return false;
+                #}     }
+
+                # if any header is skipped (extracted as (_)), it will not be emitted during deparsing
+                if any(hlir.header_instances.filterfalse(lambda hdr: hdr.urtype.is_metadata).map(lambda hdr: hdr.is_local)):
+                    #[     pd->is_deparse_reordering = true;
+            else:
+                #[     ${format_statement(component, parser)}
+            #[     return true;
+            #} }
+            #[
+
+nonmeta_hdrinst_count = len(hlir.header_instances.filterfalse('urtype.is_metadata'))
+#{ int get_active_hdr_count(STDPARAMS) {
+#[     int retval = 0;
+#{     for (int i = 0; i < ${nonmeta_hdrinst_count}; ++i) {
+#[         retval += is_header_valid(i, pd) ? 1 : 0;
+#}     }
+#[     return retval;
+#} }
 #[
+
+#{ void print_parsing_success(STDPARAMS) {
+#{     #ifdef T4P4S_DEBUG
+#[         int hdr_count = get_active_hdr_count(STDPARAMS_IN);
+#{         if (pd->payload_size > 0) {
+#[             dbg_bytes(pd->data + pd->parsed_size, pd->payload_size, " " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B in " T4LIT(%d) " header%s, " T4LIT(%d) "B of payload: ", pd->parsed_size, hdr_count, hdr_count != 1 ? "s" : "", pd->payload_size);
+#[         } else {
+#[             debug(" " T4LIT(%%%%%%%%,success) " Packet is " T4LIT(accepted,success) ", " T4LIT(%d) "B in " T4LIT(%d) " header%s, " T4LIT(empty payload) "\n", pd->parsed_size, hdr_count, hdr_count != 1 ? "s" : "");
+#}         }
+#[
+#{         if (hdr_count == 0) {
+#[             debug("   " T4LIT(!! No headers were found,warning) " during parsing, the packet solely consists of payload\n");
+#}         }
+#}     #endif
+#} }
+#[
+
+for parser in hlir.parsers:
+    for s in parser.states:
+        if not s.is_reachable:
+            continue
+
+        #{ void parser_state_${parser.name}_${s.name}(STDPARAMS) {
+        #{     #ifdef T4P4S_STATS
+        #[         t4p4s_stats_global.T4STAT(parser,state,${s.name}) = true;
+        #[         t4p4s_stats_per_packet.T4STAT(parser,state,${s.name}) = true;
+        #}     #endif
+        #[
+
+        if s.name == 'accept':
+            #[     pd->payload_size = packet_size(pd) - (pd->extract_ptr - (void*)pd->data);
+            #[     print_parsing_success(STDPARAMS_IN);
+        elif s.name == 'reject':
+            #[     debug(" " T4LIT(XXXX,status) " Parser state " T4LIT(${s.name},parserstate) " %s\n", transition_cond);
+            #[     debug("   " T4LIT(XX,status) " Packet is " T4LIT(dropped,status) "\n");
+            #[     drop_packet(STDPARAMS_IN);
+        else:
+            #[     debug(" %%%%%%%% Parser state " T4LIT(${s.name},parserstate) "%s\n", transition_cond);
+            #[     set_transition_txt("");
+
+            for idx, component in enumerate(s.components):
+                #[     bool success$idx = ${state_component_name(parser.name, s, idx, component)}(STDPARAMS_IN);
+                #{     if (unlikely(!success$idx)) {
+                #[         debug("    " T4LIT(!,error) " Parsing " T4LIT(failed,error) ", " T4LIT(dropping,status) " packet\n");
+                #[         return;
+                #}     }
+
+            if s.selectExpression.node_type == 'PathExpression':
+                #[     parser_state_${parser.name}_${s.selectExpression.path.name}(STDPARAMS_IN);
+            else:
+                #[     parser_state_${parser.name}_${s.name}_next_state(STDPARAMS_IN);
+
+        #} }
+        #[
 
 all_stk_hdrs = hlir.header_instances.filter(lambda hdr: 'stack' in hdr)
 for stk in unique_everseen(all_stk_hdrs.map('stack')):

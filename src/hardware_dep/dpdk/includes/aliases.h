@@ -18,6 +18,9 @@ typedef rte_spinlock_t lock_t;
 #define HDR(hdr) header_##hdr
 #define STK(stk) stack_##stk
 
+// TODO include the control's/parser's name in there
+#define LOCALNAME(ctl,name)   name
+
 #define EXTERNTYPE(name)      externtype_##name##_t
 #define EXTERNNAME(name)      externname_##name
 #define SMEMTYPE(name)        smemtype_##name##_t
