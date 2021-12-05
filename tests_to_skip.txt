@@ -6,33 +6,12 @@ The test cases listed here will be skipped by run_tests.py
 Lines can be commented out using #
 
 
-Action out headers are not supported yet
-    %test-action=test
-    %test-action-2=test
-
 Slice copying not implemented yet
-    test-bit2
+    %test-bit2=test
 
 Arithmetic operations are only supported on int<8>, int<16> and int<32>.
     %test-arith-nonbyte=test
 
-Header stacks and unions are not supported
+Header unions are not supported
     %test-header-union-1=test
     %test-header-union-2=test
-
-Complex variable assignments are only partially supported
-    test-compound-assignment
-
-Currently unsupported
-    %cpf=psa
-    %cpf_core=psa
-    %cpf_main=psa
-    %cpf_ran=psa
-    %epg_2020=psa
-    %transport=psa
-
-    %cpf=v1
-    %epg_2020=v1
-
-Test environment needs to be extended to handle async constructs
-    %l2fwd-gen-encrypt=test
