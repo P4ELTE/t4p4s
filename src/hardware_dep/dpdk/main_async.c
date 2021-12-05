@@ -42,7 +42,7 @@ void async_init_storage();
 void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
 void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
-void do_crypto_task(packet_descriptor_t* pd, enum crypto_task_type op);
+void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op);
 
 // -----------------------------------------------------------------------------
 // DEBUG
@@ -140,11 +140,11 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
 
 
-extern void create_crypto_op(struct crypto_task **op_out, packet_descriptor_t* pd, enum crypto_task_type op_type, int offset, void* extraInformationForAsyncHandling);
+extern void create_crypto_op(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
 
-void enqueue_packet_for_async(packet_descriptor_t* pd, enum crypto_task_type op_type, void* extraInformationForAsyncHandling)
+void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e op_type, void* extraInformationForAsyncHandling)
 {
-    struct crypto_task *op;
+    crypto_task_s *op;
     create_crypto_op(&op,pd,op_type,0,extraInformationForAsyncHandling);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
@@ -247,7 +247,7 @@ void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, pack
     }
 }
 
-void do_crypto_task(packet_descriptor_t* pd, enum crypto_task_type op)
+void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op)
 {
     void* extraInformationForAsyncHandling = NULL;
 
@@ -299,7 +299,7 @@ void do_crypto_task(packet_descriptor_t* pd, enum crypto_task_type op)
     ucontext_t* cs[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 #endif
 
-extern struct crypto_task *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+extern crypto_task_s *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 extern struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 extern struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
