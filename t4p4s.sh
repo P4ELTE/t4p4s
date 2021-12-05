@@ -653,11 +653,7 @@ fi
 [ "$(optvalue testcase)" == off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}}
 [ "$(optvalue testcase)" != off ] && OPTS[choice]=${T4P4S_CHOICE-${OPTS[example]}@${OPTS[variant]}-$(optvalue testcase)}
 
-if [ "${OPTS[model]}" == "${OPTS[choice]}" ]; then
-    T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}"}
-else
-    T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}-${OPTS[model]}"}
-fi
+T4P4S_COMPILE_DIR=${T4P4S_COMPILE_DIR-"${T4P4S_BUILD_DIR}/${OPTS[choice]}-${OPTS[model]}"}
 
 T4P4S_TARGET_DIR="${T4P4S_BUILD_DIR}/last"
 # a synonym of "last", this comes earliest alphabetically
