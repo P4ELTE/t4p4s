@@ -82,12 +82,6 @@
     }
 #endif
 
-void debug_mbuf(struct rte_mbuf* mbuf, const char* message) {
-    dbg_bytes(rte_pktmbuf_mtod(mbuf, uint8_t*), rte_pktmbuf_pkt_len(mbuf),
-              "%s (" T4LIT(%d) " bytes): ", message, rte_pktmbuf_pkt_len(mbuf));
-}
-
-
 void sleep_millis(int millis) {
     usleep(millis * 1000);
 }
