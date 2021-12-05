@@ -1,7 +1,8 @@
 
 fs = import('fs')
 
-hdep = '../../src/hardware_dep'
+src  = '../../src'
+hdep = src / 'hardware_dep'
 xtrn = hdep / 'dpdk/data_plane/externs'
 srcg = 'srcgen'
 
@@ -62,6 +63,7 @@ build_args = [
 incdirs = [
     srcg,
     srcg / 'multi',
+    src  / 'testing/includes',
     hdep / 'dpdk/includes',
     hdep / 'shared/includes',
     hdep / 'shared/ctrl_plane',
