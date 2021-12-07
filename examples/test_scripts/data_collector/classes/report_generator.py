@@ -1,3 +1,5 @@
+import os
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -13,6 +15,16 @@ class ReportGenerator(ABC):
         self.report_file_path = report_file_prefix + (
             '' if self.report_file_extension is None else f'.{self.report_file_extension}'
         )
+
+    def get_previous_commit(self):
+        commit_hash_prev = None
+        file_path = os.path.dirname(self.report_file_prefix) + '/result_collection.json'
+        if os.path.exists(file_path) and os.stat(file_path).st_size != 0:
+            with open(file_path, 'r') as report_file:
+                json_data = json.load(report_file)
+                commit_hash_prev = json_data['data'][0]['commit_hash'] if 'commit_hash' in json_data['data'][0] else None
+
+        return commit_hash_prev
 
     def new(self, **kwargs):
         Path(self.report_file_path).touch()

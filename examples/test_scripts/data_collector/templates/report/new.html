@@ -13,6 +13,8 @@
     var $dataTable = null;
     var openOutputIndex = null;
     var errorCodes = $__error_codes;
+    var commitHash = "$__commitHash"
+    var commitHashPrev = "$__commit_hash_prev"
 
     function openOutput(index) {
         var $body = $('body');
@@ -146,6 +148,9 @@
         $('.ansi').each((index, element) => {
             const $element = $(element);
             $element.html(ansi_up.ansi_to_html($element.html()));
+            $element.html(function(index, html) {
+                return html.replaceAll('&amp;gt;','>');
+            });
         })
 
         $(document).on('keyup', function (e) {
@@ -158,6 +163,16 @@
             searchForErrorCodes();
             addSearchButtons();
         });
+
+        var $compareCommit = $('#compare-commit');
+        if (commitHash === commitHashPrev) {
+            $compareCommit.html('(No change)');
+
+        }
+
+        if (commitHash !== 'None' && commitHash !== '' && commitHashPrev !== 'None' && commitHashPrev !== '') {
+            $compareCommit.removeClass('hidden');
+        }
     })
 </script>
 <style>
@@ -283,17 +298,53 @@
         box-shadow: inset 4px 4px 9px 0 black;
     }
 
-    .commit-hash {
+    .commit-hash-wrap {
         padding-bottom: 4px;
+    }
+
+    a {
+        text-decoration: none;
+    }
+
+    a,
+    a:-webkit-any-link:active {
+        color: #002aff;
+    }
+
+    a:hover {
+        color: #0070ff;
+    }
+
+    #compare-commit {
+        color: grey;
+        font-weight: bold;
+    }
+
+    #compare-commit > a:-webkit-any-link:active,
+    #compare-commit > a {
+        color: #34a745;
+    }
+
+    #compare-commit > a:hover {
+        color: #1e7e2c;
     }
 </style>
 </head>
 <body>
 <div class="current-result">
+    <div class="compare-button-container hidden">
+        <input id="compareButton" type="button" class="button bg-green" value="Compare" onclick="compare()">
+    </div>
 <div class="search-buttons hidden">
     <input type="button" class="button bg-blue" value="Reset Filter" onclick="searchInColumn(null, null, null)">
 </div>
-<div class="commit-hash">Commit hash: <span>$__commitHash</span></div>
+<div class="commit-hash-wrap">
+    Commit hash:
+    <a class="commit-hash" href="https://github.com/P4ELTE/t4p4s/commit/$__commitHash" target="_blank">$__commitHash</a>
+    <span id="compare-commit" class="hidden">
+        <a href="https://github.com/P4ELTE/t4p4s/compare/$__commit_hash_prev..$__commitHash" target="_blank">(Compare with last commit)</a>
+    </span>
+</div>
 <table id="dataTable" border="1" style="visibility: hidden">
     <thead>
     <tr>

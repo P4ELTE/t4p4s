@@ -1,3 +1,16 @@
-                <td class="commit">$__commit_hash</td>
+                <td class="commit">
+                    <a href="https://github.com/P4ELTE/t4p4s/commit/$__commit_hash" target="_blank">$__commit_hash</a>
+                    <a href="https://github.com/P4ELTE/t4p4s/compare/$__commit_hash_prev..$__commit_hash" target="_blank"
+                       class="compare-commit $__commit_compare_hidden_class">(Compare with last report commit)</a>
+                </td>
+                <td class="compare">
+                    <div class="compare-wrap hidden">
+                        <input type="button" value="View" onclick="showPopup(this)">
+                        <div class="popup hidden">
+                            <div class="close"><span onclick="closePopup(this)">✕</span></div>
+                            <div class="content"></div>
+                        </div>
+                    </div>
+                </td>
                 <td class="file"><a href="$__filename" target="_blank">$__filename</a></td>
             </tr>
