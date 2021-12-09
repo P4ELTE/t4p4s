@@ -1,11 +1,4 @@
-#include <core.p4>
-#include <v1model.p4>
-
-header ethernet_t {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
+#include "common-boilerplate-pre.p4"
 
 struct metadata {
 }
@@ -15,7 +8,7 @@ struct headers {
     ethernet_t ethernet;
 }
 
-parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+PARSER {
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition accept;
@@ -25,25 +18,17 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
     }
 }
 
-control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    apply {
-    }
-}
+CTL_MAIN {
+    DECLARE_DIGEST(mac_learn_digest_t, mac_learn_digest)
 
-@name("mac_learn_digest") struct mac_learn_digest {
-    bit<48> srcAddr;
-    bit<9>  ingress_port;
-}
-
-control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".forward") action forward(bit<9> port) {
-        standard_metadata.egress_port = port;
+    @name(".forward") action forward(PortId_t port) {
+        SET_EGRESS_PORT(port);
     }
     @name(".bcast") action bcast() {
-        standard_metadata.egress_port = 9w100;
+        SET_EGRESS_PORT(PortId_const(100));
     }
     @name(".mac_learn") action mac_learn() {
-        digest<mac_learn_digest>((bit<32>)1024, { hdr.ethernet.srcAddr, standard_metadata.ingress_port });
+        CALL_DIGEST(mac_learn_digest_t, mac_learn_digest, 1024, ({ hdr.ethernet.srcAddr, GET_INGRESS_PORT() }));
     }
     @name("._nop") action _nop() {
     }
@@ -87,21 +72,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
 
 }
 
-control DeparserImpl(packet_out packet, in headers hdr) {
-    apply {
-        packet.emit(hdr.ethernet);
-    }
+CTL_EMIT {
+    apply {}
 }
 
-control verifyChecksum(inout headers hdr, inout metadata meta) {
-    apply {
-    }
-}
-
-control computeChecksum(inout headers hdr, inout metadata meta) {
-    apply {
-    }
-}
-
-V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
-
+#include "common-boilerplate-post.p4"

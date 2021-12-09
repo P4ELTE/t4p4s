@@ -1,5 +1,7 @@
 /* -*- P4_16 -*- */
 
+#include "common-boilerplate-pre.p4"
+
 /*
  * P4 Calculator
  *
@@ -36,22 +38,6 @@
  * If an unknown operation is specified or the header is not valid, the packet
  * is dropped 
  */
-
-#include <core.p4>
-#include <v1model.p4>
-
-/*
- * Define the headers the program will recognize
- */
-
-/*
- * Standard ethernet header 
- */
-header ethernet_t {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
 
 /*
  * This is a custom protocol header for the calculator. We'll use 
@@ -98,14 +84,7 @@ struct metadata {
     /* In our case it is empty */
 }
 
-/*************************************************************************
- ***********************  P A R S E R  ***********************************
- *************************************************************************/
-parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
-
+PARSER {
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -120,21 +99,7 @@ parser MyParser(packet_in packet,
     }
 }
 
-/*************************************************************************
- ************   C H E C K S U M    V E R I F I C A T I O N   *************
- *************************************************************************/
-control MyVerifyChecksum(inout headers hdr,
-                         inout metadata meta) {
-    apply { }
-}
-
-/*************************************************************************
- **************  I N G R E S S   P R O C E S S I N G   *******************
- *************************************************************************/
-control MyIngress(inout headers hdr,
-                  inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
-    
+CTL_MAIN {
     action send_back(bit<32> result) {
         bit<48> tmp;
 
@@ -147,7 +112,7 @@ control MyIngress(inout headers hdr,
         hdr.ethernet.srcAddr = tmp;
         
         /* Send the packet back to the port it came from */
-        standard_metadata.egress_spec = standard_metadata.ingress_port;
+        SET_EGRESS_PORT(GET_EGRESS_PORT());
     }
     
     action operation_add() {
@@ -171,7 +136,7 @@ control MyIngress(inout headers hdr,
     }
 
     action operation_drop() {
-        mark_to_drop(standard_metadata);
+        MARK_TO_DROP();
     }
     
     table calculate {
@@ -196,7 +161,6 @@ control MyIngress(inout headers hdr,
         }
     }
 
-            
     apply {
         if (hdr.p4calc.isValid()) {
             calculate.apply();
@@ -206,42 +170,8 @@ control MyIngress(inout headers hdr,
     }
 }
 
-/*************************************************************************
- ****************  E G R E S S   P R O C E S S I N G   *******************
- *************************************************************************/
-control MyEgress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply { }
+CTL_EMIT {
+    apply {}
 }
 
-/*************************************************************************
- *************   C H E C K S U M    C O M P U T A T I O N   **************
- *************************************************************************/
-
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
-    apply { }
-}
-
-/*************************************************************************
- ***********************  D E P A R S E R  *******************************
- *************************************************************************/
-control MyDeparser(packet_out packet, in headers hdr) {
-    apply {
-        packet.emit(hdr.ethernet);
-        packet.emit(hdr.p4calc);
-    }
-}
-
-/*************************************************************************
- ***********************  S W I T T C H **********************************
- *************************************************************************/
-
-V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-MyIngress(),
-MyEgress(),
-MyComputeChecksum(),
-MyDeparser()
-) main;
+#include "common-boilerplate-post.p4"

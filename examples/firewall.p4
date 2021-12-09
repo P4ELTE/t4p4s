@@ -1,6 +1,6 @@
 /* -*- P4_16 -*- */
-#include <core.p4>
-#include <v1model.p4>
+
+#include "common-boilerplate-pre.p4"
 
 const bit<16> TYPE_IPV4  = 0x0800;
 const bit<16> TYPE_ARP   = 0x0806;
@@ -16,78 +16,6 @@ const bit<8>  ARP_PLEN  = 4;         // IP address size is 4 bytes
 const bit<16> ARP_REQ = 1;           // Operation 1 is request
 const bit<16> ARP_REPLY = 2;         // Operation 2 is reply
 
-
-/*************************************************************************
-*********************** H E A D E R S  ***********************************
-*************************************************************************/
-
-typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
-typedef bit<32> ip4Addr_t;
-
-header ethernet_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
-}
-
-header arp_t {
-  bit<16>   h_type;
-  bit<16>   p_type;
-  bit<8>    h_len;
-  bit<8>    p_len;
-  bit<16>   op_code;
-  macAddr_t src_mac;
-  ip4Addr_t src_ip;
-  macAddr_t dst_mac;
-  ip4Addr_t dst_ip;
-  }
-
-header icmp_t {
-    bit<8> icmp_type;
-    bit<8> icmp_code;
-    bit<16> checksum;
-    bit<16> identifier;
-    bit<16> sequence_number;
-    bit<64> timestamp;
-}
-
-header ipv4_t {
-    bit<4>    version;
-    bit<4>    ihl;
-    bit<8>    diffserv;
-    bit<16>   totalLen;
-    bit<16>   identification;
-    bit<3>    flags;
-    bit<13>   fragOffset;
-    bit<8>    ttl;
-    bit<8>    protocol;
-    bit<16>   hdrChecksum;
-    ip4Addr_t srcAddr;
-    ip4Addr_t dstAddr;
-}
-
-header tcp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<4>  res;
-    bit<8>  flags;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
-}
-
-header udp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<16> length_;
-    bit<16> checksum;
-}
-
-
 struct metadata {
     /* empty */
 }
@@ -101,15 +29,7 @@ struct headers {
     icmp_t       icmp;
 }
 
-/*************************************************************************
-*********************** P A R S E R  ***********************************
-*************************************************************************/
-
-parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
-
+PARSER {
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -121,9 +41,9 @@ parser MyParser(packet_in packet,
 
     state parse_arp {
       packet.extract(hdr.arp);
-        transition select(hdr.arp.op_code) {
+        transition select(hdr.arp.oper) {
           ARP_REQ: accept;
-	  default: accept;
+          default: accept;
       }
     }
 
@@ -156,24 +76,9 @@ parser MyParser(packet_in packet,
 }
 
 
-/*************************************************************************
-************   C H E C K S U M    V E R I F I C A T I O N   *************
-*************************************************************************/
-
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
-    apply {  }
-}
-
-
-/*************************************************************************
-**************  I N G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
-
-control MyIngress(inout headers hdr,
-                  inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
+CTL_MAIN {
     action drop() {
-        mark_to_drop(standard_metadata);
+        MARK_TO_DROP();
     }
 
     table eth_dstMac_filter {
@@ -314,49 +219,16 @@ control MyIngress(inout headers hdr,
                 dropped = 1;
             }
           }
-	  if (dropped != 1)
-            standard_metadata.egress_port = (standard_metadata.ingress_port+1)%2;
+          if (dropped != 1) {
+            bit<PortId_size> in_port = (bit<PortId_size>)GET_EGRESS_PORT();
+            bit<PortId_size> out_port = (in_port+1)%2;
+            SET_EGRESS_PORT(out_port);
+          }
         }
     }
 }
 
-/*************************************************************************
-****************  E G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
-
-control MyEgress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply {  }
-}
-
-/*************************************************************************
-*************   C H E C K S U M    C O M P U T A T I O N   **************
-*************************************************************************/
-
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
-     apply {
-/*	update_checksum(
-	    hdr.icmp.isValid(),
-            {
-              hdr.icmp.icmp_type,
-              hdr.icmp.icmp_code,
-              hdr.icmp.identifier,
-              hdr.icmp.sequence_number,
-              hdr.icmp.timestamp
-            },
-              hdr.icmp.checksum,
-              HashAlgorithm.csum16);
-*/
-    }
-}
-
-
-/*************************************************************************
-***********************  D E P A R S E R  *******************************
-*************************************************************************/
-
-control MyDeparser(packet_out packet, in headers hdr) {
+CTL_EMIT {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.arp);
@@ -367,15 +239,4 @@ control MyDeparser(packet_out packet, in headers hdr) {
     }
 }
 
-/*************************************************************************
-***********************  S W I T C H  *******************************
-*************************************************************************/
-
-V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-MyIngress(),
-MyEgress(),
-MyComputeChecksum(),
-MyDeparser()
-) main;
+#include "common-boilerplate-post.p4"

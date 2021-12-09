@@ -1,71 +1,30 @@
 /* -*- P4_16 -*- */
-#include <core.p4>
-#include <v1model.p4>
-
-/*************************************************************************
-*********************** H E A D E R S  ***********************************
-*************************************************************************/
-
-typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
-
-header ethernet_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
-}
+#include "common-boilerplate-pre.p4"
 
 struct metadata {
     /* empty */
 }
 
 struct headers {
-    ethernet_t   ethernet;
+    ethernet_t ethernet;
 }
 
-/*************************************************************************
-*********************** P A R S E R  ***********************************
-*************************************************************************/
-
-parser MyParser(packet_in packet,
-                out headers hdr,
-                inout metadata meta,
-                inout standard_metadata_t standard_metadata) {
-
+PARSER {
     state start {
         packet.extract(hdr.ethernet);
         transition accept;
     }
-
 }
 
-
-/*************************************************************************
-************   C H E C K S U M    V E R I F I C A T I O N   *************
-*************************************************************************/
-
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
-    apply {  }
-}
-
-
-/*************************************************************************
-**************  I N G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
-
-control MyIngress(inout headers hdr,
-                  inout metadata meta,
-                  inout standard_metadata_t standard_metadata) {
-
+CTL_MAIN {
     action swap_mac_addresses() {
-       macAddr_t tmp_mac;
-       tmp_mac = hdr.ethernet.dstAddr;
-       hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
-       hdr.ethernet.srcAddr = tmp_mac;
+        macAddr_t tmp_mac;
+        tmp_mac = hdr.ethernet.dstAddr;
+        hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+        hdr.ethernet.srcAddr = tmp_mac;
 
-       //send it back to the same port
-       //standard_metadata.egress_spec = standard_metadata.ingress_port;
-       standard_metadata.egress_port = standard_metadata.ingress_port;
+        //send it back to the same port
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 
     apply {
@@ -73,46 +32,10 @@ control MyIngress(inout headers hdr,
     }
 }
 
-/*************************************************************************
-****************  E G R E S S   P R O C E S S I N G   *******************
-*************************************************************************/
-
-control MyEgress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply {  }
-}
-
-/*************************************************************************
-*************   C H E C K S U M    C O M P U T A T I O N   **************
-*************************************************************************/
-
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
-     apply {
-
-     }
-}
-
-
-/*************************************************************************
-***********************  D E P A R S E R  *******************************
-*************************************************************************/
-
-control MyDeparser(packet_out packet, in headers hdr) {
+CTL_EMIT {
     apply {
         packet.emit(hdr.ethernet);
     }
 }
 
-/*************************************************************************
-***********************  S W I T C H  *******************************
-*************************************************************************/
-
-V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-MyIngress(),
-MyEgress(),
-MyComputeChecksum(),
-MyDeparser()
-) main;
+#include "common-boilerplate-post.p4"

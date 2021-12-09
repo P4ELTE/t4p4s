@@ -1,61 +1,42 @@
-#include <core.p4>
-#include <v1model.p4>
+#include "common-boilerplate-pre.p4"
 
-
-const bit<16> IP=0x800;
-
-header ethernet_t {
-    bit<48> dstAddr;
-    bit<48> srcAddr;
-    bit<16> etherType;
-}
+const bit<16> IP = 0x0800;
 
 struct metadata {
 }
 
 struct headers {
-    @name(".ethernet") 
     ethernet_t ethernet;
 }
 
-parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".parse_ethernet") state parse_ethernet {
+PARSER {
+    state start {
         packet.extract(hdr.ethernet);
         transition accept;
     }
-    @name(".start") state start {
-        transition parse_ethernet;
-    }
 }
 
-control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    apply {
-    }
-}
+CTL_MAIN {
+    DECLARE_DIGEST(mac_learn_digest_t, mac_learn_digest)
 
-@name("mac_learn_digest") struct mac_learn_digest {
-    bit<48> srcAddr;
-    bit<9>  ingress_port;
-}
-
-control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".forward") action forward(bit<9> port) {
-        standard_metadata.egress_port = port;
+    action forward(PortId_t port) {
+        SET_EGRESS_PORT(port);
     }
     
-    @name(".bcast") action bcast() {
-        standard_metadata.egress_port = 9w100;
+    action bcast() {
+        SET_EGRESS_PORT(PortId_const(100));
     }
-    @name(".mac_learn") action mac_learn() {
-        digest<mac_learn_digest>((bit<32>)1024, { hdr.ethernet.srcAddr, standard_metadata.ingress_port });
+
+    action mac_learn() {
+        CALL_DIGEST(mac_learn_digest_t, mac_learn_digest, 1024, ({ hdr.ethernet.srcAddr, GET_INGRESS_PORT() }));
     }
 
     register<bit<16>>(1) reg1;
     bit<16> var1;
 
-    @name("._nop") action _nop() {
+    action _nop() {
     }
-    @name(".dmac") table dmac {
+    table dmac {
         actions = {
             forward;
             bcast;
@@ -65,7 +46,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
         size = 512;
     }
-    @name(".smac") table smac {
+    table smac {
         actions = {
             mac_learn;
             _nop;
@@ -87,21 +68,8 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
     }
 }
 
-control DeparserImpl(packet_out packet, in headers hdr) {
-    apply {
-        packet.emit(hdr.ethernet);
-    }
+CTL_EMIT {
+    apply {}
 }
 
-control verifyChecksum(inout headers hdr, inout metadata meta) {
-    apply {
-    }
-}
-
-control computeChecksum(inout headers hdr, inout metadata meta) {
-    apply {
-    }
-}
-
-V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
-
+#include "common-boilerplate-post.p4"
