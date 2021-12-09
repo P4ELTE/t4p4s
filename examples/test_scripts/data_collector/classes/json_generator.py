@@ -10,8 +10,9 @@ class JSONGenerator(ReportGenerator):
     report_file_extension = 'json'
 
     def new(self, **kwargs):
+        commit_hash_prev = self.get_previous_commit()
         with open(self.report_file_path, 'w') as report_file:
-            json.dump({**kwargs, 'data': []}, report_file)
+            json.dump({**kwargs, 'commit_hash_prev': commit_hash_prev, 'data': []}, report_file)
 
     def _add_data_to_report(self, new_data: Data):
         with open(self.report_file_path) as report_file:

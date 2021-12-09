@@ -200,7 +200,9 @@ current_idx=1
 if [ ${HTML_REPORT} == "yes" ]; then
   COLLECTOR_PATH="examples/test_scripts/data_collector/data_collector.py"
   actual_commit_hash=`git rev-parse HEAD`
-  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html,collection commitHash=$actual_commit_hash
+  echo "python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE commitHash=$actual_commit_hash"
+  echo ""
+  python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE commitHash=$actual_commit_hash
 fi
 
 INTERRUPT_COUNT=0
@@ -228,7 +230,9 @@ for TESTCASE in ${sorted_testcases[@]}; do
         echo ${exitcode["$TESTCASE"]} >> $tmpFilename
         cat "${tmpFilename}_pure_output" >> $tmpFilename
 
-        python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE json,html,collection $tmpFilename
+        echo ""
+        echo "python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE $tmpFilename"
+        python3 ${COLLECTOR_PATH} add $REPORT_OUTPUT_FILE $tmpFilename
     else
         for i in $(seq $RUN_COUNT); do
           ./t4p4s.sh $all_arguments
@@ -249,7 +253,8 @@ for TESTCASE in ${sorted_testcases[@]}; do
 done
 
 if [ ${HTML_REPORT} == "yes" ]; then
-  python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE json,html,collection
+  echo "python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE"
+  python3 ${COLLECTOR_PATH} end $REPORT_OUTPUT_FILE
 fi
 
 resultcode=0

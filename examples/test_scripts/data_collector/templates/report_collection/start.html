@@ -6,6 +6,97 @@
 <script type="text/javascript" src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script type="text/javascript">
     var errorCodes = $__error_codes;
+    var results = $__results;
+    var openedPopup = null;
+
+    function showPopup(self) {
+        openedPopup = $(self);
+        var $popup = $(self).next('div.popup');
+        $popup.removeClass('hidden');
+    }
+
+    function closePopup(self, isEscPressed = false) {
+        var $popup = isEscPressed ? $(self).next('div.popup') : $(self).parent().parent();
+        if (!$popup.hasClass('hidden')) {
+            $popup.addClass('hidden');
+        }
+
+        openedPopup = null;
+    }
+
+    function getTemplateForDiffType(data, type) {
+        var addedTemplate = '';
+        if (data[type].length > 0) {
+            var addedNames = '';
+            var addedFirstName = '';
+
+            $.each(data[type], function (index, testName) {
+                if (index === 0) {
+                    addedFirstName = testName;
+                } else {
+                    addedNames += '<div class="diff"><div class="diff-type">&nbsp;</div><div class="test-name">'+ testName + '</div></div>';
+                }
+            });
+
+            addedTemplate += ''
+            +     '<div class="added">'
+            +        '<div class="diff">'
+            +           '<div class="diff-type">' + type + ':</div>'
+            +           '<div class="test-name">' + addedFirstName + '</div>'
+            +        '</div>'
+            +        addedNames
+            +     '</div>'
+        }
+
+        return addedTemplate;
+    }
+
+    function appendComparison($popup, data) {
+         $.each(data, function (errorCode, diff) {
+            var errorCodeString = '' + errorCode;
+            var codeName = errorCodeString in errorCodes ? errorCodes[errorCodeString]['name'] : '(no-name)';
+            var newTypeTemplate = getTemplateForDiffType(diff, 'new')
+            var fixedTypeTemplate = getTemplateForDiffType(diff, 'fixed')
+
+            $popup.append(''
+                + '<div>'
+                +    '<div class="code">'
+                +        '<span class="type">' + errorCode + '</span> - '
+                +        '<span class="name">' + codeName + '</span>'
+                +     '</div>'
+                +     newTypeTemplate
+                +     fixedTypeTemplate
+                + '</div>'
+            )
+         });
+    }
+
+    function appendComparedResults() {
+        var $resultRows = $('#results-table').find('tr');
+        $.each(results, function (index, result) {
+            var $compareWrap = $($resultRows.get(index + 1)).find('td.compare > .compare-wrap');
+
+            if (result['diff']['is_changed'] === 0) {
+                $compareWrap.empty();
+                $compareWrap.append('<span class="no-change">(No change)</span>')
+            } else {
+                var $popup = $compareWrap.find('div.popup > div.content');
+                appendComparison($popup, result['diff']['change']);
+            }
+
+            $compareWrap.removeClass('hidden');
+        });
+    }
+
+    $(document).ready(function() {
+        appendComparedResults();
+
+        $(document).on('keyup', function (e) {
+            if(e.key === "Escape" && openedPopup !== null) {
+                closePopup(openedPopup, true);
+            }
+        });
+    });
 </script>
 <style>
     body {
@@ -32,6 +123,18 @@
         border-left: 1px solid #111;
     }
 
+    thead th.code,
+    tbody td.error {
+        padding: 5px 0;
+        width: 55px;
+    }
+
+    thead th.date,
+    tbody td.date {
+        padding: 5px 0;
+        width: 200px;
+    }
+
     tbody tr > td {
         border-bottom: 1px solid #d7d7d7;
     }
@@ -40,18 +143,39 @@
         border-left: 1px solid #d7d7d7;
     }
 
+    input[type="button" i]:focus-visible {
+        outline: none;
+    }
+
+    .hidden {
+        display: none;
+    }
+
     .result .errors .error {
         padding-right: 15px;
     }
 
-    .file > a:visited,
-    .file > a {
+    a:-webkit-any-link:active,
+    a:visited,
+    a {
         text-decoration: none;
         color: #002aff;
     }
 
-    .file > a:hover {
+    a:hover {
         color: #0070ff;
+    }
+
+    a.compare-commit:-webkit-any-link:active,
+    a.compare-commit:visited,
+    a.compare-commit {
+        color: #34a745;
+        font-weight: bold;
+        font-size: 15px;
+    }
+
+    a.compare-commit:hover {
+        color: #1e7e2c;
     }
 
     span.code {
@@ -66,11 +190,109 @@
     span.code.number-0 {
         color: #34a745;
     }
+
+    td.compare .no-change {
+        color: #7e7e7e;
+        display: block;
+        padding: 6px 12px;
+        line-height: 1;
+    }
+
+    td.compare input {
+        border: 0;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+        background-color: #28a745;
+        color: white;
+    }
+
+    td.compare input:hover {
+        background-color: #218838;
+    }
+
+    .compare-wrap .popup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: black;
+        width: 100%;
+        height: 100%;
+        color: white;
+        overflow: auto;
+    }
+
+    .compare-wrap .popup > .close {
+        font-size: 20pt;
+        text-align: right;
+        font-weight: bold;
+        padding-top: 10px;
+        padding-right: 30px;
+        padding-bottom: 20px;
+    }
+
+    .compare-wrap .popup > .close > span {
+        cursor: pointer;
+        color: red;
+    }
+
+    .compare-wrap .popup > .close > span:hover {
+        color: #a70505;
+    }
+
+    .compare-wrap .popup > .content {
+        padding: 0 20px;
+        font-size: 18px;
+        text-align: left;
+    }
+
+    .compare-wrap .popup > .content > div {
+        padding-bottom: 25px;
+    }
+
+    .compare-wrap .popup > .content .code {
+        margin-bottom: 15px;
+    }
+
+    .compare-wrap .popup > .content .code:not(:first-child) {
+        padding-top: 30px;
+        border-top: 1px solid #7c7c7c;
+    }
+
+    .compare-wrap .popup > .content .type {
+        color: red;
+    }
+
+    .compare-wrap .popup > .content .name {
+        color: yellow;
+    }
+
+    .compare-wrap .popup > .content .diff {
+        overflow: auto;
+        margin-bottom: 10px;
+    }
+
+    .compare-wrap .popup > .content .diff-type {
+        float: left;
+        color: #00db00;
+        text-transform: capitalize;
+        padding-right: 5px;
+        width: 50px;
+    }
+
+    .compare-wrap .popup > .content .test-name {
+        float: left;
+        padding-left: 5px;
+        color: #009cd9;
+    }
+
 </style>
 </head>
 <body>
 <div class="all-results">
-    <table>
+    <table id="results-table">
         <thead>
             <tr class="result-title">
                 <th class="date">Date</th>

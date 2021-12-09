@@ -18,6 +18,7 @@ class HTMLGenerator(ReportGenerator):
 
     def new(self, **kwargs):
         kwargs['error_codes'] = error_codes
+        kwargs['commit_hash_prev'] = self.get_previous_commit()
         self._render_to_report_file('new', template_values=kwargs, mode='w')
 
     def _add_data_to_report(self, new_data: Data):
