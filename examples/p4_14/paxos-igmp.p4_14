@@ -1,5 +1,5 @@
-#include "include/std_headers.p4_14"
-#include "include/paxos_parser.p4_14"
+#include "std_headers.p4_14"
+#include "paxos_parser.p4_14"
 
 #define MEMBERSHIP_QUERY 0x11
 #define MEMBERSHIP_REPORT 0x16

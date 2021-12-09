@@ -1,7 +1,7 @@
 #define ENABLE_PAXOS 1
-#include "include/std_headers.p4_14"
-#include "include/paxos_headers.p4_14"
-#include "include/paxos_parser.p4_14"
+#include "std_headers.p4_14"
+#include "paxos_headers.p4_14"
+#include "paxos_parser.p4_14"
 #include "paxos-igmp.p4_14"
 
 register instance_register {
