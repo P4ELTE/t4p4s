@@ -49,16 +49,16 @@
 // ------------------------------------------------------
 // Packet structure: headers
 
-#define PORT0   c0x2B
-#define LEN0    c0x2B
-#define CHKSM0  c0x2B
+#define cPORT0   c0x2B
+#define cLEN0    c0x2B
+#define cCHKSM0  c0x2B
 
 #define hETH(dsteth, srceth, tag)                  dsteth srceth tag
 #define hETH4(dsteth, srceth)                      dsteth srceth cIPV4
 #define hETH6(dsteth, srceth)                      dsteth srceth cIPV6
 
-//                                                 12     1          [1]     4       4
-#define hIP4(protocol8, srcip32, dstip32)          hxIPv4(protocol8, CHKSM0) srcip32 dstip32
+//                                                 12     1          [1]      4       4
+#define hIP4(protocol8, srcip32, dstip32)          hxIPv4(protocol8, cCHKSM0) srcip32 dstip32
 //  2       2       4     4     4b         4b  1     2      2        2
 #define hTCP(srcPort,dstPort,seqNo,ackNo,dataOffset,res,flags,window,checksum,urgentPtr)   srcPort dstPort seqNo ackNo dataOffset res flags window checksum urgentPtr
 
@@ -70,6 +70,9 @@
 
 // the name only makes it easy to identify the header
 #define hMISC(name, part1, ...)                    part1, ##__VA_ARGS__
+
+// indicates that this is not a header
+#define PADDING(pad)                               pad
 
 
 // bytes: [2+2+1+1], 2
@@ -124,9 +127,9 @@
 // bytes: 6, 6, [6], 2, 6, 4, 6, 4, payload
 #define ARP_IPV4(dsteth, srceth, arp_oper, sendereth, senderip4, targeteth, targetip4, ...)   ARP(dsteth, srceth, hARP(arp_oper), sendereth, senderip4, targeteth, targetip4, ##__VA_ARGS__)
 
-#define VXLAN(dsteth, srceth, srcip4, ...)               UDP(dsteth, pVXLAN,  srceth, srcip4, PORT0, PORT0, LEN0, CHKSM0, ##__VA_ARGS__)
-#define PHYS_BUFFER(dsteth, srceth, srcip4, ...)         UDP(dsteth, pBUF, srceth, srcip4, PORT0, PORT0, LEN0, CHKSM0, ##__VA_ARGS__)
-#define RLC(dsteth, srceth, srcip4, ...)                 UDP(dsteth, pRLC,   srceth, srcip4, PORT0, PORT0, LEN0, CHKSM0, ##__VA_ARGS__)
+#define VXLAN(dsteth, srceth, srcip4, ...)               UDP(dsteth, pVXLAN,  srceth, srcip4, cPORT0, cPORT0, cLEN0, cCHKSM0, ##__VA_ARGS__)
+#define PHYS_BUFFER(dsteth, srceth, srcip4, ...)         UDP(dsteth, pBUF, srceth, srcip4, cPORT0, cPORT0, cLEN0, cCHKSM0, ##__VA_ARGS__)
+#define RLC(dsteth, srceth, srcip4, ...)                 UDP(dsteth, pRLC,   srceth, srcip4, cPORT0, cPORT0, cLEN0, cCHKSM0, ##__VA_ARGS__)
 
 // bytes:   6       6       4       2         2         2    2      (3b+5x1b)  1        2
 #define GTP(dsteth, srceth, srcip4, src_port, dst_port, len, chksm, vsn_flags, msgtype, msglen, ...)   UDP(dsteth, pGTPU, srceth, srcip4, src_port, dst_port, len, chksm, hGTP(vsn_flags, msgtype, msglen), ##__VA_ARGS__)

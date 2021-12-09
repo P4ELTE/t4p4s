@@ -12,7 +12,7 @@
 #define NO_CTL_REPLY 0
 #define CTL_REPLIES 200
 
-#define WAIT_FOR_CTL  FSLEEP(200)
+#define WAIT_FOR_CTL  FSLEEP(500)
 
 // ------------------------------------------------------
 // Header field changes while processing packet
@@ -53,14 +53,6 @@
 #define LCORE(...)           { __VA_ARGS__ , FEND }
 #define LCORES(...)          { __VA_ARGS__ }
 #define SINGLE_LCORE(...)    { LCORE(__VA_ARGS__), { FEND }}
-
-// ------------------------------------------------------
-// Header field changes while processing packet
-
-#define CHANGED(from, to)  "<" from "|" to ">"
-#define ADDED(part)        CHANGED("", part)
-#define REMOVED(part)      CHANGED(part, "")
-
 
 // ------------------------------------------------------
 // Conditions
