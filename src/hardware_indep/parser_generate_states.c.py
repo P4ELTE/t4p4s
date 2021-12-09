@@ -4,12 +4,14 @@
 import os
 import re
 
+from itertools import takewhile, dropwhile
+
 for parser in hlir.parsers:
     def fmt_key(key):
         if key.node_type == 'DefaultExpression':
             return '_'
         if key.node_type == 'Constant':
-            return f'{key.value:0{key.base//4}x}'
+            return f'{key.value}' if key.value < 10 else f'{key.value:0{(key.urtype.size+3)//4}x}'
         return f'???#{key.node_type}'
 
     def get_elems(node):
@@ -48,7 +50,7 @@ for parser in hlir.parsers:
             keys = [get_name(comp) for comp in state.selectExpression.select.components]
             prev_conds = []
             for case in state.selectExpression.selectCases:
-                infos = [f'{key}={value}' for key, value in zip(keys, get_elems(case.keyset))]
+                infos = [f'{key}={value}' for key, value in zip(keys, get_elems(case.keyset)) if value != '_']
                 next_state_name = case.state.path.name
                 next_state = parser.states.get(next_state_name)
 
@@ -62,8 +64,13 @@ for parser in hlir.parsers:
                 if len(infos) == 1:
                     prev_conds.append(infos[0].replace('=', '≠'))
                 elif len(infos) > 1:
-                    joined_infos = ' '.join(infos)
-                    prev_conds.append(f'NOT({joined_infos})')
+                    keys = set(re.sub(r"[.].*", "", info) for info in infos)
+                    if len(keys) == 1:
+                        joined_infos = ' '.join(re.sub(r"[^.]*[.]", ".", info) for info in infos)
+                        prev_conds.append(f'{list(keys)[0]}.NOT({joined_infos})')
+                    else:
+                        joined_infos = ' '.join(infos)
+                        prev_conds.append(f'NOT({joined_infos})')
         else:
             next_state_name = state.selectExpression.path.name
             next_state = parser.states.get(next_state_name)
@@ -82,19 +89,24 @@ for parser in hlir.parsers:
     targetdir = os.path.dirname(cuco['to'])
 
     def simplify_infos(txts):
-        if any('NOT' in txt for txt in txts):
-            return txts
-
         def is_ok(txt, keys):
             key, *rest = txt.split("≠")
             return rest == [] or key not in keys
 
-        keys = set(txt.split("=")[0] for txt in txts)
-        return [txt for txt in txts if is_ok(txt, keys)]
+        txts1 = list(takewhile(lambda txt: 'NOT' not in txt, txts))
+        txts2 = list(dropwhile(lambda txt: 'NOT' not in txt, txts))
+
+        keys = set(txt.split("=")[0] for txt in txts1)
+        return [txt for txt in txts1 if is_ok(txt, keys)] + txts2
 
     short_infos = [simplify_infos(info) for info in infos if info != []]
 
     if short_infos != []:
         with open(os.path.join(targetdir, '..', f'parser_state_transitions_{parser.name}.txt'), 'w', encoding='utf8') as file:
-            for info in short_infos:
-                file.write(' '.join(info) + '\n')
+            file.write('accepted: \n')
+            for info in (info for info in short_infos if 'rejected' not in info):
+                file.write('    ' + ' '.join(info) + '\n')
+            file.write('\n')
+            file.write('rejected: \n')
+            for info in (info for info in short_infos if 'rejected' in info):
+                file.write('    ' + ' '.join(info) + '\n')
