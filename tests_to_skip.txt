@@ -8,10 +8,14 @@ Lines can be commented out using #
 
 Slice copying not implemented yet
     %test-bit2=test
+    %test-bit2=psa
 
 Arithmetic operations are only supported on int<8>, int<16> and int<32>.
     %test-arith-nonbyte=test
+    %test-arith-nonbyte=psa
 
 Header unions are not supported
     %test-header-union-1=test
+    %test-header-union-1=psa
     %test-header-union-2=test
+    %test-header-union-2=psa
