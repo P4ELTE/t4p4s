@@ -1,5 +1,5 @@
-#ifndef _HEADERS_P4_
-#define _HEADERS_P4_
+
+#pragma once
 
 // standard headers
 
@@ -125,5 +125,3 @@ header igmp_t igmp;
 
 #define ETHERTYPE_IPV4 0x0800
 #define ETHERTYPE_ARP  0x0806
-
-#endif
