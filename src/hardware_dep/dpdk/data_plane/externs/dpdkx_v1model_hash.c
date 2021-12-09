@@ -94,7 +94,7 @@ void EXTERNIMPL4(hash,u16,u16,u8s,u32)(uint16_t* result, enum_HashAlgorithm_t ha
     dbg_bytes(result, 2, "        Result:");
 }
 
-void EXTERNIMPL4(hash,u32,u16,u8s,u32)(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
+void EXTERNIMPL4(hash,u32,u32,u8s,u32)(uint32_t* result, enum_HashAlgorithm_t hash, uint32_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
     dbg_bytes(data.buffer, data.size, "    : Executing EXTERNIMPL4(hash,u32,u16,u8s,u32) on " T4LIT(%d) " bytes: ", data.size);
 
     switch(hash){
@@ -136,21 +136,8 @@ void hash(uint16_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buff
     EXTERNIMPL4(hash,u16,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
 }
 
-void hash__u16__u16__u16s__u32(uint16_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
-    EXTERNIMPL4(hash,u16,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
-}
-
-void hash__u16__u16__u32s__u32(uint16_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
-    EXTERNIMPL4(hash,u16,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
-}
-
-
-void hash__u32__u16__u16s__u32(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
-    EXTERNIMPL4(hash,u32,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
-}
-
-void hash__u32__u16__u32s__u32(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
-    EXTERNIMPL4(hash,u32,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
+void EXTERNIMPL4(hash,u32,u16,u8s,u32)(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
+    EXTERNIMPL4(hash,u32,u32,u8s,u32)(result, hash, base, data, max, SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(hash,u8s)(uint32_t* /* out */ result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {

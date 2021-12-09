@@ -118,4 +118,9 @@ void EXTERNIMPL1(encrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
     do_blocking_sync_op(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
+void EXTERNIMPL1(decrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
+{
+    do_blocking_sync_op(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
+}
+
 #endif
