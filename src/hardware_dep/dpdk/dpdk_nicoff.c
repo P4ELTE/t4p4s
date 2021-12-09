@@ -510,7 +510,9 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
 void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 
-    if (get_cmd(lcdata->idx).out_port != DROP) {
+    if (get_cmd(lcdata->idx).out_port == DROP) {
+        debug(" " T4LIT(xxxx,status) " Packet was " T4LIT(dropped,status) " as expected\n");
+    } else {
         ++packet_with_error_counter;
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
