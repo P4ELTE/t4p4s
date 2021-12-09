@@ -525,6 +525,7 @@ def init_args():
     parser.add_argument('-use_real_random', help='Use random values in unspecified cases', required=False, default=False, action='store_const', const=True)
     parser.add_argument('--p4dbg', help='Debugging', required=False, default=False, action='store_const', const=True)
     parser.add_argument('--p4opt', help='Debug option passed to P4-to-JSON compiler', required=False, default=[], action='append')
+    parser.add_argument('--p4incdir', help='Include directory to P4-to-JSON compiler', required=False, default=[], action='append')
 
     args = vars(parser.parse_args())
 

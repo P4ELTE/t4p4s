@@ -2,6 +2,18 @@
 [ "$P4C" == "" ] && echo The environment variable \$P4C has to be defined to run $0 && exit 1
 [ "$RTE_SDK" == "" ] && echo The environment variable \$RTE_SDK has to be defined to run $0 && exit 1
 
+# how many Ctrl-C presses will force termination
+MAX_INTERRUPTS=${MAX_INTERRUPTS-1}
+
+
+P4TESTS_EXTRA_OPTS=""
+EXTRA_OPT_PREFIX="p4opts+=--p4opt="
+for txt in $*; do
+    if [[ $txt = "${EXTRA_OPT_PREFIX}"* ]]; then
+        EXTRA_OPT="${txt#${EXTRA_OPT_PREFIX}}"
+        P4TESTS_EXTRA_OPTS="${P4TESTS_EXTRA_OPTS} -D ${EXTRA_OPT} "
+    fi
+done
 
 declare -A exitcode
 declare -A skips
@@ -20,9 +32,12 @@ success_count=0
 failure_count=0
 
 START_DIR=${START_DIR-examples}
+START_DIR=`realpath "${START_DIR}"`
+
+BASE_DIR=$(realpath `pwd`)
+
 HTML_REPORT=${HTML_REPORT-no}
 RUN_COUNT=${RUN_COUNT-1}
-START_DIR=`realpath "${START_DIR}"`
 SKIP_FILE=${SKIP_FILE-tests_to_skip.txt}
 
 if [ -f "$SKIP_FILE" ]; then
@@ -58,7 +73,7 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
 
     [ $found -eq 0 ] && echo "P4 file for $file not found" && continue
 
-    for testcase_row in `cat $file | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[{}\"]//g"`; do
+    for testcase_row in `cat $file | grep "&t4p4s_testcase_" | grep -ve "^[[:blank:]]*//" | sed -e "s/[[:blank:]]//g" | sed -e "s/[{}\"]//g"`; do
         testcase=`echo $testcase_row | cut -f1 -d,`
         model=`echo $testcase_row | cut -f3 -d,`
 
@@ -90,7 +105,35 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
             [ "$testcase" == "test" ] && [ "$PREPART$skip=test" == "$TESTPART" ] && skipped[$PREPART$TESTPART]="$skip" && continue 2
         done
     done
+
+    if [ "$PRECOMPILE" == "yes" ]; then
+        [ "${skipped[$testid]+x}" ] && continue
+
+        TARGET_DIR="./build/${dirname[$testid]}/cache"
+        TARGET_JSON="${TARGET_DIR}/${p4files[$testid]}.${ext_p4[$testid]}.json.cached"
+        mkdir -p ${TARGET_DIR}
+
+        [ -f ${TARGET_JSON} ] && [ ${TARGET_JSON} -nt "${src_p4[$testid]}" ] && echo -n "|" && continue
+
+        [ "${ext_p4[$testid]}" == "p4_14" ] && P4VSN=14
+        [ "${ext_p4[$testid]}" == "p4"    ] && P4VSN=16
+
+        model_compile_argument=""
+        [ "${models[$testid]}" == "v1model" ] && model_compile_argument="-D__TARGET_V1__"
+        [ "${models[$testid]}" == "psa" ] && model_compile_argument="-D__TARGET_PSA__"
+
+        # $P4C/build/p4test ${P4TESTS_EXTRA_OPTS} "${src_p4[$testid]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument -I $BASE_DIR/examples/include && \
+        $P4C/build/p4test "${src_p4[$testid]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument -I $BASE_DIR/examples/include && \
+            gzip ${TARGET_JSON} && \
+            mv ${TARGET_JSON}.gz ${TARGET_JSON} && \
+            echo -n "|"  &
+    fi
+
 done
+
+
+wait
+
 
 total_count=0
 for TESTCASE in ${testcases[@]}; do
@@ -98,34 +141,7 @@ for TESTCASE in ${testcases[@]}; do
     ((++total_count))
 done
 
-
-if [ "$PRECOMPILE" == "yes" ]; then
-    echo Precompiling ${total_count} P4 files to JSON
-
-    for TESTCASE in ${testcases[@]}; do
-        [ "${skipped[$TESTCASE]+x}" ] && continue
-
-        TARGET_DIR="./build/${dirname[$TESTCASE]}/cache"
-        TARGET_JSON="${TARGET_DIR}/${p4files[$TESTCASE]}.${ext_p4[$TESTCASE]}.json.cached"
-        mkdir -p ${TARGET_DIR}
-
-        [ -f ${TARGET_JSON} ] && [ ${TARGET_JSON} -nt "${src_p4[$TESTCASE]}" ] && echo -n "|" && continue
-
-        [ "${ext_p4[$TESTCASE]}" == "p4_14" ] && P4VSN=14
-        [ "${ext_p4[$TESTCASE]}" == "p4"    ] && P4VSN=16
-
-        model_compile_argument=""
-        [ "${models[$TESTCASE]}" == "v1model" ] && model_compile_argument="-D__TARGET_V1__"
-        [ "${models[$TESTCASE]}" == "psa" ] && model_compile_argument="-D__TARGET_PSA__"
-
-        $P4C/build/p4test "${src_p4[$TESTCASE]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument && \
-            gzip ${TARGET_JSON} && \
-            mv ${TARGET_JSON}.gz ${TARGET_JSON} && \
-            echo -n "|"  &
-    done
-fi
-
-wait
+echo Precompiled ${total_count} P4 files to JSON
 
 echo
 
@@ -186,6 +202,8 @@ if [ ${HTML_REPORT} == "yes" ]; then
   actual_commit_hash=`git rev-parse HEAD`
   python3 ${COLLECTOR_PATH} new $REPORT_OUTPUT_FILE json,html,collection commitHash=$actual_commit_hash
 fi
+
+INTERRUPT_COUNT=0
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
 
@@ -224,7 +242,10 @@ for TESTCASE in ${sorted_testcases[@]}; do
     [ ${exitcode["$TESTCASE"]} -ne 0 ] && ((++failure_count))
 
     # if there is an interrupt, finish executing test cases
-    [ ${exitcode["$TESTCASE"]} -eq 254 ] && break
+    if [ ${exitcode["$TESTCASE"]} -eq 254 ]; then
+        INTERRUPT_COUNT=$((++INTERRUPT_COUNT))
+        [ $INTERRUPT_COUNT -eq $MAX_INTERRUPTS ] && break
+    fi
 done
 
 if [ ${HTML_REPORT} == "yes" ]; then
@@ -253,6 +274,9 @@ else
     fail_codes[5]="Packets were unexpectedly dropped/sent"
     fail_codes[6]="Execution finished with wrong output"
     fail_codes[7]="Control flow requirements not met"
+    fail_codes[8]="Not enough memory"
+    fail_codes[9]="Compiler tool not found"
+    fail_codes[10]="Could not determine model (e.g. v1model or psa)"
     fail_codes[139]="C code execution: Segmentation fault"
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"

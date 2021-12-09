@@ -12,16 +12,19 @@ PYTHON_PARSE_HELPER_PROCESS=""
 
 
 ERRCODE_OK=0
+ERRCODE_MODEL_NOT_FOUND=10
 
 ERRCODE_COMPILE_MESON=1
 ERRCODE_COMPILE_C=2
 ERRCODE_COMPILE_P4=3
+ERRCODE_COMPILER_NOT_FOUND=9
 
 ERRCODE_LOOP=4
 ERRCODE_DROP_SEND=5
 ERRCODE_WRONG_OUTPUT=6
 ERRCODE_CFLOW_REQ=7
 
+ERRCODE_NOMEM=8
 ERRCODE_SEGFAULT=139
 ERRCODE_INTERRUPT=254
 ERRCODE_ERROR=255
@@ -289,7 +292,7 @@ change_hugepages() {
     create_mnt_huge
 
     NEW_HUGEPAGES=`cat /sys/kernel/mm/hugepages/hugepages-${HUGEPGSZ}/nr_hugepages`
-    [ $NEW_HUGEPAGES -lt ${OPTS[hugepages]} ] && exit_on_error "1" "Was asked to reserve $(cc 0)${OPTS[hugepages]}$nn hugepages, got $(cc 3)only ${NEW_HUGEPAGES}$nn"
+    [ $NEW_HUGEPAGES -lt ${OPTS[hugepages]} ] && exit_on_error "$ERRCODE_NOMEM" "Needed to reserve $(cc 0)${OPTS[hugepages]}$nn hugepages, got $(cc 3)only ${NEW_HUGEPAGES}$nn"
 }
 
 # --------------------------------------------------------------------
@@ -378,7 +381,7 @@ find_tool() {
         which $tool >/dev/null
         [ $? -eq 0 ] && echo $tool | tee "${TOOL_FILE}" && return
     done
-    exit_on_error "1" "Cannot not find $(cc 2)$tool$nn tool"
+    exit_on_error "$ERRCODE_COMPILER_NOT_FOUND" "Cannot not find $(cc 2)$tool$nn tool"
 }
 
 PYTHON3=${PYTHON3-$(find_tool "." python3)}
@@ -486,6 +489,7 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
     OPTS[cfgfiles]=""
 
     for cfgfile in ${cfgfiles[@]}; do
+
         declare -a NEWOPTS=()
 
         # Collect option descriptions either from the command line or a file
@@ -501,13 +505,15 @@ while [ "${OPTS[cfgfiles]}" != "" ]; do
 
             # determines model from test case file
             MAYBE_TESTFILE=$(find -L "$EXAMPLES_DIR" -type f -name "test-${OPTS[example]##test-}.c")
-            IFS=$'\n'
-            for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | sed -e "s/[[:blank:]]//g" | sed -e "s/[&{}\"]//g"`; do
-                testcase_in_file=`echo $testcase_row | cut -f1 -d,`
-                [ "$testcase_in_file" != "${OPTS[testcase]}" ] && continue
-                OPTS[model_by_testcase]=`echo $testcase_row | cut -f3 -d,`
-                break
-            done
+            if [ -f "$MAYBE_TESTFILE" ]; then
+                IFS=$'\n'
+                for testcase_row in `cat $MAYBE_TESTFILE | grep "&t4p4s_testcase_" | grep -ve "^[[:blank:]]*//" | sed -e "s/[[:blank:]]//g" | sed -e "s/[&{}\"]//g"`; do
+                    testcase_in_file=`echo $testcase_row | cut -f1 -d,`
+                    [ "$testcase_in_file" != "${OPTS[testcase]}" ] && continue
+                    OPTS[model_by_testcase]=`echo $testcase_row | cut -f3 -d,`
+                    break
+                done
+            fi
 
             IFS=$'\n'
             while read -r opts; do
@@ -636,7 +642,7 @@ fi
 
 
 # Make sure model is set
-[ "$(optvalue model)" == off ] && exit_on_error "1" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
+[ "$(optvalue model)" == off ] && exit_on_error "$ERRCODE_MODEL_NOT_FOUND" "Cannot find $(cc 2)model$nn (e.g. $(cc 1)v1model$nn or $(cc 1)psa$nn) for example $(cc 0)$(optvalue example)$nn"
 
 # Determine version by extension if possible
 if [ "${OPTS[vsn]}" == "" ]; then
@@ -810,6 +816,7 @@ if [ "$(optvalue run)" != off ]; then
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
             stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+            sleep 0.2
         elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
             TERMWIDTH=${TERMWIDTH-72}
             TERMHEIGHT=${TERMHEIGHT-36}
@@ -819,7 +826,6 @@ if [ "$(optvalue run)" != off ]; then
         fi
     fi
 fi
-
 
 # Phase 1: P4 to C compilation
 if [ "$(optvalue p4)" != off ]; then

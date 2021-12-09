@@ -76,7 +76,8 @@ def write_cache(cache, required_modules, saver, data):
 def p4_to_json(files, arg):
     global args
     p4_filename, json_filename = arg
-    return hlir16.hlir.p4_to_json(p4_filename, json_filename, args['p4v'], args['p4c_path'], args['p4opt'])
+    p4_include_dirs = args['p4incdir']
+    return hlir16.hlir.p4_to_json(p4_filename, json_filename, args['p4v'], args['p4c_path'], args['p4opt'], p4_include_dirs)
 
 
 def load_simdjson(file, data):
