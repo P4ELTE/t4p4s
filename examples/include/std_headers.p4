@@ -154,6 +154,6 @@ header varbits320_t {
 
 
 struct mac_learn_digest_t {
-    bit<48>  srcAddr;
-    PortId_t ingress_port;
+    macAddr_t srcAddr;
+    PortId_t  ingress_port;
 }
