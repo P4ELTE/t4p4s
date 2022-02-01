@@ -38,6 +38,8 @@ BASE_DIR=$(realpath `pwd`)
 
 HTML_REPORT=${HTML_REPORT-no}
 RUN_COUNT=${RUN_COUNT-1}
+TIMEOUT=${TIMEOUT-60}
+FORCE_TIMEOUT=${FORCE_TIMEOUT-60}
 SKIP_FILE=${SKIP_FILE-tests_to_skip.txt}
 
 if [ -f "$SKIP_FILE" ]; then
@@ -52,7 +54,7 @@ std="@std"
 [ "$PREFIX" == "%" ] && std="@test"
 PRECOMPILE=${PRECOMPILE-yes}
 
-
+rm /tmp/t4p4s_precompile_output_*
 for file in `find -L "${START_DIR}" -name "test-*.c"`; do
     base=$(basename $file)
     noc="${base%%.c}"
@@ -123,17 +125,15 @@ for file in `find -L "${START_DIR}" -name "test-*.c"`; do
         [ "${models[$testid]}" == "psa" ] && model_compile_argument="-D__TARGET_PSA__"
 
         # $P4C/build/p4test ${P4TESTS_EXTRA_OPTS} "${src_p4[$testid]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument -I $BASE_DIR/examples/include && \
-        $P4C/build/p4test "${src_p4[$testid]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument -I $BASE_DIR/examples/include && \
+        $P4C/build/p4test "${src_p4[$testid]}" --toJSON ${TARGET_JSON} --p4v $P4VSN --Wdisable=unused --ndebug $model_compile_argument -I $BASE_DIR/examples/include 2>&1 | tee /tmp/t4p4s_precompile_output_$testid && \
             gzip ${TARGET_JSON} && \
             mv ${TARGET_JSON}.gz ${TARGET_JSON} && \
-            echo -n "|"  &
+            echo -n "|" &
     fi
 
 done
 
-
 wait
-
 
 total_count=0
 for TESTCASE in ${testcases[@]}; do
@@ -219,7 +219,8 @@ for TESTCASE in ${sorted_testcases[@]}; do
         set -o pipefail
 
         for i in $(seq $RUN_COUNT); do
-          ./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
+          python3 examples/test_scripts/timeoutee/timeoutee.py $TIMEOUT $FORCE_TIMEOUT ${tmpFilename}_pure_output ./t4p4s.sh $all_arguments 2>&1
+          #./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
           exitcode["$TESTCASE"]="$?"
           [ ${exitcode["$TESTCASE"]} -ne 0 ] && break
         done
@@ -228,6 +229,12 @@ for TESTCASE in ${sorted_testcases[@]}; do
         echo ${current_idx} > $tmpFilename
         echo $TESTCASE >> $tmpFilename
         echo ${exitcode["$TESTCASE"]} >> $tmpFilename
+        echo "$TESTCASE" >> $tmpFilename
+        if test -f "/tmp/t4p4s_precompile_output_$TESTCASE"; then
+            echo " ------- Precompile output ------- "  >> $tmpFilename
+            cat "/tmp/t4p4s_precompile_output_$TESTCASE"  >> $tmpFilename
+            echo "\n\n ------- T4P4S output ------- "  >> $tmpFilename
+        fi
         cat "${tmpFilename}_pure_output" >> $tmpFilename
 
         echo ""
@@ -282,7 +289,10 @@ else
     fail_codes[8]="Not enough memory"
     fail_codes[9]="Compiler tool not found"
     fail_codes[10]="Could not determine model (e.g. v1model or psa)"
+    fail_codes[124]="Timeout error"
+    fail_codes[134]="Stack smashing"
     fail_codes[139]="C code execution: Segmentation fault"
+    fail_codes[247]="Timeout error (sigkill was needed instead of sigterm)"
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"
 

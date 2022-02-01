@@ -7,8 +7,10 @@ error_codes = {
     '5': {'name': 'Packets were unexpectedly dropped/sent'},
     '6': {'name': 'Execution finished with wrong output'},
     '7': {'name': 'Control flow requirements not met'},
+    '124': {'name': 'Timeout error'},
     '134': {'name': 'Stack smashing'},
     '139': {'name': 'Segmentation fault'},
+    '247': {'name': 'Timeout error (sigkill was needed instead of sigterm)'},
     '254': {'name': 'Execution interrupted'},
     '255': {'name': 'Switch execution error'},
 }
