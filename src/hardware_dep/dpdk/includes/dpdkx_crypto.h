@@ -44,7 +44,8 @@ typedef struct {
     struct rte_mbuf* data;
     int offset;
     int padding_length;
-    int plain_length;
+    int plain_length_to_encrypt;
+    int original_plain_length;
 } crypto_task_s;
 extern struct rte_mempool *crypto_task_pool;
 #define MD5_DIGEST_LEN	16

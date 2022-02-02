@@ -64,61 +64,61 @@ void reset_pd(packet_descriptor_t *pd)
 void print_crypto_create_msg(crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
         uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
-        unsigned long total_length = op->padding_length + sizeof(uint32_t) + op->plain_length;
+        unsigned long total_length = sizeof(uint32_t) + op->plain_length_to_encrypt + op->padding_length ;
         dbg_bytes(buf, total_length, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation (" T4LIT(%luB) "): ", crypto_task_type_names[op->op], total_length);
-        if (op->padding_length == 0) {
-            dbg_bytes(buf, op->padding_length, "   :: Padding (" T4LIT(%dB) ")  : ", op->padding_length);
-        }
-        dbg_bytes(buf + op->padding_length, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
-        dbg_bytes(buf + op->padding_length + 4, op->plain_length, "   :: Data (" T4LIT(%dB) ")    : ", op->plain_length);
+
+        dbg_bytes(buf, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
+        dbg_bytes(buf + op->offset, op->plain_length_to_encrypt, "   :: Data (" T4LIT(%dB) ")    : ", op->plain_length_to_encrypt);
+        debug("   :: plain_length_to_encrypt: %d\n",op->plain_length_to_encrypt);
+        debug("   :: offset: %d\n",op->offset);
+        debug("   :: padding_length: %d\n",op->padding_length);
     #endif
 }
 
 // -----------------------------------------------------------------------------
 // Crypto operations
 
-void create_crypto_op(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling){
-    int ret = rte_mempool_get(crypto_task_pool, (void**)op_out);
+void create_crypto_task(crypto_task_s **task_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling){
+    int ret = rte_mempool_get(crypto_task_pool, (void**)task_out);
     if(ret < 0){
         rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
         //TODO: it should be a packet drop, not total fail
     }
-    crypto_task_s *op = *op_out;
-    op->op = op_type;
-    op->data = pd->wrapper;
+    crypto_task_s *task = *task_out;
+    task->op = op_type;
+    task->data = pd->wrapper;
 
-    op->plain_length = op->data->pkt_len - offset;
-    op->offset = offset;
+    task->original_plain_length = task->data->pkt_len;
+    task->plain_length_to_encrypt = task->data->pkt_len - offset;
+    task->offset = offset;
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(extraInformationForAsyncHandling != NULL){
             void* context = extraInformationForAsyncHandling;
-            rte_pktmbuf_prepend(op->data, sizeof(void*));
-            *(rte_pktmbuf_mtod(op->data, void**)) = context;
-            op->offset += sizeof(void*);
+            rte_pktmbuf_prepend(task->data, sizeof(void*));
+            *(rte_pktmbuf_mtod(task->data, void**)) = context;
+            task->offset += sizeof(void*);
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
         *store_pd = *pd;
 
-        rte_pktmbuf_prepend(op->data, sizeof(packet_descriptor_t*));
-        *(rte_pktmbuf_mtod(op->data, packet_descriptor_t**)) = store_pd;
-        op->offset += sizeof(void**);
+        rte_pktmbuf_prepend(task->data, sizeof(packet_descriptor_t*));
+        *(rte_pktmbuf_mtod(task->data, packet_descriptor_t**)) = store_pd;
+        task->offset += sizeof(void**);
     #endif
 
-    rte_pktmbuf_prepend(op->data, sizeof(uint32_t));
-    *(rte_pktmbuf_mtod(op->data, uint32_t*)) = op->plain_length;
-    op->offset += sizeof(uint32_t);
+    rte_pktmbuf_prepend(task->data, sizeof(uint32_t));
+    *(rte_pktmbuf_mtod(task->data, uint32_t*)) = task->original_plain_length;
+    task->offset += sizeof(uint32_t);
 
-    if(op->plain_length%16 != 0){
-        op->padding_length = 16-op->plain_length%16;
-        void* padding_memory = rte_pktmbuf_append(op->data, op->padding_length);
-        memset(padding_memory,0,op->padding_length);
+    if(task->plain_length_to_encrypt%16 != 0){
+        task->padding_length = 16 - task->plain_length_to_encrypt % 16;
+        void* padding_memory = rte_pktmbuf_append(task->data, task->padding_length);
+        memset(padding_memory, 0, task->padding_length);
     }else{
-        op->padding_length = 0;
+        task->padding_length = 0;
     }
-
-    print_crypto_create_msg(op);
 }
 
 void crypto_task_to_crypto_op(crypto_task_s *crypto_task, struct rte_crypto_op *crypto_op)
@@ -126,14 +126,14 @@ void crypto_task_to_crypto_op(crypto_task_s *crypto_task, struct rte_crypto_op *
     if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
         crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
         crypto_op->sym->auth.data.offset = crypto_task->offset;
-        crypto_op->sym->auth.data.length = crypto_task->plain_length;
+        crypto_op->sym->auth.data.length = crypto_task->plain_length_to_encrypt;
 
         rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
         crypto_op->sym->m_src = crypto_task->data;
     }else{
         crypto_op->sym->m_src = crypto_task->data;
         crypto_op->sym->cipher.data.offset = crypto_task->offset;
-        crypto_op->sym->cipher.data.length = rte_pktmbuf_pkt_len(crypto_op->sym->m_src) - crypto_task->offset;
+        crypto_op->sym->cipher.data.length = crypto_task->plain_length_to_encrypt;
 
         uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
         memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
@@ -160,7 +160,8 @@ void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS){
 
     unsigned int lcore_id = rte_lcore_id();
 
-    create_crypto_op(crypto_tasks[lcore_id],pd,op,offset,NULL);
+    create_crypto_task(crypto_tasks[lcore_id],pd,op,offset,NULL);
+    print_crypto_create_msg(crypto_tasks[lcore_id][0]);
     if (rte_crypto_op_bulk_alloc(crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
         rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
     }
@@ -185,9 +186,10 @@ void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS){
         if (enqueued_ops[lcore_id][0]->sym->m_dst) {
             uint8_t *auth_tag = rte_pktmbuf_mtod_offset(enqueued_ops[lcore_id][0]->sym->m_dst,uint8_t *,
                                                        crypto_tasks[lcore_id][0]->padding_length);
-            int target_position = crypto_tasks[lcore_id][0]->padding_length +
-                               crypto_tasks[lcore_id][0]->plain_length +
-                               crypto_tasks[lcore_id][0]->offset;
+            int target_position = crypto_tasks[lcore_id][0]->offset +
+                                    crypto_tasks[lcore_id][0]->plain_length_to_encrypt +
+                                    crypto_tasks[lcore_id][0]->padding_length;
+
             uint8_t* target = rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + target_position;
             memcpy(target,auth_tag,MD5_DIGEST_LEN);
         }
@@ -195,13 +197,14 @@ void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS){
         dbg_bytes(pd->wrapper, rte_pktmbuf_pkt_len(pd->wrapper), " " T4LIT(>>>>,incoming) " Result of " T4LIT(%s,extern) " crypto operation (" T4LIT(%dB) "): ", crypto_task_type_names[op], rte_pktmbuf_pkt_len(pd->wrapper));
     }else{
         struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
-        int packet_size = *(rte_pktmbuf_mtod(mbuf, int*));
+        uint32_t packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
 
+        // Remove the saved packet size from the begining
         rte_pktmbuf_adj(mbuf, sizeof(int));
         pd->wrapper = mbuf;
         pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
         pd->wrapper->pkt_len = packet_size;
-        dbg_bytes(pd->wrapper, rte_pktmbuf_pkt_len(pd->wrapper), " " T4LIT(>>>>,incoming) " Result of " T4LIT(%s,extern) " crypto operation (" T4LIT(%dB) "): ", crypto_task_type_names[op], rte_pktmbuf_pkt_len(pd->wrapper));
+        dbg_bytes(pd->data, packet_size, " " T4LIT(>>>>,incoming) " Result of " T4LIT(%s,extern) " crypto operation (" T4LIT(%dB) "): ", crypto_task_type_names[op], rte_pktmbuf_pkt_len(pd->wrapper));
     }
 
     rte_mempool_put_bulk(crypto_pool, (void **)dequeued_ops[lcore_id], 1);

@@ -140,12 +140,12 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
 
 
 
-extern void create_crypto_op(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
+extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
 
 void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e op_type, void* extraInformationForAsyncHandling)
 {
     crypto_task_s *op;
-    create_crypto_op(&op,pd,op_type,0,extraInformationForAsyncHandling);
+    create_crypto_task(&op,pd,op_type,0,extraInformationForAsyncHandling);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
     debug_mbuf(op->data, "   :: Enqueued for async");
