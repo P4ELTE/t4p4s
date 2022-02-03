@@ -24,13 +24,14 @@
 
 #define ARP_HTYPE_ETHERNET "0001"
 
-#define cIPV4     "0800"
-#define cARP      "0806"
-#define cIPV6     "86dd"
-#define cVLAN     "8100"
-#define cBAAS     "abef"
-#define cRLC      "0101"
-#define cLLDP     "88cc"
+#define cIPV4     			"0800"
+#define cARP      			"0806"
+#define cIPV6     			"86dd"
+#define cVLAN     			"8100"
+#define cBAAS     			"abef"
+#define cRLC      			"0101"
+#define cLLDP     			"88cc"
+#define cGTP_EXT_TYPE_QFI	"0085"
 
 #define ARP_HLEN_ETHERNET  "06"
 #define ARP_PLEN_IPV4      "04"
@@ -59,7 +60,7 @@
 
 //                                                 12     1          [1]      4       4
 #define hIP4(protocol8, srcip32, dstip32)          hxIPv4(protocol8, cCHKSM0) srcip32 dstip32
-//  2       2       4     4     4b         4b  1     2      2        2
+//             2       2       4     4     4b         4b  1     2      2        2
 #define hTCP(srcPort,dstPort,seqNo,ackNo,dataOffset,res,flags,window,checksum,urgentPtr)   srcPort dstPort seqNo ackNo dataOffset res flags window checksum urgentPtr
 
 #define hIP6(next_hdr, srcip6, dstip6)             hxIPv6(next_hdr)      srcip6 dstip6
@@ -88,6 +89,9 @@
 #define hGTPv2(snumber, reserved)                  snumber reserved
 //              2        1          1
 #define hGTPopt(seq_num, n_pdu_num, next_type)     seq_num n_pdu_num next_type
+//				1    4b    6b     6b   1
+#define hGTPqci(len, type, spare, qci, next_type)  len type spare qci next_type
+
 #define hRLC()                                     "00000000000000000000000000"
 #define hPDCPbefore()                              "00000000000000000000000000000000000000000000000000000000000000000000"
 #define hPDCP()                                    "0000000000"

@@ -21,14 +21,19 @@ PARSER {
 }
 
 CTL_MAIN {
+	action nono() {}
+	
     table dummy_table {
-        key = {}
-        actions = {}
+        key = {hdr.dummy.f2: exact;}
+        actions = {nono;}
+        const entries = {
+            (bit<2>)0 : nono();
+        }
     }
 
     apply {
-	if (dummy_table.apply().hit) {
-        	hdr.dummy.f1 = (bit<2>)0;
+	    if (dummy_table.apply().hit) {
+        	hdr.dummy.f1 = (bit<2>)1;
         } else {
        		hdr.dummy.f1 = (bit<2>)3;
         }
@@ -36,7 +41,7 @@ CTL_MAIN {
         if (dummy_table.apply().miss) {
         	hdr.dummy.f2 = (bit<2>)3;
         } else {
-       		hdr.dummy.f2 = (bit<2>)0;
+       		hdr.dummy.f2 = (bit<2>)1;
         }
     }
 }
