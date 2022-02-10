@@ -690,9 +690,9 @@ fi
 T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang gcc)}
 if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
     # note: when using gcc, only lld seems to be supported, not lld-VSN
-    T4P4S_LD=${T4P4S_LD-$(find_tool lld bfd gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool mold lld bfd gold)}
 else
-    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld bfd gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" mold lld bfd gold)}
 fi
 DEBUGGER=${DEBUGGER-$(find_tool "-" lldb gdb)}
 
