@@ -395,9 +395,15 @@ declare -A VSN_TO_EXT=([16]="p4" [14]="p4_14")
 
 # --------------------------------------------------------------------
 
+find_ephemeral_port() {
+    CHOSEN_PORT=$(shuf -n 1 -i $1-$2)
+    while [ `sudo lsof -i -P -n | grep LISTEN | grep $CHOSEN_PORT | wc -l` -ne 0 ]; do CHOSEN_PORT=$(shuf -n 1 -i $1-$2); done
+    echo $CHOSEN_PORT
+}
+
 # Generating random ephemeral port
 while
-    PYTHON_PARSE_HELPER_PORT=$(shuf -n 1 -i 49152-65535)
+    PYTHON_PARSE_HELPER_PORT=$(find_ephemeral_port 49152 65535)
     netstat -atun | grep -q "$PYTHON_PARSE_HELPER_PORT"
 do
     continue
@@ -813,16 +819,19 @@ if [ "$(optvalue run)" != off ]; then
         command -v gnome-terminal >/dev/null 2>/dev/null
         HAS_TERMINAL=$?
 
+        T4P4S_CTL_PORT=$(find_ephemeral_port 49152 65535)
+        verbosemsg "Controller port is $(cc 0)$T4P4S_CTL_PORT$nn"
+
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
-            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} &
+            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $T4P4S_CTL_PORT ${OPTS[ctrcfg]} &
             sleep 0.2
         elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
             TERMWIDTH=${TERMWIDTH-72}
             TERMHEIGHT=${TERMHEIGHT-36}
             gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
         else
-            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
+            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $T4P4S_CTL_PORT ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
         fi
     fi
 fi
@@ -882,6 +891,9 @@ if [ "$(optvalue c)" != off ]; then
         sudo echo "#include \"$hdr\"" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
     done
 
+    EXTRA_BUILD_OPTS=""
+    [ "$(optvalue sanitize)" != off ] && EXTRA_BUILD_OPTS="'b_sanitize=address,undefined',"
+
     echo """
 #ifndef T4P4S_MODEL
     #error No T4P4S_MODEL set; perhaps configuration in examples.cfg is missing/incomplete?
@@ -912,7 +924,8 @@ project(
     default_options : [
         'warning_level=${WARNING_LEVEL}',
         'optimization=3',
-        'buildtype=release'
+        $EXTRA_BUILD_OPTS
+        'buildtype=release',
     ],
 )
 
