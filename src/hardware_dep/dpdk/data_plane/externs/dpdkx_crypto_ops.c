@@ -6,49 +6,39 @@
 #include "dpdkx_crypto.h"
 #include "aliases.h"
 
-#include <time.h>
 #include <stdlib.h>
 #include <rte_dev.h>
-#include <rte_bus_vdev.h>
-#include <rte_errno.h>
+#include <error.h>
+#include <unistd.h>
+#include <iso646.h>
 
-#ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
-    #include <rte_cryptodev_scheduler.h>
-    #include <dataplane.h>
-#endif
+extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
-extern void deparse_packet(SHORT_STDPARAMS);
-
-const char*const crypto_task_type_names[] = {
+const char* crypto_task_type_names[] = {
     "ENCRYPT",
     "DECRYPT",
     "MD5_HMAC",
 };
 
-// -----------------------------------------------------------------------------
-// Globals: memory pools, device and sessions
-
 struct rte_mempool *session_pool, *session_priv_pool;
-struct rte_mempool *crypto_pool;
-struct rte_mempool *crypto_task_pool;
-
-crypto_task_s *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-
 
 int cdev_id;
 
 struct rte_cryptodev_sym_session *session_encrypt;
 struct rte_cryptodev_sym_session *session_decrypt;
 struct rte_cryptodev_sym_session *session_hmac;
-
 uint8_t iv[16];
-extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
+
+
+struct rte_mempool *crypto_task_pool;
+crypto_task_s *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+
+struct rte_mempool *rte_crypto_op_pool;
+struct rte_crypto_op* enqueued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+struct rte_crypto_op* dequeued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
 // -----------------------------------------------------------------------------
 //  Helper functions
-
 void reset_pd(packet_descriptor_t *pd)
 {
     pd->parsed_size = 0;
@@ -61,11 +51,11 @@ void reset_pd(packet_descriptor_t *pd)
     pd->is_deparse_reordering = false;
 }
 
-void print_crypto_create_msg(crypto_task_s *op) {
+void debug_crypto_task(crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
         uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
         unsigned long total_length = sizeof(uint32_t) + op->plain_length_to_encrypt + op->padding_length ;
-        dbg_bytes(buf, total_length, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation (" T4LIT(%luB) "): ", crypto_task_type_names[op->op], total_length);
+        dbg_bytes(buf, total_length, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation (" T4LIT(%luB) "): ", crypto_task_type_names[op->type], total_length);
 
         dbg_bytes(buf, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
         dbg_bytes(buf + op->offset, op->plain_length_to_encrypt, "   :: Data (" T4LIT(%dB) ")    : ", op->plain_length_to_encrypt);
@@ -74,141 +64,209 @@ void print_crypto_create_msg(crypto_task_s *op) {
         debug("   :: padding_length: %d\n",op->padding_length);
     #endif
 }
-
 // -----------------------------------------------------------------------------
 // Crypto operations
 
-void create_crypto_task(crypto_task_s **task_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling){
-    int ret = rte_mempool_get(crypto_task_pool, (void**)task_out);
-    if(ret < 0){
-        rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
-        //TODO: it should be a packet drop, not total fail
-    }
-    crypto_task_s *task = *task_out;
-    task->op = op_type;
-    task->data = pd->wrapper;
+int prepare_symmetric_ecnryption_op(crypto_task_s *task, struct rte_crypto_op *crypto_op) {
+    crypto_op->sym->m_src = task->data;
+    crypto_op->sym->cipher.data.offset = task->offset;
+    crypto_op->sym->cipher.data.length = task->plain_length_to_encrypt;
 
-    task->original_plain_length = task->data->pkt_len;
-    task->plain_length_to_encrypt = task->data->pkt_len - offset;
-    task->offset = offset;
+    uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
+    memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
 
-    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-        if(extraInformationForAsyncHandling != NULL){
-            void* context = extraInformationForAsyncHandling;
-            rte_pktmbuf_prepend(task->data, sizeof(void*));
-            *(rte_pktmbuf_mtod(task->data, void**)) = context;
-            task->offset += sizeof(void*);
-        }
-    #elif ASYNC_MODE == ASYNC_MODE_PD
-        packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
-        *store_pd = *pd;
-
-        rte_pktmbuf_prepend(task->data, sizeof(packet_descriptor_t*));
-        *(rte_pktmbuf_mtod(task->data, packet_descriptor_t**)) = store_pd;
-        task->offset += sizeof(void**);
-    #endif
-
-    rte_pktmbuf_prepend(task->data, sizeof(uint32_t));
-    *(rte_pktmbuf_mtod(task->data, uint32_t*)) = task->original_plain_length;
-    task->offset += sizeof(uint32_t);
-
-    if(task->plain_length_to_encrypt%16 != 0){
-        task->padding_length = 16 - task->plain_length_to_encrypt % 16;
-        void* padding_memory = rte_pktmbuf_append(task->data, task->padding_length);
-        memset(padding_memory, 0, task->padding_length);
-    }else{
-        task->padding_length = 0;
-    }
-}
-
-void crypto_task_to_crypto_op(crypto_task_s *crypto_task, struct rte_crypto_op *crypto_op)
-{
-    if(crypto_task->op == CRYPTO_TASK_MD5_HMAC){
-        crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(crypto_task->data, MD5_DIGEST_LEN);
-        crypto_op->sym->auth.data.offset = crypto_task->offset;
-        crypto_op->sym->auth.data.length = crypto_task->plain_length_to_encrypt;
-
-        rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
-        crypto_op->sym->m_src = crypto_task->data;
-    }else{
-        crypto_op->sym->m_src = crypto_task->data;
-        crypto_op->sym->cipher.data.offset = crypto_task->offset;
-        crypto_op->sym->cipher.data.length = crypto_task->plain_length_to_encrypt;
-
-        uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
-        memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
-
-        switch(crypto_task->op)
-        {
+    switch(task->type)
+    {
         case CRYPTO_TASK_ENCRYPT:
             rte_crypto_op_attach_sym_session(crypto_op, session_encrypt);
             break;
         case CRYPTO_TASK_DECRYPT:
             rte_crypto_op_attach_sym_session(crypto_op, session_decrypt);
             break;
+        default:
+            return 1;
+    }
+    return 0;
+}
+
+void process_symmetric_encryption_result(crypto_task_type_e task_type, packet_descriptor_t *pd) {
+    unsigned int lcore_id = rte_lcore_id();
+    struct rte_mbuf *mbuf = dequeued_rte_crypto_ops[lcore_id][0]->sym->m_src;
+    uint32_t packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
+
+    // Remove the saved packet size from the begining
+    rte_pktmbuf_adj(mbuf, sizeof(int));
+    pd->wrapper = mbuf;
+    pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+    pd->wrapper->pkt_len = packet_size;
+    dbg_bytes(pd->data, packet_size,
+              " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
+              crypto_task_type_names[task_type], rte_pktmbuf_pkt_len(pd->wrapper));
+}
+
+void prepare_hmac_op(crypto_task_s *task, struct rte_crypto_op *crypto_op) {
+    crypto_op->sym->auth.digest.data = (uint8_t *)rte_pktmbuf_append(task->data, MD5_DIGEST_LEN);
+    crypto_op->sym->auth.data.offset = task->offset;
+    crypto_op->sym->auth.data.length = task->plain_length_to_encrypt;
+
+    rte_crypto_op_attach_sym_session(crypto_op, session_hmac);
+    crypto_op->sym->m_src = task->data;
+}
+
+
+void process_hmac_result(crypto_task_type_e task_type, packet_descriptor_t *pd,
+                         crypto_task_s *crypto_task) {
+    unsigned int lcore_id = rte_lcore_id();
+
+    if (dequeued_rte_crypto_ops[lcore_id][0]->sym->m_dst) {
+        uint8_t *auth_tag = rte_pktmbuf_mtod_offset(dequeued_rte_crypto_ops[lcore_id][0]->sym->m_dst, uint8_t *,
+                                                    crypto_task->padding_length);
+        uint32_t target_position = crypto_task->offset +
+                                   crypto_task->plain_length_to_encrypt +
+                                   crypto_task->padding_length;
+
+        uint8_t* target = rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + target_position;
+        memcpy(target,auth_tag,MD5_DIGEST_LEN);
+    }
+    rte_pktmbuf_adj(pd->wrapper, sizeof(int));
+    dbg_bytes(pd->wrapper, rte_pktmbuf_pkt_len(pd->wrapper),
+              " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
+              crypto_task_type_names[task_type], rte_pktmbuf_pkt_len(pd->wrapper));
+}
+
+int process_crypto_op_result(crypto_task_type_e task_type, packet_descriptor_t *pd,
+                             crypto_task_s *crypto_task) {
+    unsigned int lcore_id = rte_lcore_id();
+    int ret = 0;
+    switch(task_type){
         case CRYPTO_TASK_MD5_HMAC:
-            // TODO
+            process_hmac_result(task_type, pd, crypto_task);
             break;
-        }
+
+        case CRYPTO_TASK_ENCRYPT:
+        case CRYPTO_TASK_DECRYPT:
+            process_symmetric_encryption_result(task_type, pd);
+            break;
+        default:
+            ret = 1;
+            break;
+    }
+    return ret;
+}
+
+void crypto_task_to_rte_crypto_op(crypto_task_s *task, struct rte_crypto_op *crypto_op)
+{
+    if(task->type == CRYPTO_TASK_MD5_HMAC){
+        prepare_hmac_op(task, crypto_op);
+    }else {
+        prepare_symmetric_ecnryption_op(task, crypto_op);
     }
 }
 
 
-void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS){
+
+
+// -----------------------------------------------------------------------------
+// General functions
+
+crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, void* extraInformationForAsyncHandling){
+    int ret = rte_mempool_get(crypto_task_pool, (void**)task_out);
+    if(ret < 0){
+        rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
+        //TODO: it should be a packet drop, not total fail
+    }
+    crypto_task_s *task = *task_out;
+    task->type = task_type;
+    task->data = pd->wrapper;
+    task->offset = offset;
+
+    task->original_plain_length = task->data->pkt_len;
+    task->plain_length_to_encrypt = task->data->pkt_len - task->offset;
+
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+    if(extraInformationForAsyncHandling != NULL){
+                void* context = extraInformationForAsyncHandling;
+                rte_pktmbuf_prepend(task->data, sizeof(void*));
+                *(rte_pktmbuf_mtod(task->data, void**)) = context;
+                task->offset += sizeof(void*);
+            }
+#elif ASYNC_MODE == ASYNC_MODE_PD
+    packet_descriptor_t *store_pd = extraInformationForAsyncHandling;
+            *store_pd = *pd;
+
+            rte_pktmbuf_prepend(task->data, sizeof(packet_descriptor_t*));
+            *(rte_pktmbuf_mtod(task->data, packet_descriptor_t**)) = store_pd;
+            task->offset += sizeof(void**);
+#endif
+
+    rte_pktmbuf_prepend(task->data, sizeof(uint32_t));
+    *(rte_pktmbuf_mtod(task->data, uint32_t*)) = task->original_plain_length;
+    task->offset += sizeof(uint32_t);
+    task->padding_length = (16 - task->plain_length_to_encrypt % 16) % 16;
+
+    if(task->padding_length){
+        void* padding_memory = rte_pktmbuf_append(task->data, task->padding_length);
+        memset(padding_memory, 0, task->padding_length);
+    }
+    return task;
+}
+
+int enqueue_crypto_ops(uint16_t number_of_ops){
+    unsigned int lcore_id = rte_lcore_id();
+    #ifdef START_CRYPTO_NODE
+        return rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, enqueued_rte_crypto_ops[lcore_id], number_of_ops, NULL);
+    #else
+        return rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], number_of_ops);
+    #endif
+}
+
+void dequeue_crypto_ops_blocking(uint16_t number_of_ops){
+    unsigned int lcore_id = rte_lcore_id();
+    #ifdef START_CRYPTO_NODE
+        while(rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_rte_crypto_ops[lcore_id], number_of_ops, NULL) == 0);
+    #else
+        while(rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_rte_crypto_ops[lcore_id], number_of_ops) == 0);
+    #endif
+}
+
+
+
+
+void execute_task_blocking(crypto_task_type_e task_type, packet_descriptor_t *pd, unsigned int lcore_id,
+                           crypto_task_s* crypto_task) {
+    debug_crypto_task(crypto_task);
+
+    if (rte_crypto_op_bulk_alloc(rte_crypto_op_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, &enqueued_rte_crypto_ops[lcore_id][0], 1) == 0){
+        rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
+    }
+
+    crypto_task_to_rte_crypto_op(crypto_task, enqueued_rte_crypto_ops[lcore_id][0]);
+    rte_mempool_put_bulk(crypto_task_pool, (void**) &crypto_task, 1);
+
+    if(enqueue_crypto_ops(1) == 0){
+        debug(" " T4LIT(!!!!,error) " " T4LIT(Enqueue ops in blocking sync task_type failed... skipping encryption,error) "\n");
+        return;
+    }
+    dequeue_crypto_ops_blocking(1);
+
+    if(process_crypto_op_result(task_type, pd, crypto_task) > 0){
+        debug(" " T4LIT(!!!!,error) " " T4LIT((*task_type) not found ... skipping,error) "\n");
+    }
+
+    rte_mempool_put_bulk(rte_crypto_op_pool, (void **)dequeued_rte_crypto_ops[lcore_id], 1);
+    reset_pd(pd);
+}
+
+void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS){
     // deparse_packet(SHORT_STDPARAMS_IN);
     // pd->is_deparse_reordering = false;
 
     unsigned int lcore_id = rte_lcore_id();
 
-    create_crypto_task(crypto_tasks[lcore_id],pd,op,offset,NULL);
-    print_crypto_create_msg(crypto_tasks[lcore_id][0]);
-    if (rte_crypto_op_bulk_alloc(crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], 1) == 0){
-        rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
-    }
-    crypto_task_to_crypto_op(crypto_tasks[lcore_id][0], enqueued_ops[lcore_id][0]);
-    rte_mempool_put_bulk(crypto_task_pool, (void **) crypto_tasks[lcore_id], 1);
+    crypto_task_s* crypto_task = create_crypto_task(&crypto_tasks[lcore_id][0], pd, task_type, offset, NULL);
 
-    #ifdef START_CRYPTO_NODE
-        if (rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_ops[lcore_id], 1, NULL) <= 0){
-            debug(" " T4LIT(!!!!,error) " " T4LIT(Enqueue ops in blocking sync op failed... skipping encryption,error) "\n");
-            return;
-        }
-        while(rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_ops[lcore_id], 1, NULL) == 0);
-    #else
-        if(rte_cryptodev_enqueue_burst(cdev_id, lcore_id,enqueued_ops[lcore_id], 1) <= 0){
-            debug(" " T4LIT(!!!!,error) " " T4LIT(Enqueue ops in blocking sync op failed... skipping encryption,error) "\n");
-            return;
-        }
-        while(rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], 1) == 0);
-    #endif
-
-    if(op == CRYPTO_TASK_MD5_HMAC){
-        if (enqueued_ops[lcore_id][0]->sym->m_dst) {
-            uint8_t *auth_tag = rte_pktmbuf_mtod_offset(enqueued_ops[lcore_id][0]->sym->m_dst,uint8_t *,
-                                                       crypto_tasks[lcore_id][0]->padding_length);
-            int target_position = crypto_tasks[lcore_id][0]->offset +
-                                    crypto_tasks[lcore_id][0]->plain_length_to_encrypt +
-                                    crypto_tasks[lcore_id][0]->padding_length;
-
-            uint8_t* target = rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + target_position;
-            memcpy(target,auth_tag,MD5_DIGEST_LEN);
-        }
-        rte_pktmbuf_adj(pd->wrapper, sizeof(int));
-        dbg_bytes(pd->wrapper, rte_pktmbuf_pkt_len(pd->wrapper), " " T4LIT(>>>>,incoming) " Result of " T4LIT(%s,extern) " crypto operation (" T4LIT(%dB) "): ", crypto_task_type_names[op], rte_pktmbuf_pkt_len(pd->wrapper));
-    }else{
-        struct rte_mbuf *mbuf = dequeued_ops[lcore_id][0]->sym->m_src;
-        uint32_t packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
-
-        // Remove the saved packet size from the begining
-        rte_pktmbuf_adj(mbuf, sizeof(int));
-        pd->wrapper = mbuf;
-        pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-        pd->wrapper->pkt_len = packet_size;
-        dbg_bytes(pd->data, packet_size, " " T4LIT(>>>>,incoming) " Result of " T4LIT(%s,extern) " crypto operation (" T4LIT(%dB) "): ", crypto_task_type_names[op], rte_pktmbuf_pkt_len(pd->wrapper));
-    }
-
-    rte_mempool_put_bulk(crypto_pool, (void **)dequeued_ops[lcore_id], 1);
-    reset_pd(pd);
+    execute_task_blocking(task_type, pd, lcore_id, crypto_task);
 }
+
 
 #endif

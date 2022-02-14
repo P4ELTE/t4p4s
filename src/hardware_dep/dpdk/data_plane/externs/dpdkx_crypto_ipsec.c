@@ -16,7 +16,7 @@
     #include <dataplane.h>
 #endif
 
-extern void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS);
+extern void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS);
 
 // -----------------------------------------------------------------------------
 // Implementation of P4 architecture externs
@@ -80,8 +80,8 @@ void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS) {
 
     ipsec_prepare_encrypt_msg(headers_size, pad_length_size, next_header_size, esp_size, iv_size, wrapper_size, original_payload_size, padding_size, to_encrypt_size, SHORT_STDPARAMS_IN);
 
-    do_blocking_sync_op(CRYPTO_TASK_ENCRYPT, headers_size + esp_size + iv_size, SHORT_STDPARAMS_IN);
-    do_blocking_sync_op(CRYPTO_TASK_MD5_HMAC, headers_size, SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_ENCRYPT, headers_size + esp_size + iv_size, SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_MD5_HMAC, headers_size, SHORT_STDPARAMS_IN);
 
     ipsec_adjust_result(total_HMAC_length, kept_HMAC_length, SHORT_STDPARAMS_IN);
 

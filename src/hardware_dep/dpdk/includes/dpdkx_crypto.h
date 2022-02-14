@@ -40,12 +40,12 @@ typedef enum {
 } crypto_task_type_e;
 
 typedef struct {
-    crypto_task_type_e op;
+    crypto_task_type_e type;
     struct rte_mbuf* data;
-    int offset;
-    int padding_length;
-    int plain_length_to_encrypt;
-    int original_plain_length;
+    uint32_t offset;
+    uint32_t padding_length;
+    uint32_t plain_length_to_encrypt;
+    uint32_t original_plain_length;
 } crypto_task_s;
 extern struct rte_mempool *crypto_task_pool;
 #define MD5_DIGEST_LEN	16
@@ -58,10 +58,10 @@ extern struct rte_mempool *crypto_task_pool;
 extern int cdev_id;
 extern struct rte_cryptodev_sym_session *session_encrypt;
 extern struct rte_cryptodev_sym_session *session_decrypt;
-extern struct rte_mempool *crypto_pool;
+extern struct rte_mempool *rte_crypto_op_pool;
 
 void init_crypto_devices();
-void crypto_task_to_crypto_op(crypto_task_s *crypto_task, struct rte_crypto_op *crypto_op);
+void crypto_task_to_rte_crypto_op(crypto_task_s *task, struct rte_crypto_op *crypto_op);
 
 void do_encryption_async_impl(SHORT_STDPARAMS);
 void do_decryption_async_impl(SHORT_STDPARAMS);

@@ -21,7 +21,7 @@
 // Implementation of P4 architecture externs
 
 // defined in dpdkx_crypto_ops.c
-extern void do_blocking_sync_op(crypto_task_type_e op, int offset, SHORT_STDPARAMS);
+extern void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS);
 
 // defined in main_async.c
 extern void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op);
@@ -92,7 +92,7 @@ void do_encryption(SHORT_STDPARAMS)
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #else
-        do_blocking_sync_op(CRYPTO_TASK_ENCRYPT, 0, SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_ENCRYPT, 0, SHORT_STDPARAMS_IN);
     #endif
 }
 
@@ -104,23 +104,23 @@ void do_decryption(SHORT_STDPARAMS)
         }
         increase_with_rotation(lcore_conf[rte_lcore_id()].crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N);
     #else
-        do_blocking_sync_op(CRYPTO_TASK_DECRYPT, 0, SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_DECRYPT, 0, SHORT_STDPARAMS_IN);
     #endif
 }
 
 void EXTERNIMPL1(md5_hmac,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_blocking_sync_op(CRYPTO_TASK_MD5_HMAC, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_MD5_HMAC, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(encrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_blocking_sync_op(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(decrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_blocking_sync_op(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_crypto_operation(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 #endif

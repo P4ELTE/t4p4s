@@ -96,8 +96,8 @@ static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
     session_priv_pool = session_pool;
 
     unsigned int crypto_op_private_data = AES_CBC_IV_LENGTH;
-    crypto_pool = rte_crypto_op_pool_create("crypto_pool", RTE_CRYPTO_OP_TYPE_SYMMETRIC, 16*1024, POOL_CACHE_SIZE, crypto_op_private_data, socket_id);
-    if (crypto_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create crypto op pool\n");
+    rte_crypto_op_pool = rte_crypto_op_pool_create("crypto_pool", RTE_CRYPTO_OP_TYPE_SYMMETRIC, 16 * 1024, POOL_CACHE_SIZE, crypto_op_private_data, socket_id);
+    if (rte_crypto_op_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create crypto op pool\n");
 
     crypto_task_pool = rte_mempool_create("crypto_task_pool", (unsigned)16*1024-1, sizeof(crypto_task_s), MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
     if (crypto_task_pool == NULL) {

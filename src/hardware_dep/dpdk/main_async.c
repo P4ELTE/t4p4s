@@ -42,7 +42,7 @@ void async_init_storage();
 void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
 void main_loop_async(LCPARAMS);
 void main_loop_fake_crypto(LCPARAMS);
-void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op);
+void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e type);
 
 // -----------------------------------------------------------------------------
 // DEBUG
@@ -144,11 +144,11 @@ extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, 
 
 void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e op_type, void* extraInformationForAsyncHandling)
 {
-    crypto_task_s *op;
-    create_crypto_task(&op,pd,op_type,0,extraInformationForAsyncHandling);
+    crypto_task_s *type;
+    create_crypto_task(&type,pd,op_type,0,extraInformationForAsyncHandling);
 
-    rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, op);
-    debug_mbuf(op->data, "   :: Enqueued for async");
+    rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, type);
+    debug_mbuf(type->data, "   :: Enqueued for async");
 }
 
 // -----------------------------------------------------------------------------
@@ -172,7 +172,7 @@ void async_init_storage()
 
 
 void init_async_data(struct lcore_data *data){
-    data->conf->crypto_pool = crypto_pool;
+    data->conf->rte_crypto_op_pool = rte_crypto_op_pool;
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
@@ -247,7 +247,7 @@ void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, pack
     }
 }
 
-void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op)
+void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e type)
 {
     void* extraInformationForAsyncHandling = NULL;
 
@@ -272,7 +272,7 @@ void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op)
     emit_packet(pd, 0, 0);
 
     // enqueue mbuf to async operation buffer
-    enqueue_packet_for_async(pd, op, extraInformationForAsyncHandling);
+    enqueue_packet_for_async(pd, type, extraInformationForAsyncHandling);
 
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -300,8 +300,8 @@ void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op)
 #endif
 
 extern crypto_task_s *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-extern struct rte_crypto_op* enqueued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
-extern struct rte_crypto_op* dequeued_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+extern struct rte_crypto_op* enqueued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
+extern struct rte_crypto_op* dequeued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
 static inline void
 wait_for_cycles(uint64_t cycles)
@@ -315,23 +315,23 @@ void main_loop_fake_crypto(LCPARAMS){
     unsigned lcore_id = rte_lcore_id();
     for(int a=0;a<rte_lcore_count();a++){
         if(lcore_conf[a].fake_crypto_rx != NULL){
-            unsigned int n = rte_ring_dequeue_burst(lcore_conf[a].fake_crypto_rx, (void*)enqueued_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
+            unsigned int n = rte_ring_dequeue_burst(lcore_conf[a].fake_crypto_rx, (void*)enqueued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
             if (n>0){
                 debug("---------------- Received from %d %d packet\n",a,n);
                 #if CRYPTO_NODE_MODE == CRYPTO_NODE_MODE_OPENSSL
-                    rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
+                    rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], n);
                     int already_dequed_ops = 0;
                     while(already_dequed_ops < n){
-                        already_dequed_ops += rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], n - already_dequed_ops);
+                        already_dequed_ops += rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_rte_crypto_ops[lcore_id], n - already_dequed_ops);
                     }
                 #elif CRYPTO_NODE_MODE == CRYPTO_NODE_MODE_FAKE
                     wait_for_cycles(FAKE_CRYPTO_SLEEP_MULTIPLIER*n);
                 #endif
 
                 for(int b=0;b<n;b++){
-                    enqueued_ops[lcore_id][b]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
+                    enqueued_rte_crypto_ops[lcore_id][b]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
                 }
-                if (rte_ring_enqueue_burst(lcore_conf[a].fake_crypto_tx, (void*)enqueued_ops[lcore_id], n, NULL) <= 0){
+                if (rte_ring_enqueue_burst(lcore_conf[a].fake_crypto_tx, (void*)enqueued_rte_crypto_ops[lcore_id], n, NULL) <= 0){
                     debug(T4LIT(Enqueing from fake crypto core failed,error) "\n");
                 }
             }
@@ -367,15 +367,15 @@ void main_loop_async(LCPARAMS)
             n = rte_ring_dequeue_burst(lcdata->conf->async_queue, (void**)crypto_tasks[lcore_id], CRYPTO_BURST_SIZE, NULL);
             if(n > 0)
             {
-                if (rte_crypto_op_bulk_alloc(lcdata->conf->crypto_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_ops[lcore_id], n) == 0)
+                if (rte_crypto_op_bulk_alloc(lcdata->conf->rte_crypto_op_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, enqueued_rte_crypto_ops[lcore_id], n) == 0)
                     rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
                 for(i = 0; i < n; i++)
-                    crypto_task_to_crypto_op(crypto_tasks[lcore_id][i], enqueued_ops[lcore_id][i]);
+                    crypto_task_to_crypto_op(crypto_tasks[lcore_id][i], enqueued_rte_crypto_ops[lcore_id][i]);
                 rte_mempool_put_bulk(crypto_task_pool, (void**)crypto_tasks[lcore_id], n);
                 #ifdef START_CRYPTO_NODE
-                    lcdata->conf->pending_crypto += rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_ops[lcore_id], n, NULL);
+                    lcdata->conf->pending_crypto += rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_rte_crypto_ops[lcore_id], n, NULL);
                 #else
-                    lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_ops[lcore_id], n);
+                    lcdata->conf->pending_crypto += rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], n);
                 #endif
             }
         }
@@ -383,9 +383,9 @@ void main_loop_async(LCPARAMS)
         if(lcdata->conf->pending_crypto >= CRYPTO_BURST_SIZE)
         {
             #ifdef START_CRYPTO_NODE
-                n = rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
+                n = rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
             #else
-                n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_ops[lcore_id], CRYPTO_BURST_SIZE);
+                n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE);
             #endif
             ONE_PER_SEC(main_loop_async_work_timer){
                 debug("Async work function %d\n",lcdata->conf->pending_crypto);
@@ -393,21 +393,21 @@ void main_loop_async(LCPARAMS)
             if(n > 0){
                 for (i = 0; i < n; i++)
                 {
-                    if (dequeued_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS){
+                    if (dequeued_rte_crypto_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS){
                         rte_exit(EXIT_FAILURE, "Some operations were not processed correctly");
                     }
                     else{
-                        dequeued_ops[lcore_id][i]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
+                        dequeued_rte_crypto_ops[lcore_id][i]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
                         #if ASYNC_MODE == ASYNC_MODE_PD
                             if(setjmp(lcore_conf[rte_lcore_id()].asyncLoopJumpPoint) == 0) {
-                                resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
+                                resume_packet_handling(dequeued_rte_crypto_ops[lcore_id][i]->sym->m_src, lcdata, pd);
                             }
                         #else
-                            resume_packet_handling(dequeued_ops[lcore_id][i]->sym->m_src, lcdata, pd);
+                            resume_packet_handling(dequeued_rte_crypto_ops[lcore_id][i]->sym->m_src, lcdata, pd);
                         #endif
                     }
                 }
-                rte_mempool_put_bulk(lcdata->conf->crypto_pool, (void **)dequeued_ops[lcore_id], n);
+                rte_mempool_put_bulk(lcdata->conf->rte_crypto_op_pool, (void **)dequeued_rte_crypto_ops[lcore_id], n);
                 lcdata->conf->pending_crypto -= n;
             }
         }
