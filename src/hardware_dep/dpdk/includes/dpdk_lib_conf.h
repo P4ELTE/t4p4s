@@ -119,6 +119,7 @@ struct lcore_conf {
     occurence_counter_t async_packet;
 	occurence_counter_t processed_packet_num;
 
+    struct rte_mempool*        rte_crypto_op_pool;
     jmp_buf mainLoopJumpPoint;
     jmp_buf asyncLoopJumpPoint;
 

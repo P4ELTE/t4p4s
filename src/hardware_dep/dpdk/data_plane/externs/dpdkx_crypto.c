@@ -24,18 +24,18 @@
 extern void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS);
 
 // defined in main_async.c
-extern void do_crypto_task(packet_descriptor_t* pd, crypto_task_type_e op);
+extern void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e op);
 extern void do_encryption(SHORT_STDPARAMS);
 extern void do_decryption(SHORT_STDPARAMS);
 
 extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
 
-void EXTERNIMPL0(do_encryption_async)(SHORT_STDPARAMS)
+void EXTERNIMPL1(do_encryption_async, u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
-            do_crypto_task(pd, CRYPTO_TASK_ENCRYPT);
+            do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_ENCRYPT);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
@@ -44,7 +44,7 @@ void EXTERNIMPL0(do_encryption_async)(SHORT_STDPARAMS)
         if(pd->context != NULL) {
             if(pd->program_restore_phase == 0){
                 COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
-                do_crypto_task(pd, CRYPTO_TASK_ENCRYPT);
+                do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_ENCRYPT);
             }
         }else{
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
@@ -58,18 +58,18 @@ void EXTERNIMPL0(do_encryption_async)(SHORT_STDPARAMS)
     #endif
 }
 
-void EXTERNIMPL0(do_decryption_async)(SHORT_STDPARAMS)
+void EXTERNIMPL1(do_decryption_async, u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
-            do_crypto_task(pd, CRYPTO_TASK_DECRYPT);
+            do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_DECRYPT);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->context != NULL) {
             if(pd->program_restore_phase == 1){
-                do_crypto_task(pd, CRYPTO_TASK_DECRYPT);
+                do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_DECRYPT);
             }
         }
     #elif ASYNC_MODE == ASYNC_MODE_SKIP

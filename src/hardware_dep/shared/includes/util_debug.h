@@ -95,7 +95,6 @@
     #define debug(M, ...)
 #endif
 
-void debug_mbuf(struct rte_mbuf* mbuf, const char* message);
 
 #define lcore_report(M, ...)   fprintf(stderr, T4LIT(%2d,core) "@" T4LIT(%d,socket) " " M "", (int)(rte_lcore_id()), rte_lcore_to_socket_id(rte_lcore_id()), ##__VA_ARGS__)
 
@@ -164,7 +163,7 @@ typedef struct time_measure_s{
             }
 
 
-#define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - timer > rte_get_timer_hz()?(timer = rte_get_tsc_cycles()),true:false)
+#define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - (timer) > rte_get_timer_hz()?((timer) = rte_get_tsc_cycles()),true:false)
 
 
 void sleep_millis(int millis);
