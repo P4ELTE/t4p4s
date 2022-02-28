@@ -32,7 +32,10 @@ else:
         #{     apply_result_t ${tname}_apply(STDPARAMS) {
         if 'key' not in table or table.key_bit_size == 0:
             #[         ENTRY(${tname})* entry = ${tname}_get_default_entry(STDPARAMS_IN);
-            #[         bool hit = false;
+            if 'key' not in table:
+                #[         bool hit = true; // no key in table ${table.name}
+            if table.key_bit_size == 0:
+                #[         bool hit = true; // empty key in table ${table.name}
             #[         ${tname}_apply_show_hit(entry->id, STDPARAMS_IN);
         else:
             #{         #ifdef T4P4S_DEBUG
@@ -44,7 +47,15 @@ else:
             #[         table_${tname}_key(pd, key  KEYTXTPARAMS_IN);
 
             #[         ENTRY($tname)* entry = (ENTRY($tname)*)${table.matchType.name}_lookup(tables[TABLE_$tname], key);
-            #[         bool hit = entry != NULL && entry->id != INVALID_ACTION;
+
+            noaction_names = table.actions.map('expression.method.path').filter(lambda p: p.name.startswith('NoAction')).map('name')
+            if len(noaction_names) == 0:
+                #[         bool hit = true; // lookup on table ${table.name} cannot miss
+            elif len(noaction_names) == 1:
+                #[         bool hit = entry->id != action_${noaction_names[0]};
+            else:
+                addError('Finding NoAction', f'Too many NoActions ({len(noaction_names)}) found')
+
             #{         if (unlikely(!hit)) {
             #[             entry = ${tname}_get_default_entry(STDPARAMS_IN);
             #}         }
@@ -81,11 +92,11 @@ else:
                 #[              action_code_${ao.name}(entry->params.${ao.name}_params, SHORT_STDPARAMS_IN);
                 #}              return (apply_result_t) { hit, entry->id };
             if len(acts := table.actions.filter(lambda act: len(act.action_object.body.components) == 0)) > 0:
-                for act in acts:
-                    #[           case action_${act.action_object.name}:
-                #]              return (apply_result_t) { hit, entry->id };
-            #[           default:
-            #[               return (apply_result_t) {}; // unreachable
+                cases = ' '.join(f'case action_{act.action_object.name}:' for act in acts)
+                #{           ${cases}
+                #[              return (apply_result_t) { hit, entry->id };
+                #}
+            #[           default: return (apply_result_t) {}; // unreachable
             #}         }
 
         #}     }
