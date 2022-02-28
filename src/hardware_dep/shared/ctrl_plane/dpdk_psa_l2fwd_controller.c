@@ -5,6 +5,7 @@
 #include "messages.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -278,20 +279,25 @@ void init() {
 
 int main(int argc, char* argv[])
 {
-    if (argc>1) {
-        if (argc!=2) {
-            printf("Too many arguments...\nUsage: %s <filename(optional)>\n", argv[0]);
+    int port;
+    sscanf(argv[1], "%d", &port);
+
+    printf("Controller main started on port %d\n", port);
+
+    if (argc>2) {
+        if (argc!=3) {
+            printf("Too many arguments...\nUsage: %s port <filename(optional)>\n", argv[0]);
             return -1;
         }
         printf("Command line argument is present...\nLoading configuration data...\n");
-        if (read_macs_and_ports_from_file(argv[1])<0) {
+        if (read_macs_and_ports_from_file(argv[2])<0) {
             printf("File cannnot be opened...\n");
             return -1;
         }
     }
 
     printf("Create and configure controller...\n");
-    c = create_controller_with_init(11111, 3, dhf, init);
+    c = create_controller_with_init(port, 3, dhf, init);
 
     printf("Launching controller's main loop...\n");
     execute_controller(c);

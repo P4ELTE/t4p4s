@@ -59,10 +59,12 @@ int read_p4_msg(int sock, char* buffer, int length)
 
 int write_p4_msg(int sock, char* buffer, int length)
 {
-        int msglen;
-        if (length<sizeof(struct p4_header)) return -1;
+	if (length<sizeof(struct p4_header)) {
+		printf("Error: tried to send a message of length %d, which is less than the length of a P4 header (%lu)\n", length, sizeof(struct p4_header));
+		return -1;
+	}
 
-	msglen = ntohs(((struct p4_header*)buffer)->length);
+	int msglen = ntohs(((struct p4_header*)buffer)->length);
 
 	if (msglen>length) return -1;
 

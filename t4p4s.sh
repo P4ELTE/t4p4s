@@ -819,20 +819,20 @@ if [ "$(optvalue run)" != off ]; then
         command -v gnome-terminal >/dev/null 2>/dev/null
         HAS_TERMINAL=$?
 
-        T4P4S_CTL_PORT=$(find_ephemeral_port 49152 65535)
-        verbosemsg "Controller port is $(cc 0)$T4P4S_CTL_PORT$nn"
+        setopt T4P4S_CTL_PORT $(find_ephemeral_port 49152 65535)
+        verbosemsg "Controller port is $(cc 0)$(optvalue T4P4S_CTL_PORT)$nn"
 
         # Step 3A-3: Run controller
         if [ $(optvalue showctl optv) == y ]; then
-            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $T4P4S_CTL_PORT ${OPTS[ctrcfg]} &
-            sleep 0.2
+            stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $(optvalue T4P4S_CTL_PORT) ${OPTS[ctrcfg]} &
         elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
             TERMWIDTH=${TERMWIDTH-72}
             TERMHEIGHT=${TERMHEIGHT-36}
-            gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
+            gnome-terminal --geometry ${TERMWIDTH}x${TERMHEIGHT} -- bash -c "echo Example: ${OPTS[source]} @${OPTS[variant]} && echo Controller: ${CONTROLLER} && echo && (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $(optvalue T4P4S_CTL_PORT) ${OPTS[ctrcfg]} | tee ${CONTROLLER_LOG}); read -p 'Press Return to close window'" 2>/dev/null
         else
-            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $T4P4S_CTL_PORT ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
+            (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $(optvalue T4P4S_CTL_PORT) ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
         fi
+        sleep 0.2
     fi
 fi
 
@@ -902,6 +902,12 @@ if [ "$(optvalue c)" != off ]; then
     #endif
 #endif
 """ >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+
+    if [ "$(optvalue T4P4S_CTL_PORT)" != off ]; then
+        sudo echo "#define T4P4S_CTL_PORT $(optvalue T4P4S_CTL_PORT)" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    else
+        sudo echo "#define T4P4S_CTL_PORT 0" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
+    fi
 
     overwrite_on_difference "${T4P4S_GEN_INCLUDE}" "${T4P4S_GEN_INCLUDE_DIR}"
 

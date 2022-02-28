@@ -331,28 +331,24 @@ for packets_or_bytes in ('packets', 'bytes'):
 
 #[ ctrl_plane_backend bg;
 
-#{ #ifdef T4P4S_P4RT
-#[     void init_control_plane()
-#{     {
-#[         bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
-#[         launch_backend(bg);
+#[ void init_control_plane()
+#{ {
+#[     bg = create_backend(3, 1000, "localhost", T4P4S_CTL_PORT, recv_from_controller);
+#[     launch_backend(bg);
+
+#{     #ifdef T4P4S_P4RT
 #[         dev_mgr_init_with_t4p4s(dev_mgr_ptr, recv_from_controller, read_counter_value_by_name, 1);
 #[         PIGrpcServerRunAddrGnmi("0.0.0.0:50051", 0);
 #[         //PIGrpcServerRun();
-#}     }
-#[ #else
-#[     void init_control_plane()
-#{     {
-#[         bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
-#[         launch_backend(bg);
-#[
+#[     #else
 #{         #ifdef T4P4S_DEBUG
-#{         for (int i = 0; i < NB_TABLES; i++) {
-#[             lookup_table_t t = table_config[i];
-#[             if (state[0].tables[t.id][0]->init_entry_count > 0)
-#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
+#{             for (int i = 0; i < NB_TABLES; i++) {
+#[                 lookup_table_t t = table_config[i];
+#{                 if (state[0].tables[t.id][0]->init_entry_count > 0) {
+#[                     debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
+#}                 }
 #}             }
 #}         #endif
-#}     }
-#} #endif
-
+#}     #endif
+#} }
+#[

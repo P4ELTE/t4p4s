@@ -311,7 +311,7 @@ int main(int argc, char** argv)
 
         init_memories();
         #ifndef T4P4S_NO_CONTROL_PLANE
-            debug(" " T4LIT(::::,incoming) " Init control plane connection\n");
+            debug(" " T4LIT(::::,incoming) " Init control plane connection on port " T4LIT(%d,port) "\n", T4P4S_CTL_PORT);
             init_control_plane();
         #else
             debug(" :::: (Control plane inactive)\n");

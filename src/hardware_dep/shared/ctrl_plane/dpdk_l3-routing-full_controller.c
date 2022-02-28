@@ -5,6 +5,7 @@
 #include "messages.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -177,9 +178,12 @@ void init_simple() {
 
 int main(int argc, char* argv[]) 
 {
-	printf("Create and configure controller...\n");
+    int port;
+    sscanf(argv[1], "%d", &port);
 
-    c = create_controller_with_init(11111, 3, dhf, init_simple);
+    printf("Controller main started on port %d\n", port);
+
+    c = create_controller_with_init(port, 3, dhf, init_simple);
 
     notify_controller_initialized();
 

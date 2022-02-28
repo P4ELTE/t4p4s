@@ -5,6 +5,7 @@
 #include "messages.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -88,8 +89,11 @@ void init() {
 
 int main(int argc, char* argv[])
 {
-    printf("Create and configure controller...\n");
-    c = create_controller_with_init(11111, 3, dhf, init);
+    int port;
+    sscanf(argv[1], "%d", &port);
+
+    printf("Controller main started on port %d\n", port);
+    c = create_controller_with_init(port, 3, dhf, init);
 
     printf("Launching controller's main loop...\n");
     execute_controller(c);

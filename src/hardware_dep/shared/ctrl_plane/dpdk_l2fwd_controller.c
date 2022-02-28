@@ -8,6 +8,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -237,12 +238,12 @@ int process_config_file(FILE *f) {
 
 
 #define MAX_CONFIG_FILES 64
+static int config_file_count = 0;
 static FILE* config_files[MAX_CONFIG_FILES] = { 0 };
 static char config_file_names[100][MAX_CONFIG_FILES] = { "" };
 
 void init() {
-    for (int i = 1; i < MAX_CONFIG_FILES; ++i) {
-        if (config_files[i] == 0)   break;
+    for (int i = 0; i < config_file_count; ++i) {
         printf("Processing config file %s\n", config_file_names[i]);
         process_config_file(config_files[i]);
     }
@@ -253,35 +254,56 @@ void init() {
 }
 
 
-int init_args(int argc, char* argv[])
+int get_config_files(int argc, char* argv[])
 {
-    for (int i = 1; i < argc; ++i)
+    config_file_count = 0;
+    for (int i = 2; i < argc; ++i)
     {
-        printf("Opening config file %s\n", argv[i]);
-        config_files[i] = fopen(argv[i], "r");
-        if (config_files[i] == 0) {
+        FILE* cfg_file = fopen(argv[i], "r");
+        if (cfg_file == 0) {
             printf("Error: cannot open config file %s\n", argv[i]);
             return -1;
         }
-        strcpy(config_file_names[i], argv[i]);
-        printf("Copied %s\n", config_file_names[i]);
+
+        config_files[config_file_count] = cfg_file;
+        strcpy(config_file_names[config_file_count], argv[i]);
+        ++config_file_count;
     }
-
-
-    printf("All config files opened\n");
-
     return 0;
+}
+
+void print_config_file_names() {
+    printf("Opened %d config files: ", config_file_count);
+    if (config_file_count > 0) {
+        printf("%s", config_file_names[0]);
+    }
+    for (int i = 1; i < config_file_count; ++i) {
+        printf(", %s", config_file_names[i]);
+    }
+    printf("\n");
+}
+
+int init_args(int argc, char* argv[]) {
+    int result = get_config_files(argc, argv);
+    if (result == 0)     print_config_file_names();
+    return result;
 }
 
 int main(int argc, char* argv[])
 {
-    printf("Controller main started\n");
+    int port;
+    sscanf(argv[1], "%d", &port);
 
     int error_code = init_args(argc, argv);
     if (error_code < 0)    return error_code;
 
-    printf("Create and configure controller...\n");
-    c = create_controller_with_init(11111, 3, dhf, init);
+    printf("Creating controller on port %d\n", port);
+    c = create_controller_with_init(port, 3, dhf, init);
+
+    if (c == 0) {
+        printf("Controller could not be created\n");
+        return -1;
+    }
 
     printf("Launching controller's main loop...\n");
     execute_controller(c);

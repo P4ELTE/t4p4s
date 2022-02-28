@@ -5,6 +5,7 @@
 #include "messages.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 

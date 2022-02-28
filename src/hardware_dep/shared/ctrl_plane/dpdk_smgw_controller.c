@@ -16,6 +16,7 @@
 #include "messages.h"
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -384,18 +385,21 @@ void init_complex() {
 }
 
 int main(int argc, char * argv[]) {
-  printf("Create and configure controller...\n");
+    int port;
+    sscanf(argv[1], "%d", &port);
 
-  if (argc > 1) {
-    if (argc != 2) {
-      printf("Too many arguments...\nUsage: %s <filename(optional)>\n", argv[0]);
+    printf("Controller main started on port %d\n", port);
+
+  if (argc > 2) {
+    if (argc != 3) {
+      printf("Too many arguments...\nUsage: port %s <filename(optional)>\n", argv[0]);
       return -1;
     }
     printf("Command line argument is present...\nLoading configuration data...\n");
-    fn = argv[1];
-    c = create_controller_with_init(11111, 3, dhf, init_complex);
+    fn = argv[2];
+    c = create_controller_with_init(port, 3, dhf, init_complex);
   } else {
-    c = create_controller_with_init(11111, 3, dhf, init_simple);
+    c = create_controller_with_init(port, 3, dhf, init_simple);
   }
 
   notify_controller_initialized();
