@@ -1,55 +1,47 @@
 #include "common-boilerplate-pre.p4"
 
-header dummy_t {
-    bit<2> f1;
-    bit<2> f2;
-    bit<4> padding;
+header output_t {
+    padded_bool_t f1;
+    padded_bool_t f2;
 }
 
 struct metadata {
 }
 
 struct headers {
-    dummy_t dummy;
+    bits8_t  input;
+    output_t output;
 }
 
 PARSER {
     state start {
-        packet.extract(hdr.dummy);
+        packet.extract(hdr.input);
         transition accept;
     }
 }
 
 CTL_MAIN {
-	action nono() {}
-	
+    action dummy() {}
+
     table dummy_table {
-        key = {hdr.dummy.f2: exact;}
-        actions = {nono;}
+        key = {hdr.input.f8: exact;}
+        actions = {dummy;}
         const entries = {
-            (bit<2>)0 : nono();
+            0 : dummy();
         }
     }
 
     apply {
-	    if (dummy_table.apply().hit) {
-        	hdr.dummy.f1 = (bit<2>)1;
-        } else {
-       		hdr.dummy.f1 = (bit<2>)3;
-        }
-
-        if (dummy_table.apply().miss) {
-        	hdr.dummy.f2 = (bit<2>)3;
-        } else {
-       		hdr.dummy.f2 = (bit<2>)1;
-        }
+        hdr.output.setValid();
+        hdr.output.f1.b = dummy_table.apply().hit;
+        hdr.output.f2.b = dummy_table.apply().miss;
+        hdr.input.setInvalid();
     }
 }
 
-
 CTL_EMIT {
     apply {
-        packet.emit(hdr.dummy);
+        packet.emit(hdr.output);
     }
 }
 
