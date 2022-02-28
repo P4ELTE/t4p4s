@@ -142,10 +142,17 @@ def gen_add_const_entry(table, key_var, entry_var, keys, key_sizes, varinfos, mt
 
 def gen_print_const_entry(table, entry, params, args, mt):
     def make_value(value):
-        is_hex = value.base == 16
+        if value.node_type == 'BoolLiteral':
+            value_const = 1 if value.value else 0
+            value_base = 2
+        else:
+            value_const = value.value
+            value_base = value.base
+
+        is_hex = value_base == 16
         split_places = 4 if is_hex else 3
 
-        val = f'{value.value:x}' if is_hex else f'{value.value}'
+        val = f'{value_const:x}' if is_hex else f'{value_const}'
         val = '_'.join(val[::-1][i:i+split_places] for i in range(0, len(val), split_places))[::-1]
         return f'0x{val},bytes' if is_hex else f'{val}'
 

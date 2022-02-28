@@ -280,7 +280,10 @@ def gen_format_statement_fieldref(dst, src):
     dst_is_vw = dst.type.node_type == 'Type_Varbits'
     dst_bytewidth = (dst_width+7)//8
 
-    assert(dst_width == src.type.size)
+    if src.node_type == 'BoolLiteral':
+        assert(dst_width == 1)
+    else:
+        assert(dst_width == src.type.size)
     assert(dst_is_vw == (src.type.node_type == 'Type_Varbits'))
 
     dst_name = dst.expr.member if dst.expr.node_type == 'Member' else dst.expr.path.name if dst.expr('hdr_ref', lambda h: h.urtype.is_metadata) else dst.expr._hdr_ref._path.name
