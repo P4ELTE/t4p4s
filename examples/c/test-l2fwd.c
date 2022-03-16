@@ -10,11 +10,8 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
         FASTREQ(1, 22, "hit smac, hit dmac", hETH4(ETH02, ETH1A)),
         FASTREQ(1, 33, "hit smac, hit dmac", hETH4(ETH03, ETH1A)),
         FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A)),
-
-
-        // TODO remove; this is how wrong output is shown
-        FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A), INOUT("22","11")),
-        FAST(1, 44, hETH4(ETH04, ETH1A), INOUT("abcd","1234"))
+        
+        FAST(1, BCAST, hETH4("010101010101", "101010101010"))
     );
 
 fake_cmd_t t4p4s_testcase_bcast[][RTE_MAX_LCORE] =
