@@ -11,14 +11,14 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
         FASTREQ(1, 33, "hit smac, hit dmac", hETH4(ETH03, ETH1A)),
         FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A)),
         
-        FAST(1, BCAST, hETH4("010101010101", "101010101010"))
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("010101010101", "101010101010"))
     );
 
 fake_cmd_t t4p4s_testcase_bcast[][RTE_MAX_LCORE] =
     SINGLE_LCORE(
-        SLOWREQ(1, BCAST, "hit smac, hit dmac", hETH4("AAAAAAAAAAAA", "BBBBBBBBBBBB")),
-        FASTREQ(1, BCAST, "hit smac, hit dmac", hETH4("AAAAAAAAAAAB", "BBBBBBBBBBBC")),
-        FASTREQ(1, BCAST, "hit smac, hit dmac", hETH4("AAAAAAAAAAAC", "BBBBBBBBBBBD"))
+        SLOWREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAA", "BBBBBBBBBBBB")),
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAB", "BBBBBBBBBBBC")),
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAC", "BBBBBBBBBBBD"))
     );
 
 
