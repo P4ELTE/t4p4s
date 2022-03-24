@@ -2,12 +2,14 @@
 #pragma once
 
 #ifndef CUSTOM_CTL_EGRESS
-    control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) { apply {} }
+    CTL_EGRESS { apply {} }
 #endif
 
-#ifndef CUSTOM_CTL_CHECKSUM
+#ifdef CUSTOM_CTL_CHECKSUM
+    CTL_VERIFY_CHECKSUM { apply { CustomVerifyChecksumCtl.apply(hdr, meta); } }
+    CTL_UPDATE_CHECKSUM { apply { CustomUpdateChecksumCtl.apply(hdr, meta); } }
+#else
     CTL_VERIFY_CHECKSUM { apply {} }
-
     CTL_UPDATE_CHECKSUM { apply {} }
 #endif
 
