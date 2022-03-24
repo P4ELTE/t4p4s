@@ -30,23 +30,36 @@ uint16_t t4p4s_nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 uint16_t t4p4s_nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
 #ifndef T4P4S_RTE_RSS_HF
-#define T4P4S_RTE_RSS_HF (ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX)
+    #if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+        #define T4P4S_RTE_RSS_HF (RTE_ETH_RSS_IPV4 | RTE_ETH_RSS_NONFRAG_IPV4_TCP | RTE_ETH_RSS_NONFRAG_IPV4_UDP | RTE_ETH_RSS_IPV6 | RTE_ETH_RSS_NONFRAG_IPV6_TCP | RTE_ETH_RSS_NONFRAG_IPV6_UDP | RTE_ETH_RSS_IPV6_EX | RTE_ETH_RSS_IPV6_TCP_EX | RTE_ETH_RSS_IPV6_UDP_EX)
+    #else
+        #define T4P4S_RTE_RSS_HF (ETH_RSS_IPV4 | ETH_RSS_NONFRAG_IPV4_TCP | ETH_RSS_NONFRAG_IPV4_UDP | ETH_RSS_IPV6 | ETH_RSS_NONFRAG_IPV6_TCP | ETH_RSS_NONFRAG_IPV6_UDP | ETH_RSS_IPV6_EX | ETH_RSS_IPV6_TCP_EX | ETH_RSS_IPV6_UDP_EX)
+    #endif
 #endif
 
 struct rte_eth_conf port_conf = {
 #ifndef T4P4S_VETH_MODE
     .rxmode = {
+#if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+        .mq_mode = RTE_ETH_MQ_RX_RSS,
+#else
         .mq_mode = ETH_MQ_RX_RSS,
+#endif
 #if RTE_VERSION >= RTE_VERSION_NUM(21,11,0,0)
         .mtu = RTE_ETH_MAX_LEN,
 #else
         .max_rx_pkt_len = RTE_ETH_MAX_LEN,
 #endif
         .split_hdr_size = 0,
-#if RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
-	#ifndef T4P4S_RTE_OFFLOADS
-	#define T4P4S_RTE_OFFLOADS DEV_RX_OFFLOAD_CHECKSUM
-	#endif
+#if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+    #ifndef T4P4S_RTE_OFFLOADS
+        #define T4P4S_RTE_OFFLOADS RTE_ETH_RX_OFFLOAD_CHECKSUM
+    #endif
+        .offloads = T4P4S_RTE_OFFLOADS,
+#elif RTE_VERSION >= RTE_VERSION_NUM(18,11,0,0)
+    #ifndef T4P4S_RTE_OFFLOADS
+        #define T4P4S_RTE_OFFLOADS DEV_RX_OFFLOAD_CHECKSUM
+    #endif
         .offloads = T4P4S_RTE_OFFLOADS,
 #elif RTE_VERSION >= RTE_VERSION_NUM(18,05,0,0)
         .offloads = DEV_RX_OFFLOAD_CRC_STRIP | DEV_RX_OFFLOAD_CHECKSUM,
@@ -65,7 +78,11 @@ struct rte_eth_conf port_conf = {
         },
     },
     .txmode = {
+#if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+        .mq_mode = RTE_ETH_MQ_TX_NONE,
+#else
         .mq_mode = ETH_MQ_TX_NONE,
+#endif
     },
 #endif
 };

@@ -5,11 +5,18 @@
 
 
 void print_port_link_status(struct rte_eth_link* link, unsigned portid) {
+    #if RTE_VERSION >= RTE_VERSION_NUM(22,03,0,0)
+        int full_duplex = RTE_ETH_LINK_FULL_DUPLEX;
+    #else
+        int full_duplex = ETH_LINK_FULL_DUPLEX;
+    #endif
+
+
     if (link->link_status) {
         debug("   :: Port " T4LIT(%d,port) " " T4LIT(link up,success) " - speed %u Mbps - %s\n",
                (uint8_t)portid,
                (unsigned)link->link_speed,
-               (link->link_duplex == ETH_LINK_FULL_DUPLEX) ? "full-duplex" : "half-duplex");
+               (link->link_duplex == full_duplex) ? "full-duplex" : "half-duplex");
     } else {
         debug("   :: Port " T4LIT(%d,port) " " T4LIT(link down,error) "\n", (uint8_t)portid);
     }
