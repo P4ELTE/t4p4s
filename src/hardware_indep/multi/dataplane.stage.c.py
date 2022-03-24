@@ -30,12 +30,9 @@ else:
     for table, table_info in table_infos:
         tname = table.name
         #{     apply_result_t ${tname}_apply(STDPARAMS) {
-        if 'key' not in table or table.key_bit_size == 0:
+        if table.key_bit_size == 0:
             #[         ENTRY(${tname})* entry = ${tname}_get_default_entry(STDPARAMS_IN);
-            if 'key' not in table:
-                #[         bool hit = true; // no key in table ${table.name}
-            if table.key_bit_size == 0:
-                #[         bool hit = true; // empty key in table ${table.name}
+            #[         bool hit = true; // empty key in table ${table.name}
             #[         ${tname}_apply_show_hit(entry->id, STDPARAMS_IN);
         else:
             #{         #ifdef T4P4S_DEBUG
@@ -50,18 +47,20 @@ else:
 
             noaction_names = table.actions.map('expression.method.path').filter(lambda p: p.name.startswith('NoAction')).map('name')
             if len(noaction_names) == 0:
-                #[         bool hit = true; // lookup on table ${table.name} cannot miss
+                #[         bool is_miss = false; // lookup on table ${table.name} cannot miss
             elif len(noaction_names) == 1:
-                #[         bool hit = entry->id != action_${noaction_names[0]};
+                #[         bool is_miss = entry->id == action_${noaction_names[0]};
             else:
                 addError('Finding NoAction', f'Too many NoActions ({len(noaction_names)}) found')
 
-            #{         if (unlikely(!hit)) {
-            #[             entry = ${tname}_get_default_entry(STDPARAMS_IN);
+            #[         bool hit = !is_miss;
+            #{         if (likely(hit)) {
+            #[             ENTRY($tname)* default_entry = ${tname}_get_default_entry(STDPARAMS_IN);
+            #[             hit = entry != default_entry;
             #}         }
 
             #{         #ifdef T4P4S_DEBUG
-            #[             if (likely(entry != NULL))    ${tname}_apply_show_hit_with_key(hit, entry  KEYTXTPARAM_IN, STDPARAMS_IN);
+            #[             ${tname}_apply_show_hit_with_key(hit, entry  KEYTXTPARAM_IN, STDPARAMS_IN);
             #}         #endif
 
             #{         #ifdef T4P4S_STATS
@@ -73,8 +72,6 @@ else:
 
         if len(table.direct_meters + table.direct_counters) > 0:
             #[         if (likely(hit))    ${tname}_apply_smems(STDPARAMS_IN);
-
-        #[         if (unlikely(entry == NULL))    return (apply_result_t) { hit, INVALID_ACTION };
 
         #[         ${tname}_stats(entry->id, STDPARAMS_IN);
 
