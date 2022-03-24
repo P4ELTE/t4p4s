@@ -46,50 +46,50 @@ CTL_MAIN {
         bit<16> result16;
         bit<32> result32;
 
-        hash(result16, HashAlgorithm.identity, (bit<16>)0, {input16}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.identity, (bit<16>)0, {input16}, (bit<32>)0);
         hdr.expected_result.f16_1 = 0x1234;
-        hash(result16, HashAlgorithm.identity, (bit<16>)0, {input24}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.identity, (bit<16>)0, {input24}, (bit<32>)0);
         hdr.expected_result.f16_2 = 0x1234;
-        hash(result16, HashAlgorithm.identity, (bit<16>)0, {input32}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.identity, (bit<16>)0, {input32}, (bit<32>)0);
         hdr.expected_result.f16_3 = 0x1234;
-        hash(result16, HashAlgorithm.identity, (bit<16>)0, {input40}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.identity, (bit<16>)0, {input40}, (bit<32>)0);
         hdr.expected_result.f16_4 = 0x1234;
-        hash(result16, HashAlgorithm.identity, (bit<16>)0, {input48}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.identity, (bit<16>)0, {input48}, (bit<32>)0);
         hdr.expected_result.f16_5 = 0x1234;
 
 
-        hash(result16, HashAlgorithm.xor16, (bit<16>)0, {input16}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.xor16, (bit<16>)0, {input16}, (bit<32>)0);
         hdr.expected_result.f16_6 = 0x1234;
-        hash(result16, HashAlgorithm.xor16, (bit<16>)0, {input24}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.xor16, (bit<16>)0, {input24}, (bit<32>)0);
         hdr.expected_result.f16_7 = 0x4434;
-        hash(result16, HashAlgorithm.xor16, (bit<16>)0, {input32}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.xor16, (bit<16>)0, {input32}, (bit<32>)0);
         hdr.expected_result.f16_8 = 0x444C;
-        hash(result16, HashAlgorithm.xor16, (bit<16>)0, {input40}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.xor16, (bit<16>)0, {input40}, (bit<32>)0);
         hdr.expected_result.f16_9 = 0xde4c;
-        hash(result16, HashAlgorithm.xor16, (bit<16>)0, {input48}, (bit<32>)0);
+        HASH(result16, HashAlgorithm.xor16, (bit<16>)0, {input48}, (bit<32>)0);
         hdr.expected_result.f16_10 = 0xdef0;
 
-        hash(result16, HashAlgorithm.random, (bit<16>)0, {input16}, (bit<32>)0);
-        log_msg("Result = {} (expected: random 16 bit)", {result16});
-        hash(result16, HashAlgorithm.random, (bit<16>)0, {input32}, (bit<32>)0);
-        log_msg("Result = {} (expected: random 16 bit)", {result16});
+        HASH(result16, HashAlgorithm.random, (bit<16>)0, {input16}, (bit<32>)0);
+        LOG("Result = {} (expected: random 16 bit)", {result16});
+        HASH(result16, HashAlgorithm.random, (bit<16>)0, {input32}, (bit<32>)0);
+        LOG("Result = {} (expected: random 16 bit)", {result16});
 
 
-        hash(result32, HashAlgorithm.identity, (bit<16>)0, {input16}, (bit<32>)0);
+        HASH(result32, HashAlgorithm.identity, (bit<16>)0, {input16}, (bit<32>)0);
         hdr.expected_result.f32_1 = 0x00001234;
-        hash(result32, HashAlgorithm.identity, (bit<16>)0, {input24}, (bit<32>)0);
+        HASH(result32, HashAlgorithm.identity, (bit<16>)0, {input24}, (bit<32>)0);
         hdr.expected_result.f32_2 = 0x00123456;
-        hash(result32, HashAlgorithm.identity, (bit<16>)0, {input32}, (bit<32>)0);
+        HASH(result32, HashAlgorithm.identity, (bit<16>)0, {input32}, (bit<32>)0);
         hdr.expected_result.f32_3 = 0x12345678;
-        hash(result32, HashAlgorithm.identity, (bit<16>)0, {input40}, (bit<32>)0);
+        HASH(result32, HashAlgorithm.identity, (bit<16>)0, {input40}, (bit<32>)0);
         hdr.expected_result.f32_4 = 0x12345678;
-        hash(result32, HashAlgorithm.identity, (bit<16>)0, {input48}, (bit<32>)0);
+        HASH(result32, HashAlgorithm.identity, (bit<16>)0, {input48}, (bit<32>)0);
         hdr.expected_result.f32_5 = 0x12345678;
 
-        hash(result32, HashAlgorithm.random, (bit<16>)0, {input16}, (bit<32>)0);
-        log_msg("Result = {} (expected: random 32 bit)", {result32});
-        hash(result32, HashAlgorithm.random, (bit<16>)0, {input32}, (bit<32>)0);
-        log_msg("Result = {} (expected: random 32 bit)", {result32});
+        HASH(result32, HashAlgorithm.random, (bit<16>)0, {input16}, (bit<32>)0);
+        LOG("Result = {} (expected: random 32 bit)", {result32});
+        HASH(result32, HashAlgorithm.random, (bit<16>)0, {input32}, (bit<32>)0);
+        LOG("Result = {} (expected: random 32 bit)", {result32});
     }
 }
 

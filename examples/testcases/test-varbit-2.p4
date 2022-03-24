@@ -4,7 +4,7 @@
 #include "common-boilerplate-pre.p4"
 
 header varbit_t {
-    varbit<96> f1;
+    varbit<(8*12)> f1;
 }
 
 struct metadata {

@@ -7,8 +7,6 @@ const bit<16> TYPE_IPV4 = 0x800;
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
 
-typedef bit<9>  egressSpec_t;
-
 struct metadata {
     /* empty */
 }
@@ -33,31 +31,18 @@ PARSER {
     }
 }
 
-CTL_MAIN {
-    apply {
-        if (hdr.ipv4.isValid()) {
-            ip4Addr_t tmp = hdr.ipv4.dstAddr;
-            hdr.ipv4.dstAddr = hdr.ipv4.srcAddr;
-            hdr.ipv4.srcAddr = tmp;
-
-            macAddr_t tmp2 = hdr.ethernet.dstAddr;
-            hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
-            hdr.ethernet.srcAddr = tmp2;
-
-            standard_metadata.egress_port = standard_metadata.ingress_port;
-        }
-    }
-}
-
 #define CUSTOM_CTL_CHECKSUM 1
 
-CTL_VERIFY_CHECKSUM {
+CUSTOM_VERIFY_CHECKSUM {
     apply {  }
 }
 
-CTL_UPDATE_CHECKSUM {
+CUSTOM_UPDATE_CHECKSUM {
+    DECLARE_CHECKSUM(bit<32>, CRC16, checksum_var)
     apply {
-        CALL_UPDATE_CHECKSUM(hdr.ipv4.isValid(),
+        CALL_UPDATE_CHECKSUM(
+            checksum_var,
+            hdr.ipv4.isValid(),
             ({
                 hdr.ipv4.version,
                 hdr.ipv4.ihl,
@@ -71,7 +56,26 @@ CTL_UPDATE_CHECKSUM {
                 hdr.ipv4.dstAddr
             }),
             hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
+            csum16);
+    }
+}
+
+CTL_MAIN {
+    apply {
+        if (hdr.ipv4.isValid()) {
+            ip4Addr_t tmp = hdr.ipv4.dstAddr;
+            hdr.ipv4.dstAddr = hdr.ipv4.srcAddr;
+            hdr.ipv4.srcAddr = tmp;
+
+            macAddr_t tmp2 = hdr.ethernet.dstAddr;
+            hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
+            hdr.ethernet.srcAddr = tmp2;
+
+            SET_EGRESS_PORT(GET_INGRESS_PORT());
+
+            CTL_VERIFY_CHECKSUM_APPLY();
+            CTL_UPDATE_CHECKSUM_APPLY();
+        }
     }
 }
 

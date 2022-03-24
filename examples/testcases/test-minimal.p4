@@ -19,15 +19,15 @@ PARSER {
     }
 }
 
-register<bit<32>>(1) test_register;
+DECLARE_REGISTER(bit<32>, 1, test_register)
 
 CTL_MAIN {
     action _drop() {
-        mark_to_drop(standard_metadata);
+        MARK_TO_DROP();
     }
 
-    action forward(bit<9> port) {
-        standard_metadata.egress_port = port;
+    action forward(PortId_t port) {
+        SET_EGRESS_PORT(port);
     }
 
     action mac_learn() {
@@ -37,12 +37,12 @@ CTL_MAIN {
     }
 
     action bcast() {
-		standard_metadata.egress_port = 100;
+        SET_EGRESS_PORT(PortId_const(100));
     }
 
     table smac {
         key = {
-            standard_metadata.ingress_port: exact;
+            GET_INGRESS_PORT(): exact;
         }
         actions = {
             forward;
@@ -55,7 +55,7 @@ CTL_MAIN {
 
     table dmac {
         key = {
-            standard_metadata.ingress_port: exact;
+            GET_INGRESS_PORT(): exact;
         }
         actions = {
             bcast;
@@ -66,7 +66,7 @@ CTL_MAIN {
 
     apply {
         bit<32> test_val;
-        test_register.read(test_val, 0);
+        REGISTER_READ(test_val, test_register, 0);
         smac.apply();
         dmac.apply();
     }

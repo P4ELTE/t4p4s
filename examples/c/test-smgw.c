@@ -10,6 +10,6 @@ fake_cmd_t t4p4s_testcase_common[][RTE_MAX_LCORE] = SINGLE_LCORE(
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
     { "test", &t4p4s_testcase_common, "v1model" },
-    // { "psa",  &t4p4s_testcase_common, "psa" },
+    { "psa",  &t4p4s_testcase_common, "psa" },
     TEST_SUITE_END,
 };

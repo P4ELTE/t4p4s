@@ -25,12 +25,16 @@ PARSER {
 }
 
 CTL_MAIN {
+    DECLARE_RANDOM(bit<8>, rnd8, 0, 254)
+    DECLARE_RANDOM(bit<16>, rnd16, 0, 254)
+    DECLARE_RANDOM(bit<32>, rnd32, 0, 254)
+
     action random8() {
         hdr.outhdr8.setValid();
         // hdr.outhdr8_2.setValid();
 
         bit<8> rand_val;
-        random<bit<8>>(rand_val, 0, 254);
+        RANDOM_READ(rand_val, bit<8>, rnd8, 0, 254);
         hdr.outhdr8.f8 = rand_val;
 
         // random<bit<8>>(hdr.outhdr8_2.f8, 0, 254);
@@ -40,8 +44,9 @@ CTL_MAIN {
         hdr.outhdr16.setValid();
         // hdr.outhdr16_2.setValid();
 
+
         bit<16> rand_val;
-        random<bit<16>>(rand_val, 0, 254);
+        RANDOM_READ(rand_val, bit<16>, rnd16, 0, 254);
         hdr.outhdr16.f16 = rand_val;
 
         // random<bit<16>>(hdr.outhdr16_2.f16, 0, 254);
@@ -52,14 +57,14 @@ CTL_MAIN {
         // hdr.outhdr32_2.setValid();
 
         bit<32> rand_val;
-        random<bit<32>>(rand_val, 0, 254);
+        RANDOM_READ(rand_val, bit<32>, rnd32, 0, 254);
         hdr.outhdr32.f32 = rand_val;
 
         // random<bit<32>>(hdr.outhdr32_2.f32, 0, 254);
     }
 
     apply {
-        standard_metadata.egress_port = 9w123;
+        SET_EGRESS_PORT(PortId_const(123));
 
         if (hdr.inhdr.f8 == 8)     random8();
         if (hdr.inhdr.f8 == 16)    random16();

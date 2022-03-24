@@ -61,14 +61,58 @@ PARSER {
         bit<32> versionihl = (bit<32>)hdr.ipv4.version << 4 + (bit<32>)hdr.ipv4.ihl;
         bit<32> n = (bit<32>) (hdr.ipv4.totalLen) - (bit<32>)(versionihl << 2);
 
-        packet.extract(hdr.icmp, 8*n-64);
+        // packet.extract(hdr.icmp, 8*n-64);
+        packet.extract(hdr.icmp);
         transition accept;
+    }
+}
+
+#define CUSTOM_CTL_CHECKSUM 1
+
+CUSTOM_VERIFY_CHECKSUM {
+    apply {  }
+}
+
+CUSTOM_UPDATE_CHECKSUM {
+    DECLARE_CHECKSUM(bit<32>, CRC16, checksum_var)
+    apply {
+        CALL_UPDATE_CHECKSUM(
+            checksum_var,
+            hdr.icmp.isValid(),
+            ({
+                hdr.icmp.type,
+                hdr.icmp.code,
+                16w0,
+                hdr.icmp.identifier,
+                hdr.icmp.sequence_number
+                // hdr.icmp.padding
+            }),
+            hdr.icmp.checksum,
+            csum16);
+
+        // CALL_UPDATE_CHECKSUM(
+        //     checksum_var,
+        //     hdr.ipv4.isValid(),
+        //     ({
+        //         hdr.ipv4.version,
+        //         hdr.ipv4.ihl,
+        //         hdr.ipv4.diffserv,
+        //         hdr.ipv4.totalLen,
+        //         hdr.ipv4.identification,
+        //         hdr.ipv4.fragOffset,
+        //         hdr.ipv4.ttl,
+        //         hdr.ipv4.protocol,
+        //         hdr.ipv4.srcAddr,
+        //         hdr.ipv4.dstAddr
+        //     }),
+        //     hdr.ipv4.hdrChecksum,
+        //     csum16);
     }
 }
 
 CTL_MAIN {
     action drop() {
-        mark_to_drop(standard_metadata);
+        MARK_TO_DROP();
     }
 
     action arp_reply(macAddr_t request_mac) {
@@ -89,7 +133,7 @@ CTL_MAIN {
         hdr.ethernet.srcAddr = request_mac;
 
         //send it back to the same port
-        standard_metadata.egress_port = standard_metadata.ingress_port;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 
 
@@ -101,17 +145,17 @@ CTL_MAIN {
         hdr.icmp.checksum = 0;
 
         //swap the source and destination IP addresses
-    	bit<32> tmp_ip = hdr.ipv4.srcAddr;
+    	ip4Addr_t tmp_ip = hdr.ipv4.srcAddr;
         hdr.ipv4.srcAddr = hdr.ipv4.dstAddr;
         hdr.ipv4.dstAddr = tmp_ip;
 
         //swap the source and destination MAC addresses
-        bit<48> tmp_mac = hdr.ethernet.dstAddr;
+        macAddr_t tmp_mac = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = tmp_mac;
 
         //send it back to the same port
-        standard_metadata.egress_port = standard_metadata.ingress_port;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 
 
@@ -143,52 +187,15 @@ CTL_MAIN {
     }
 
     apply {
-        if (hdr.arp.isValid()){
+        if (hdr.arp.isValid()) {
             arp_exact.apply();
+            CTL_VERIFY_CHECKSUM_APPLY();
+            CTL_UPDATE_CHECKSUM_APPLY();
         } else if (hdr.icmp.isValid()) {
-          icmp_responder.apply();
+            icmp_responder.apply();
         } else {
-          drop();
+            drop();
         }
-    }
-}
-
-#define CUSTOM_CTL_CHECKSUM 1
-
-CTL_VERIFY_CHECKSUM {
-    apply {  }
-}
-
-CTL_UPDATE_CHECKSUM {
-    apply {
-        CALL_UPDATE_CHECKSUM(hdr.icmp.isValid(),
-            ({
-                hdr.icmp.type,
-                hdr.icmp.code,
-                16w0,
-                hdr.icmp.identifier,
-                hdr.icmp.sequence_number,
-                hdr.icmp.padding
-            }),
-            hdr.icmp.checksum,
-            HashAlgorithm.csum16);
-
-        CALL_UPDATE_CHECKSUM(
-            hdr.ipv4.isValid(),
-            ({
-                hdr.ipv4.version,
-                hdr.ipv4.ihl,
-                hdr.ipv4.diffserv,
-                hdr.ipv4.totalLen,
-                hdr.ipv4.identification,
-                hdr.ipv4.fragOffset,
-                hdr.ipv4.ttl,
-                hdr.ipv4.protocol,
-                hdr.ipv4.srcAddr,
-                hdr.ipv4.dstAddr
-            }),
-            hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
     }
 }
 

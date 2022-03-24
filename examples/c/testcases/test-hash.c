@@ -9,6 +9,7 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
     );
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
-    { "test",           &t4p4s_testcase_test, "v1model" },
+    { "test", &t4p4s_testcase_test, "v1model" },
+    { "psa",  &t4p4s_testcase_test, "psa" },
     TEST_SUITE_END,
 };

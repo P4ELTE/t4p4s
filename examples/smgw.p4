@@ -28,9 +28,9 @@ const bit<16> GTP_UDP_PORT     = 2152;
 const digest_t MAC_LEARN_RECEIVER = 1;
 const digest_t ARP_LEARN_RECEIVER = 1025;
 
-const bit<48> OWN_MAC = 0x001122334455;
-const bit<48> BCAST_MAC = 0xFFFFFFFFFFFF;
-const bit<32> GW_IP = 0x0A000001; // 10.0.0.1
+const macAddr_t OWN_MAC = 0x001122334455;
+const macAddr_t BCAST_MAC = 0xFFFFFFFFFFFF;
+const ip4Addr_t GW_IP = 0x0A000001; // 10.0.0.1
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -40,18 +40,18 @@ const bit<32> GW_IP = 0x0A000001; // 10.0.0.1
 /* GPRS Tunnelling Protocol (GTP) common part for v1 and v2 */
 
 header gtp_common_t {
-        bit<3> version; /* this should be 1 for GTPv1 and 2 for GTPv2 */
-        bit<1> pFlag;   /* protocolType for GTPv1 and pFlag for GTPv2 */
-        bit<1> tFlag;   /* only used by GTPv2 - teid flag */
-        bit<1> eFlag;   /* only used by GTPv1 - E flag */
-        bit<1> sFlag;   /* only used by GTPv1 - S flag */
-        bit<1> pnFlag;  /* only used by GTPv1 - PN flag */
-        bit<8> messageType;
-        bit<16> messageLength;
+    bit<3> version; /* this should be 1 for GTPv1 and 2 for GTPv2 */
+    bit<1> pFlag;   /* protocolType for GTPv1 and pFlag for GTPv2 */
+    bit<1> tFlag;   /* only used by GTPv2 - teid flag */
+    bit<1> eFlag;   /* only used by GTPv1 - E flag */
+    bit<1> sFlag;   /* only used by GTPv1 - S flag */
+    bit<1> pnFlag;  /* only used by GTPv1 - PN flag */
+    bit<8> messageType;
+    bit<16> messageLength;
 }
 
 header gtp_teid_t {
-        bit<32> teid;
+    bit<32> teid;
 }
 
 /* GPRS Tunnelling Protocol (GTP) v1 */
@@ -61,17 +61,17 @@ This header part exists if any of the E, S, or PN flags are on.
 */
 
 header gtpv1_optional_t {
-        bit<16> sNumber;
-        bit<8> pnNumber;
-        bit<8> nextExtHdrType;
+    bit<16> sNumber;
+    bit<8> pnNumber;
+    bit<8> nextExtHdrType;
 }
 
 /* Extension header if E flag is on. */
 
 header gtpv1_extension_hdr_t {
-        bit<8> plength; /* length in 4-octet units */
-        varbit<128> contents; 
-        bit<8> nextExtHdrType;
+    bit<8> plength; /* length in 4-octet units */
+    varbit<128> contents; 
+    bit<8> nextExtHdrType;
 }
 
 
@@ -87,7 +87,7 @@ header gtpv2_ending_t {
 
 struct gtp_metadata_t {
     bit<32> teid;
-    bit<8> color;
+    MeterColor_t(bit<8>) color;
 }
 
 struct arp_metadata_t {
@@ -218,10 +218,10 @@ PARSER {
 }
 
 CTL_MAIN {
-    meter(256, MeterType.bytes) teid_meters;
+    DECLARE_METER(256, bit<32>, bytes, BYTES, teid_meters);
 
     action drop() {
-        mark_to_drop(standard_metadata);
+        MARK_TO_DROP();
     }
     
     action mac_learn() {
@@ -243,7 +243,7 @@ CTL_MAIN {
         hdr.arp_ipv4.sha     = OWN_MAC;
         hdr.arp_ipv4.spa     = meta.arp_metadata.dst_ipv4;
 
-        standard_metadata.egress_port = standard_metadata.ingress_port;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 
     action send_icmp_reply() {
@@ -261,7 +261,7 @@ CTL_MAIN {
         hdr.icmp.type        = ICMP_ECHO_REPLY;
         hdr.icmp.checksum    = 0; // For now
 
-        standard_metadata.egress_port = standard_metadata.ingress_port;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 
     action forward(PortId_t port) {
@@ -270,10 +270,10 @@ CTL_MAIN {
     }
 
     action bcast() {
-        standard_metadata.egress_port = 100;
+        SET_EGRESS_PORT(PortId_const(100));
     }
 
-   action gtp_encapsulate(bit<32> teid, bit<32> ip) {
+   action gtp_encapsulate(bit<32> teid, ip4Addr_t ip) {
         hdr.inner_ipv4.setValid();
         hdr.inner_ipv4 = hdr.ipv4;
         hdr.inner_udp = hdr.udp;
@@ -314,18 +314,18 @@ CTL_MAIN {
     }
 
     action apply_meter(bit<32> mid) {
-        teid_meters.execute_meter(mid, meta.gtp_metadata.color );
+        METER_EXECUTE(meta.gtp_metadata.color, teid_meters, mid);
     }
 
     action pkt_send(macAddr_t nhmac, PortId_t port) {
         SET_EGRESS_PORT(port);
-    hdr.ethernet.dstAddr = nhmac;
+        hdr.ethernet.dstAddr = nhmac;
         standard_metadata.egress_port = port;
     }
 
     table smac {
         key = {
-            standard_metadata.ingress_port : exact;
+            GET_INGRESS_PORT() : exact;
             hdr.ethernet.srcAddr : exact;
         }
         actions = {mac_learn; NoAction;}
@@ -369,7 +369,7 @@ CTL_MAIN {
             actions = { drop; NoAction; }        
             size = 256;
             const default_action = drop;
-            const entries = { ( 0 ) : NoAction();} /* GREEN */
+            const entries = { MeterColor_value(0, GREEN) : NoAction();} /* GREEN */
     }
 
     table ipv4_lpm {

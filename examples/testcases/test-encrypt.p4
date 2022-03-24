@@ -26,7 +26,7 @@ CTL_MAIN {
     apply {
         hdr.offset.offset = hdr.offset.offset + 8w1;
         encrypt({hdr.offset.offset});
-        hdr.offset.offset = hdr.offset.offset - 8w1;
+        hdr.offset.setInvalid();
     }
 }
 

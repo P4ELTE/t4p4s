@@ -12,7 +12,11 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = SINGLE_LCORE(
     FAST(0, 0, IN("00000001"), INOUT(             "ab", x3("ab"))),
     FAST(0, 0, IN("00000002"), INOUT(           "abcd", x3("abcd"))),
     FAST(0, 0, IN("00000008"), INOUT(            c0toF, x3(c0toF))),
-    FAST(0, 0, IN("00000016"), INOUT(c0toF c0toF c0x6B, x3(c0toF c0toF c0x6B)))
+    FAST(0, 0, IN("0000000c"), INOUT(c0toF c0x4B, x3(c0toF c0x4B))),
+
+    // Note: this is longer than the maximum varbit length of 12
+    #define OVERSIZED_CONTENT c0x13B
+    FAST(0, DROP, IN("0000000d"), IN(OVERSIZED_CONTENT))
     );
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {

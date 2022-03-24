@@ -8,13 +8,15 @@ Register<bit<1>, int>(32w1)    reg1;
 
 
 struct gtp_metadata_t {
-    bit<1>  data1;
-    bit<16> data16;
     bit<32> data32;
-
-    bit<1>  regtmp1;
-    bit<16> regtmp16;
     bit<32> regtmp32;
+
+    bit<16> data16;
+    bit<16> regtmp16;
+
+    bit<1>  data1;
+    bit<1>  regtmp1;
+    bit<6>  padding;
 }
 
 struct metadata {
@@ -45,8 +47,8 @@ CTL_MAIN {
     DirectCounter<int>(PSA_CounterType_t.BYTES)             dc_b;
     DirectCounter<int>(PSA_CounterType_t.PACKETS_AND_BYTES) dc_pb;
 
-    Meter<int>(1,   PSA_MeterType_t.BYTES)   m_b;
-    Meter<int>(256, PSA_MeterType_t.PACKETS) m_p;
+    DECLARE_METER(1,   int, bytes, BYTES, m_b)
+    DECLARE_METER(256, int, packets, PACKETS, m_p)
 
     DirectMeter(PSA_MeterType_t.BYTES)   dm_b;
     DirectMeter(PSA_MeterType_t.PACKETS) dm_p;
@@ -67,8 +69,12 @@ CTL_MAIN {
         c_pb.count(3);
         c_pb.count(3);
 
-        m_b.execute(1, PSA_MeterColor_t.GREEN);
-        m_p.execute(11, PSA_MeterColor_t.GREEN);
+        int out1;
+        int out2;
+        METER_EXECUTE_COLOR(out1, m_b, 1,  GREEN)
+        METER_EXECUTE_COLOR(out2, m_p, 11, GREEN)
+        // m_b.execute(1, PSA_MeterColor_t.GREEN);
+        // m_p.execute(11, PSA_MeterColor_t.GREEN);
 
 
         debug.write(99, 12345678);

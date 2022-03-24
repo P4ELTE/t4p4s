@@ -4,37 +4,33 @@ struct metadata {
 }
 
 struct headers {
-    @name(".ethernet") 
     ethernet_t ethernet;
 }
 
 PARSER {
-    @name(".parse_ethernet") state parse_ethernet {
+    state start {
         packet.extract(hdr.ethernet);
         transition accept;
-    }
-    @name(".start") state start {
-        transition parse_ethernet;
     }
 }
 
 CTL_MAIN {
     DECLARE_DIGEST(mac_learn_digest_t, mac_learn_digest)
 
-    @name(".forward") action forward(PortId_t port) {
+    action forward(PortId_t port) {
         SET_EGRESS_PORT(port);
     }
-    @name(".bcast") action bcast() {
+    action bcast() {
         SET_EGRESS_PORT(PortId_const(100));
     }
-    @name(".mac_learn") action mac_learn() {
+    action mac_learn() {
         CALL_DIGEST(mac_learn_digest_t, mac_learn_digest, 1024, ({ hdr.ethernet.srcAddr, GET_INGRESS_PORT() }));
     }
-    @name("._nop") action _nop() {
+    action _nop() {
     }
-    @name("._nop") action testing(bit<32> arg1, bit<32> arg2) {
+    action testing(bit<32> arg1, bit<32> arg2) {
     }
-    @name(".dmac") table dmac {
+    table dmac {
         actions = {
             forward;
             bcast;
@@ -55,7 +51,7 @@ CTL_MAIN {
             }
         #endif
     }
-    @name(".smac") table smac {
+    table smac {
         actions = {
             mac_learn;
             _nop;
@@ -73,7 +69,9 @@ CTL_MAIN {
 }
 
 CTL_EMIT {
-    apply {}
+    apply {
+        packet.emit(hdr.ethernet);
+    }
 }
 
 #include "common-boilerplate-post.p4"

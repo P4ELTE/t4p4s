@@ -67,10 +67,10 @@ struct routing_metadata_t {
 
     ip4Addr_t dst_ipv4;
     ip4Addr_t src_ipv4;
-    macAddr_t  mac_da;
-    macAddr_t  mac_sa;
-    bit<9>   egress_port;
-    macAddr_t  my_mac;
+    macAddr_t mac_da;
+    macAddr_t mac_sa;
+    PortId_t  egress_port;
+    macAddr_t my_mac;
 
     ip4Addr_t nhop_ipv4;
     bit<1>  do_forward;
@@ -230,7 +230,7 @@ CTL_MAIN {
         hdr.gre.setInvalid();
         meta.routing_metadata.tunnel_id = tunnel_id;
         meta.routing_metadata.dst_ipv4 = hdr.inner_ipv4.dstAddr;
-        SET_EGRESS_PORT(1);
+        SET_EGRESS_PORT((PortId_t)1);
         meta.routing_metadata.is_ext_if = 0;
     }
 
@@ -339,7 +339,7 @@ CTL_MAIN {
 
     @name(".sendout") table sendout {
         actions = {drop; rewrite_src_mac; }
-        key = {  GET_EGRESS_PORT(): exact; }
+        key = {  GET_EGRESS_PORT_SIMPLE(): exact; }
         size = 512;
     }
 
@@ -351,7 +351,7 @@ CTL_MAIN {
 
     @name(".sendout_dw") table sendout_dw {
         actions = {drop; rewrite_src_mac_dw; }
-        key = {  GET_EGRESS_PORT(): exact; }
+        key = {  GET_EGRESS_PORT_SIMPLE(): exact; }
         size = 512;
     }
 

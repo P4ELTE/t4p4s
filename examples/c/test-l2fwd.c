@@ -6,19 +6,19 @@
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
     SINGLE_LCORE(
         WAIT_FOR_CTL,
-        SLOWREQ(1, 11, "hit smac, hit dmac", hETH4(ETH01, ETH1A)),
+        SLOWREQ(1, 11, "miss smac, hit dmac", hETH4(ETH01, ETH1A)),
         FASTREQ(1, 22, "hit smac, hit dmac", hETH4(ETH02, ETH1A)),
         FASTREQ(1, 33, "hit smac, hit dmac", hETH4(ETH03, ETH1A)),
         FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A)),
-        
-        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("010101010101", "101010101010"))
+
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4(x6("01"), x6("10")))
     );
 
 fake_cmd_t t4p4s_testcase_bcast[][RTE_MAX_LCORE] =
     SINGLE_LCORE(
-        SLOWREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAA", "BBBBBBBBBBBB")),
-        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAB", "BBBBBBBBBBBC")),
-        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4("AAAAAAAAAAAC", "BBBBBBBBBBBD"))
+        SLOWREQ(1, BCAST, "miss smac, miss dmac", hETH4(x5("AA") "AA", x5("BB") "BB")),
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4(x5("AA") "AB", x5("BB") "BC")),
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4(x5("AA") "AC", x5("BB") "BD"))
     );
 
 
