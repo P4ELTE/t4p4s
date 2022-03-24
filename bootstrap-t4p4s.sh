@@ -68,9 +68,9 @@ PYTHON3=${PYTHON3-$(find_tool "." python3 python3)}
 T4P4S_CC=${T4P4S_CC-$(find_tool "-" clang clang gcc gcc)}
 if [[ ! "$T4P4S_CC" =~ "clang" ]]; then
     # note: when using gcc, only lld seems to be supported, not lld-VSN
-    T4P4S_LD=${T4P4S_LD-$(find_tool "" lld lld bfd bfd gold gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "" mold mold lld lld bfd bfd gold gold)}
 else
-    T4P4S_LD=${T4P4S_LD-$(find_tool "-" lld lld bfd bfd gold gold)}
+    T4P4S_LD=${T4P4S_LD-$(find_tool "-" mold mold lld lld bfd bfd gold gold)}
 fi
 
 T4P4S_CXX=${T4P4S_CXX-$(find_tool "-" "clang++" clang "g++" "g++")}
@@ -500,11 +500,13 @@ if [ "$INSTALL_STAGE2_DPDK" == "yes" ]; then
 
     if [ "$SLIM_INSTALL" == "yes" ]; then
         DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-baseband/acc100,baseband/fpga_5gnr_fec,baseband/fpga_lte_fec,baseband/null,baseband/turbo_sw,bus/dpaa,bus/fslmc,bus/ifpga,bus/vmbus,common/cpt,common/dpaax,common/iavf,common/octeontx,common/octeontx2,common/qat,common/sfc_efx,compress/octeontx,compress/zlib,crypto/bcmfs,crypto/caam_jr,crypto/ccp,crypto/dpaa2_sec,crypto/dpaa_sec,crypto/nitrox,crypto/null,crypto/octeontx,crypto/octeontx2,crypto/openssl,crypto/scheduler,crypto/virtio,event/dlb,event/dlb2,event/dpaa,event/dpaa2,event/dsw,event/octeontx,event/octeontx2,event/opdl,event/skeleton,event/sw,mempool/bucket,mempool/dpaa,mempool/dpaa2,mempool/octeontx,mempool/octeontx2,mempool/ring,mempool/stack,net/af_packet,net/ark,net/atlantic,net/avp,net/axgbe,net/bnx2x,net/bnxt,net/cxgbe,net/dpaa,net/dpaa2,net/e1000,net/ena,net/enetc,net/enic,net/failsafe,net/bond,net/fm10k,net/hinic,net/hns3,net/i40e,net/iavf,net/ice,net/igc,net/ionic,net/ixgbe,net/kni,net/liquidio,net/memif,net/netvsc,net/nfp,net/null,net/octeontx,net/octeontx2,net/pfe,net/qede,net/ring,net/sfc,net/softnic,net/tap,net/thunderx,net/txgbe,net/vdev_netvsc,net/vhost,net/virtio,net/vmxnet3,raw/dpaa2_cmdif,raw/dpaa2_qdma,raw/ioat,raw/ntb,raw/octeontx2_dma,raw/octeontx2_ep,raw/skeleton,regex/octeontx2,vdpa/ifc}
-
-        # no apps are needed, but there is no convenient option to turn them off
-        sed -i -e 's/\(foreach app\)/apps = []\n\1/g' "${RTE_SDK}/app/meson.build"
     else
         DPDK_DISABLED_DRIVERS=${DPDK_DISABLED_DRIVERS-""}
+    fi
+
+    if [ "$SLIM_INSTALL" == "yes" -o "$DPDK_APPS" == "no" ]; then
+        # no apps are needed, but there is no convenient option to turn them off
+        sed -i -e 's/\(foreach app\)/apps = []\n\1/g' "${RTE_SDK}/app/meson.build"
     fi
 
     cd "$RTE_SDK"
