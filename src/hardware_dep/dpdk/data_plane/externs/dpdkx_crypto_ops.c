@@ -118,18 +118,27 @@ void process_hmac_result(crypto_task_type_e task_type, packet_descriptor_t *pd,
                          crypto_task_s *crypto_task) {
     unsigned int lcore_id = rte_lcore_id();
 
+    uint8_t* wrapper_pointer = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+    uint32_t target_relative = crypto_task->offset +
+                               crypto_task->plain_length_to_encrypt;
+    uint8_t* target = wrapper_pointer + target_relative;
     if (dequeued_rte_crypto_ops[lcore_id][0]->sym->m_dst) {
         uint8_t *auth_tag = rte_pktmbuf_mtod_offset(dequeued_rte_crypto_ops[lcore_id][0]->sym->m_dst, uint8_t *,
                                                     crypto_task->padding_length);
-        uint32_t target_position = crypto_task->offset +
-                                   crypto_task->plain_length_to_encrypt +
-                                   crypto_task->padding_length;
 
-        uint8_t* target = rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + target_position;
-        memcpy(target,auth_tag,MD5_DIGEST_LEN);
+        memmove(target,auth_tag,MD5_DIGEST_LEN);
+        rte_pktmbuf_trim(pd->wrapper,crypto_task->padding_length);
+    }else {
+        uint8_t from_relative = crypto_task->offset +
+                                crypto_task->plain_length_to_encrypt +
+                                crypto_task->padding_length;
+        uint8_t*  from_position = wrapper_pointer + from_relative;
+
+        memmove(target,from_position,MD5_DIGEST_LEN);
+        rte_pktmbuf_trim(pd->wrapper,crypto_task->padding_length);
     }
     rte_pktmbuf_adj(pd->wrapper, sizeof(int));
-    dbg_bytes(pd->wrapper, rte_pktmbuf_pkt_len(pd->wrapper),
+    dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper),
               " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
               crypto_task_type_names[task_type], rte_pktmbuf_pkt_len(pd->wrapper));
 }
