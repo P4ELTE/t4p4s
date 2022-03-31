@@ -3,13 +3,15 @@
 
 #include "test.h"
 
-fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = SINGLE_LCORE(
-    WAIT_FOR_CTL,
-    SLOW(0, 11, hETH4(ETH01, ETH1A)),
-    SLOW(0, 22, hETH4(ETH02, ETH1A)),
-    SLOW(0, 33, hETH4(ETH03, ETH1A)),
-    SLOW(0, 44, hETH4(ETH04, ETH1A)),
-    FAST(1, BCAST, hETH4("010101010101", "101010101010"))
+fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = 
+	SINGLE_LCORE(
+        WAIT_FOR_CTL,
+        SLOWREQ(1, 11, "miss smac, hit dmac", hETH4(ETH01, ETH1A)),
+        FASTREQ(1, 22, "hit smac, hit dmac", hETH4(ETH02, ETH1A)),
+        FASTREQ(1, 33, "hit smac, hit dmac", hETH4(ETH03, ETH1A)),
+        FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A)),
+
+        FASTREQ(1, BCAST, "miss smac, miss dmac", hETH4(x6("01"), x6("10")))
     );
 
 fake_cmd_t t4p4s_testcase_bcast[][RTE_MAX_LCORE] = SINGLE_LCORE(
