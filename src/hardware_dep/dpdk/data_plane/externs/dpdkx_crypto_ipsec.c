@@ -10,6 +10,7 @@
 #include <rte_dev.h>
 #include <rte_bus_vdev.h>
 #include <rte_errno.h>
+#include <rte_ip.h>
 
 #ifdef RTE_LIBRTE_PMD_CRYPTO_SCHEDULER
     #include <rte_cryptodev_scheduler.h>
@@ -107,6 +108,23 @@ void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS) {
     int HMAC_offset = rte_pktmbuf_pkt_len(pd->wrapper) - kept_HMAC_length;
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper), "   :: IPsec done, keeping " T4LIT(%dB) " of " T4LIT(%dB) " " T4LIT(HMAC,field) " at offset " T4LIT(%d) ": ", kept_HMAC_length, total_HMAC_length, HMAC_offset);
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*) + HMAC_offset, kept_HMAC_length, "   :: IPsec done, keeping " T4LIT(%dB) " of " T4LIT(%dB) " " T4LIT(HMAC,field) " at offset " T4LIT(%d) ": ", kept_HMAC_length, total_HMAC_length, HMAC_offset);
+
+    uint16_t* cksum_pointer = (uint16_t*)(wrapper_pointer + eth_length + 10);
+    *(cksum_pointer) = 0;
+
+    uint32_t* protocol_pointer = (uint32_t*)(wrapper_pointer + eth_length + 9);
+    *protocol_pointer = 0x32;
+
+    uint32_t* ip_src_pointer = (uint32_t*)(wrapper_pointer + eth_length + 12);
+    *ip_src_pointer = 0x03030303;
+    uint32_t* ip_dst_pointer = (uint32_t*)(wrapper_pointer + eth_length + 16);
+    *ip_dst_pointer = 0x04040404;
+
+    dbg_bytes(wrapper_pointer + eth_length,ip_length , "   :: Ipv4 checksum calculation input: ");
+    uint16_t calculated_cksum = rte_raw_cksum(wrapper_pointer + eth_length, ip_length);
+    calculated_cksum = (calculated_cksum == 0xffff) ? calculated_cksum : ((~calculated_cksum) & 0xffff);
+    *(cksum_pointer) = calculated_cksum;
+
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper), "   :: IPsec done, final result: ");
 }
 
