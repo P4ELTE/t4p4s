@@ -14,16 +14,16 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
                                         hARP("0000"),
                                         hARP4("000000000000", "00000000", "000000000000", "00000000")),
                     
-        FASTREQ(1, DROP, "hit macfwd, miss ipv4_lpm, hit nexthops", 
+        FASTREQ(1, DROP, "hit macfwd, miss ipv4_lpm, miss nexthops", 
                          hETH(LPM_ETH2, ETH1A, cIPV4), 
                          hIP4("00", cIP4_0, cIP4_0)),
                                               
-        FASTREQ(1, DROP, "hit macfwd, miss ipv4_lpm, hit nexthops", 
+        FASTREQ(1, DROP, "hit macfwd, miss ipv4_lpm, miss nexthops", 
                          hETH(LPM_ETH2, ETH1A, cARP), 
                          hARP("0000"),
                          hARP4("000000000000", "00000000", "000000000000", "00000000")),
                          
-        FASTREQ(1, 0, "hit macfwd, hit ipv4_lpm, hit nexthops", 
+        FASTREQ(1, 0, "hit macfwd, hit ipv4_lpm, miss nexthops", 
                          hETH(LPM_ETH2, ETH1A, cIPV4), 
                          hIP4("00", cIP4_0, "32000a02"))
                                               

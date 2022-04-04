@@ -1,6 +1,6 @@
-N 0 0 ee:ee:ed:da:00:01 aa:aa:ab:ba:00:01
-N 1 1 ee:dd:dd:aa:00:01 aa:bb:bb:aa:00:01
-N 2 1 ee:dd:dd:aa:00:02 aa:bb:bb:aa:00:02
+N 1 1 ee:ee:ed:da:00:01 aa:aa:ab:ba:00:01
+N 2 2 ee:dd:dd:aa:00:01 aa:bb:bb:aa:00:01
+N 3 2 ee:dd:dd:aa:00:02 aa:bb:bb:aa:00:02
 N 253 1 a1:a2:a3:a4:a5:a6 b1:b2:b3:b4:b5:b6
 E 150.0.1.2 24 0
 E 150.0.2.2 24 0
