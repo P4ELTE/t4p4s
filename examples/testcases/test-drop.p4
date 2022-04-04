@@ -25,7 +25,7 @@ PARSER {
 CTL_MAIN {
     apply {
     	MARK_TO_DROP();
-    	standard_metadata.egress_port = 23;
+    	standard_metadata.egress_port = (PortId_t)23;
     }
 }
 
