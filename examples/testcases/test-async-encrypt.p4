@@ -20,12 +20,12 @@ PARSER {
     }
 }
 
-extern void do_encryption_async<T>(in T offset);
+extern void async_encrypt<T>(in T offset);
 
 CTL_MAIN {
     apply {
         hdr.offset.offset = hdr.offset.offset + 8w1;
-        do_encryption_async({hdr.offset.offset});
+        async_encrypt({hdr.offset.offset});
         hdr.offset.offset = hdr.offset.offset - 8w1;
     }
 }
