@@ -140,9 +140,9 @@ void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, pack
         getcontext(context);
         context->uc_link = &lcdata->conf->main_loop_context;
         makecontext(context, (packet_handler_noparams_t)handler_function, 5, port_id, queue_idx, pkt_idx, LCPARAMS_IN);
-        debug("   " T4LIT(<<,async) " Swapping to packet context " T4LIT(%p,async) "\n", context);
+        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) "\n", context);
         swapcontext(&lcdata->conf->main_loop_context, context);
-        debug("   " T4LIT(>>,async) " Swapped back to " T4LIT(main context,async) "\n");
+        debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     }
 #elif ASYNC_MODE == ASYNC_MODE_PD
     packet_handler_t handler_fun = handler_function;
@@ -204,9 +204,9 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         void* context = extraInformationForAsyncHandling;
         // suspend processing of packet and go back to the main context
-        debug("   " T4LIT(<<,async) " Swapping to " T4LIT(main context,async) "\n");
+        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to ,warning) " " T4LIT(main context,async) "\n");
         swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
-        debug("   " T4LIT(>>,async) " Swapped back to packet context " T4LIT(%p,async) "\n", context);
+        debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to packet context ,warning) " " T4LIT(%p,async) "\n", context);
         reset_pd(pd);
         // restoring standard metadata from context
 
@@ -347,9 +347,9 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         pd->context = context;
 
-        debug("   " T4LIT(<<,async) " Swapping to packet context " T4LIT(%p,async) "\n", context);
+        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) "\n", context);
         swapcontext(&lcdata->conf->main_loop_context, context);
-        debug("   " T4LIT(>>,async) " Swapped back to " T4LIT(main context,async) "\n");
+        debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     #elif ASYNC_MODE == ASYNC_MODE_PD
         pd->program_restore_phase += 1;
         do_handle_packet(lcdata, pd, pd->port_id, pd->queue_idx, pd->pkt_idx);

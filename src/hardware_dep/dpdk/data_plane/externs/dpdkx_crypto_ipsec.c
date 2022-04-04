@@ -21,6 +21,7 @@ extern void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_
 
 // -----------------------------------------------------------------------------
 // Implementation of P4 architecture externs
+extern void do_async_crypto_operation(crypto_task_type_e task_type, int offset, int phase, SHORT_STDPARAMS);
 
 void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS) {
     int wrapper_size = rte_pktmbuf_pkt_len(pd->wrapper);
@@ -92,10 +93,10 @@ void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS) {
 
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper), "Actual wrapper (" T4LIT(%dB) "): ", rte_pktmbuf_pkt_len(pd->wrapper));
 
-    do_crypto_operation(CRYPTO_TASK_ENCRYPT, eth_length + ip_length + esp_head_size + iv_size, SHORT_STDPARAMS_IN);
+    do_async_crypto_operation(CRYPTO_TASK_ENCRYPT, eth_length + ip_length + esp_head_size + iv_size, 0, SHORT_STDPARAMS_IN);
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper), "Actual wrapper (" T4LIT(%dB) "): ", rte_pktmbuf_pkt_len(pd->wrapper));
     debug("offset for hmac: %d\n",eth_length + ip_length)
-    do_crypto_operation(CRYPTO_TASK_MD5_HMAC, eth_length + ip_length, SHORT_STDPARAMS_IN);
+    do_async_crypto_operation(CRYPTO_TASK_MD5_HMAC, eth_length + ip_length, 1 , SHORT_STDPARAMS_IN);
 
     // We keep only 12 bytes from 16 byte HMAC
     rte_pktmbuf_trim(pd->wrapper, total_HMAC_length - kept_HMAC_length);
