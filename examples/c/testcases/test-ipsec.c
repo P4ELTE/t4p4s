@@ -5,10 +5,9 @@
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = SINGLE_LCORE(
         FAST(0, 0,
-             IN(hETH4("DDDDDDDDDDDD", "EEEEEEEEEEEE")), // dddd dddd dddd eeee eeee eeee 0800 #len: 14
+             hETH4("DDDDDDDDDDDD", "EEEEEEEEEEEE"), // dddd dddd dddd eeee eeee eeee 0800 #len: 14
              IN(hMISC(IPv4, "4500" "0016" "0001" "0000" "40" "00" "74e2" "01010101" "02020202")), // 4500 0016 0001 0000 4000 74e2 0101 0101 0202 0202 #len: 20
              IN(PAYLOAD("abcd")),
-             OUT(hETH4("DDDDDDDDDDDD", "EEEEEEEEEEEE")),
              OUT(hMISC(IPv4, "4500" "0058" "0001" "0000" "40" "32" "6c66" "03030303" "04040404")),
              OUT(hMISC(ESPHead, "0000022200000001")),
              OUT(hMISC(IV, "00000000000000000000000000000000")),

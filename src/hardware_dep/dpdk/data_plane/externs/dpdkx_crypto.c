@@ -33,7 +33,7 @@ void do_encryption_async(uint8_buffer_t offset, SHORT_STDPARAMS)
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL){
             COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
-            do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_ENCRYPT);
+            do_crypto_operation(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
@@ -50,7 +50,7 @@ void do_encryption_async(uint8_buffer_t offset, SHORT_STDPARAMS)
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
     #elif ASYNC_MODE == ASYNC_MODE_OFF
-        do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_ENCRYPT);
+        do_crypto_operation(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
     #endif
@@ -60,7 +60,7 @@ void do_decryption_async(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context != NULL) {
-            do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_DECRYPT);
+            do_crypto_operation(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
         }else{
             debug(T4LIT(Cannot find the context. We cannot do an async operation!,error) "\n");
         }
@@ -73,7 +73,7 @@ void do_decryption_async(uint8_buffer_t offset, SHORT_STDPARAMS)
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         ;
     #elif ASYNC_MODE == ASYNC_MODE_OFF
-            do_crypto_task(pd, offset.buffer[0], CRYPTO_TASK_DECRYPT);
+        do_crypto_operation(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
     #endif
