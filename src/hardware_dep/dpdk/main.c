@@ -143,10 +143,12 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
                 COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
                 async_handle_packet(portid, queue_idx, pkt_idx, do_handle_packet, LCPARAMS_IN);
                 return;
+            }else {
+                do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
             }
+        #else
+            do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
         #endif
-
-        do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
     }
 
     main_loop_post_single_rx(got_packet, LCPARAMS_IN);
