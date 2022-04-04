@@ -51,6 +51,8 @@
             dbg_unlock(); \
         }
 
+    #define dbg_mbuf(buf, MSG, ...) dbg_bytes(rte_pktmbuf_mtod(buf, uint8_t*), rte_pktmbuf_pkt_len(buf), MSG " (" T4LIT(%uB) "): ", ##__VA_ARGS__, rte_pktmbuf_pkt_len(buf))
+
     #define dbg_print(bytes, bit_count, MSG, ...) \
         { \
             char fmt[256]; \

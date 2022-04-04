@@ -60,12 +60,6 @@ extern void free_packet(LCPARAMS);
 
 extern void reset_pd(packet_descriptor_t *pd);
 extern void do_handle_packet(LCPARAMS, int portid, unsigned queue_idx, unsigned pkt_idx);
-
-void debug_mbuf(struct rte_mbuf* mbuf, const char* message) {
-    uint8_t* buf = rte_pktmbuf_mtod(mbuf, uint8_t*);
-    dbg_bytes(buf, mbuf->buf_len, "" T4LIT(%s,extern) " ", message);
-
-}
 extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
 extern void debug_crypto_task(crypto_task_s *op);
 
@@ -180,7 +174,7 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_t
     debug_crypto_task(crypto_task);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, crypto_task);
-    debug_mbuf(crypto_task->data, "   :: Enqueued for async");
+    dbg_mbuf(crypto_task->data, "   :: Enqueued for async");
 }
 
 void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type)
@@ -309,7 +303,7 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
 
 static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcdata, packet_descriptor_t *pd)
 {
-    debug_mbuf(mbuf, "Data after async function: ");
+    dbg_mbuf(mbuf, "Data after async function");
 
     // Extracting extra content from the mbuf
 
@@ -317,7 +311,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, struct lcore_data* lcd
     rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
 
     #if ASYNC_MODE == ASYNC_MODE_PD
-        debug_mbuf(mbuf, "Data after removing packet length: ");
+    dbg_mbuf(mbuf, "Data after removing packet length");
             debug("Loaded packet length: %d\n",packet_size);
     #endif
 

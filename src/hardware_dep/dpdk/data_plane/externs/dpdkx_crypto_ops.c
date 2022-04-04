@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <rte_dev.h>
 #include <error.h>
+#include <util_debug.h>
 #include <unistd.h>
 #include <iso646.h>
 
@@ -53,10 +54,9 @@ void reset_pd(packet_descriptor_t *pd)
 
 void debug_crypto_task(crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
-        uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
-        unsigned long total_length = sizeof(uint32_t) + op->plain_length_to_encrypt + op->padding_length ;
-        dbg_bytes(buf, total_length, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation (" T4LIT(%luB) "): ", crypto_task_type_names[op->type], total_length);
+        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation", crypto_task_type_names[op->type])
 
+        uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
         dbg_bytes(buf, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
         dbg_bytes(buf + op->offset, op->plain_length_to_encrypt, "   :: Data (" T4LIT(%dB) ")    : ", op->plain_length_to_encrypt);
         debug("   :: plain_length_to_encrypt: %d\n",op->plain_length_to_encrypt);
