@@ -23,10 +23,10 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] =
                          hARP("0000"),
                          hARP4("000000000000", "00000000", "000000000000", "00000000")),
                          
-        FASTREQ(1, 0, "hit macfwd, hit ipv4_lpm, miss nexthops", 
+        FASTREQ(1, 2, "hit macfwd, hit ipv4_lpm, hit nexthops", 
                          hETH(LPM_ETH2, ETH1A, cIPV4), 
                          hIP4("00", cIP4_0, "32000a02"))
-                                              
+                         
         //FASTREQ(1, 22, "hit smac, hit dmac", hETH4(ETH02, ETH1A)),
         //FASTREQ(1, 33, "hit smac, hit dmac", hETH4(ETH03, ETH1A)),
         //FASTREQ(1, 44, "hit smac, hit dmac", hETH4(ETH04, ETH1A)),

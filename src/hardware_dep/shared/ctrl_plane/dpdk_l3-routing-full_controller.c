@@ -167,7 +167,7 @@ void init_simple() {
 	uint8_t mac[6] = {0xd2, 0x69, 0x0f, 0xa8, 0x39, 0x9c};
 	uint8_t smac[6] = {0xd2, 0x69, 0x0f, 0x00, 0x00, 0x9c};
 	uint8_t port = 15;
-	uint32_t nhgrp = 0;
+	uint32_t nhgrp = 1;
 
     set_default_action_nexthops();
     set_default_action_ipv4_lpm();
