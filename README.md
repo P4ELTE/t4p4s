@@ -87,6 +87,15 @@ Overriding defaults.
     T4P4S_CC=gcc T4P4S_CXX=g++ T4P4S_LD=bfd . ./bootstrap-t4p4s.sh
 
 
+### First Example
+
+You can test the correct installation of the compiler by running the following simple example `./t4p4s.sh %l2fwd`.
+
+This should result in the following message `T₄P₄S switch running ./examples/p4_14/l2fwd.p4_14  exited normally`.
+
+The example runs a single test case offline (so no network card is needed to test it). 
+
+
 ### Options
 
 In the `t4p4s.sh` script, options control the process of compilation and execution.
@@ -137,47 +146,10 @@ The format of option definitions is the following.
     | %myexample=mytestcase   | example=**myexample** variant=test testcase=**mytestcase**              |
     | %myexample              | example=**myexample** variant=test testcase=test                        |
     | %%myexample=mytestcase  | example=**myexample** variant=test verbose dbg testcase=**mytestcase**  |
-    | %%myexample             | example=**myexample** variant=test verbose=lines dbg suite                    |
 
-### Crypto devices for cryptography operations
-
-It is hardcoded in the current prototype to create an OpenSSL-based virtual crypto device in DPDK in order to support encryption and decryption extern functions. The PMD for this virtual device is not compiled in DPDK by default.
-
-To enable the OpenSSL crypto PMD, edit **dpdk-19.02/config/common_base** by changing
-
-~~~
-CONFIG_RTE_LIBRTE_PMD_OPENSSL=n
-~~~
-
-to
-
-~~~
-CONFIG_RTE_LIBRTE_PMD_OPENSSL=y
-~~~
-
-and do a rebuild on DPDK.
-
-You can also activate a separate crypto node to run the commands with parameter `crypto_node=openssl`. If you run a crypto node, you have to configure an extra core that only will do the external job.
-
-If you want to test with a constant time external function, you can set `crypto_node=fake` and set for example the time with `fake_crypto_time=5000` that sets the external function to run until 5000 clock ticks.
-
-An example call of async mode:
-
-```
-./t4p4s.sh :l2fwd-gen cores=4 ports=3x2 async_mode=pd crypto_node=fake fake_crypto_time=3000
-```
 
 
 ### Execution
-
-The `t4p4s.sh` script uses settings from three configuration files.
-
-1. `light.cfg` describes how texts in the terminal and switch output look.
-1. `examples.cfg` describes default options for the examples.
-    - A set of parameters for an example is called a configuration _variant_.
-    - On the command line, you have to specify the _example_ (by name or full path) and the _variant name_.
-1. An architecture specific file (for DPDK, `opts_dpdk.cfg`) describes how the options are to be interpreted: they are translated to more options.
-    - Everything apart from the _example_ is considered an option on the command line.
 
 The script returns an exit code of `0` if the execution was successful, and a non-zero value otherwise.
 
@@ -194,13 +166,14 @@ The script creates `build/<example-name>`.
 
 ### Examples
 
-Note that for non-testing examples, you will have to setup your network card, and probably adjust your configuration options.
+#### Note that for non-testing examples, you will have to setup your network card, and probably adjust your configuration options.
+
 
 1. Specify an example
     - Run an example with the default configuration
         `./t4p4s.sh :l2fwd`
     - The program finds the source file under `examples` automatically, but you can also specify it manually
-        `./t4p4s.sh ./examples/l2fwd.p4_14`
+        `./t4p4s.sh ./examples/p4_14/l2fwd.p4_14 model=v1model` 
 1. Execution phases, option settings
     - Specify one or more steps to be taken
         `./t4p4s.sh :l2fwd p4`
@@ -241,21 +214,11 @@ Note that for non-testing examples, you will have to setup your network card, an
         `./t4p4s.sh :l2fwd silent`
     - If the switch fails, runs it again in the debugger (by default, `gdb`)
         `./t4p4s.sh :l2fwd autodbg`
-1. Variants, testing
-    - Specify a variant, a set of configuration options
-        `./t4p4s.sh :l2fwd @test`
-        `./t4p4s.sh :l2fwd variant=test`
+1. Testing 
     - Run a single test case
         - It runs offline: no network card is needed
-        - Data for the test case is in `examples/test-l2fwd.c`
-        `./t4p4s.sh :l2fwd @test testcase=test`
-        `./t4p4s.sh :l2fwd @test testcase=payload`
-    - Abbreviated form (also sets `@test`)
-        `./t4p4s.sh %l2fwd=payload`
-    - Another abbreviation, equivalent to using `testcase`, `dbg` and `@test`
-        `./t4p4s.sh ::l2fwd`
-    - Run the test suite for the example
-        `./t4p4s.sh %%l2fwd`
+          `./t4p4s.sh %l2fwd=test`, `./t4p4s.sh %l2fwd=payload` 
+        - Data for the test case is in `examples/test-l2fwd.c`     
     - Stop the switch immediately upon encountering invalid data
         `./t4p4s.sh %l2fwd=payload strict`
 1. Hugepages
@@ -305,6 +268,8 @@ Note that for non-testing examples, you will have to setup your network card, an
 1. Miscellaneous options
     - Specify the P₄ version manually (usually decided by other options or P₄ file extension)
         `./t4p4s.sh :l2fwd vsn=14`
+    - Specify the used architecture model manually
+        `./t4p4s.sh :l2fwd-gen model=v1model`, `./t4p4s.sh :l2fwd-gen model=psa`    
     - Pass a test option to the P₄ compiler. This defines a macro called `T4P4S_TEST_1` that is available during P₄ preprocessing.
         `./t4p4s.sh %my_p4 p4testcase=1`
 
@@ -335,7 +300,7 @@ See the default skip file, `tests_to_skip.txt`, for further details.
 
 The batch file processes all P4 files from the folder `examples` and its subfolders (including symlinked ones) by default. You can override it like this.
 
-    START_DIR=examples/test/testcases-v1/ ./run_tests.sh verbose dbg stats
+    START_DIR=my_examples/testcases/ ./run_tests.sh verbose dbg stats
 
 The script can generate a HTML and JSON output of the test into the `build/all-run-logs` folder in the following way:
 
@@ -386,3 +351,31 @@ The compiler uses the `.py` files inside the `hardware_indep` directory to gener
         - For types and expressions, these can be made inline, e.g. `uint8_t /* codegen@123*/` means that the text `uint8_t` was generated by executing code on or around line 123 in `codegen.sugar.py` (in the directory `src/utils`).
         - Most of the code generate statements, they contain hints at the end of the line such as `... // actions@123`
         - You can control the sugar style using `file_sugar_style` and the class `SugarStyle` (in `compiler.py`), see the end of `codegen.sugar.py` for usage examples.
+
+### Crypto devices for cryptography operations
+
+It is hardcoded in the current prototype to create an OpenSSL-based virtual crypto device in DPDK in order to support encryption and decryption extern functions. The PMD for this virtual device is not compiled in DPDK by default.
+
+To enable the OpenSSL crypto PMD, edit **dpdk-19.02/config/common_base** by changing
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=n
+~~~
+
+to
+
+~~~
+CONFIG_RTE_LIBRTE_PMD_OPENSSL=y
+~~~
+
+and do a rebuild on DPDK.
+
+You can also activate a separate crypto node to run the commands with parameter `crypto_node=openssl`. If you run a crypto node, you have to configure an extra core that only will do the external job.
+
+If you want to test with a constant time external function, you can set `crypto_node=fake` and set for example the time with `fake_crypto_time=5000` that sets the external function to run until 5000 clock ticks.
+
+An example call of async mode:
+
+```
+./t4p4s.sh :l2fwd-gen cores=4 ports=3x2 async_mode=pd crypto_node=fake fake_crypto_time=3000
+```
