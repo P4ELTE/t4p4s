@@ -34,6 +34,7 @@ CTL_MAIN {
 
 CTL_EMIT {
     apply {
+        packet.emit(hdr.offset);
     }
 }
 

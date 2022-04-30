@@ -194,6 +194,8 @@ void copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* ta
                 source->headers[header_instance_it].pointer,
                 source->headers[header_instance_it].size * sizeof(uint8_t)
         );
+
+        debug("Saved field %s value %d p=%d\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
 
     memcpy(
@@ -211,8 +213,15 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
     target->extract_ptr = source->extract_ptr;
 
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it) {
-        rte_free(target->headers[header_instance_it].pointer);
+        if(target->headers[header_instance_it].pointer != source->headers[header_instance_it].pointer){
+            rte_free(target->headers[header_instance_it].pointer);
+        }
         target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
+        debug("Loaded field %s value %d p=%d\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
+    }
+
+    if(target->headers[HDR(all_metadatas)].pointer != source->headers[HDR(all_metadatas)].pointer){
+        rte_free(target->headers[HDR(all_metadatas)].pointer);
     }
     target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
 }
@@ -228,6 +237,7 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
         extraInformationForAsyncHandling = pd->context;
         packet_descriptor_t pd_copy;
         copy_packet_descriptor(pd,&pd_copy);
+
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->context == NULL) return;
         extraInformationForAsyncHandling = pd->context;
@@ -332,13 +342,21 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
                 crypto_task_to_rte_crypto_op(crypto_tasks[lcore_id][i], enqueued_rte_crypto_ops[lcore_id][i]);
             }
             rte_mempool_put_bulk(crypto_task_pool, (void **) crypto_tasks[lcore_id], n);
+
+            uint16_t added_crypto_ops;
             #ifdef START_CRYPTO_NODE
-                lcdata->conf->pending_crypto += rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_rte_crypto_ops[lcore_id], n, NULL);
+                added_crypto_ops = rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**)enqueued_rte_crypto_ops[lcore_id], n, NULL);
             #else
-                int ret = rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], n);
-                debug("WTF %d\n",ret);
-                lcdata->conf->pending_crypto += ret;
+                added_crypto_ops = rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], n);
             #endif
+
+            if(added_crypto_ops < n){
+                rte_exit(5,"Cryptop operations failed to enqueue!\n");
+            }else {
+                lcdata->conf->pending_crypto += added_crypto_ops;
+            }
+
+
             debug("lcdata->conf->pending_crypto :%d\n", lcdata->conf->pending_crypto);
 
         }
