@@ -54,7 +54,7 @@ void reset_pd(packet_descriptor_t *pd)
 
 void debug_crypto_task(crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
-        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation", crypto_task_type_names[op->type])
+        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " debug_crypto_task " T4LIT(%s,extern) " operation", crypto_task_type_names[op->type])
 
         uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
         dbg_bytes(buf, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
