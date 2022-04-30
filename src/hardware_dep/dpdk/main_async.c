@@ -351,12 +351,6 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
 {
     dbg_mbuf(mbuf, "Data after async function");
 
-    // Extracting extra content from the mbuf
-
-    int packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
-    rte_pktmbuf_adj(mbuf, sizeof(uint32_t));
-
-
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         void* context = *(rte_pktmbuf_mtod(mbuf, void**));
         rte_pktmbuf_adj(mbuf, sizeof(void*));

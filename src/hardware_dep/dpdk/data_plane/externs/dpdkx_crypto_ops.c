@@ -92,8 +92,6 @@ int prepare_symmetric_ecnryption_op(crypto_task_s *task, struct rte_crypto_op *c
 void process_symmetric_encryption_result(crypto_task_type_e task_type, packet_descriptor_t *pd) {
     unsigned int lcore_id = rte_lcore_id();
 
-    // Remove the saved packet size from the begining
-    rte_pktmbuf_adj(pd->wrapper, sizeof(int));
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
     dbg_bytes(pd->data, pd->wrapper->pkt_len,
               " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
@@ -133,7 +131,6 @@ void process_hmac_result(crypto_task_type_e task_type, packet_descriptor_t *pd,
         memmove(target,from_position,MD5_DIGEST_LEN);
         rte_pktmbuf_trim(pd->wrapper,crypto_task->padding_length);
     }
-    rte_pktmbuf_adj(pd->wrapper, sizeof(int));
     dbg_bytes(rte_pktmbuf_mtod(pd->wrapper, uint8_t*), rte_pktmbuf_pkt_len(pd->wrapper),
               " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
               crypto_task_type_names[task_type], rte_pktmbuf_pkt_len(pd->wrapper));
@@ -204,9 +201,6 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
             task->offset += sizeof(void**);
 #endif
 
-    rte_pktmbuf_prepend(task->data, sizeof(uint32_t));
-    *(rte_pktmbuf_mtod(task->data, uint32_t*)) = task->original_plain_length;
-    task->offset += sizeof(uint32_t);
     task->padding_length = (16 - task->plain_length_to_encrypt % 16) % 16;
 
     if(task->padding_length){
