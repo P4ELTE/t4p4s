@@ -70,7 +70,7 @@ void debug_crypto_task(crypto_task_s *op) {
 int prepare_symmetric_ecnryption_op(crypto_task_s *task, struct rte_crypto_op *crypto_op) {
     crypto_op->sym->m_src = task->data;
     crypto_op->sym->cipher.data.offset = task->offset;
-    crypto_op->sym->cipher.data.length = task->plain_length_to_encrypt;
+    crypto_op->sym->cipher.data.length = task->plain_length_to_encrypt + task->padding_length;
 
     uint8_t *iv_ptr = rte_crypto_op_ctod_offset(crypto_op, uint8_t *, IV_OFFSET);
     memcpy(iv_ptr, iv, AES_CBC_IV_LENGTH);
@@ -91,15 +91,11 @@ int prepare_symmetric_ecnryption_op(crypto_task_s *task, struct rte_crypto_op *c
 
 void process_symmetric_encryption_result(crypto_task_type_e task_type, packet_descriptor_t *pd) {
     unsigned int lcore_id = rte_lcore_id();
-    struct rte_mbuf *mbuf = dequeued_rte_crypto_ops[lcore_id][0]->sym->m_src;
-    uint32_t packet_size = *(rte_pktmbuf_mtod(mbuf, uint32_t*));
 
     // Remove the saved packet size from the begining
-    rte_pktmbuf_adj(mbuf, sizeof(int));
-    pd->wrapper = mbuf;
+    rte_pktmbuf_adj(pd->wrapper, sizeof(int));
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-    pd->wrapper->pkt_len = packet_size;
-    dbg_bytes(pd->data, packet_size,
+    dbg_bytes(pd->data, pd->wrapper->pkt_len,
               " " T4LIT( >> >> , incoming) " Result of " T4LIT(%s, extern) " crypto operation (" T4LIT(%dB) "): ",
               crypto_task_type_names[task_type], rte_pktmbuf_pkt_len(pd->wrapper));
 }
