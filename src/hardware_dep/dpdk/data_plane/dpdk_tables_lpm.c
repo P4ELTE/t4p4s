@@ -13,7 +13,7 @@ struct rte_lpm* lpm4_create(int socketid, const char* name, int max_size)
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
     struct rte_lpm_config config = {
         .max_rules = max_size,
-        .number_tbl8s = (1 << 8), // TODO refine this
+        .number_tbl8s = LPM4_NUMBER_TBL8S,
         .flags = 0,
     };
     struct rte_lpm *l = rte_lpm_create(name, socketid, &config);
@@ -29,7 +29,7 @@ struct rte_lpm6* lpm6_create(int socketid, const char* name, int max_size)
 {
     struct rte_lpm6_config config = {
         .max_rules = max_size,
-        .number_tbl8s = (1 << 16),
+        .number_tbl8s = LPM6_NUMBER_TBL8S,
         .flags = 0,
     };
     struct rte_lpm6 *l = rte_lpm6_create(name, socketid, &config);
@@ -42,14 +42,14 @@ struct rte_lpm6* lpm6_create(int socketid, const char* name, int max_size)
 void lpm4_add(lookup_table_t* t, struct rte_lpm* l, uint32_t key, uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm_add(l, key, depth, value);
-    if (ret < 0)
+    if (unlikely(ret < 0))
         rte_exit_with_errno("add entry to lpm4 table", t->name);
 }
 
 void lpm6_add(lookup_table_t* t, struct rte_lpm6* l, uint8_t key[LPM6_BYTE_SIZE_LIMIT], uint8_t depth, table_index_t value)
 {
     int ret = rte_lpm6_add(l, key, depth, value);
-    if (ret < 0)
+    if (unlikely(ret < 0))
         rte_exit_with_errno("add entry to lpm4 table", t->name);
 }
 

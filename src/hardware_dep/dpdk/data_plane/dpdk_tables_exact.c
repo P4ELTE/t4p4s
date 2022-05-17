@@ -47,10 +47,17 @@ void exact_add(lookup_table_t* t, uint8_t* key, base_table_action_t* action)
     extended_table_t* ext = (extended_table_t*)t->table;
     uint32_t index = rte_hash_add_key(ext->rte_table, key);
 
-    if (unlikely(index < 0))
+    if (unlikely(index < 0)) {
         rte_exit(EXIT_FAILURE, "HASH: add failed\n");
-
-    ext->content[index%t->max_size] = make_table_entry(t, action);
+    }
+    #ifdef T4P4S_ON_ERROR_fail
+        else if (unlikely(index > t->max_size)) {
+            rte_exit(EXIT_FAILURE, "HASH: add failed, table is at full capacity (%d entries)\n", t->max_size);
+        }
+    #endif
+    else {
+        ext->content[index%t->max_size] = make_table_entry(t, action);
+    }
 }
 
 void exact_delete(lookup_table_t* t, uint8_t* key)
