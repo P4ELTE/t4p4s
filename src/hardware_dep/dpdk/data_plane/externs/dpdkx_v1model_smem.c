@@ -32,6 +32,14 @@ void EXTERNCALL1(meter,execute_meter,u32)(uint32_t index, T4P4S_METER_e b, uint3
     debug("    : Executing EXTERNCALL1(meter,execute_meter,u32)#" T4LIT(%d) "\n", index);
 }
 
+void EXTERNCALL1(meter,execute_meter,u16)(uint32_t index, T4P4S_METER_e b, uint16_t c, uint16_t* d, SMEMTYPE(meter)* e, SHORT_STDPARAMS) {
+    debug("    : Executing EXTERNCALL1(meter,execute_meter,u16)#" T4LIT(%d) "\n", index);
+}
+
+void EXTERNCALL1(meter,execute_meter,u8)(uint32_t index, T4P4S_METER_e b, uint8_t c, uint8_t* d, SMEMTYPE(meter)* e, SHORT_STDPARAMS) {
+    debug("    : Executing EXTERNCALL1(meter,execute_meter,u8)#" T4LIT(%d) "\n", index);
+}
+
 void EXTERNCALL1(direct_meter,read,u8)(T4P4S_METER_e b, uint8_t* result, SMEMTYPE(direct_meter)* e, SHORT_STDPARAMS) {
     debug("    : Executing EXTERNCALL1(direct_meter,read,u8)\n");
 }

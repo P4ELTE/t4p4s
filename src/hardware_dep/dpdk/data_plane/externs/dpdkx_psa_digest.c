@@ -10,7 +10,7 @@ extern ctrl_plane_backend bg;
 
 #define STD_DIGEST_RECEIVER_ID 1024
 
-void EXTERNIMPL2(Digest,pack,u8s)(EXTERNTYPE(Digest)* xdigest, uint8_buffer_t buf, SHORT_STDPARAMS) {
+void EXTERNIMPL2(Digest,pack,u8s)(EXTERNTYPE0(Digest)* xdigest, uint8_buffer_t buf, SHORT_STDPARAMS) {
     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(1024,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(%s,extern) "\n", buf.name);
 
     ctrl_plane_digest digest = create_digest(bg, "learn_digest");

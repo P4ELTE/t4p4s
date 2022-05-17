@@ -56,10 +56,10 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 // p4.psa: Digest<T> {...}
 /*
 #ifdef T4P4S_TYPE_mac_learn_digest_t
-    void extern_Digest_pack__mac_learn_digest_t(EXTERNTYPE(Digest)* digest, mac_learn_digest_t* mac_learn_digest, SHORT_STDPARAMS);
+    void extern_Digest_pack__mac_learn_digest_t(EXTERNTYPE0(Digest)* digest, mac_learn_digest_t* mac_learn_digest, SHORT_STDPARAMS);
 #endif
 #ifdef T4P4S_TYPE_learn_digest_t
-    void extern_Digest_pack__learn_digest_t(EXTERNTYPE(Digest)* digest, learn_digest_t* learn_digest, SHORT_STDPARAMS);
+    void extern_Digest_pack__learn_digest_t(EXTERNTYPE0(Digest)* digest, learn_digest_t* learn_digest, SHORT_STDPARAMS);
 #endif
 */
 
@@ -75,11 +75,11 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 
 // p4.psa: InternetChecksum {...}
 // typedef uint16_t InternetChecksum;
-void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL1(InternetChecksum,add,tuple_0)(EXTERNTYPE(InternetChecksum)* checksum, int data, SHORT_STDPARAMS);
-uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS);
-uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL1(InternetChecksum,add,tuple_0)(EXTERNTYPE0(InternetChecksum)* checksum, int data, SHORT_STDPARAMS);
+uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS);
+uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS);

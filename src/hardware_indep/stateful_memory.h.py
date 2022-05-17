@@ -65,6 +65,12 @@ for ctl in hlir.controls:
             continue
         extern_name = f'EXTERNNAME({local_var_decl.name})'
         #[     ${format_type(local_var_decl.urtype, varname = extern_name, resolve_names = False)};
+
+# TODO implement properly
+#[ uint8_t EXTERNNAME(rnd8_0);
+#[ uint16_t EXTERNNAME(rnd16_0);
+#[ uint32_t EXTERNNAME(rnd32_0);
+
 #} } global_state_t;
 
 #[ extern global_state_t global_smem;

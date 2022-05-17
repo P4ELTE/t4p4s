@@ -26,7 +26,7 @@ for extern in hlir.externs.filter(lambda extern: (len(extern.constructors) > 0 o
     if 'smem_type' in (smem := extern):
         extern_name = f'SMEMTYPE({smem.smem_type})'
     else:
-        extern_name = f'EXTERNTYPE({extern.name})'
+        extern_name = f'EXTERNTYPE0({extern.name})'
 
     #{ typedef struct {
     if 'smem_type' in extern:
@@ -40,3 +40,19 @@ for extern in hlir.externs.filter(lambda extern: (len(extern.constructors) > 0 o
     #[     #endif
     #} } ${extern_name};
     #[
+
+# TODO remove
+#{ typedef struct {
+#[     rte_atomic32_t value;
+#} } EXTERNTYPE1(Checksum,u32);
+
+pars = [(extern, ctor, m, par) for extern in hlir.externs for ctor in extern.constructors for m in ctor.env_node.interface_methods if m is not None for par in m.type.parameters.parameters[:1] if par.urtype.node_type == 'Type_Struct']
+# print('dbgpars', pars)
+# breakpoint()
+for extern, ctor, m, par in pars:
+    #{ typedef struct {
+    for fld in par.type.fields:
+        #[     ${format_type(fld.type, addon=fld.name)};
+    #} } EXTERNTYPE1(${extern.name},${par.type.name});
+    #[
+

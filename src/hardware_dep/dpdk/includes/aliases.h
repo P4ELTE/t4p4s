@@ -17,11 +17,18 @@ typedef rte_spinlock_t lock_t;
 #define FLD(hdr,fld) field_instance_##hdr##_##fld
 #define HDR(hdr) header_##hdr
 #define STK(stk) stack_##stk
+#define STKFLD_OFFSET(stk,fld) stkfld_offset_##stk##_##fld
+#define STKFLD(stk,hdrinst,fld) (stk_start_fld(hdrinst) + STKFLD_OFFSET(stk,fld))
 
 // TODO include the control's/parser's name in there
 #define LOCALNAME(ctl,name)   name
 
-#define EXTERNTYPE(name)      externtype_##name##_t
+#define EXTERNTYPE0(name)                           externtype_##name##_t
+#define EXTERNTYPE1(name,part1)                     externtype_##name##_##part1##_t
+#define EXTERNTYPE2(name,part1,part2)               externtype_##name##_##part1##_##part2##_t
+#define EXTERNTYPE3(name,part1,part2,part3)         externtype_##name##_##part1##_##part2##_##part3##_t
+#define EXTERNTYPE4(name,part1,part2,part3,part4)   externtype_##name##_##part1##_##part2##_##part3##_##part4##_t
+
 #define EXTERNNAME(name)      externname_##name
 #define SMEMTYPE(name)        smemtype_##name##_t
 #define SMEMNAME(name)        externname_##name##_t
