@@ -29,6 +29,7 @@ from utils.codegen import format_type
 
 
 #[ #define NO_VW_FIELD_PRESENT (-1)
+#[ #define NO_STACK_PRESENT    (-1)
 
 
 #{ typedef enum {
@@ -99,6 +100,7 @@ if len(hlir.header_stacks) == 0:
 
 #{ typedef struct {
 #[     const int        idx;
+#[     const int        stack_idx;
 #[     const char*const name;
 
 #[     const int        byte_width;
@@ -110,6 +112,7 @@ if len(hlir.header_stacks) == 0:
 #[     const field_instance_e last_fld;
 
 #[     const MAYBE(field_instance_e, NO_VW_FIELD_PRESENT) var_width_field;
+#[     const int var_width_size;
 #} } hdr_info_t;
 #[
 
@@ -174,7 +177,7 @@ if all(len(parser.parserLocals) == 0 for parser in hlir.parsers) and len(vw_name
 for stk in hlir.header_stacks:
     for idx, fld in enumerate(stk.urtype.elementType.urtype.fields):
         #[ #define stkfld_offset_${stk.name}_${fld.name} $idx
-
+#[
 
 #[ #define PARSED_AFTER_END_OF_PACKET INT_MIN
 #[ #define PARSED_OVER_STACK_SIZE     (INT_MIN+1)

@@ -50,19 +50,16 @@ import functools
 #} #endif
 #[
 
-for hdr in hlir.header_instances:
-    for fld in hdr.urtype.fields:
-        #{ void check_hdr_valid_${hdr.name}_${fld.name}(packet_descriptor_t* pd, field_instance_e fld, const char* unspec) {
-        #{     #ifdef T4P4S_DEBUG
-        #[         header_instance_e hdr = fld_infos[fld].header_instance;
-        #{         if (unlikely(!is_header_valid(hdr, pd))) {
-        #[             const char* hdrname = hdr_infos[hdr].name;
-        #[             const char* fldname = field_names[fld];
-        #[             debug("   " T4LIT(!!,warning) " Access to field in invalid header " T4LIT(%s,warning) "." T4LIT(%s,field) ", returning \"unspecified\" value " T4LIT(%s) "\n", hdrname, fldname, unspec);
-        #}         }
-        #}     #endif
-        #} }
-        #[
+#{ void check_hdr_valid(packet_descriptor_t* pd, field_instance_e fld, const char* unspec) {
+#{     #ifdef T4P4S_DEBUG
+#[         header_instance_e hdr = fld_infos[fld].header_instance;
+#{         if (unlikely(!is_header_valid(hdr, pd))) {
+#[             const char* hdrname = hdr_infos[hdr].name;
+#[             const char* fldname = field_names[fld];
+#[             debug("   " T4LIT(!!,warning) " Access to field in invalid header " T4LIT(%s,warning) "." T4LIT(%s,field) ", returning \"unspecified\" value " T4LIT(%s) "\n", hdrname, fldname, unspec);
+#}         }
+#}     #endif
+#} }
 
 
 #{ void init_parser_state(parser_state_t* pstate) {
@@ -254,14 +251,22 @@ for parser in hlir.parsers:
                 if len(args) == 1:
                     #[     int ${vwlen_var} = 0;
                 else:
+                    vw_size = hdr.urtype.vw_fld.urtype.size
+                    vw_size_bytes = (vw_size+7) // 8
+
                     bexpr = format_expr(args[1].expression)
                     prebuf, postbuf = statement_buffer_value()
                     #[     $prebuf
-                    #[     int ${vwlen_var} = ${bexpr};
+                    #[     int ${vwlen_var} = ((${bexpr}) + 7) / 8;
                     #[     $postbuf
 
                     #{     if (unlikely(${vwlen_var} < 0)) {
                     #[         debug("    " T4LIT(!,error) " Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) " " T4LIT(is negative,error) "\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var});
+
+                    #[         drop_packet(STDPARAMS_IN);
+                    #[         return false;
+                    #[     } else if (unlikely(${vwlen_var} > ${vw_size_bytes})) {
+                    #[         debug("    " T4LIT(!,error) " Determined variable length for field " T4LIT(${hdr.name},header) "." T4LIT(%s,field) " = " T4LIT(%d) " " T4LIT(is larger than the maximum varbit size,error) " " T4LIT(%d) "\n", field_names[hdr_infos[HDR(${hdr.name})].var_width_field], ${vwlen_var}, ${vw_size_bytes});
 
                     #[         drop_packet(STDPARAMS_IN);
                     #[         return false;

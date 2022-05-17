@@ -11,7 +11,7 @@ from compiler_common import unique_everseen
 #[ const char* sprintf_hdr(char* out, packet_descriptor_t* pd, header_descriptor_t* hdr);
 
 for hdr in hlir.header_instances:
-    #[ const char* sprintf_hdr_${hdr.name}(char* out, packet_descriptor_t* pd, header_descriptor_t* hdr);
+    #[ const char* sprintf_hdr_${hdr.name}(char* out, packet_descriptor_t* pd);
 
 
 

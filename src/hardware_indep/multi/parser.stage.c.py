@@ -27,10 +27,11 @@ else:
         #{ void print_parsed_hdr_${hdr.name}(packet_descriptor_t* pd, header_descriptor_t* hdr, header_instance_e hdrinst) {
         #{     #ifdef T4P4S_DEBUG
         #[         char fields_txt[4096];
+        #[         if (hdr->size > 0)    sprintf_hdr(fields_txt, pd, hdr);
         #[         debug("   :: Parsed header" T4LIT(#%d) " " T4LIT(%s,header) "/" T4LIT(%d) "B%s%s\n",
         #[               hdr_infos[hdrinst].idx + 1, hdr_infos[hdrinst].name, hdr->size,
         #[               hdr->size == 0 ? "" : ": ",
-        #[               hdr->size == 0 ? "" : sprintf_hdr_${hdr.name}(fields_txt, pd, hdr));
+        #[               hdr->size == 0 ? "" : fields_txt);
         #}     #endif
         #} }
 
@@ -83,7 +84,7 @@ else:
 
             for fld in hdrtype.fields:
                 if fld.preparsed and fld.size <= 32:
-                    #[     pd->fields.FLD(hdr,$name) = GET32(src_pkt(pd), FLD(${hdr.name},$name));
+                    #[     pd->fields.FLD(hdr,$name) = GET32(src_pkt(pd), FLD(${hdr.name}, $name));
                     #[     pd->fields.ATTRFLD(hdr,$name) = NOT_MODIFIED;
 
             #[     print_parsed_hdr_${hdr.name}(pd, hdr, hdrinst);

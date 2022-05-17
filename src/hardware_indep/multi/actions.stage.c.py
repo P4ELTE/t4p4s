@@ -32,6 +32,8 @@ else:
     #[ extern const char* action_canonical_names[];
     #[ extern const char* action_short_names[];
 
+    #[ extern void check_hdr_valid(packet_descriptor_t* pd, field_instance_e fld, const char* unspec);
+
     #[ extern ctrl_plane_backend bg;
 
     for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').filter(lambda n: 'path' in n.method and n.method.path.name=='digest'):

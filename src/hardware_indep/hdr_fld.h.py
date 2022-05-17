@@ -6,6 +6,8 @@ from compiler_common import unique_everseen
 
 #[ #pragma once
 
+#[ #include "common_enums.h"
+
 #[ #define HDRT(hdrt)  HDRT_ ## hdrt
 
 

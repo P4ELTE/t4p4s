@@ -42,6 +42,7 @@ for idx, hdr in enumerate(hlir.header_instances):
 
     vw = list(hdr.urtype.fields.filter(lambda fld: fld('is_vw', False)))
     vwfld_name = f'FLD({hdr.name},{vw[0].name})' if vw else 'NO_VW_FIELD_PRESENT'
+    vw_size = hdr.urtype.vw_fld.urtype.size if vw else 0
 
     #[     // header ${hdr.name}
     #{     {
@@ -52,6 +53,7 @@ for idx, hdr in enumerate(hlir.header_instances):
     #[         .is_metadata = ${to_c_bool('is_metadata' in hdrt and hdrt.is_metadata)},
 
     #[         .var_width_field = ${vwfld_name},
+    #[         .var_width_size  = ${vw_size},
     if len(flds) == 0:
         #[         // TODO set .first_fld so that it cannot cause any problems
         #[         // TODO set .last_fld so that it cannot cause any problems
@@ -62,7 +64,7 @@ for idx, hdr in enumerate(hlir.header_instances):
     #[
 
     byte_offsets += [f'{byte_width}']
-    fldidx += len(flds)
+    fldidx += len(flds) + vw_size
 
 if len(hlir.header_instances) == 0:
     #[ {}, // dummy
@@ -100,7 +102,9 @@ for hdr in hlir.header_instances:
                 mask = top_bits >> (fld.offset % 8)
                 mask_txt = f'0x{mask:08x}'
 
-            binary_txt = '_'.join(f'{mask:032b}'[i:i+8] for i in range(0, 32, 8))
+            byte_size = (fld.urtype.size + 7) // 8
+            padded_size = byte_size * 8
+            binary_txt = '_'.join(f'{mask:0{padded_size}b}'[i:i+8] for i in range(0, padded_size, 8))
             #[         .mask = ${mask_txt}, // ${fld.urtype.size}b at offset ${fld.offset//8}B+${fld.offset%8}b: 0b${binary_txt}
         else:
             #[         // .mask ignored: ${fld.urtype.size}b field is restricted to be byte aligned (over 32b)
@@ -124,55 +128,78 @@ for stk in hlir.header_stacks:
 #[
 
 
+field_size_print_limit = 12
+
+#{ char* sprintf_hdr_general(char* out, int field_count, uint32_t vals[], uint8_t* ptrs[], int offsets[], int sizes[], int vw_sizes[], const char*const fld_short_names[]) {
+#{     #ifdef T4P4S_DEBUG
+#{         for (int idx = 0; idx < field_count; ++idx) {
+#[             const char* sep_space = idx != field_count - 1 ? " " : "";
+#{             if (sizes[idx] <= 32 && vw_sizes[idx] == NO_VW_FIELD_PRESENT) {
+#[                 bool is_aligned = sizes[idx] % 8 == 0 && offsets[idx] % 8 == 0;
+#[                 bool fld_is_too_large = sizes[idx] < 32 && vals[idx] > 1 << sizes[idx];
+#[                 const char* fld_is_too_large_txt = fld_is_too_large ? T4LIT(!too large!,error) : "";
+#{                 if (vals[idx] > 9) {
+#[                     const char* fmt8 = "." T4LIT(%s,field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) "=0x" T4LIT(%02x,bytes) "%s";
+#[                     const char* fmt16 = "." T4LIT(%s,field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) "=0x" T4LIT(%04x,bytes) "%s";
+#[                     const char* fmt32 = "." T4LIT(%s,field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) "=0x" T4LIT(%08x,bytes) "%s";
+#[                     out += sprintf(out, sizes[idx] > 16 ? fmt32 : sizes[idx] > 8 ? fmt16 : fmt8,
+#[                                    fld_short_names[idx],
+#[                                    sizes[idx] / (is_aligned ? 8 : 1), is_aligned ? "B" : "b",
+#[                                    fld_is_too_large_txt, vals[idx], vals[idx], sep_space);
+#[                 } else {
+#[                     out += sprintf(out, "." T4LIT(%s,field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) "%s",
+#[                                    fld_short_names[idx],
+#[                                    sizes[idx] / (is_aligned ? 8 : 1), is_aligned ? "B" : "b",
+#[                                    fld_is_too_large_txt, vals[idx], sep_space);
+#}                 }
+#[             } else {
+#[                 int size = vw_sizes[idx] != NO_VW_FIELD_PRESENT ? vw_sizes[idx] : sizes[idx];
+#[                 out += sprintf(out, "." T4LIT(%s,field) "/%s" T4LIT(%d) "%s=" T4COLOR(T4LIGHT_bytes),
+#[                                fld_short_names[idx],
+#[                                ${to_c_bool(fld.is_vw)} ? "vw" : "", size / (size % 8 == 0 ? 8 : 1), size % 8 == 0 ? "B" : "b");
+#[                 out += dbg_sprint_bytes_limit(out, ptrs[idx], size/8, ${field_size_print_limit}, "_");
+#[                 out += sprintf(out, T4COLOR(T4LIGHT_off) "%s", sep_space);
+#}             }
+#}         }
+#}     #endif
+#[     return out;
+#} }
+#[
+
+
+for hdr in unique_everseen(hlir.header_instances):
+    #{ const char* detailed_sprintf_hdr_${hdr.name}(char* out, packet_descriptor_t* pd, header_descriptor_t* hdr) {
+    field_count = len(hdr.urtype.fields)
+    #[     uint32_t vals[${field_count}];
+    #[     uint8_t* ptrs[${field_count}];
+    sizes = ", ".join(f'{fld.size}' for fld in hdr.urtype.fields)
+    offsets = ", ".join(f'{fld.offset}' for fld in hdr.urtype.fields)
+    vw_sizes = ", ".join('NO_VW_FIELD_PRESENT' if not fld.is_vw else f'hdr->vw_size' for fld in hdr.urtype.fields)
+    names = ", ".join(f'"{fld.short_name}"' for fld in hdr.urtype.fields)
+    #[     int offsets[${field_count}] = { $offsets };
+    #[     int sizes[${field_count}] = { $sizes };
+    #[     int vw_sizes[${field_count}] = { ${vw_sizes} };
+    #[     const char*const fld_short_names[${field_count}] = { $names };
+    for idx, fld in enumerate(hdr.urtype.fields):
+        if fld.size <= 32 and not fld.is_vw:
+            #[     vals[$idx] = GET32(src_pkt(pd), FLD(${hdr.name}, ${fld.name}));  // ${hdr.name}.${fld.name}/${fld.size}b
+        else:
+            #[     ptrs[$idx] = hdr->pointer + fld_infos[FLD(${hdr.name},${fld.name})].byte_offset;  // ${hdr.name}.${fld.name}/${(fld.size+7)//8}B
+    #[     return sprintf_hdr_general(out, ${field_count}, vals, ptrs, offsets, sizes, vw_sizes, fld_short_names);
+    #} }
+    #[
 
 
 #{ const char* sprintf_hdr(char* out, packet_descriptor_t* pd, header_descriptor_t* hdr) {
 #{     #ifdef T4P4S_DEBUG
 #[         const char* name = hdr_infos[hdr->type].name;
 for hdr in unique_everseen(hlir.header_instances):
-    #[         if (!strcmp("${hdr.name}", name))    return sprintf_hdr_${hdr.name}(out, pd, hdr);
+    field_count = len(hdr.urtype.fields)
+    #[         if (!strcmp("${hdr.name}", name))    return detailed_sprintf_hdr_${hdr.name}(out, pd, hdr);
 #}     #endif
 #[     return NULL; // should never happen
 #} }
 #[
-
-
-for hdr in unique_everseen(hlir.header_instances):
-    field_size_print_limit = 12
-    #{ const char* sprintf_hdr_${hdr.name}(char* out, packet_descriptor_t* pd, header_descriptor_t* hdr) {
-    #{     #ifdef T4P4S_DEBUG
-    #[         char* ptr = out;
-    #[         int idx = 0;
-    #[         uint8_t* hdrptr = pd->headers[HDR(${hdr.name})].pointer;
-    for fld in hdr.urtype.fields:
-        name = fld.name
-        size_fmt = f'T4LIT({fld.size//8}) "B"' if fld.size%8 == 0 else f'T4LIT({fld.size}) "b"'
-        if fld.size <= 32 and not fld.is_vw:
-            is_aligned = fld.size%8 == 0 and fld.offset%8 == 0
-            #[         uint32_t val_$name = GET32(src_pkt(pd), FLD(${hdr.name},$name));
-            #[         bool ${name}_is_too_large = ${fld.size} < 32 && val_$name > 1 << ${fld.size};
-            #[         const char* ${name}_is_too_large_txt = ${name}_is_too_large ? T4LIT(!too large!,error) : "";
-            #{         if (val_$name > 9) {
-            #[             idx += sprintf(ptr + idx, "." T4LIT(${fld.short_name},field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) "=0x" T4LIT(%0${fld.size//4}x,bytes) " ",
-            #[                            ${fld.size // (8 if is_aligned else 1)}, ${to_c_bool(is_aligned)} ? "B" : "b",
-            #[                            ${name}_is_too_large_txt, val_$name, val_$name);
-            #[         } else {
-            #[             idx += sprintf(ptr + idx, "." T4LIT(${fld.short_name},field) "/" T4LIT(%d) "%s=%s" T4LIT(%d) " ",
-            #[                            ${fld.size // (8 if is_aligned else 1)}, ${to_c_bool(is_aligned)} ? "B" : "b",
-            #[                            ${name}_is_too_large_txt, val_$name);
-            #}         }
-        else:
-            #[         field_instance_e fld_$name = FLD(${hdr.name},${fld.name});
-            #[         int size_$name = fld_infos[fld_$name].is_vw ? pd->headers[hdr->type].vw_size : ${fld.size};
-            #[         idx += sprintf(ptr + idx, "." T4LIT(${fld.short_name},field) "/%s" T4LIT(%d) "%s=" T4COLOR(T4LIGHT_bytes),
-            #[                        ${to_c_bool(fld.is_vw)} ? "vw" : "", size_$name / (size_$name % 8 == 0 ? 8 : 1), size_$name % 8 == 0 ? "B" : "b");
-            #[         idx += dbg_sprint_bytes_limit(ptr + idx, hdrptr + fld_infos[FLD(${hdr.name},$name)].byte_offset, size_$name/8, ${field_size_print_limit}, "_");
-            #[         idx += sprintf(ptr + idx, T4COLOR(T4LIGHT_off) " ");
-
-    #}     #endif
-    #[     return out;
-    #} }
-    #[
 
 
 #{ int get_fld_vw_size(field_instance_e fld, packet_descriptor_t* pd) {
