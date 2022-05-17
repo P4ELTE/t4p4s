@@ -30,4 +30,5 @@ typedef struct {
 
     const char*const name;
     const char*const part_names[MAX_BUF_PART_COUNT];
+    const char*const part_types[MAX_BUF_PART_COUNT];
 } uint8_buffer_t;
