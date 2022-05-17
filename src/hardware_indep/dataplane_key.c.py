@@ -65,12 +65,10 @@ for table in hlir.tables:
                 #[     *(uint${padded_byte_width}_t*)key = GET32(src_pkt(pd), FLD(${hi_name},${key.field_name}));
 
                 #{     #ifdef T4P4S_DEBUG
-                #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, T4LIT(${hi_name},header) "." T4LIT(${fld.short_name},field) "/" T4LIT(%db) "=" T4LIT(%d), ${size},
-                #[                                 net2t4p4s_${padded_byte_width//8}(*(uint${padded_byte_width}_t*)key));
-                #{         if (*key > 9) {
-                #[             *key_txt_idx += sprintf(key_txt + *key_txt_idx, "=" T4LIT(0x%0${padded_byte_width//4}x,bytes), net2t4p4s_${padded_byte_width//8}(*(uint${padded_byte_width}_t*)key));
-                #}         }
-                #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, " ");
+                #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, T4LIT(${hi_name},header) "." T4LIT(${fld.short_name},field) "/" T4LIT(%db) "=" T4LIT(%d) "=" T4COLOR(T4LIGHT_bytes) "0x",
+                #[                                 ${size}, net2t4p4s_${padded_byte_width//8}(*(uint${padded_byte_width}_t*)key));
+                #[         *key_txt_idx += dbg_sprint_bytes_limit(key_txt + *key_txt_idx, get_fld_ptr(pd, FLD(${hi_name},${key.field_name})), ${byte_width}, ${field_size_print_limit}, "_");
+                #[         *key_txt_idx += sprintf(key_txt + *key_txt_idx, T4COLOR(T4LIGHT_off) " ");
                 #}     #endif
             else:
                 if size % 8 != 0:

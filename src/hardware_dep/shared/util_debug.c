@@ -36,17 +36,13 @@
 
         int char_count = 0;
 
-        if (byte_count > upper_limit) {
-            char_count += sprintf(out, "(showing %dB) ", upper_limit);
-        }
-
         int limit = (byte_count <= upper_limit ? byte_count : upper_limit);
         for (int i = 0; i < limit; ++i) {
             char_count += sprintf(out+char_count, "%02x%s", ((uint8_t*)bytes)[i], i%2 == 0 || i == limit-1 ? "" : sep);
         }
 
         if (byte_count > upper_limit) {
-            char_count += sprintf(out+char_count, "...");
+            char_count += sprintf(out+char_count, " + %dB more", byte_count - upper_limit);
         }
 
         return char_count;
@@ -57,10 +53,6 @@
 
         int char_count = 0;
 
-        if (byte_count > upper_limit) {
-            char_count += fprintf(out_file, "(showing %dB) ", upper_limit);
-        }
-
         int limit = (byte_count <= upper_limit ? byte_count : upper_limit);
         for (int i = 0; i < limit; ++i) {
             char_count += fprintf(out_file, "%02x%s", ((uint8_t*)bytes)[i], i%2 == 0 || i == limit-1 ? "" : sep);
@@ -68,6 +60,10 @@
 
         if (byte_count > upper_limit) {
             char_count += fprintf(out_file, "...");
+        }
+
+        if (byte_count > upper_limit) {
+            char_count += fprintf(out_file, "+ %dB more", byte_count - upper_limit);
         }
 
         return char_count;
