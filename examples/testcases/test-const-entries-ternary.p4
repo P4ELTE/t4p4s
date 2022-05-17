@@ -17,7 +17,7 @@ PARSER {
 
 CTL_MAIN {
     action nop() {}
-    action action1() { hdr.ethernet.srcAddr =  0x111111111111; }
+    action action1() { hdr.ethernet.srcAddr =  0x1111_1111_1111; }
     
     table t1 {
         actions = {
@@ -34,11 +34,12 @@ CTL_MAIN {
         default_action = nop;
 
         const entries = {
-            0x112233445566 &&& 0xF0000000000F : action1;
+            0x1122_3344_5566 &&& 0xF000_0000_000F : action1;
         }
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         t1.apply();
     }
 }

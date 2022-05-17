@@ -33,7 +33,7 @@ CTL_MAIN {
             hdr.ethernet.srcAddr: lpm;
         }
 
-        size = 1;
+        size = 16;
 
         default_action = nop;
 
@@ -45,6 +45,7 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         t1.apply();
     }
 }
