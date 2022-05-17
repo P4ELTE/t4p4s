@@ -195,7 +195,7 @@ void copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* ta
                 source->headers[header_instance_it].size * sizeof(uint8_t)
         );
 
-        debug("Saved field %s value %d p=%d\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
+        debug("Saved field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
 
     memcpy(
@@ -217,7 +217,7 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
             rte_free(target->headers[header_instance_it].pointer);
         }
         target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
-        debug("Loaded field %s value %d p=%d\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
+        debug("Loaded field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
 
     if(target->headers[HDR(all_metadatas)].pointer != source->headers[HDR(all_metadatas)].pointer){
@@ -387,7 +387,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
     pd->wrapper = mbuf;
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 
-    pd->wrapper->pkt_len = packet_size;
+    pd->wrapper->pkt_len = packet_size(pd);
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         pd->context = context;
