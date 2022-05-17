@@ -13,8 +13,9 @@ from hlir16.hlir_model import packets_by_model
 from hlir16.p4node import P4Node
 
 from compiler_log_warnings_errors import addWarning, addError
-from compiler_common import types, with_base, resolve_reference, is_subsequent, groupby, group_references, fldid, fldid2, pp_type_16, make_const, SugarStyle, prepend_statement, append_statement, is_control_local_var, generate_var_name, pre_statement_buffer, post_statement_buffer, enclosing_control, unique_everseen, unspecified_value, get_raw_hdr_name, get_hdr_name, get_hdrfld_name, split_join_text
+from compiler_common import types, with_base, resolve_reference, is_subsequent, groupby, group_references, fldid, fldid2, pp_type_16, make_const, SugarStyle, prepend_statement, append_statement, is_control_local_var, generate_var_name, pre_statement_buffer, post_statement_buffer, enclosing_control, unspecified_value, get_raw_hdr_name, get_hdr_name, get_hdrfld_name, split_join_text, get_short_type, inf_int_c_type, inf_int_c_size, add_prefix, append_type_postfix
 from utils.extern import get_smem_name
+from more_itertools import unique_everseen
 
 ################################################################################
 
@@ -128,7 +129,7 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
     elif t.node_type == 'Type_Extern':
         is_smem = 'smem_type' in t
         if not is_smem:
-            #[ EXTERNTYPE(${t.name})
+            #[ EXTERNTYPE0(${t.name})
         elif (reg := t).smem_type in ('register'):
             signed = 'uint' if reg.repr.isSigned else 'int'
             size = align8_16_32(reg.repr.size)
@@ -754,6 +755,9 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
         targs = dref.type('arguments', [])
         argtypes = ", ".join(externtype + list(argtypes) + [f'{format_type(dref.urtype, type_args = targs)}*', 'SHORT_STDPARAMS'])
 
+        struct_types = mcall.arguments.map('expression').filter('node_type', 'StructExpression')
+        struct_type_names = struct_types.map('urtype.name')
+
         def find_param_type(mcall_type_arg):
             if 'type_ref' in mcall_type_arg and (tref := mcall_type_arg.type_ref).node_type == 'Parameter':
                 margs = mcall.method.urtype.parameters.parameters
@@ -764,7 +768,7 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
 
             return mcall_type_arg.urtype
 
-        type_args_postfix_parts = get_mcall_type_args(mcall).map(find_param_type).map(get_short_type)
+        type_args_postfix_parts = struct_type_names + get_mcall_type_args(mcall).map(find_param_type).map(get_short_type).filter(lambda typ: typ not in struct_type_names)
 
         funname = f'EXTERNCALL{len(type_args_postfix_parts)}({extern_name},{",".join([m.member] + list(type_args_postfix_parts))})'
 
@@ -934,36 +938,40 @@ def gen_masking(dst_type, expr_str):
     #[ ($mask & $varname)
 
 def gen_fmt_Cast(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
-    et = e.expr.type
-    edt = e.destType
-    fe = format_expr(e.expr)
-    ft = format_type(edt)
-    if (et.node_type, et.size, edt.node_type) == ('Type_Bits', 1, 'Type_Boolean') and not et.isSigned:
+    dstt = e.expr.type
+    srct = e.destType
+    src = format_expr(e.expr)
+    cast = format_type(srct)
+
+    if dstt.node_type == 'Type_InfInt' or srct.node_type == 'Type_InfInt':
+        #Cast to/from int
+        #= src
+    elif (dstt.node_type, dstt.size, srct.node_type) == ('Type_Bits', 1, 'Type_Boolean') and not dstt.isSigned:
         #Cast from bit<1> to bool
-        return f"({fe})"
-    elif (et.node_type, edt.node_type, edt.size) == ('Type_Boolean', 'Type_Bits', 1) and not edt.isSigned:
+        #= src
+    elif (dstt.node_type, srct.node_type, srct.size) == ('Type_Boolean', 'Type_Bits', 1) and not srct.isSigned:
         #Cast from bool to bit<1>
-        return f'({fe} ? 1 : 0)'
-    elif et.node_type == 'Type_Bits' and edt.node_type == 'Type_Bits':
-        if et.isSigned == edt.isSigned:
-            if not et.isSigned:                       #Cast from bit<w> to bit<v>
-                if et.size > edt.size:
-                    #[ ${masking(edt, fe)}
+        #[ ($src ? 1 : 0)
+    elif dstt.node_type == 'Type_Bits' and srct.node_type == 'Type_Bits':
+        if dstt.isSigned == srct.isSigned:
+            if not dstt.isSigned:                       #Cast from bit<w> to bit<v>
+                if dstt.size > srct.size:
+                    #[ ${masking(srct, src)}
                 else:
-                    #= fe
+                    #= src
             else:                                              #Cast from int<w> to int<v>
-                #[ (($ft)$fe)
-        elif et.isSigned and not edt.isSigned: #Cast from int<w> to bit<w>
-            #[ ${masking(edt, fe)}
-        elif not et.isSigned and edt.isSigned: #Cast from bit<w> to int<w>
-            if edt.size in {8,16,32}:
-                #[ (($ft)$fe)
+                #[ (($cast)$src)
+        elif dstt.isSigned and not srct.isSigned: #Cast from int<w> to bit<w>
+            #[ ${masking(srct, src)}
+        elif not dstt.isSigned and srct.isSigned: #Cast from bit<w> to int<w>
+            if srct.size in {8,16,32}:
+                #[ (($cast)$src)
             else:
-                addError('formatting an expression', f'Cast from bit<{et.size}> to int<{edt.size}> is not supported! (Only int<8>, int<16> and int<32> are supported.)')
-                #[ ERROR_invalid_cast_from_bit${et.size}_to_int${edt.size}
+                addError('formatting an expression', f'Cast from bit<{dstt.size}> to int<{srct.size}> is not supported! (Only int<8>, int<16> and int<32> are supported.)')
+                #[ ERROR_invalid_cast_from_bit${dstt.size}_to_int${srct.size}
     else:
         #Cast from int to bit<w> and int<w> are performed by P4C
-        addError('formatting an expression', f'Cast from {pp_type_16(et)} to {pp_type_16(edt)} is not supported!')
+        addError('formatting an expression', f'Cast from {pp_type_16(dstt)} to {pp_type_16(srct)} is not supported!')
         #[ ERROR_invalid_cast
 
 
@@ -1103,7 +1111,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             fldname = e.member
             size = hdr.urtype.fields.get(e.member).size
             unspec = unspecified_value(size)
-            #pre[ check_hdr_valid_${hdr.name}_${fldname}(pd, FLD(${hdr.name},$fldname), "$unspec");
+            #pre[ check_hdr_valid(pd, FLD(${hdr.name},$fldname), "$unspec");
             #[ GET32_def(src_pkt(pd), FLD(${hdr.name},${e.member}), $unspec)
         else:
             is_meta = hdr.urtype('is_metadata', False)
@@ -1115,7 +1123,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             unspec = 0 if is_meta else unspecified_value(size)
             var = generate_var_name('member')
 
-            #pre[ check_hdr_valid_${hdrname}_${fldname}(pd, FLD($hdrname,$fldname), "$unspec");
+            #pre[ check_hdr_valid(pd, FLD($hdrname,$fldname), "$unspec");
             if size <= 32:
                 #pre[ ${format_type(fldtype)} $var = GET32_def(src_pkt(pd), FLD($hdrname,$fldname), $unspec);
             else:
@@ -1136,7 +1144,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             fld = e.member
             size = hdr.urtype.fields.get(e.member).size
             unspec = unspecified_value(size)
-            #pre[ check_hdr_valid_${hdrname}_${fldname}(pd, FLD($hdrname,$fldname), "$unspec");
+            #pre[ check_hdr_valid(pd, FLD($hdrname,$fldname), "$unspec");
             #[ (is_header_valid(HDR($hdrname), pd) ? pd->fields.FLD($hdrname,$fldname) : ($unspec))
         elif e.expr.node_type == 'MethodCallExpression':
             # note: this is an apply_result_t, it cannot be invalid
@@ -1428,10 +1436,29 @@ def gen_fmt_StructExpression(e, format_as_value=True, expand_parameters=False, n
     const_size = sum(long_fields.filter('node_type', 'Constant').map('_hdr_ref.urtype.size'))
 
     #pre[ ${format_type(e.type, no_ptr=True)} $structvar = ${gen_fmt_StructInitializerExpression(e, fldsvar, format_as_value, expand_parameters, needs_variable, funname_override)};
-    for c in long_fields.filter('expression.node_type', 'Member'):
-        ce = c.expression
-        hdrname, fldname = get_hdrfld_name(ce)
-        #pre[ GET_BUF(&(${structvar}.${c.name}), src_pkt(pd), FLD($hdrname,$fldname));
+    for comp, c in zip(e.components.filter(lambda comp: comp.expression.urtype.size > 32), long_fields):
+        if 'expression' in c:
+            ce = c.expression 
+            hdrname, fldname = get_hdrfld_name(ce)
+            #pre[ GET_BUF(&(${structvar}.${c.name}), src_pkt(pd), FLD($hdrname,$fldname));
+        elif c.node_type == 'Constant':
+            src_pointer = generate_var_name('const')
+            bytewidth = (c.urtype.size+7) // 8
+            #pre[ uint8_t $src_pointer[$bytewidth] = ${int_to_big_endian_byte_array_with_length(c.value, bytewidth, c.base)};
+            #pre[ memcpy(${structvar}.${comp.name}, ${src_pointer}, $bytewidth);
+        else:
+            if comp.expression.node_type == 'StructExpression':
+                typename = f'{comp.urtype.name}'
+                parts = [(f'.{c2.name}', c2.expression) for c2 in comp.expression.components]
+            else:
+                parts = [('', c)]
+
+            for postfix, c2 in parts:
+                hdrname, fldname = get_hdrfld_name(c2)
+                if fldname is None:
+                    #pre[ ${structvar}.${comp.name} = *(HDRT(${hdrname}_t)*)pd->headers[HDR($hdrname)].pointer;
+                else:
+                    #pre[ memcpy(${structvar}.${comp.name}, pd->headers[HDR($hdrname)].pointer, to_bytes(${comp.expression.urtype.size}));
 
     # TODO in some cases, it should be empty
     ref = '&'
@@ -1479,23 +1506,29 @@ def gen_fmt_Operator(e, nt, format_as_value=True, expand_parameters=False):
     else:
         left = format_expr(e.left)
         right = format_expr(e.right)
-        size = e.left.type.size
-        if nt in simple_binary_ops:
-            if nt == 'Equ' and size > 32:
-                #[ 0 == memcmp($left, $right, (${size} + 7) / 8)
-            else:
-                op = simple_binary_ops[nt]
-                #[ (($left) ${op} ($right))
-        elif nt == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
-            #Subtraction on unsigned values is performed by adding the negation of the second operand
-            expr_to_mask = f'{left} + ({2 ** e.type.size}-{right})'
-            #[ ${masking(e.type, expr_to_mask)}
-        elif nt == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
-            #Right shift on signed values is performed with a shift width check
-            #[ ((${right}>${size}) ? 0 : (${left} >> ${right}))
+        if e.type.node_type == 'Type_InfInt':
+            sop = simple_binary_ops.get(nt, None)
+            cop = complex_binary_ops.get(nt, None)
+            op = sop if sop is not None else cop
+            #[ (($left) ${op} ($right))
         else:
-            #These formatting rules MUST follow the previous special cases
-            #= gen_fmt_ComplexOp(e, complex_binary_ops[nt], format_as_value, expand_parameters)
+            size = e.left.type.size
+            if nt in simple_binary_ops:
+                if nt == 'Equ' and size > 32:
+                    #[ 0 == memcmp($left, $right, (${size} + 7) / 8)
+                else:
+                    op = simple_binary_ops[nt]
+                    #[ (($left) ${op} ($right))
+            elif nt == 'Sub' and e.type.node_type == 'Type_Bits' and not e.type.isSigned:
+                #Subtraction on unsigned values is performed by adding the negation of the second operand
+                expr_to_mask = f'{left} + ({2 ** e.type.size}-{right})'
+                #[ ${masking(e.type, expr_to_mask)}
+            elif nt == 'Shr' and e.type.node_type == 'Type_Bits' and e.type.isSigned:
+                #Right shift on signed values is performed with a shift width check
+                #[ ((${right}>${size}) ? 0 : (${left} >> ${right}))
+            else:
+                #These formatting rules MUST follow the previous special cases
+                #= gen_fmt_ComplexOp(e, complex_binary_ops[nt], format_as_value, expand_parameters)
 
 
 def funs_with_cond(name_cond):
@@ -1593,7 +1626,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             hdr = generate_var_name(f'stack_{stk}_{idx}')
             #pre[ header_instance_e $hdr = stk_at_idx(STK($stk), $idx, pd);
 
-        #[ GET32(src_pkt(pd), stk_start_fld($hdr) + stkfld_offset_${stk}_$fldname)
+        #[ GET32(src_pkt(pd), STKFLD($stk,$hdr,$fldname))
     elif nt == 'Member' and 'fld_ref' in e:
         hdrname, fldname = get_hdrfld_name(e)
 
@@ -1890,6 +1923,73 @@ def get_all_extern_call_infos(hlir):
 
 
 # ------------------------------------------------------------------------------
+
+def to_buf_param(partype, parname):
+    size = f'({"+".join(f"{fld.size}" for fld in partype.urtype.fields)}+7) / 8'
+
+    offset = '0'
+    offsets = []
+    lens = []
+    for fld in partype.urtype.fields:
+        lens.append(f'{fld.size}')
+        offsets.append(offset)
+        offset += f'+{fld.size}'
+
+    parnames = ", ".join(f'"{parname}"' for parname in partype.fields.map('name'))
+    partypenames = ", ".join(f'"{get_short_type(parut)}"' for parut in partype.fields.map('urtype'))
+
+    components = [
+        ('size', f'{size}'),
+        ('buffer', f'(uint8_t*){parname}'),
+        ('part_count', f'{len(partype.fields)}'),
+        ('part_bit_offsets', f'{{{", ".join(offsets)}}}'),
+        ('part_bit_sizes', f'{{{", ".join(lens)}}}'),
+        ('name', f'"{partype.name}"'),
+        ('part_names', f'{{{parnames}}}'),
+        ('part_types', f'{{{partypenames}}}'),
+    ]
+
+    return f'(uint8_buffer_t){{{", ".join(f".{component} = {value}" for component, value in components)}}}'
+
+def is_tuple_param(partype):
+    return partype.urtype.node_type == 'Type_Struct'
+
+def to_buf(partype, parname):
+    if is_tuple_param(partype):
+        return to_buf_param(partype, parname)
+    return parname
+
+def to_buf_type(partype, partypename, buftype='u8s'):
+    return buftype if is_tuple_param(partype) else partypename
+
+
+def get_detailed_extern_callinfos(hlir):
+    def by_partypename(callinfo):
+        mname_parts, parinfos, ret, partypeinfos = callinfo
+        return (mname_parts, partypeinfos)
+
+    callinfos = list(unique_everseen(get_all_extern_call_infos(hlir), key=by_partypename))
+    # callinfos = get_all_extern_call_infos(hlir)
+    calls = set()
+    for mname_parts, parinfos, ret, partypeinfos in callinfos:
+        partype_suffix = ''.join(f',{ptn}' for (ptype, ptn) in partypeinfos)
+        params = ', '.join([f'{ctype} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None] + ['SHORT_STDPARAMS'])
+        params_as_buf = ', '.join([f'{to_buf_type(partype, ctype, "uint8_buffer_t")} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None] + ['SHORT_STDPARAMS'])
+
+        arginfos = tuple((pardir, partype, argtype, argvalue) for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if argvalue != None)
+        refvars = tuple(argvalue if pardir in ('out', 'inout') else None for idx, (pardir, partype, argtype, argvalue) in enumerate(arginfos))
+
+        args = ', '.join([refvar if refvar is not None else argvalue for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)] + ['SHORT_STDPARAMS_IN'])
+        args_as_buf = ', '.join([refvar if refvar is not None else to_buf(partype, argvalue) for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)] + ['SHORT_STDPARAMS_IN'])
+        mname_postfix = ''.join(f',{ptn}' for (ptype, ptn) in partypeinfos)
+        mname_postfix_as_buf = ''.join(f',{to_buf_type(ptype, ptn)}' for (ptype, ptn) in partypeinfos)
+
+        calls.add((len(partypeinfos), mname_parts, partype_suffix, params, params_as_buf, ret, mname_postfix, mname_postfix_as_buf, args, args_as_buf, refvars, arginfos, parinfos))
+
+    return calls
+
+
+# ------------------------------------------------------------------------------
 # TODO everything below is too low level, move elsewhere (to the DPDK area)
 
 
@@ -1949,6 +2049,8 @@ def get_partypename_ctype(par, arg, ptr):
     if (struct := purtype).node_type == 'Type_Struct':
         return f'{struct.name}', f'{append_type_postfix(struct.name)}*{ptr}'
     if (param := purtype).node_type == 'Parameter':
+        if (struct := arg.urtype).node_type == 'Type_Struct':
+            return f'{struct.name}', f'{append_type_postfix(struct.name)}*{ptr}'
         size = align8_16_32(bits.size)
         return None, f'uint{size}_t{ptr}'
     if (string := purtype).node_type == 'Type_String':
