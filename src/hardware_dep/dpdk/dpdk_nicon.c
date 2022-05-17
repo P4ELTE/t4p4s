@@ -179,6 +179,10 @@ struct lcore_data init_lcore_data() {
 
 // ------------------------------------------------------
 
+bool check_packet_after_parse(LCPARAMS) {
+    return true;
+}
+
 bool core_is_working(LCPARAMS) {
     return true;
 }

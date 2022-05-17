@@ -23,6 +23,7 @@ ERRCODE_LOOP=4
 ERRCODE_DROP_SEND=5
 ERRCODE_WRONG_OUTPUT=6
 ERRCODE_CFLOW_REQ=7
+ERRCODE_UNSET_EGRESS_PORT=11
 
 ERRCODE_NOMEM=8
 ERRCODE_SEGFAULT=139
@@ -1082,9 +1083,13 @@ if [ "$(optvalue run)" != off ]; then
     [ "$ERROR_CODE" == "$ERRCODE_LOOP" ] && ERR_CODE_MSG="($(cc 3 2 1)Too many iterations, possible infinite loop$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_DROP_SEND" ] && ERR_CODE_MSG="($(cc 3 2 1)Packets were unexpectedly dropped/sent$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_WRONG_OUTPUT" ] && ERR_CODE_MSG="($(cc 3 2 1)Execution finished with wrong output$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_CFLOW_REQ" ] && ERR_CODE_MSG="($(cc 3 2 1)Control flow requirements not met$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_UNSET_EGRESS_PORT" ] && ERR_CODE_MSG="($(cc 3 2 1)Egress port was not set$nn)"
+
     [ "$ERROR_CODE" == "$ERRCODE_C" ] && ERR_CODE_MSG="($(cc 3 2 1)C compilation failed$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_COMPILE_P4" ] && ERR_CODE_MSG="($(cc 3 2 1)P4 to C compilation failed$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_SEGFAULT" ] && ERR_CODE_MSG="($(cc 3 2 1)C code execution: Segmentation fault$nn)"
+
     [ "$ERROR_CODE" == "$ERRCODE_INTERRUPT" ] && ERR_CODE_MSG="($(cc 2 1)Execution interrupted$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_ERROR" ] && ERR_CODE_MSG="($(cc 2 1)Switch execution error$nn)"
 

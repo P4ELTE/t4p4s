@@ -29,6 +29,7 @@ int last_error_pkt_idx = -1;
 bool encountered_error = false;
 bool encountered_drops = false;
 bool encountered_bad_requirement = false;
+bool encountered_unset_egress_port = false;
 int infinite_loop_on_core = NO_INFINITE_LOOP;
 
 void error_encountered(LCPARAMS) {
@@ -221,6 +222,14 @@ void abort_on_strict() {
 }
 
 void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
+    #ifdef T4P4S_DEBUG
+        if (!pd->is_egress_port_set && !is_packet_dropped(pd)) {
+            debug(" " T4LIT(!!!!,error) " Egress port is not set for packet, nor is the packet dropped\n");
+            encountered_unset_egress_port = true;
+            return;
+        }
+    #endif
+
     if (cmd.out_port == egress_port)    return;
 
     char port_designation_egress[256];
@@ -243,7 +252,7 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
                 get_packet_idx(LCPARAMS_IN), rte_lcore_id(),
                 egress_port, port_designation_egress);
         } else {
-            debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,expected) ", got " T4LIT(%d%s,error) "\n",
+            debug("   " T4LIT(!!,error) " " T4LIT(Packet #%d,packet) "@" T4LIT(core%d,core) ": expected egress port is " T4LIT(%d%s,port) ", got " T4LIT(%d%s,error) "\n",
                 get_packet_idx(LCPARAMS_IN), rte_lcore_id(),
                 cmd.out_port, port_designation_cmd,
                 egress_port, port_designation_egress);
@@ -325,6 +334,21 @@ int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
 }
 
 
+int last_printed_wrong_byte_msg_idx = -1;
+
+void print_wrong_bytes_msg(fake_cmd_t cmd, char expected[MSG_MAX_LEN], char wrong[MSG_MAX_LEN], int wrong_byte_count, LCPARAMS) {
+    if (last_printed_wrong_byte_msg_idx == lcdata->idx)    return;
+
+    // this is padding for the second line
+    char wronglen[MSG_MAX_LEN];
+    sprintf(wronglen, "%d", wrong_byte_count);
+
+    debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", wrong);
+    debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(wronglen), "", expected);
+
+    last_printed_wrong_byte_msg_idx = lcdata->idx;
+}
+
 void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
     char expected[MSG_MAX_LEN];
     char wrong[MSG_MAX_LEN];
@@ -332,15 +356,32 @@ void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
     int wrong_byte_count = wrong_bytes_info(cmd, expected, wrong, LCPARAMS_IN);
 
     if (wrong_byte_count != 0) {
-        // this is padding for the second line
-        char wronglen[MSG_MAX_LEN];
-        sprintf(wronglen, "%d", wrong_byte_count);
-
-        debug("   " T4LIT(!!,error) " " T4LIT(%d) " wrong byte%s found: %s\n", wrong_byte_count, wrong_byte_count > 1 ? "s" : "", wrong);
-        debug("   " T4LIT(!!,error) " Expected byte%s:     %*s%s\n", wrong_byte_count > 1 ? "s" : "", (int)strlen(wronglen), "", expected);
-
+        print_wrong_bytes_msg(cmd, expected, wrong, wrong_byte_count, LCPARAMS_IN);
         lcdata->is_valid = false;
         abort_on_strict();
+    }
+}
+
+#define SPECIAL_PORT_DESIGNATOR_COUNT 2
+int special_port_designators[] = { T4P4S_BROADCAST_PORT, EGRESS_DROP_VALUE };
+
+#define RND_PORT_COUNT 4
+int rnd_port_designators[] = { RND1, RND2, RND3, RND4 };
+int rnd_ports[4];
+
+#define NO_INDEX_FOUND -1
+
+int find_index_in_array(int value, int array[], int len) {
+    for (int i = 0; i < len; ++i) {
+        if (array[i] == value)   return i;
+    }
+    return NO_INDEX_FOUND;
+}
+
+void generate_random_port(fake_cmd_t* cmd) {
+    cmd->in_port = pick_random_port();
+    while (NO_INDEX_FOUND != find_index_in_array(cmd->in_port, special_port_designators, SPECIAL_PORT_DESIGNATOR_COUNT)) {
+        cmd->in_port = pick_random_port();
     }
 }
 
@@ -350,7 +391,25 @@ fake_cmd_t get_cmd(int idx) {
         return ret;
     }
 
-    return (*(current_test_case->steps))[rte_lcore_id()][idx];
+    fake_cmd_t* cmd = &(*(current_test_case->steps))[rte_lcore_id()][idx];
+
+    if (cmd->action == FAKE_PKT) {
+        if (cmd->in_port == ANY) {
+            generate_random_port(cmd);
+        }
+
+        if (cmd->out_port == SAME) {
+            cmd->out_port = cmd->in_port;
+        }
+
+        int in_idx = find_index_in_array(cmd->in_port, rnd_port_designators, RND_PORT_COUNT);
+        int out_idx = find_index_in_array(cmd->out_port, rnd_port_designators, RND_PORT_COUNT);
+        if (NO_INDEX_FOUND != in_idx)     cmd->in_port = rnd_ports[in_idx];
+        if (NO_INDEX_FOUND != out_idx)    cmd->out_port = rnd_ports[out_idx];
+    }
+
+
+    return *cmd;
 }
 
 bool is_real_fake_packet(fake_cmd_t cmd) {
@@ -367,6 +426,16 @@ fake_cmd_t get_next_real_fake_verify_packet(bool is_broadcast_nonfirst, LCPARAMS
             return cmd;
         }
     }
+}
+
+bool check_packet_after_parse(LCPARAMS) {
+    fake_cmd_t cmd = get_cmd(lcdata->idx);
+    // TODO make the PAYLOAD(...) macro mark the payload in a recognisable manner
+    // if (pd->payload_size != cmd->payload_size) {
+    //     // TODO warning message about differing payload sizes
+    //     return false;
+    // }
+    return true;
 }
 
 void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
@@ -526,10 +595,18 @@ bool is_packet_handled(LCPARAMS) {
     return get_cmd(lcdata->idx).action == FAKE_PKT;
 }
 
+void init_rnd_ports() {
+    for (int i = 0; i < RND_PORT_COUNT; ++i) {
+        rnd_ports[i] = pick_random_port();
+    }
+}
+
 void main_loop_pre_rx(LCPARAMS) {
     #if defined T4P4S_STATS && T4P4S_STATS == 1
         t4p4s_init_per_packet_stats();
     #endif
+
+    init_rnd_ports();
 
     lcdata->is_valid = true;
 }
@@ -626,6 +703,8 @@ struct lcore_data init_lcore_data() {
 }
 
 void initialize_nic() {
+    srand(time(0));
+
     dpdk_init_nic();
     #if T4P4S_INIT_CRYPTO
         init_crypto_devices();
@@ -674,6 +753,11 @@ int t4p4s_normal_exit() {
             return T4EXIT(CFLOW_REQ);
         }
     #endif
+
+    if (encountered_unset_egress_port) {
+        debug(T4LIT(Normal exit,success) " but " T4LIT(packets were sent without an explicitly set egress port,error) "\n");
+        return T4EXIT(UNSET_EGRESS_PORT);
+    }
 
     debug(T4LIT(Normal exit.,success) "\n");
     return T4EXIT(OK);

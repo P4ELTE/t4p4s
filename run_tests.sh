@@ -289,6 +289,7 @@ else
     fail_codes[8]="Not enough memory"
     fail_codes[9]="Compiler tool not found"
     fail_codes[10]="Could not determine model (e.g. v1model or psa)"
+    fail_codes[11]="Egress port was not set"
     fail_codes[124]="Timeout error"
     fail_codes[134]="Stack smashing"
     fail_codes[139]="C code execution: Segmentation fault"
@@ -296,7 +297,7 @@ else
     fail_codes[254]="Execution interrupted"
     fail_codes[255]="Switch execution error"
 
-    for fc in 7 6 5 4 3 2 1 139 254 255; do
+    for fc in `seq 139 -1 1` `seq 200 255`; do
         failcode_count=0
         for test in ${!exitcode[@]}; do
             [ ${exitcode[$test]} -eq $fc ] && ((++failcode_count))

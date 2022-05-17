@@ -37,4 +37,5 @@ typedef enum {
     T4EXIT(DROP_SEND) = 5,
     T4EXIT(WRONG_OUTPUT) = 6,
     T4EXIT(CFLOW_REQ) = 7,
+    T4EXIT(UNSET_EGRESS_PORT) = 11,
 } T4EXIT(_t);
