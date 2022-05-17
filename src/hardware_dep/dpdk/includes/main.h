@@ -16,6 +16,16 @@
 #endif
 
 
+extern bool is_packet_dropped(packet_descriptor_t* pd);
+
+#if ASYNC_MODE != ASYNC_MODE_OFF
+    // defined in main_async.c
+    extern void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
+    extern void main_loop_async(LCPARAMS);
+    extern void main_loop_fake_crypto(LCPARAMS);
+#endif
+
+
 void initialize_args(int argc, char **argv);
 void initialize_nic();
 int init_tables();
@@ -51,6 +61,7 @@ packet* clone_packet(packet* pd, struct rte_mempool* mempool);
 void init_parser_state(parser_state_t*);
 void init_table_default_actions();
 int get_packet_idx(LCPARAMS);
+bool check_packet_after_parse(LCPARAMS);
 
 uint32_t get_port_mask();
 uint8_t get_port_count();
@@ -60,3 +71,5 @@ void t4p4s_print_per_packet_stats();
 void t4p4s_init_global_stats();
 void t4p4s_init_per_packet_stats();
 bool check_controlflow_requirements(fake_cmd_t cmd);
+
+int pick_random_port();

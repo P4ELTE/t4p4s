@@ -8,9 +8,6 @@
 #include <rte_mempool.h>
 
 
-extern bool is_packet_dropped(packet_descriptor_t* pd);
-
-
 volatile int packet_counter = 0;
 volatile int packet_with_error_counter = 0;
 
@@ -117,13 +114,17 @@ void do_handle_packet(int portid, unsigned queue_idx, unsigned pkt_idx, LCPARAMS
 }
 
 // defined in main_async.c
-void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
-void main_loop_async(LCPARAMS);
-void main_loop_fake_crypto(LCPARAMS);
-
 void init_pd_state(packet_descriptor_t* pd) {
-    pd->context = NULL;
-    pd->program_restore_phase = 0;
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        pd->context = NULL;
+        #if ASYNC_MODE == ASYNC_MODE_PD
+            pd->program_restore_phase = 0;
+        #endif
+    #endif
+
+    #ifdef T4P4S_DEBUG
+        pd->is_egress_port_set = false;
+    #endif
 }
 
 // TODO move this to stats.h.py
@@ -143,12 +144,10 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
                 COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
                 async_handle_packet(portid, queue_idx, pkt_idx, do_handle_packet, LCPARAMS_IN);
                 return;
-            }else {
-                do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
             }
-        #else
-            do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
         #endif
+
+        do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
     }
 
     main_loop_post_single_rx(got_packet, LCPARAMS_IN);

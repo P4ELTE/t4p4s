@@ -92,13 +92,21 @@ typedef struct {
 
     void * control_locals;
 
-    // async functionality
-    void *context;
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        // async functionality
+        void *context;
 
-    int port_id;
-    unsigned queue_idx;
-    unsigned pkt_idx;
-    int program_restore_phase;
+        int port_id;
+        unsigned queue_idx;
+        unsigned pkt_idx;
+        #if ASYNC_MODE == ASYNC_MODE_PD
+            int program_restore_phase;
+        #endif
+    #endif
+
+    #ifdef T4P4S_DEBUG
+        bool is_egress_port_set;
+    #endif
 } packet_descriptor_t;
 
 
@@ -125,3 +133,6 @@ field_instance_e stk_start_fld(header_instance_e hdr);
 void do_assignment(header_instance_e dst_hdr, header_instance_e src_hdr, SHORT_STDPARAMS);
 void set_hdr_valid(header_instance_e hdr, SHORT_STDPARAMS);
 void set_hdr_invalid(header_instance_e hdr, SHORT_STDPARAMS);
+
+// note: currently implemented in dataplane_deparse.c.py
+bool is_packet_dropped(packet_descriptor_t* pd);
