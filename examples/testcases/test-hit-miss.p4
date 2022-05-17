@@ -32,6 +32,8 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         hdr.output.setValid();
         hdr.output.f1.b = dummy_table.apply().hit;
         hdr.output.f2.b = dummy_table.apply().miss;

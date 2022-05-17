@@ -25,7 +25,8 @@ CTL_MAIN {
     one_bit_t one = 1;
     
     apply {
-       hdr.dummy.f1 = one;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f1 = one;
     }
 }
 

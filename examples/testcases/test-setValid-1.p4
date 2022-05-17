@@ -8,7 +8,7 @@ struct metadata {
 
 struct headers {
     ethernet_t ethernet;
-    hdr1_t     h1;
+    bits8_t    h8;
 }
 
 PARSER {
@@ -19,14 +19,14 @@ PARSER {
 }
 
 CTL_MAIN {
-    action setValid_h1() {
-        hdr.h1.setValid();
-        hdr.h1.byte1 = 0xEB;
+    action setValid_h8() {
+        hdr.h8.setValid();
+        hdr.h8.f8 = 0xEB;
     }
 
     table dmac {
         actions = {
-            setValid_h1;
+            setValid_h8;
         }
 
         key = {
@@ -34,10 +34,11 @@ CTL_MAIN {
 
         size = 1;
 
-        default_action = setValid_h1;
+        default_action = setValid_h8;
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         dmac.apply();
     }
 }
@@ -45,7 +46,7 @@ CTL_MAIN {
 CTL_EMIT {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.h1);
+        packet.emit(hdr.h8);
     }
 }
 

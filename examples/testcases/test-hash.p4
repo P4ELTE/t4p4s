@@ -38,6 +38,8 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         bit<16> input16 = 0x1234;
         bit<24> input24 = 0x123456;
         bit<32> input32 = 0x12345678;

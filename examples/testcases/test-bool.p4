@@ -27,10 +27,11 @@ CTL_MAIN {
     bool tmp_bool = true;
 
     apply {
-       hdr.dummy.b1 = hdr.dummy.b1 || tmp_bool;
-       hdr.dummy.b2 = !(hdr.dummy.b2 && tmp_bool) == tmp_bool;
-       hdr.dummy.b3 = (hdr.dummy.b3 || tmp_bool) != false;
-       hdr.dummy.b4 = hdr.dummy.b4 ? false : true;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.b1 = hdr.dummy.b1 || tmp_bool;
+        hdr.dummy.b2 = !(hdr.dummy.b2 && tmp_bool) == tmp_bool;
+        hdr.dummy.b3 = (hdr.dummy.b3 || tmp_bool) != false;
+        hdr.dummy.b4 = hdr.dummy.b4 ? false : true;
     }
 }
 

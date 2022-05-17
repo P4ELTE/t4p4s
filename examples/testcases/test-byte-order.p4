@@ -45,7 +45,7 @@ CTL_MAIN {
             hdr.dummy.addr1:   exact;
         }
 
-        size = 3;
+        size = 16;
 
         const entries = {
             (0x00, 0x12345678) : action1(0x12345678);
@@ -84,6 +84,8 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         t1.apply();
         t2.apply();
         t3.apply();

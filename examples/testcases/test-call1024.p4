@@ -35,6 +35,7 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         myAction2();
         myAction2();
         myAction2();

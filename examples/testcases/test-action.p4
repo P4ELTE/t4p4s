@@ -67,6 +67,8 @@ CTL_MAIN {
         hdr.all.f6 = bot.f6;
         hdr.all.f7 = bot.f7;
         hdr.all.f8 = bot.f8;
+
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 }
 

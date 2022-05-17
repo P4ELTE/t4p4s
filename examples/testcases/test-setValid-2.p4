@@ -42,6 +42,7 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         dmac.apply();
     }
 }

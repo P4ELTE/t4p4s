@@ -115,7 +115,9 @@ PARSER {
 }
 
 CTL_MAIN {
-    apply {}
+    apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+    }
 }
 
 CTL_EMIT {

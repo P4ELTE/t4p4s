@@ -18,7 +18,8 @@ PARSER {
 
 CTL_MAIN {
     apply {
-       hdr.dummy.f8 = hdr.dummy.f8 + 1;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f8 = hdr.dummy.f8 + 1;
     }
 }
 

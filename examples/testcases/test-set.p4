@@ -5,12 +5,12 @@ struct metadata {
 }
 
 header dummy_t {
-  bit<1> f1;
-  bit<8> f2;
-  bit<4> f3;
-  bit<2> f4;
-  bit<2> f5;
-  bit<7> padding;
+    bit<1> f1;
+    bit<8> f2;
+    bit<4> f3;
+    bit<2> f4;
+    bit<2> f5;
+    bit<7> padding;
 }
 
 struct headers {
@@ -59,7 +59,9 @@ PARSER {
 }
 
 CTL_MAIN {
-    apply {}
+    apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+    }
 }
 
 CTL_EMIT {

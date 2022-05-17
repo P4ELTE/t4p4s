@@ -28,6 +28,7 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         Op op = hdr.op.op;
         hdr.op.setInvalid();
         bit<8> offset = 0;

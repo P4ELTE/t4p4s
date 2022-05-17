@@ -30,7 +30,7 @@ CTL_MAIN {
         hdr.dummy.addr = dd;
     }
     action learn() {
-        CALL_DIGEST(learn_digest_t, learn_digest, 1024, ({ hdr.dummy.addr, (bit<8>)2 }));
+        CALL_DIGEST(learn_digest_t, learn_digest, 1024, ({ hdr.dummy.addr, 8w2 }));
     }
     table t {
         actions = {
@@ -43,8 +43,8 @@ CTL_MAIN {
         size = 512;
     }
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         t.apply();
-        SET_EGRESS_PORT(12345);
     }
 }
 

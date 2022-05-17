@@ -6,11 +6,8 @@
 struct metadata {
 }
 
-header offset_t {
-    bit<8> offset;
-}
 struct headers {
-    offset_t offset;
+    bits8_t offset;
 }
 
 PARSER {
@@ -24,9 +21,9 @@ extern void encrypt<T>(in T offset);
 
 CTL_MAIN {
     apply {
-        hdr.offset.offset = hdr.offset.offset + 8w1;
-        encrypt({hdr.offset.offset});
-        hdr.offset.offset = hdr.offset.offset - 8w1;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        encrypt({hdr.offset.f8 + 8w1});
+        hdr.offset.setInvalid();
     }
 }
 

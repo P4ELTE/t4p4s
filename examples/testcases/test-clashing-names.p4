@@ -8,7 +8,7 @@ struct metadata {
 
 struct headers {
     ethernet_t ethernet;
-    hdr1_t     h1;
+    bits8_t    h8;
 }
 
 PARSER {
@@ -58,10 +58,12 @@ CTL_EMIT {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         clashing_table_name.apply();
 
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.h1);
+        packet.emit(hdr.h8);
     }
 }
 
@@ -90,7 +92,7 @@ CTL_EGRESS {
 
 #define CUSTOM_CTL_CHECKSUM
 
-CTL_VERIFY_CHECKSUM {
+CUSTOM_VERIFY_CHECKSUM {
     action clashing_action_name() {
     }
 
@@ -112,7 +114,7 @@ CTL_VERIFY_CHECKSUM {
     }
 }
 
-CTL_UPDATE_CHECKSUM {
+CUSTOM_UPDATE_CHECKSUM {
     action clashing_action_name() {
     }
 

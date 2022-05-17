@@ -30,9 +30,11 @@ CTL_MAIN {
     one_bit_t one = 1;
 
     apply {
-       hdr.dummy.f0          = hdr.dummy.f0 + one + 1w0;
-       hdr.dummy.byte_field1 = 0xFF;
-       hdr.dummy.byte_field2 = 0xACDC;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
+        hdr.dummy.f0          = hdr.dummy.f0 + one + 1w0;
+        hdr.dummy.byte_field1 = 0xFF;
+        hdr.dummy.byte_field2 = 0xACDC;
     }
 }
 

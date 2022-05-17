@@ -36,11 +36,12 @@ PARSER {
 
 CTL_MAIN {
     apply {
-       // data d = {~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second};
-       hdr.dummy[1].f1 = (bit<1>)hdr.empty.isValid();
-       // hdr.dummy[1].f2 = d;
-       hdr.dummy[2].setInvalid();
-       hdr.dummy.pop_front(1);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        // data d = {~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second, ~hdr.dummy[1].f2.second};
+        hdr.dummy[1].f1 = (bit<1>)hdr.empty.isValid();
+        // hdr.dummy[1].f2 = d;
+        hdr.dummy[2].setInvalid();
+        hdr.dummy.pop_front(1);
     }
 }
 

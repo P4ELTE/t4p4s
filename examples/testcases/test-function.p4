@@ -52,17 +52,18 @@ PARSER {
 
 CTL_MAIN {
     apply {
-       hdr.dummy.f1 = max1(hdr.dummy.f1, 1w1);
-       hdr.dummy.f2 = max1(1w1, hdr.dummy.f2);
-       hdr.dummy.f3 = max2(2w3, 2w0);
-       hdr.dummy.f4 = max2(2w1, 2w2);
-       hdr.dummy.f5 = max2(hdr.dummy.f4, 2w3);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f1 = max1(hdr.dummy.f1, 1w1);
+        hdr.dummy.f2 = max1(1w1, hdr.dummy.f2);
+        hdr.dummy.f3 = max2(2w3, 2w0);
+        hdr.dummy.f4 = max2(2w1, 2w2);
+        hdr.dummy.f5 = max2(hdr.dummy.f4, 2w3);
 
-       hdr.dummy.f1b.f1 = max1(hdr.dummy.f1b.f1, 1w1);
-       hdr.dummy.f2b.f1 = max1(1w1, hdr.dummy.f2b.f1);
-       hdr.dummy.f3b.f2 = max2(2w3, 2w0);
-       hdr.dummy.f4b.f2 = max2(2w1, 2w2);
-       hdr.dummy.f5b.f2 = max2(hdr.dummy.f4b.f2, 2w3);
+        hdr.dummy.f1b.f1 = max1(hdr.dummy.f1b.f1, 1w1);
+        hdr.dummy.f2b.f1 = max1(1w1, hdr.dummy.f2b.f1);
+        hdr.dummy.f3b.f2 = max2(2w3, 2w0);
+        hdr.dummy.f4b.f2 = max2(2w1, 2w2);
+        hdr.dummy.f5b.f2 = max2(hdr.dummy.f4b.f2, 2w3);
     }
 }
 

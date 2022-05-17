@@ -34,6 +34,7 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         if (hdr.multi[0].isValid())  hdr.multi[0].setInvalid();
         if (hdr.multi[1].isValid())  hdr.multi[1].setInvalid();
         if (hdr.multi[2].isValid())  hdr.multi[2].setInvalid();

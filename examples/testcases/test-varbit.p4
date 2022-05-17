@@ -37,6 +37,8 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         hdr.copy.setValid();
         hdr.copy = hdr.orig;
 

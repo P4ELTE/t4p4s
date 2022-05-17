@@ -21,24 +21,26 @@ PARSER {
 }
 
 CTL_MAIN {
-    action a() { 
-	hdr.dummy.f1 = (bit<2>)3;
-	hdr.dummy.f2 = (bit<2>)3; 
+    action a() {
+        hdr.dummy.f1 = 2w3;
+        hdr.dummy.f2 = 2w3;
     }
 
     table dummy_table {
         key = {}
         actions = {
-		a;
+            a;
         }
     }
 
     apply {
-       switch (dummy_table.apply().action_run) {
-		default: {
-			a();
-		}
-       }
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
+        switch (dummy_table.apply().action_run) {
+            default: {
+                a();
+            }
+        }
     }
 }
 

@@ -14,6 +14,9 @@ struct headers {
 }
 
 PARSER {
+    @name(".start") state start {
+        transition parse_ethernet;
+    }
     @name(".parse_ethernet") state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
@@ -25,15 +28,14 @@ PARSER {
         packet.extract(hdr.ipv4);
         transition accept;
     }
-    @name(".start") state start {
-        transition parse_ethernet;
-    }
 }
 
 extern void ipsec_encapsulate();
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         log_msg("diffserv    = {}", {hdr.ipv4.diffserv});
         log_msg("totalLen    = {}", {hdr.ipv4.totalLen});
         log_msg("identification    = {}", {hdr.ipv4.identification});

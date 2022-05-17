@@ -33,6 +33,7 @@ CTL_MAIN {
         default_action = def_act;
     }
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         t.apply();
     }
 }

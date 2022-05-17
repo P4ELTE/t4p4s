@@ -25,7 +25,8 @@ CTL_MAIN {
     tuple<bit<1>, bit<2>, bit<5>> x = { hdr.dummy.f1, hdr.dummy.f2, hdr.dummy.padding };
     
     apply {
-       hdr.dummy = {1w1, 2w3, 5w0};
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy = {1w1, 2w3, 5w0};
     }
 }
 

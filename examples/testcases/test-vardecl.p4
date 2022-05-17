@@ -35,15 +35,16 @@ CTL_MAIN {
     bit<1> tmp = 1w1;
 
     action dummy_action() {
-       bit<1> tmp2 = 1w1;
-       hdr.dummy.f5 = hdr.dummy.f5 + tmp2;
+        bit<1> tmp2 = 1w1;
+        hdr.dummy.f5 = hdr.dummy.f5 + tmp2;
     }
     
     apply {
-       hdr.dummy.f3 = hdr.dummy.f3 + tmp;
-       bit<1> tmp2 = 1w1;
-       hdr.dummy.f4 = hdr.dummy.f4 + tmp2;
-       dummy_action();
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f3 = hdr.dummy.f3 + tmp;
+        bit<1> tmp2 = 1w1;
+        hdr.dummy.f4 = hdr.dummy.f4 + tmp2;
+        dummy_action();
     }
 }
 

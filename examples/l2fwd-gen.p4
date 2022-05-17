@@ -27,8 +27,10 @@ CTL_MAIN {
         CALL_DIGEST(mac_learn_digest_t, mac_learn_digest, 1024, ({ hdr.ethernet.srcAddr, GET_INGRESS_PORT() }));
     }
     action _nop() {
+        SET_EGRESS_PORT(GET_EGRESS_PORT());
     }
     action testing(bit<32> arg1, bit<32> arg2) {
+        SET_EGRESS_PORT(GET_EGRESS_PORT());
     }
     table dmac {
         actions = {

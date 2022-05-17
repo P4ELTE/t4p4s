@@ -21,6 +21,7 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         if (hdr.inhdr.f16 == 0x0FF) {
             hdr.inhdr.setInvalid();
         } else {

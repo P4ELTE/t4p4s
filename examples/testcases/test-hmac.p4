@@ -6,11 +6,8 @@
 struct metadata {
 }
 
-header offset_t {
-    bit<8> offset;
-}
 struct headers {
-    offset_t offset;
+    bits8_t offset;
 }
 
 PARSER {
@@ -24,11 +21,11 @@ extern void md5_hmac<T>(in T offset);
 extern void symmetric_encrypt<T>(out T result, in T data);
 extern void do_encryption();
 extern void do_decryption();
+
 CTL_MAIN {
     apply {
-        hdr.offset.offset = hdr.offset.offset + 8w1;
-        md5_hmac({hdr.offset.offset});
-        hdr.offset.offset = hdr.offset.offset - 8w1;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        md5_hmac({hdr.offset.f8 + 8w1});
     }
 }
 

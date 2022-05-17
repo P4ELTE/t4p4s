@@ -7,8 +7,8 @@ header dummy_t {
 }
 
 header dummy2_t  {
-	bit<6> neverknown;
-	bit<2> padding;
+    bit<6> neverknown;
+    bit<2> padding;
 }
 
 struct metadata {}
@@ -27,24 +27,25 @@ PARSER {
 
 CTL_MAIN {
     apply {
-	   hdr.dummy.f1 = 1;
-	   bit<6> possibly_zero = hdr.dummy.padding;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f1 = 1;
+        bit<6> possibly_zero = hdr.dummy.padding;
 
-	   if (hdr.dummy.f1 == 0 && ((6w1/possibly_zero)==0) && 6w1==hdr.dummy2.neverknown) {
-			// NEVER RUNS
-			hdr.dummy.f1 = 2;
-	   } else {
-			if (hdr.dummy.f1 == 1 || ((6w1/possibly_zero)==0)) {
+        if (hdr.dummy.f1 == 0 && ((6w1/possibly_zero)==0) && 6w1==hdr.dummy2.neverknown) {
+            // NEVER RUNS
+            hdr.dummy.f1 = 2;
+        } else {
+            if (hdr.dummy.f1 == 1 || ((6w1/possibly_zero)==0)) {
                 // ALWAYS RUNS
-				hdr.dummy.f1 = 0;
-			}
-	   }
+                hdr.dummy.f1 = 0;
+            }
+        }
 
-	   if (hdr.dummy2.isValid() && 6w1==hdr.dummy2.neverknown) {
-			// NEVER RUNS
-			hdr.dummy.f1 = 3;
-	   }
-	}
+        if (hdr.dummy2.isValid() && 6w1==hdr.dummy2.neverknown) {
+            // NEVER RUNS
+            hdr.dummy.f1 = 3;
+        }
+    }
 }
 
 

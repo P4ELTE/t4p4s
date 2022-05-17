@@ -34,17 +34,18 @@ CTL_MAIN {
     bit<2> tmp_bit2 = 2w3;
     
     apply {
-       hdr.dummy.f1 = hdr.dummy.f1 + (bit<1>)true;
-       hdr.dummy.f2 = tmp_bit - hdr.dummy.f2;
-       hdr.dummy.f3 = hdr.dummy.f3 * tmp_bit + tmp_bit;
-       hdr.dummy.f4 = (bit<1>)(hdr.dummy.f4 == 0);
-       hdr.dummy.f5 = (bit<1>)(hdr.dummy.f5 != 1);
-       hdr.dummy.f6 = (bit<1>)(hdr.dummy.f6 > 0 || hdr.dummy.f6 >= 0);
-       hdr.dummy.f7 = (bit<1>)(hdr.dummy.f7 < 1 || hdr.dummy.f7 <= 1);
-       hdr.dummy.f8 = hdr.dummy.f8 | tmp_bit2;
-       hdr.dummy.f9 = ~(hdr.dummy.f9 & tmp_bit2);
-       hdr.dummy.f10 = hdr.dummy.f10 ^ tmp_bit2;
-       hdr.dummy.f13 = (hdr.dummy.f13 ++ (hdr.dummy.f13 + 1))[0:0];
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        hdr.dummy.f1 = hdr.dummy.f1 + (bit<1>)true;
+        hdr.dummy.f2 = tmp_bit - hdr.dummy.f2;
+        hdr.dummy.f3 = hdr.dummy.f3 * tmp_bit + tmp_bit;
+        hdr.dummy.f4 = (bit<1>)(hdr.dummy.f4 == 0);
+        hdr.dummy.f5 = (bit<1>)(hdr.dummy.f5 != 1);
+        hdr.dummy.f6 = (bit<1>)(hdr.dummy.f6 > 0 || hdr.dummy.f6 >= 0);
+        hdr.dummy.f7 = (bit<1>)(hdr.dummy.f7 < 1 || hdr.dummy.f7 <= 1);
+        hdr.dummy.f8 = hdr.dummy.f8 | tmp_bit2;
+        hdr.dummy.f9 = ~(hdr.dummy.f9 & tmp_bit2);
+        hdr.dummy.f10 = hdr.dummy.f10 ^ tmp_bit2;
+        hdr.dummy.f13 = (hdr.dummy.f13 ++ (hdr.dummy.f13 + 1))[0:0];
     }
 }
 

@@ -22,10 +22,11 @@ PARSER {
 
 CTL_MAIN {
     apply {
-       if (hdr.dummy.f1 == (bit<2>)0) {
-            if (hdr.dummy.f2 == (bit<2>)1) {
-                hdr.dummy.f1 = hdr.dummy.f1 + (bit<2>)3;
-                hdr.dummy.f2 = hdr.dummy.f2 + (bit<2>)2;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+        if (hdr.dummy.f1 == 2w0) {
+            if (hdr.dummy.f2 == 2w1) {
+                hdr.dummy.f1 = hdr.dummy.f1 + 2w3;
+                hdr.dummy.f2 = hdr.dummy.f2 + 2w2;
             } else {
                 exit;
             }

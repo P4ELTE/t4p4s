@@ -24,6 +24,8 @@ CTL_MAIN {
     DECLARE_REGISTER(bit<32>, 1, time_next_reg2)
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         REGISTER_WRITE(time_next_reg1, 0, time_next1);
         REGISTER_READ(time_next2, time_next_reg1, 0);
         time_next2 = time_next2 + cTimeUpdate;

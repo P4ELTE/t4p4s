@@ -58,7 +58,7 @@ CTL_MAIN {
 
         hdr.in1.setInvalid();
 
-        SET_EGRESS_PORT(12345);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 }
 

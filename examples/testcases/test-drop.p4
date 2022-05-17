@@ -1,11 +1,7 @@
 #include "common-boilerplate-pre.p4"
 
 header dummy_t {
-    bool f1;
-    bool f2;
-    bool f3;
-    bool f4;
-    bit<4> padding;
+    bit<8> ignored;
 }
 
 struct metadata {
@@ -24,8 +20,10 @@ PARSER {
 
 CTL_MAIN {
     apply {
+        // intentionally called twice
     	MARK_TO_DROP();
-    	standard_metadata.egress_port = (PortId_t)23;
+    	MARK_TO_DROP();
+        SET_EGRESS_PORT((PortId_t)23);
     }
 }
 

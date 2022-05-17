@@ -40,7 +40,7 @@ CTL_MAIN {
     apply {
         DigestControl.apply();
         Chained.apply();
-        SET_EGRESS_PORT(12345);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 }
 

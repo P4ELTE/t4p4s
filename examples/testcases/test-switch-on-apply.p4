@@ -59,6 +59,8 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         switch (t1.apply().action_run) {
             action1: {
                 t2.apply();

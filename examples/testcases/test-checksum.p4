@@ -132,6 +132,7 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         ipv4_fib_lpm.apply();
         sendout.apply();
     }

@@ -23,6 +23,8 @@ extern void dummy_crypto<T1,T2>(in T1 data1, in T2 data2);
 
 CTL_MAIN {
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
+
         dummy_crypto();
         dummy_crypto({8w1});
         dummy_crypto({-8w1});

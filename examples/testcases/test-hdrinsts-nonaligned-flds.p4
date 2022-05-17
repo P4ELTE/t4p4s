@@ -43,16 +43,18 @@ CTL_MAIN {
     bit<1> one = 1;
 
     apply {
-       hdr.dummy0.f0  = hdr.dummy0.f0 + one + 1w0;
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
 
-       // tests if modifying non-byte-aligned fields works properly
-       hdr.dummy1.f1 = hdr.dummy1.f1 + one + 1w0;
-       hdr.dummy2.f2 = hdr.dummy2.f2 + one + 1w0;
-       hdr.dummy3.f3 = hdr.dummy3.f3 + one + 1w0;
-       hdr.dummy4.f4 = hdr.dummy4.f4 + one + 1w0;
-       hdr.dummy5.f5 = hdr.dummy5.f5 + one + 1w0;
-       hdr.dummy6.f6 = hdr.dummy6.f6 + one + 1w0;
-       hdr.dummy7.f7 = hdr.dummy7.f7 + one + 1w0;
+        hdr.dummy0.f0  = hdr.dummy0.f0 + one + 1w0;
+
+        // tests if modifying non-byte-aligned fields works properly
+        hdr.dummy1.f1 = hdr.dummy1.f1 + one + 1w0;
+        hdr.dummy2.f2 = hdr.dummy2.f2 + one + 1w0;
+        hdr.dummy3.f3 = hdr.dummy3.f3 + one + 1w0;
+        hdr.dummy4.f4 = hdr.dummy4.f4 + one + 1w0;
+        hdr.dummy5.f5 = hdr.dummy5.f5 + one + 1w0;
+        hdr.dummy6.f6 = hdr.dummy6.f6 + one + 1w0;
+        hdr.dummy7.f7 = hdr.dummy7.f7 + one + 1w0;
     }
 }
 

@@ -22,31 +22,32 @@ PARSER {
 
 CTL_MAIN {
     bit<2> z = 0;
-    action action_one(in bit<2> f1, bit<2> f2) {
+    action action1(in bit<2> f1, bit<2> f2) {
         hdr.dummy.f1 = f1;
         hdr.dummy.f2 = f2;
         z = f1;
     }
-    action action_two(in bit<2> f1, bit<2> f2) {
+    action action2(in bit<2> f1, bit<2> f2) {
         hdr.dummy.f1 = f1;
         hdr.dummy.f2 = f2;
     }
     table t {
-	actions = {
-	    action_one((bit<2>)1);
-            action_two(z);
-	}
-        const default_action = action_two(z,(bit<2>)1);
+        actions = {
+            action1(2w1);
+            action2(z);
+        }
+        const default_action = action2(z,2w1);
         key = {
             hdr.dummy.f1: exact;
         }
         size = 512;
         const entries = {
-            (0x00) : action_one((bit<2>)1, (bit<2>)1);
-            (0x01) : action_two(z, (bit<2>)2);
+            (0x00) : action1(2w1, 2w1);
+            (0x01) : action2(z, 2w2);
         }
     }
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         t.apply();
     }
 }
