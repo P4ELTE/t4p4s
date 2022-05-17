@@ -4,7 +4,7 @@
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = SINGLE_LCORE(
-    FAST(0, 0, INOUT("00", "ff"))
+    FAST(ANY, SAME, INOUT("00", "ff"))
     );
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {

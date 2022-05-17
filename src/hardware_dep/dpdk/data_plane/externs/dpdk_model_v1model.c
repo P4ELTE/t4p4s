@@ -50,6 +50,15 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 
 // -----------------------------------------------------------------
 
+// v1model ports are 9b
+// Sometimes the full range is used, sometimes, a small port number is chosen.
+int pick_random_port() {
+    if (rand() % 2 == 0)    return rand() % 4;
+    return rand() % (1 << 9);
+}
+
+// -----------------------------------------------------------------
+
 void EXTERNIMPL0(mark_to_drop)(SHORT_STDPARAMS) {
     MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
     MODIFY(dst_pkt(pd), FLD(all_metadatas,mcast_grp), src_32(0), ENDIAN_KEEP);

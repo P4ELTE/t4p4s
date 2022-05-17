@@ -36,6 +36,12 @@
 
 #define BCAST -1
 #define DROP  -2
+#define ANY   -3
+#define SAME  -4
+#define RND1  -5
+#define RND2  -6
+#define RND3  -7
+#define RND4  -8
 
 // this packet is processed on the "fast path"
 #define FAST(inport, out, pkt, ...)  SIMPLESEND(inport, out == BCAST ? T4P4S_BROADCAST_PORT : out, NO_CTL_REPLY, pkt, ##__VA_ARGS__)

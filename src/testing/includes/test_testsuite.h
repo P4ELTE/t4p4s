@@ -39,7 +39,7 @@ typedef struct {
 
 typedef struct {
     const char* name;
-    const fake_cmd_t (*const steps)[][RTE_MAX_LCORE];
+    fake_cmd_t (*const steps)[][RTE_MAX_LCORE];
     const char* model;
 } testcase_t;
 

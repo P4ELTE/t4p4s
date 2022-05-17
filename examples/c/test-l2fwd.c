@@ -26,12 +26,12 @@ fake_cmd_t t4p4s_testcase_test2[][RTE_MAX_LCORE] =
     LCORES(
         LCORE(
             WAIT_FOR_CTL,
-            SLOW(1, BCAST, hETH4(ETH1A, ETH1B))
+            SLOW(RND1, BCAST, hETH4(ETH1A, ETH1B))
         ),
         LCORE(
             WAIT_FOR_CTL,
             WAIT_FOR_CTL, // ctl replies to lcore#1
-            FAST(1, 1, hETH4(ETH1B, ETH02))
+            FAST(ANY, RND1, hETH4(ETH1B, ETH02))
         )
     );
 

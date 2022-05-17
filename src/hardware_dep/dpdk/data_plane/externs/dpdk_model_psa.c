@@ -18,7 +18,7 @@ void transfer_to_egress(packet_descriptor_t* pd)
 }
 
 int get_egress_port(packet_descriptor_t* pd) {
-    return GET32(src_pkt(pd), EGRESS_META_FLD);
+    return GET32(src_pkt(pd), FLD(all_metadatas,drop)) == true ? (PortId_t)EGRESS_DROP_VALUE : GET32(src_pkt(pd), EGRESS_META_FLD);
 }
 
 int get_ingress_port(packet_descriptor_t* pd) {
@@ -33,4 +33,14 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)
 void mark_to_drop(SHORT_STDPARAMS) {
     MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
     debug("       : " T4LIT(all_metadatas,header) "." T4LIT(EGRESS_META_FLD,field) " = " T4LIT(EGRESS_DROP_VALUE,bytes) "\n");
+}
+
+// -----------------------------------------------------------------
+
+// PSA ports are 32b
+// Sometimes the full range is used, sometimes, a small port number is chosen.
+int pick_random_port() {
+    if (rand() % 4 == 0)    return rand() % 4;
+    if (rand() % 2 == 0)    return rand() % 1000;
+    return rand();
 }
