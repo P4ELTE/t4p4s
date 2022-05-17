@@ -19,11 +19,8 @@ PARSER2 {
     }
 }
 
-#ifndef USE_CUSTOM_CTL_EGRESS
-    CTL_EGRESS {
-        apply {
-        }
-    }
+#ifndef CUSTOM_CTL_EGRESS
+    CTL_EGRESS { apply {} }
 #endif
 
 EMIT2 {

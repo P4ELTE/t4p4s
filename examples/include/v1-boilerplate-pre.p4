@@ -25,10 +25,9 @@ typedef bit<9> PortId_t;
 #define PortId_const(txt) 9w ## txt
 
 #define GET_INGRESS_PORT()        standard_metadata.ingress_port
-#define GET_EGRESS_PORT()         standard_metadata.egress_spec
-#define GET_EGRESS_PORT_SIMPLE()  standard_metadata.egress_spec
-#define SET_EGRESS_PORT(value)    standard_metadata.egress_port = (PortId_t)(value); \
-                                  standard_metadata.egress_spec = (PortId_t)(value);
+#define GET_EGRESS_PORT()         standard_metadata.egress_port
+#define GET_EGRESS_PORT_SIMPLE()  standard_metadata.egress_port
+#define SET_EGRESS_PORT(value)    standard_metadata.egress_port = (PortId_t)(value);
 
 #define DECLARE_DIGEST(type, name)              /* nothing to declare for v1model */
 #define CALL_DIGEST(type, name, port, content)  digest<type>((bit<32>)port, content);
