@@ -209,7 +209,7 @@ INTERRUPT_COUNT=0
 for TESTCASE in ${sorted_testcases[@]}; do
     [ "${skipped[$TESTCASE]+x}" ] && continue
 
-    all_arguments="$TESTCASE $*"
+    all_arguments="$TESTCASE model=${models[$TESTCASE]} $*"
     echo
     echo
     echo Running test case ${current_idx}/${total_count}: ./t4p4s.sh $all_arguments
@@ -220,7 +220,6 @@ for TESTCASE in ${sorted_testcases[@]}; do
 
         for i in $(seq $RUN_COUNT); do
           python3 examples/test_scripts/timeoutee/timeoutee.py $TIMEOUT $FORCE_TIMEOUT ${tmpFilename}_pure_output ./t4p4s.sh $all_arguments 2>&1
-          #./t4p4s.sh $all_arguments|tee "${tmpFilename}_pure_output"
           exitcode["$TESTCASE"]="$?"
           [ ${exitcode["$TESTCASE"]} -ne 0 ] && break
         done
