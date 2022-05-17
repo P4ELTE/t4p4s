@@ -124,7 +124,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 
 #{ bool is_packet_dropped(packet_descriptor_t* pd) {
-#[      return GET32(src_pkt(pd), EGRESS_META_FLD) == EGRESS_DROP_VALUE;
+#[      return get_egress_port(pd) == EGRESS_DROP_VALUE;
 #} }
 
 

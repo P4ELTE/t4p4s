@@ -37,6 +37,7 @@ for hdr in hlir.header_instances.filterfalse('urtype.is_metadata').filter('urtyp
 #} }
 
 #{ void reset_headers(SHORT_STDPARAMS) {
+#[     pd->is_deparse_reordering = false;
 for hdr in hlir.header_instances.filter('urtype.is_metadata', False):
     #[     pd->headers[HDR(${hdr.name})].pointer = NULL;
 
@@ -129,8 +130,8 @@ def gen_use_package(decl, depth):
             if ctl.name in hlir.news.deparsers or has_annotation(ctl, 'deparser'):
                 #[     deparse_packet(SHORT_STDPARAMS_IN);
         elif (parser := arg.urtype).node_type == 'Type_Parser':
-            #[ pd->is_deparse_reordering = false;
             #[ parser_state_${parser.name}_start(STDPARAMS_IN);
+            #[ if (unlikely(is_packet_dropped(pd)))   return;
         elif (extern := arg.urtype).node_type == 'Type_Extern':
             #[ // nonpkg ${arg.urtype.name} ${arg.urtype.node_type}
         else:
