@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
-from utils.codegen import format_expr, make_const
+from utils.codegen import format_expr
 import utils.codegen
 from compiler_log_warnings_errors import addError, addWarning
-from compiler_common import generate_var_name, prepend_statement, SugarStyle, to_c_bool
+from compiler_common import generate_var_name, prepend_statement, SugarStyle, to_c_bool, make_const
 
 #[ #include "dataplane.h"
 #[ #include "actions.h"
@@ -13,9 +13,6 @@ from compiler_common import generate_var_name, prepend_statement, SugarStyle, to
 #[ #include "dpdk_lib.h"
 #[ #include "util_debug.h"
 #[
-
-
-#[ #define MAX_TABLE_SIZE 250000
 
 
 
@@ -30,7 +27,7 @@ table_short_names_sorted = ' ", " '.join(sorted(f'T4LIT({table.short_name},table
 #[
 
 with SugarStyle("no_comment"):
-    #{ #define TABLE_CONFIG_ENTRY_DEF(tname,cname,sname,mt,hidden,keysize) (lookup_table_t) { \
+    #{ #define TABLE_CONFIG_ENTRY_DEF(tname,cname,sname,mt,hidden,keysize,size) (lookup_table_t) { \
     #[  .name           = #tname, \
     #[  .canonical_name = #cname, \
     #[  .short_name     = #sname, \
@@ -45,7 +42,7 @@ with SugarStyle("no_comment"):
     #[      .state_size = 0, \
     #}      }, \
     #[  .min_size = 0, \
-    #[  .max_size = MAX_TABLE_SIZE, \
+    #[  .max_size = size == NO_TABLE_SIZE ? MAX_TABLE_SIZE : size, \
     #} }
     #[
 
@@ -54,7 +51,8 @@ with SugarStyle("no_comment"):
 for table in hlir.tables:
     tmt = table.matchType.name
     ks  = table.key_length_bytes
-    #[     TABLE_CONFIG_ENTRY_DEF(${table.name},${table.canonical_name},${table.short_name},$tmt,${to_c_bool(table.is_hidden)},$ks),
+    size = table.size.expression.value if 'size' in table else 'NO_TABLE_SIZE'
+    #[     TABLE_CONFIG_ENTRY_DEF(${table.name},${table.canonical_name},${table.short_name},$tmt,${to_c_bool(table.is_hidden)},$ks,$size),
 #[ };
 
 
@@ -98,7 +96,7 @@ def align_to_byte(num):
     return (num + 7) // 8
 
 
-def gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos):
+def gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos, action_id):
     # note: _left is for lpm and ternary that may have a mask
     key_total_size = sum(entry.keys.components.map('_left.urtype.size').map(align_to_byte))
     # key_total_size = (sum((key._left.urtype.size for key in entry.keys.components))+7) // 8
@@ -142,7 +140,12 @@ def gen_add_const_entry(table, key_var, entry_var, keys, key_sizes, varinfos, mt
 
 def gen_print_const_entry(table, entry, params, args, mt):
     def make_value(value):
-        if value.node_type == 'BoolLiteral':
+        if value.type.node_type in ('Type_Enum', 'Type_Error'):
+            values = value.type.members
+            elem = values.get(value.member)
+            idx = {val: idx for idx, val in enumerate(values)}[elem]
+            return f'{value.member}={idx}'
+        elif value.node_type == 'BoolLiteral':
             value_const = 1 if value.value else 0
             value_base = 2
         else:
@@ -181,12 +184,44 @@ def gen_print_const_entry(table, entry, params, args, mt):
     if params_str != "":
         params_str = f'({params_str})'
 
-    #[     debug("   :: Table " T4LIT(${table.short_name},table) "/" T4LIT($mt) ": const entry (${key_str}) -> " T4LIT(${entry.action.method.action_ref.short_name},action) "${params_str}\n");
+    #{     #ifndef TEST_CONST_ENTRIES_hide
+    #{     #ifndef TEST_CONST_ENTRIES_simple
+    #[         debug("   :: Table " T4LIT(${table.short_name},table) "/" T4LIT($mt) ": const entry (${key_str}) -> " T4LIT(${entry.action.method.action_ref.short_name},action) "${params_str}\n");
+    #}     #endif
+    #}     #endif
+#[
 
+#[ char summary[1024];
+
+#{ void print_const_entry_summary() {
+#{     #ifdef TEST_CONST_ENTRIES_simple
+#[         char* summary_ptr = summary;
+#[         int count = 0;
+#[         bool is_first = true;
+for table in hlir.tables:
+    if 'entries' not in table:
+        continue
+
+    #[         int ${table.name}_size = table_size(TABLE_${table.name});
+    #{         if (${table.name}_size > 0) {
+    #[             count += ${table.name}_size;
+    #[             summary_ptr += sprintf(summary_ptr, "%s" T4LIT(%d) " on " T4LIT(${table.short_name},table), is_first ? "" : ", ", ${table.name}_size);
+    #[             is_first = false;
+    #}         }
+#{         if (count > 0) {
+#[             debug(" :::: Const entries on tables: %s\n", summary);
+#}         }
+
+#}     #endif
+#} }
+#[
 
 for table in hlir.tables:
     if 'entries' not in table:
         continue
+
+    if 'size' in table and (table_size := table.size.expression.value) < (const_entry_count := len(table.entries.entries)):
+        addError("Generating const entries", f"Table {table.name} has {const_entry_count} const entries, but its size is only {table_size}")
 
     #{ void init_table_const_entries_${table.name}() {
     for entry in table.entries.entries:
@@ -209,15 +244,16 @@ for table in hlir.tables:
         keys = entry.keys.components
         key_sizes = [key._left.urtype.size for key in keys]
 
-        def make_var(key, ksize):
-            name, hex_content = make_const(key._left)
+        def make_var(keyelem, key, ksize):
+            is_meta = 'header' in keyelem and keyelem.header.name == 'all_metadatas'
+            name, hex_content = make_const(key._left, not is_meta and ksize <= 32)
             const_var = generate_var_name(f"const{ksize}", name)
             return const_var, hex_content
 
-        varinfos = [make_var(key, ksize) for key, ksize in zip(keys, key_sizes)]
+        varinfos = [make_var(keyelem, key, ksize) for keyelem, key, ksize in zip(table.key.keyElements, keys, key_sizes)]
 
         #[ ${utils.codegen.pre_statement_buffer}
-        #[ ${gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos)}
+        #[ ${gen_make_const_entry(entry, params, args, keys, key_sizes, varinfos, action_id)}
         #[ ${gen_add_const_entry(table, key_var, entry_var, keys, key_sizes, varinfos, mt)}
         #[ ${gen_print_const_entry(table, entry, params, args, mt)}
 
@@ -232,6 +268,7 @@ for table in hlir.tables:
         #[     // no const entries in table ${table.name}
         continue
     #[     init_table_const_entries_${table.name}();
+#[     print_const_entry_summary();
 #} }
 
 #[ // ============================================================================

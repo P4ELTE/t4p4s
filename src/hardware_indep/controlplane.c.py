@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
+from hlir16.hlir_utils import align8_16_32
 from compiler_common import unique_everseen, generate_var_name, get_hdr_name, get_hdrfld_name
 from utils.codegen import format_expr, format_type, gen_format_slice
 from utils.extern import get_smem_name
@@ -128,7 +129,16 @@ def gen_fill_key_component(k, idx, byte_width, tmt, kmt):
     elif ke.node_type == 'Slice':
         #[     // TODO fill Slice component properly (call gen_fill_key_component_slice)
     else:
-        #[     memcpy(&(key->${get_key_name(k, idx)}), field_matches[$idx]->bitmap, $byte_width);
+        is_t4p4s_order = byte_width <= 4 and not ('header' in k and k.header.urtype.is_metadata)
+
+        if is_t4p4s_order:
+            padded_byte_width = align8_16_32(byte_width)
+            varname = generate_var_name(f'fld_{get_key_name(k, idx)}')
+            #[     uint${padded_byte_width}_t $varname = *(uint${padded_byte_width}_t*)field_matches[$idx]->bitmap;
+            #[     key->${get_key_name(k, idx)} = $varname;
+        else:
+            #[     memcpy(&(key->${get_key_name(k, idx)}), field_matches[$idx]->bitmap, $byte_width);
+
         if tmt == "lpm":
             if kmt == "exact":
                 #[     prefix_length += ${get_key_byte_width(k)};
@@ -325,30 +335,34 @@ for packets_or_bytes in ('packets', 'bytes'):
 #[     } else if (ctrl_m->type == P4T_READ_COUNTER) {
 #[         //ctrl_m->xid = *read_counter_value_by_name(ctrl_m->table_name);
 #[         //TODO:SEND BACK;
+#[     } else {
+#[         debug(" " T4LIT(!!!!) " Unknown message (type %d) arrived from the controller\n", ctrl_m->type);
 #}     }
 #} }
 
 
 #[ ctrl_plane_backend bg;
 
-#[ void init_control_plane()
-#{ {
-#[     bg = create_backend(3, 1000, "localhost", T4P4S_CTL_PORT, recv_from_controller);
-#[     launch_backend(bg);
+#{ void print_table_summary() {
+#{     #ifdef T4P4S_DEBUG
+#{         for (int i = 0; i < NB_TABLES; i++) {
+#[             lookup_table_t t = table_config[i];
+#[             if (state[0].tables[t.id][0]->init_entry_count > 0)
+#[                 debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
+#}             }
+#}     #endif
+#} }
+#[
 
+#{ void init_control_plane() {
+#[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
+#[     launch_backend(bg);
 #{     #ifdef T4P4S_P4RT
 #[         dev_mgr_init_with_t4p4s(dev_mgr_ptr, recv_from_controller, read_counter_value_by_name, 1);
 #[         PIGrpcServerRunAddrGnmi("0.0.0.0:50051", 0);
 #[         //PIGrpcServerRun();
 #[     #else
-#{         #ifdef T4P4S_DEBUG
-#{             for (int i = 0; i < NB_TABLES; i++) {
-#[                 lookup_table_t t = table_config[i];
-#{                 if (state[0].tables[t.id][0]->init_entry_count > 0) {
-#[                     debug("    " T4LIT(:,incoming) " Table " T4LIT(%s,table) " got " T4LIT(%d) " entries from the control plane\n", state[0].tables[t.id][0]->short_name, state[0].tables[t.id][0]->init_entry_count);
-#}                 }
-#}             }
-#}         #endif
+#[         print_table_summary();
 #}     #endif
 #} }
 #[
