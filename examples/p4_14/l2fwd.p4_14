@@ -45,7 +45,6 @@ action forward(port) {
 
 action bcast() {
     modify_field(standard_metadata.egress_port, 100);
-
 }
 
 table dmac {

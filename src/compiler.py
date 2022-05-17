@@ -255,7 +255,7 @@ def add_gen_in_def(code_lines, orig_file):
 
 def file_prefix(file, genfile):
     nopath = os.path.basename(file)
-    noext = re.sub(r'[.].*$', '', nopath)
+    noext = re.sub(r'([.](sugar|c|py))?[.][^.]*$', '', nopath)
 
     if "on" in args['hint']:
         # "set the default"
