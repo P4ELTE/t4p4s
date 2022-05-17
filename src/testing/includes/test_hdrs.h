@@ -6,6 +6,10 @@
 #include "test_testsuite.h"
 
 // ------------------------------------------------------
+
+#define op(operation_name, in, out)   INOUT(in, out)
+
+// ------------------------------------------------------
 // Tags
 
 // IP protocols
@@ -98,7 +102,7 @@
 
 #define hICMP4(type8,code8,checksum16)             type8 code8 checksum16
 
-#define PAYLOAD(payload)                           payload
+#define PAYLOAD(payload, ...)                      payload , ##__VA_ARGS__
 
 
 // ------------------------------------------------------
