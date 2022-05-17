@@ -4,7 +4,7 @@
 #include "test.h"
 
 fake_cmd_t t4p4s_testcase_common[][RTE_MAX_LCORE] = SINGLE_LCORE(
-    FAST(1, 44, hETH4(ETH04, ETH1A))
+    SLOW(ANY, BCAST, hETH4(ETH04, ETH1A))
     );
 
 

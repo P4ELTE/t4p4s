@@ -34,6 +34,7 @@ CTL_MAIN {
             forward_rewrite;
             _drop;
         }
+        default_action = _drop;
         key = {
             GET_INGRESS_PORT(): exact;
         }

@@ -101,18 +101,16 @@ PARSER {
 
 CTL_MAIN {
     action send_back(bit<32> result) {
-        bit<48> tmp;
-
         /* Put the result back in */
         hdr.p4calc.res = result;
         
         /* Swap the MAC addresses */
-        tmp = hdr.ethernet.dstAddr;
+        bit<48> tmp = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = tmp;
         
         /* Send the packet back to the port it came from */
-        SET_EGRESS_PORT(GET_EGRESS_PORT());
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
     
     action operation_add() {
