@@ -2,6 +2,7 @@
 // Copyright 2021 Eotvos Lorand University, Budapest, Hungary
 
 #include "dataplane_hdr_fld_pkt.h"
+#include "util_debug.h"
 
 void activate_hdr(header_instance_e hdr, packet_descriptor_t* pd) {
     pd->headers[hdr].pointer = (pd->header_tmp_storage + hdr_infos[hdr].byte_offset);
@@ -29,8 +30,14 @@ header_instance_e stk_current(header_stack_e stk, packet_descriptor_t* pd) {
 }
 
 field_instance_e stk_start_fld(header_instance_e hdr) {
-    stk_info_t infos = stk_infos[hdr];
-    return infos.start_fld + (hdr - infos.start_hdr) * infos.fld_count;
+    #ifdef T4P4S_DEBUG
+        // note: this should never happen
+        if (hdr_infos[hdr].stack_idx == NO_STACK_PRESENT) {
+            debug(" " T4LIT(!!!!,error) " Header #%d (%s) is supposed to be a stack, but it is not\n", hdr, hdr_infos[hdr].name);
+        }
+    #endif
+
+    return hdr_infos[hdr].first_fld;
 }
 
 int get_vw_fld_offset(const packet_descriptor_t* pd, header_instance_e hdr, field_instance_e fld, field_instance_e vw_fld) {

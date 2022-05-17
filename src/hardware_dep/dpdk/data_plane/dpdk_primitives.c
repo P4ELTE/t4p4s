@@ -59,6 +59,8 @@ header_instance_e get_hdr(field_instance_e fld) {
 // Extract operations
 
 uint32_t GET32(srcdst_t src, field_instance_e fld) {
+    bool is_meta = hdr_infos[fld_infos[fld].header_instance].is_metadata;
+    int size = fld_infos[fld].size;
     bitfield_handle_t src_handle = get_handle(src, fld, "read");
     if (likely(src_handle.is_ok)) {
         return GET32_FLD_IMPL(src_handle);
@@ -156,9 +158,33 @@ void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
 
 void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32) {
     int size = fld_infos[fld].size;
+    bool is_meta = hdr_infos[fld_infos[fld].header_instance].is_metadata;
+
+    #ifdef T4P4S_DEBUG
+        bool is_reviving_dropped = fld == EGRESS_META_FLD && get_egress_port(pd) == EGRESS_DROP_VALUE;
+    #endif
+
+    #ifdef T4P4S_DEBUG
+        if (fld == EGRESS_META_FLD)   pd->is_egress_port_set = true;
+    #endif
 
     print_set_fld(pd, fld, (uint8_t*)&value32, size);
     MODIFY(dst_pkt(pd), fld, src_32(value32), ENDIAN_KEEP);
+
+    #ifdef T4P4S_DEBUG
+        uint32_t value_back = GET32(src_pkt(pd), fld);
+        if (value32 != value_back) {
+            debug("       " T4LIT(!,warning) " Warning: written content was " T4LIT(%d) " (" T4LIT(%08x) ") but got " T4LIT(%d) " (" T4LIT(%08x) ") after read back\n",
+                  value32, value32, value_back, value_back);
+        }
+    #endif
+
+    #ifdef T4P4S_DEBUG
+        if (is_reviving_dropped) {
+            debug("       " T4LIT(!,warning) " Warning: packet was " T4LIT(dropped,status) " before%s\n",
+                  value32 != EGRESS_DROP_VALUE ? ", now it is " T4LIT(active,status) " again" : "");
+        }
+    #endif
 }
 
 void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf) {
