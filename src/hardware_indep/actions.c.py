@@ -19,8 +19,8 @@ from compiler_common import types, unique_everseen
 
 #[ #define STD_DIGEST_RECEIVER_ID 1024
 
-# TODO make it unique by digest name
-for mcall in hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').filter(lambda n: 'path' in n.method and n.method.path.name=='digest'):
+all_digests = hlir.all_nodes.by_type('MethodCallStatement').map('methodCall').filter(lambda n: 'path' in n.method and n.method.path.name=='digest')
+for _, mcall in {(dig.method.path.name, ','.join(dig.typeArguments.map(format_type))): dig for dig in all_digests}.items():
     digest = mcall.typeArguments[0]
     funname = f'{mcall.method.path.name}__{digest.path.name}'
 
