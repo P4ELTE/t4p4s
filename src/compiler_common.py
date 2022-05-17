@@ -67,14 +67,26 @@ def split_join_text(text, n, prefix, joiner):
     """Splits the text into chunks that are n characters long, then joins them up again."""
     return joiner.join(f"{prefix}{text[i:i+n]}" for i in range(0, len(text), n))
 
-def make_const(e):
+def reverse_bytes_txt(txt):
+    txtlen = len(txt)
+    return ''.join(txt[txtlen-i-2:txtlen-i] for i in range(0, txtlen, 2))
+
+def make_const(e, is_reversed=False):
     byte_width = (e.type.size+7)//8
-    const_str = f'{{:0{2 * byte_width}x}}'.format(e.value)
+    if e.node_type == 'Member':
+        prefix = 'enum' if e.type.node_type == 'Type_Enum' else 'error'
+        name = f'{prefix}_{e.type.name}_{e.member}'
 
-    hex_content = split_join_text(const_str, 2, "0x", ", ")
-    name = split_join_text(const_str, 4, "", "_")
+        return name, name
+    else:
+        orig_const_str = f'{{:0{2 * byte_width}x}}'.format(e.value)
 
-    return name, hex_content
+        const_str = reverse_bytes_txt(orig_const_str) if is_reversed else orig_const_str
+
+        hex_content = split_join_text(const_str, 2, "0x", ", ")
+        name = split_join_text(orig_const_str, 4, "", "_") + ('reversed' if is_reversed else '')
+
+        return name, hex_content
 
 ################################################################################
 
@@ -235,7 +247,6 @@ def unspecified_value(size):
 
 def is_meta(node):
     return 'hdr_ref' in node and node.hdr_ref.urtype('is_metadata', False)
-    # return 'is_metadata' in node and node.is_metadata
 
 def get_raw_hdr_name(e):
     nt = e.node_type
@@ -277,3 +288,40 @@ def get_hdrfld_name(e):
 
 def to_c_bool(value):
     return 'true' if value else 'false'
+
+# ################################################################################
+
+def add_prefix(prefix, txt):
+    if txt.startswith(prefix):
+        return txt
+    return f'{prefix}{txt}'
+
+def append_type_postfix(name):
+    return name if name.endswith('_t') else f'{name}_t'
+
+# ################################################################################
+
+def inf_int_c_size():
+    ### The size of our C representation of the "indefinite length int" type.
+    return 32
+
+def inf_int_c_type():
+    ### Our C representation of the "indefinite length int" type.
+    return 'int32_t'
+
+def inf_int_short_c_type():
+    ### The short name of the "indefinite length int" type.
+    return 'i32'
+
+def get_short_type(n):
+    if n.node_type == 'Type_InfInt':
+        return f'{inf_int_short_c_type()}'
+    if n.node_type == 'Type_List':
+        return f'{get_short_type(n.components[0])}s'
+    if n.node_type in ('Type_Bits', 'Type_Varbits'):
+        if n.size > 32:
+            return 'buf'
+        sign = 'i' if n.isSigned else 'u'
+        size = '8' if n.size <= 8 else '16' if n.size <= 16 else '32'
+        return f'{sign}{size}'
+    return n.name

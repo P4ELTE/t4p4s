@@ -3,6 +3,7 @@
 
 #include "backend.h"
 #include "dpdk_tables.h"
+#include "dpdk_lib_conf.h"
 #include "util_debug.h"
 
 #include "tables.h"
@@ -144,4 +145,13 @@ void table_set_default_action(lookup_table_t* t, ENTRYBASE* entry)
     if (t->default_val) rte_free(t->default_val);
 
     t->default_val = make_table_entry(t, entry);
+}
+
+extern struct socket_state state[NB_SOCKETS];
+
+int table_size(int tableid) {
+    int socketid = 0;
+    int replicaid = 0;
+    void* table = state[socketid].tables[tableid][replicaid]->table;
+    return ((extended_table_t*)table)->size;
 }
