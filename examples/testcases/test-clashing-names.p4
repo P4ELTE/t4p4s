@@ -36,6 +36,7 @@ CTL_MAIN {
     }
 
     apply {
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         clashing_table_name.apply();
     }
 }
@@ -58,8 +59,6 @@ CTL_EMIT {
     }
 
     apply {
-        SET_EGRESS_PORT(GET_INGRESS_PORT());
-
         clashing_table_name.apply();
 
         packet.emit(hdr.ethernet);
