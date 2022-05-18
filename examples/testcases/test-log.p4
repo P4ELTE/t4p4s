@@ -6,13 +6,21 @@
 struct metadata {
 }
 
+header custom_t {
+    padded8_t  f8;
+    padded16_t f16;
+    padded4_t  f4;
+}
+
 struct headers {
     ethernet_t ethernet;
+    custom_t   custom;
 }
 
 PARSER {
     state start {
         packet.extract(hdr.ethernet);
+        packet.extract(hdr.custom);
         transition accept;
     }
 }
@@ -50,6 +58,8 @@ CTL_MAIN {
         LOG("Const16x4 = {} {} {} {}",({16w0x0123, 16w0x4567, 16w0x89ab, 16w0xcdef}));
         LOG("Const32x4 = {} {} {} {}",({32w0x01234567, 32w0x89abcdef, 32w0xdeadc0de, 32w0xFFFF_FFFF}));
 
+        LOG("Custom    = {}",({hdr.custom}));
+
         LOG("Ethernet  = {}",({hdr.ethernet}));
     }
 }
@@ -57,6 +67,7 @@ CTL_MAIN {
 CTL_EMIT {
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.custom);
     }
 }
 
