@@ -56,9 +56,11 @@ project_source_files = [
     xtrn / 'dpdkx_smem.c',
 ]
 
-build_args = [
-    '-Wno-parentheses-equality',
-]
+build_args = []
+
+if meson.get_compiler('c').get_id() == 'clang'
+    build_args += ['-Wno-parentheses-equality']
+endif
 
 incdirs = [
     srcg,
