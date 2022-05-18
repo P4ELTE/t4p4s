@@ -706,7 +706,7 @@ def get_short_type(n):
         return f'{inf_int_short_c_type()}'
     if n.node_type == 'Type_List':
         return f'{get_short_type(n.components[0])}s'
-    if n.node_type == 'Type_Bits':
+    if n.node_type in ('Type_Bits', 'Type_Varbits'):
         if n.size > 32:
             return 'buf'
         sign = 'i' if n.isSigned else 'u'
@@ -1927,24 +1927,32 @@ def get_all_extern_call_infos(hlir):
 def to_buf_param(partype, parname):
     size = f'({"+".join(f"{fld.size}" for fld in partype.urtype.fields)}+7) / 8'
 
+    if len(flds := partype.urtype.fields) == 1 and (realtype := flds[0].urtype).node_type == 'Type_Header':
+        outname = f'{realtype.name} alias {partype.name}'
+        outflds = realtype.fields
+    else:
+        outname = partype.name
+        outflds = partype.fields
+
     offset = '0'
     offsets = []
     lens = []
-    for fld in partype.urtype.fields:
+
+    for fld in outflds:
         lens.append(f'{fld.size}')
         offsets.append(offset)
         offset += f'+{fld.size}'
 
-    parnames = ", ".join(f'"{parname}"' for parname in partype.fields.map('name'))
-    partypenames = ", ".join(f'"{get_short_type(parut)}"' for parut in partype.fields.map('urtype'))
+    parnames = ", ".join(f'"{parname}"' for parname in outflds.map(lambda fld: fld.short_name if 'short_name' in fld else fld.name))
+    partypenames = ", ".join(f'"{get_short_type(parut)}"' for parut in outflds.map('urtype'))
 
     components = [
         ('size', f'{size}'),
         ('buffer', f'(uint8_t*){parname}'),
-        ('part_count', f'{len(partype.fields)}'),
+        ('part_count', f'{len(outflds)}'),
         ('part_bit_offsets', f'{{{", ".join(offsets)}}}'),
         ('part_bit_sizes', f'{{{", ".join(lens)}}}'),
-        ('name', f'"{partype.name}"'),
+        ('name', f'"{outname}"'),
         ('part_names', f'{{{parnames}}}'),
         ('part_types', f'{{{partypenames}}}'),
     ]

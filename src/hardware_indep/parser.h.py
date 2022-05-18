@@ -65,13 +65,12 @@ for hdr, fld in parsed_fields:
 #[ #define STACK_COUNT ${max(len(hlir.header_stacks), 1)}
 
 # note: implemented in hdr_fld.c.py
-#[ extern const char* field_names[FIELD_COUNT];
-#[ extern const char* header_instance_names[HEADER_COUNT];
+#[ extern const char*const field_names[FIELD_COUNT];
+#[ extern const char*const header_instance_names[HEADER_COUNT];
 
 # TODO maybe some more space needs to be added on for varlen headers?
 nonmeta_hdrlens = "+".join([f'{hdr.urtype.byte_width}' for hdr in hlir.header_instances])
 #[ #define NONMETA_HDR_TOTAL_LENGTH ($nonmeta_hdrlens)
-
 
 #{ typedef enum {
 for hdr in hlir.header_instances:
@@ -124,7 +123,10 @@ if len(hlir.header_stacks) == 0:
 #[     const uint32_t          mask;
 #[     const bool              is_metadata;
 #[     const bool              is_vw;
+#[     const field_instance_e  instance;
 #[     const header_instance_e header_instance;
+#[     const char*const        name;
+#[     const char*const        short_name;
 #} } fld_info_t;
 #[
 

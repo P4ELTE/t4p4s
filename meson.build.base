@@ -20,8 +20,8 @@ project_source_files = [
 
     srcg / 'tables.c',
     srcg / 'parser.c',
-    srcg / 'hdr_fld.h',
     srcg / 'hdr_fld.c',
+    srcg / 'hdr_fld_sprintf.c',
     srcg / 'actions.c',
     srcg / 'controlplane.c',
     srcg / 'stats.c',

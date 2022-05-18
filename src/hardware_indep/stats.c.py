@@ -123,7 +123,8 @@ for table in sorted(hlir.tables, key=lambda table: table.short_name):
 #[ #define NO_ACTION_NAME ".NoAction"
 
 
-#{ void t4p4s_print_stats_action(char** printout_ptr, bool real_action, int action_idx) {
+#{ void t4p4s_print_stats_action(bool is_used, bool is_on, bool real_action, bool is_real_action, char** printout_ptr, int action_idx) {
+#[     if ((is_used ^ is_on) || (real_action ^ is_real_action))   return;
 #[     *printout_ptr += sprintf(*printout_ptr, "%s" T4LIT(%s,action), name_counter > 0 ? ", " : "", real_action ? action_short_names[action_idx] : "");
 #[     ++name_counter;
 #[     ++stats_counter;
@@ -142,8 +143,7 @@ for idx, (table, action) in enumerate((t, a) for t in sorted(hlir.tables, key=la
     #{ void t4p4s_print_stats_${table.name}_${ao.name}(char** printout_ptr, bool is_on, bool real_action, t4p4s_stats_t* t4p4s_stats) {
     #[     bool is_used         = t4p4s_stats->T4STAT(action,${table.name},${ao.name});
     #[     bool is_real_action  = strcmp(action_short_names[$action_idx], NO_ACTION_NAME);
-    #[     if ((is_used ^ is_on) || (real_action ^ is_real_action))   return;
-    #[     t4p4s_print_stats_action(printout_ptr, real_action, $action_idx);
+    #[     t4p4s_print_stats_action(is_used, is_on, real_action, is_real_action, printout_ptr, $action_idx);
     #} }
     #[
 
