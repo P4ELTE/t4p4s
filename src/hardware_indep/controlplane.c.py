@@ -355,7 +355,7 @@ for packets_or_bytes in ('packets', 'bytes'):
 #[
 
 #{ void init_control_plane() {
-#[     bg = create_backend(3, 1000, "localhost", 11111, recv_from_controller);
+#[     bg = create_backend(3, 1000, "localhost", T4P4S_CTL_PORT, recv_from_controller);
 #[     launch_backend(bg);
 #{     #ifdef T4P4S_P4RT
 #[         dev_mgr_init_with_t4p4s(dev_mgr_ptr, recv_from_controller, read_counter_value_by_name, 1);
