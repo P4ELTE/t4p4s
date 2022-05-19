@@ -147,7 +147,7 @@ void EXTERNIMPL2(update_checksum,u8s,u16)(bool condition, uint8_buffer_t data, u
 }
 
 void EXTERNIMPL2(update_checksum,u8s,u32)(bool condition, uint8_buffer_t data, uint32_t* /* inout */ checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
-    EXTERNIMPL0(update_checksum)(condition, data, checksum, algo, SHORT_STDPARAMS_IN);
+    EXTERNIMPL0(update_checksum)(condition, data, (uint16_t*)checksum, algo, SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL2(update_checksum,u32s,u16)(bool condition, uint8_buffer_t data, uint16_t* /* inout */ checksum, enum_HashAlgorithm_t algo, SHORT_STDPARAMS) {
