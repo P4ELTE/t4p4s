@@ -173,7 +173,7 @@ void execute_controller(controller c)
     FD_ZERO(&master);
     FD_SET(ct->controller_fd, &master);
 
-    socklen_t length;
+    socklen_t length = sizeof(struct sockaddr);
     while (1) { /*TODO - replace this stupid implementation*/
         fd_set readfds = master;
 
