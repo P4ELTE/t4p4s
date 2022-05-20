@@ -135,6 +135,16 @@ for parser in hlir.parsers:
 #[
 
 
+#{ void print_missed_transition_conditions(const char*const* texts, int idx) {
+#{     #ifdef T4P4S_SHOW_MISSED_TRANSITION_CONDITIONS
+#{         for (int i = 0; i < idx; ++i) {
+#[             if (!strcmp("", texts[i]))    continue;
+#[             debug("   %%%% Transition condition " T4LIT(not met,status) ": %s\n", texts[i]);
+#}         }
+#}     #endif
+#} }
+#[
+
 for parser in hlir.parsers:
     for s in parser.states:
         if not s.is_reachable:

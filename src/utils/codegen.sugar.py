@@ -1061,7 +1061,6 @@ def get_select_conds(select_expr, case):
 
 def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
     with SugarStyle("inline_comment"):
-        #Generate local variables for select values
         for k in e.select.components:
             varname = gen_var_name(k)
             if k.type.node_type == 'Type_Bits' and k.type.size <= 32:
@@ -1079,6 +1078,14 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
 
     conds_pres = [get_select_conds(e, case) for idx, case in enumerate(e.selectCases)]
 
+    #pre{ const char*const transition_texts[] = {
+    for idx, ((cond, _pre, transition_cond_txt), case) in enumerate(zip(conds_pres, e.selectCases)):
+        if transition_cond_txt:
+            #pre[     " <== " ${''.join(transition_cond_txt)},
+        else:
+            #pre[     "" /* no transition condition */,
+    #pre} };
+
     for _, pres, _ in conds_pres:
         for pre in pres:
             #pre[ ${pre}
@@ -1089,8 +1096,9 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
         else:
             #[ } else if (${cond}) { // select case #${idx+1}
 
+        #[     print_missed_transition_conditions(transition_texts, $idx);
         if transition_cond_txt:
-            #[     set_transition_txt(" <== " ${''.join(transition_cond_txt)});
+            #[     set_transition_txt(transition_texts[$idx]);
 
         enclosing_parser = case.parents.filter('node_type', 'P4Parser')[-1]
         #[     parser_state_${enclosing_parser.name}_${case.state.path.name}(STDPARAMS_IN);
@@ -1652,7 +1660,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             size = e.fld_ref.urtype.size
             unspec = unspecified_value(size)
 
-            #pre{ if (!is_header_valid(HDR($hdrname), pd)) {
+            #pre{ if (unlikely(!is_header_valid(HDR($hdrname), pd))) {
             #pre[     debug("   " T4LIT(!!,warning) " Access to field in invalid header " T4LIT(%s,warning) "." T4LIT(${e.member},field) ", returning \"unspecified\" value " T4LIT($unspec) "\n", hdr_infos[HDR($hdrname)].name);
             #pre} }
 
