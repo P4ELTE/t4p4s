@@ -298,6 +298,9 @@ void init_async()
 int main(int argc, char** argv)
 {
     debug("Init switch\n");
+    #ifdef T4P4S_VETH_MODE
+        debug("Running in VETH mode!\n");
+    #endif
 
     initialize_args(argc, argv);
     initialize_nic();
