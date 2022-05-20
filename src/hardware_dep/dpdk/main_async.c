@@ -187,23 +187,9 @@ void copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* ta
     init_headers(target, 0);
 
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it){
-        target->headers[header_instance_it].pointer =
-                rte_malloc(header_instance_names[header_instance_it], source->headers[header_instance_it].size * sizeof(uint8_t), 0);
-        memcpy(
-                target->headers[header_instance_it].pointer,
-                source->headers[header_instance_it].pointer,
-                source->headers[header_instance_it].size * sizeof(uint8_t)
-        );
-
+        target->headers[header_instance_it].pointer = target->data + (source->headers[header_instance_it].pointer - (void*)source->data);
         debug("Saved field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
-
-    memcpy(
-            target->headers[HDR(all_metadatas)].pointer,
-            source->headers[HDR(all_metadatas)].pointer,
-            source->headers[HDR(all_metadatas)].size / 8 * sizeof(uint8_t)
-    );
-
 }
 
 void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
@@ -213,16 +199,10 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
     target->extract_ptr = source->extract_ptr;
 
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it) {
-        if(target->headers[header_instance_it].pointer != source->headers[header_instance_it].pointer){
-            rte_free(target->headers[header_instance_it].pointer);
-        }
         target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
         debug("Loaded field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
 
-    if(target->headers[HDR(all_metadatas)].pointer != source->headers[HDR(all_metadatas)].pointer){
-        rte_free(target->headers[HDR(all_metadatas)].pointer);
-    }
     target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
 }
 
