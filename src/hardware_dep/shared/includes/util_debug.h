@@ -94,6 +94,13 @@
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)
     #define dbg_print(bytes, bit_count, MSG, ...)
+    #define dbg_mbuf(buf, MSG, ...)
+    #define debug(M, ...)
+    #define short_lcore_debug(lcid,sc,lcc,sfn,sid,M,...)
+    #define lcore_debug(lcid,sc,lcc,sfn,sid,M,...)
+    #define no_core_debug(lcid,sc,lcc,sfn,sid,M,...)
+    #define debug_printf2(lcid, sc, lcc, sfn, M, ...)
+    #define debug_printf(M, ...)
     #define debug(M, ...)
 #endif
 
