@@ -105,8 +105,6 @@ typedef struct {
         unsigned pkt_idx;
         #if ASYNC_MODE == ASYNC_MODE_PD
             int program_restore_phase;
-        #else
-        #error ASYNC_MODE_PD
         #endif
     #endif
 
