@@ -396,6 +396,14 @@ declare -A VSN_TO_EXT=([16]="p4" [14]="p4_14")
 
 # --------------------------------------------------------------------
 
+# Wait for 5 seconds or the availability of port $1, whichever comes first
+wait_for_port_availability() {
+    for i in `seq 1 50`; do
+        [[ `sudo lsof -i:${1} | grep LISTEN | wc -l` -ne 0 ]] && break
+        sleep 0.1
+    done
+}
+
 find_ephemeral_port() {
     CHOSEN_PORT=$(shuf -n 1 -i $1-$2)
     while [ `sudo lsof -i -P -n | grep LISTEN | grep $CHOSEN_PORT | wc -l` -ne 0 ]; do CHOSEN_PORT=$(shuf -n 1 -i $1-$2); done
@@ -468,8 +476,7 @@ PYTHON_PARSE_HELPER_PROCESS="$!"
 
 unset PYTHON_PARSE_HELPER
 
-sleep 0.1
-
+wait_for_port_availability ${PYTHON_PARSE_HELPER_PORT}
 
 # --------------------------------------------------------------------
 # Set defaults
@@ -823,7 +830,7 @@ if [ "$(optvalue run)" != off ]; then
         setopt T4P4S_CTL_PORT $(find_ephemeral_port 49152 65535)
         verbosemsg "Controller port is $(cc 0)$(optvalue T4P4S_CTL_PORT)$nn"
 
-        # Step 3A-3: Run controller
+        # Step 3A-2: Run controller
         if [ $(optvalue showctl optv) == y ]; then
             stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $(optvalue T4P4S_CTL_PORT) ${OPTS[ctrcfg]} &
         elif [ "$(optvalue ctrterm)" != off -a "$HAS_TERMINAL" == "0" ]; then
@@ -833,7 +840,8 @@ if [ "$(optvalue run)" != off ]; then
         else
             (stdbuf -o 0 $CTRL_PLANE_DIR/$CONTROLLER $(optvalue T4P4S_CTL_PORT) ${OPTS[ctrcfg]} >&2> "${CONTROLLER_LOG}" &)
         fi
-        sleep 0.2
+
+        wait_for_port_availability $(optvalue T4P4S_CTL_PORT)
     fi
 fi
 
