@@ -60,17 +60,18 @@ void reset_headers(packet_descriptor_t* pd, lookup_table_t** tables);
 extern void free_packet(LCPARAMS);
 
 extern void reset_pd(packet_descriptor_t *pd);
-extern void do_handle_packet(int portid, unsigned queue_idx, unsigned pkt_idx, LCPARAMS);
-extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
+extern void do_handle_packet(int portid, unsigned pkt_idx, LCPARAMS);
+extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, packet_descriptor_t* pd_copy, void* extraInformationForAsyncHandling);
 extern void debug_crypto_task(crypto_task_s *op);
 
 
+void main_loop_async(LCPARAMS);
 
 #include <rte_config.h>
 ///////////////// Init //////////////
 void async_init_storage()
 {
-    packet_clone_pool = rte_pktmbuf_pool_create("async_packet_clone_pool", CRYPTO_CONTEXT_POOL_SIZE*1024, 32,
+    packet_clone_pool = rte_pktmbuf_pool_create("async_packet_clone_pool", CRYPTO_CONTEXT_POOL_SIZE*64, 32,
                                                 0, 2 * RTE_PKTMBUF_HEADROOM, 0);
     if (packet_clone_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create async packet clone pool\n");
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -113,12 +114,10 @@ void init_async_data(struct lcore_data *data){
 
 
 
+int active_pd_pool_count = 0;
 
-void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS)
+void async_handle_packet_inner(unsigned port_id, int pkt_idx, packet_handler_t handler_function, LCPARAMS)
 {
-    pd->port_id = port_id;
-    pd->queue_idx = queue_idx;
-    pd->pkt_idx = pkt_idx;
 
     uint8_t dropped = 0;
     COUNTER_ECHO(lcdata->conf->async_drop_counter,"   :: Dropped async: %d\n");
@@ -127,7 +126,7 @@ void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, pack
     ucontext_t *context;
     if(rte_mempool_get(context_pool, (void**)&context) != 0) {
         dropped = 1;
-        free_packet(LCPARAMS_IN);
+        mark_to_drop(pd,0);
         pd->context = NULL;
     }else{
         COUNTER_STEP(lcdata->conf->async_packet);
@@ -139,49 +138,73 @@ void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, pack
 
         getcontext(context);
         context->uc_link = &lcdata->conf->main_loop_context;
-        makecontext(context, (packet_handler_noparams_t)handler_function, 5, port_id, queue_idx, pkt_idx, LCPARAMS_IN);
+        makecontext(context, (packet_handler_noparams_t)handler_function, 4, port_id, pkt_idx, LCPARAMS_IN);
         debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) "\n", context);
         swapcontext(&lcdata->conf->main_loop_context, context);
         debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     }
 #elif ASYNC_MODE == ASYNC_MODE_PD
+
+    pd->port_id =port_id;
+    pd->pkt_idx = pkt_idx;
     packet_handler_t handler_fun = handler_function;
-        packet_descriptor_t *pd_store;
+    packet_descriptor_t *pd_store;
 
-        int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
-        if(ret != 0){
-            dropped = 1;
-            free_packet(LCPARAMS_IN);
-            pd->context = NULL;
-        }else{
-            COUNTER_STEP(lcdata->conf->async_packet);
-            pd->context = pd_store;
-
-            if(setjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint) == 0) {
-                handler_fun(port_id, queue_idx, pkt_idx, LCPARAMS_IN);
-            }
+    int ret = rte_mempool_get(pd_pool, (void**)(&pd_store));
+    if(ret != 0){
+        dropped = 1;
+        debug(T4LIT(Cannot get new pd_store!,error) "\n");
+        mark_to_drop(pd,0);
+        pd->pd_store = NULL;
+    }else{
+        active_pd_pool_count++;
+        debug("Get pd store from pool, actual is number is %d, actual pointer: %p\n",active_pd_pool_count,pd_store);
+        COUNTER_STEP(lcdata->conf->async_packet);
+        pd->pd_store = pd_store;
+        if(setjmp(lcore_conf[rte_lcore_id()].mainLoopJumpPoint) == 0) {
+            handler_fun(port_id, pkt_idx, LCPARAMS_IN);
         }
+    }
 #endif
-
 
     if(dropped > 0){
         COUNTER_STEP(lcore_conf[rte_lcore_id()].async_drop_counter);
     }
 }
 
-void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, void* extraInformationForAsyncHandling)
+void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler_function, LCPARAMS){
+    #if ASYNC_MODE != ASYNC_MODE_OFF
+        #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+            pd->context = NULL;
+        #endif
+        #if ASYNC_MODE == ASYNC_MODE_PD
+            pd->program_restore_phase = 0;
+        #endif
+    #endif
+    if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
+        COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
+        async_handle_packet_inner(port_id, pkt_idx, handler_function, LCPARAMS_IN);
+    } else {
+        handler_function(port_id, pkt_idx, LCPARAMS_IN);
+    }
+}
+
+void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, packet_descriptor_t* pd_copy, void* extraInformationForAsyncHandling)
 {
     crypto_task_s *crypto_task;
-    create_crypto_task(&crypto_task, pd, task_type, offset, extraInformationForAsyncHandling);
+    create_crypto_task(&crypto_task, pd, task_type, offset, pd_copy, extraInformationForAsyncHandling);
     debug_crypto_task(crypto_task);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, crypto_task);
     dbg_mbuf(crypto_task->data, "   :: Enqueued for async");
 }
 
-void copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
-    *target = *source;
+int copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
+    memcpy(target,source,sizeof(packet_descriptor_t));
     target->wrapper = rte_pktmbuf_clone(source->wrapper,packet_clone_pool);
+    if(target->wrapper == 0){
+        return 1;
+    };
     target->data = rte_pktmbuf_mtod(target->wrapper, uint8_t*);
     target->extract_ptr = target->data + (source->extract_ptr - (void*)source->data);
     init_headers(target, 0);
@@ -190,10 +213,12 @@ void copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* ta
         target->headers[header_instance_it].pointer = target->data + (source->headers[header_instance_it].pointer - (void*)source->data);
         debug("Saved field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
+    return 0;
 }
 
 void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
-    *target = *source;
+    packet* oldWrapper = target->wrapper;
+    memcpy(target,source,sizeof(packet_descriptor_t));
     target->wrapper = source->wrapper;
     target->data = source->data;
     target->extract_ptr = source->extract_ptr;
@@ -204,6 +229,8 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
     }
 
     target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
+    debug("Freeing up to %s (%d)\n",oldWrapper->pool->name,oldWrapper);
+    rte_pktmbuf_free(oldWrapper);
 }
 
 void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type)
@@ -211,21 +238,28 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
     void* extraInformationForAsyncHandling = NULL;
     void* context;
 
+    int copy_success;
+    packet_descriptor_t* pd_copy;
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context == NULL) return;
 
         extraInformationForAsyncHandling = pd->context;
-        packet_descriptor_t pd_copy;
-        copy_packet_descriptor(pd,&pd_copy);
+        packet_descriptor_t pd_copy_instance;
+        pd_copy = &pd_copy_instance;
+        copy_success = copy_packet_descriptor(pd,pd_copy);
 
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        if(pd->context == NULL) return;
-        extraInformationForAsyncHandling = pd->context;
-        copy_packet_descriptor(pd,extraInformationForAsyncHandling);
+        if(pd->pd_store == NULL) return;
+        pd_copy = pd->pd_store;
+        copy_success = copy_packet_descriptor(pd,pd_copy);
     #endif
+    if(copy_success){
+        debug(T4LIT(Cannot clone the packet descriptor... dropping., warning) "\n");
+        mark_to_drop(pd,0);
+        return;
+    }
 
-    // enqueue mbuf to async operation buffer
-    enqueue_packet_for_async(pd, type, offset, extraInformationForAsyncHandling);
+    enqueue_packet_for_async(pd, type, offset, pd_copy, extraInformationForAsyncHandling);
 
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -338,12 +372,32 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
 
 
             debug("lcdata->conf->pending_crypto :%d\n", lcdata->conf->pending_crypto);
+            debug("async size :%d\n", rte_ring_count(lcdata->conf->async_queue));
 
         }
     }
 
 }
+void main_loop_pre_single_rx_async(LCPARAMS){
+}
 
+void main_loop_post_single_rx_async(bool got_packet, LCPARAMS){
+    main_loop_async(LCPARAMS_IN);
+}
+void main_loop_pre_single_tx_async(LCPARAMS){
+
+}
+void main_loop_post_single_tx_async(LCPARAMS){
+    if(pd->pd_store != 0){
+        debug("Put back pd store into pool, actual is number is %d, pointer: %p\n",active_pd_pool_count,pd->pd_store );
+        rte_mempool_put(pd_pool, (void *) pd->pd_store);
+        active_pd_pool_count--;
+    }
+    pd->pd_store = 0;
+}
+
+
+void main_loop_post_single_rx(bool got_packet, LCPARAMS);
 
 static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
 {
@@ -355,15 +409,12 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t* pd_copy = *(rte_pktmbuf_mtod(mbuf, packet_descriptor_t**));
         rte_pktmbuf_adj(mbuf, sizeof(packet_descriptor_t*));
+        debug("Restored pd_copy address: %d\n",pd_copy);
         restore_packet_descriptor(pd_copy,pd);
-        /*
-        if(pd->program_restore_phase == 0) {
-            rte_mempool_put_bulk(pd_pool, (void **) &pd_copy, 1);
-        }
-         */
     #endif
 
     dbg_mbuf(mbuf, "Data after removing extra infos");
+
     pd->wrapper = mbuf;
     pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 
@@ -377,7 +428,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
         debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     #elif ASYNC_MODE == ASYNC_MODE_PD
         pd->program_restore_phase += 1;
-        do_handle_packet(pd->port_id, pd->queue_idx, pd->pkt_idx, LCPARAMS_IN);
+        do_handle_packet(pd->port_id, pd->pkt_idx, LCPARAMS_IN);
     #endif
 }
 

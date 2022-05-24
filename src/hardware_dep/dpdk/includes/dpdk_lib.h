@@ -64,7 +64,7 @@
 //=============================================================================
 // Packet handling
 
-typedef void (*packet_handler_t)(int port_id, unsigned queue_idx, unsigned pkt_idx, LCPARAMS);
+typedef void (*packet_handler_t)(unsigned port_id, int pkt_idx, LCPARAMS);
 typedef void (*packet_handler_noparams_t)();
 
 //=============================================================================

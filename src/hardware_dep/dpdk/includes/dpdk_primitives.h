@@ -61,6 +61,7 @@ void transfer_to_egress(packet_descriptor_t* pd);
 
 int get_egress_port(packet_descriptor_t* pd);
 int get_ingress_port(packet_descriptor_t* pd);
+void mark_to_drop(SHORT_STDPARAMS);
 
 // Helpers
 

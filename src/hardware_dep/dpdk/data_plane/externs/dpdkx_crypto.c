@@ -39,12 +39,13 @@ void do_async_crypto_operation(crypto_task_type_e task_type, int offset, int pha
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #elif ASYNC_MODE == ASYNC_MODE_PD
-        if(pd->context != NULL) {
+        if(pd->pd_store != NULL) {
             if(pd->program_restore_phase == phase){
                 COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
                 do_crypto_task(pd, offset, task_type);
             }
         }else{
+            debug(T4LIT(Do not have pd store simple forward, warning) "\n");
             COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
         }
     #elif ASYNC_MODE == ASYNC_MODE_SKIP

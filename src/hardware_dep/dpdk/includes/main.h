@@ -20,7 +20,7 @@ extern bool is_packet_dropped(packet_descriptor_t* pd);
 
 #if ASYNC_MODE != ASYNC_MODE_OFF
     // defined in main_async.c
-    extern void async_handle_packet(int port_id, unsigned queue_idx, unsigned pkt_idx, packet_handler_t handler_function, LCPARAMS);
+    extern void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler_function, LCPARAMS);
     extern void main_loop_async(LCPARAMS);
     extern void main_loop_fake_crypto(LCPARAMS);
 #endif
@@ -49,7 +49,11 @@ bool is_packet_handled(LCPARAMS);
 void init_storage();
 void main_loop_pre_rx(LCPARAMS);
 void main_loop_post_rx(bool, LCPARAMS);
+void main_loop_pre_single_rx(LCPARAMS);
 void main_loop_post_single_rx(bool got_packet, LCPARAMS);
+void main_loop_pre_single_tx(LCPARAMS);
+void main_loop_post_single_tx(LCPARAMS);
+
 uint32_t get_portid(unsigned queue_idx, LCPARAMS);
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS);
 unsigned get_pkt_count_in_group();

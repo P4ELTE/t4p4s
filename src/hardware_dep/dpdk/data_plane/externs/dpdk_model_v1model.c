@@ -41,6 +41,11 @@ int get_ingress_port(packet_descriptor_t* pd) {
     return GET32(src_pkt(pd), INGRESS_META_FLD);
 }
 
+void mark_to_drop(SHORT_STDPARAMS) {
+    MODIFY(dst_pkt(pd), EGRESS_META_FLD, src_32(EGRESS_DROP_VALUE), ENDIAN_KEEP);
+    debug("       : " T4LIT(all_metadatas,header) "." T4LIT(EGRESS_META_FLD,field) " = " T4LIT(EGRESS_DROP_VALUE,bytes) "\n");
+}
+
 // -----------------------------------------------------------------
 
 void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid)

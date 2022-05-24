@@ -76,7 +76,7 @@ typedef struct {
     int current;
 } pkt_header_stack_e;
 
-typedef struct {
+typedef struct packet_descriptor_struct {
     packet_data_t*      data;
     void*               extract_ptr;
     header_descriptor_t headers[HEADER_COUNT+1];
@@ -98,13 +98,14 @@ typedef struct {
 
     #if ASYNC_MODE != ASYNC_MODE_OFF
         // async functionality
-        void *context;
-
-        int port_id;
-        unsigned queue_idx;
-        unsigned pkt_idx;
+        #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+            void *context;
+        #endif
         #if ASYNC_MODE == ASYNC_MODE_PD
             int program_restore_phase;
+            unsigned port_id;
+            unsigned pkt_idx;
+            struct packet_descriptor_struct* pd_store;
         #endif
     #endif
 

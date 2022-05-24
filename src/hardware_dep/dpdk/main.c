@@ -85,6 +85,7 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
 
 void do_single_tx(LCPARAMS)
 {
+    main_loop_pre_single_tx(LCPARAMS_IN);
     if (unlikely(is_packet_dropped(pd))) {
         free_packet(LCPARAMS_IN);
     } else {
@@ -93,18 +94,18 @@ void do_single_tx(LCPARAMS)
 
         send_packet(egress_port, ingress_port, LCPARAMS_IN);
     }
+    main_loop_post_single_tx(LCPARAMS_IN);
 }
 
-void do_handle_packet(int portid, unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
+void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
 {
     struct lcore_state state = lcdata->conf->state;
     lookup_table_t** tables = state.tables;
     parser_state_t* pstate = &(state.parser_state);
     init_parser_state(&(state.parser_state));
 
-    handle_packet(portid, get_packet_idx(LCPARAMS_IN), STDPARAMS_IN);
+    handle_packet(port_id, pkt_idx, STDPARAMS_IN);
     do_single_tx(LCPARAMS_IN);
-
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if (pd->context != NULL) {
             debug(" " T4LIT(<<<<,async) " Context for packet " T4LIT(%p,bytes) " terminating, swapping back to " T4LIT(main context,async) "\n", pd->context);
@@ -112,42 +113,27 @@ void do_handle_packet(int portid, unsigned queue_idx, unsigned pkt_idx, LCPARAMS
         }
     #endif
 }
-
-// defined in main_async.c
-void init_pd_state(packet_descriptor_t* pd) {
-    #if ASYNC_MODE != ASYNC_MODE_OFF
-        pd->context = NULL;
-        #if ASYNC_MODE == ASYNC_MODE_PD
-            pd->program_restore_phase = 0;
-        #endif
-    #endif
-
-    #ifdef T4P4S_DEBUG
-        pd->is_egress_port_set = false;
-    #endif
-}
-
 // TODO move this to stats.h.py
 extern void print_async_stats(LCPARAMS);
 
-void do_single_rx(unsigned queue_idx, unsigned pkt_idx, LCPARAMS)
+void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
 {
     print_async_stats(LCPARAMS_IN);
+    #ifdef T4P4S_DEBUG
+        pd->is_egress_port_set = false;
+    #endif
 
-    init_pd_state(pd);
+    main_loop_pre_single_rx(LCPARAMS_IN);
 
-    bool got_packet = receive_packet(pkt_idx, LCPARAMS_IN);
+    bool got_packet = receive_packet(pkt_burst_iter, LCPARAMS_IN);
     if (likely(got_packet && is_packet_handled(LCPARAMS_IN))) {
-        int portid = get_portid(queue_idx, LCPARAMS_IN);
-        #if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-            if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
-                COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
-                async_handle_packet(portid, queue_idx, pkt_idx, do_handle_packet, LCPARAMS_IN);
-                return;
-            }
+        int packet_idx = get_packet_idx(LCPARAMS_IN);
+        unsigned port_id = get_portid(queue_idx, LCPARAMS_IN);
+        #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+            async_handle_packet(port_id, packet_idx, do_handle_packet, LCPARAMS_IN);
+        #else
+            do_handle_packet(port_id, packet_idx, LCPARAMS_IN);
         #endif
-
-        do_handle_packet(portid, queue_idx, pkt_idx, LCPARAMS_IN);
     }
 
     main_loop_post_single_rx(got_packet, LCPARAMS_IN);
@@ -159,11 +145,11 @@ bool do_rx(LCPARAMS)
     unsigned queue_count = get_queue_count(lcdata);
     for (unsigned queue_idx = 0; queue_idx < queue_count; queue_idx++) {
         main_loop_rx_group(queue_idx, LCPARAMS_IN);
-
         unsigned pkt_count = get_pkt_count_in_group(lcdata);
+
         got_packet |= pkt_count > 0;
-        for (unsigned pkt_idx = 0; pkt_idx < pkt_count; pkt_idx++) {
-            do_single_rx(queue_idx, pkt_idx, LCPARAMS_IN);
+        for (unsigned pkt_burst_iter = 0; pkt_burst_iter < pkt_count; pkt_burst_iter++) {
+            do_single_rx(queue_idx, pkt_burst_iter, LCPARAMS_IN);
         }
     }
 
@@ -174,6 +160,9 @@ void main_loop_pre_do_post_rx(LCPARAMS){
     main_loop_pre_rx(LCPARAMS_IN);
     bool got_packet = do_rx(LCPARAMS_IN);
     main_loop_post_rx(got_packet, LCPARAMS_IN);
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        main_loop_async(LCPARAMS_IN);
+    #endif
 }
 
 int crypto_node_id() {
@@ -242,9 +231,6 @@ void dpdk_main_loop()
         #endif
 
         main_loop_pre_do_post_rx(LCPARAMS_IN);
-        #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
-            main_loop_async(LCPARAMS_IN);
-        #endif
     }
 }
 

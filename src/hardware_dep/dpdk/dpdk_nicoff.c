@@ -561,6 +561,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
         if (got_packet) {
             pd->wrapper = fake_packet(cmd.in, LCPARAMS_IN);
             pd->data    = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
+            ++lcdata->pkt_idx;
         }
 
         #ifndef T4P4S_NO_CONTROL_PLANE
@@ -621,10 +622,38 @@ void main_loop_post_rx(bool got_packet, LCPARAMS) {
     }
 }
 
+#if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+    void main_loop_pre_single_rx_async(LCPARAMS);
+    void main_loop_post_single_rx_async(bool got_packet, LCPARAMS);
+    void main_loop_pre_single_tx_async(LCPARAMS);
+    void main_loop_post_single_tx_async(LCPARAMS);
+#endif
+
+void main_loop_pre_single_rx(LCPARAMS){
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        main_loop_pre_single_rx_async(LCPARAMS_IN);
+    #endif
+}
+
+
 void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        main_loop_post_single_rx_async(got_packet, LCPARAMS_IN);
+    #endif
+}
+
+void main_loop_pre_single_tx(LCPARAMS){
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        main_loop_pre_single_tx_async(LCPARAMS_IN);
+    #endif
+}
+void main_loop_post_single_tx(LCPARAMS){
     if (!lcdata->is_valid)    ++packet_with_error_counter;
 
-    if (get_cmd(lcdata->idx).action == FAKE_PKT && got_packet)  ++lcdata->pkt_idx;
+    #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        main_loop_post_single_tx_async(LCPARAMS_IN);
+    #endif
+
 }
 
 uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
