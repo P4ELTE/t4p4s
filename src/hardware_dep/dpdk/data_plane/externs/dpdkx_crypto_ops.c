@@ -200,7 +200,7 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
 #elif ASYNC_MODE == ASYNC_MODE_PD
     rte_pktmbuf_prepend(task->data, sizeof(packet_descriptor_t*));
     *(rte_pktmbuf_mtod(task->data, packet_descriptor_t**)) = pd_copy;
-    debug("Save pd_copy address: %d\n",pd_copy);
+    debug("Save pd_copy address: %p\n",pd_copy);
 
     task->offset += sizeof(void**);
 #endif

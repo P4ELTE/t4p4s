@@ -211,7 +211,7 @@ int copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* tar
 
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it){
         target->headers[header_instance_it].pointer = target->data + (source->headers[header_instance_it].pointer - (void*)source->data);
-        debug("Saved field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
+        debug("Saved field %s value %u p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
     return 0;
 }
@@ -225,11 +225,11 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
 
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it) {
         target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
-        debug("Loaded field %s value %d p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
+        debug("Loaded field %s value %u p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
 
     target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
-    debug("Freeing up to %s (%d)\n",oldWrapper->pool->name,oldWrapper);
+    debug("Freeing up to %s (%p)\n",oldWrapper->pool->name,oldWrapper);
     rte_pktmbuf_free(oldWrapper);
 }
 
@@ -409,7 +409,7 @@ static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t* pd_copy = *(rte_pktmbuf_mtod(mbuf, packet_descriptor_t**));
         rte_pktmbuf_adj(mbuf, sizeof(packet_descriptor_t*));
-        debug("Restored pd_copy address: %d\n",pd_copy);
+        debug("Restored pd_copy address: %p\n",pd_copy);
         restore_packet_descriptor(pd_copy,pd);
     #endif
 
