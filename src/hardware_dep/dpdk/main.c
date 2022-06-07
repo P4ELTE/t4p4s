@@ -268,16 +268,16 @@ int launch_dpdk()
 void init_async()
 {
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
-        RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
-        RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
+        debug(":: Starter config :: \n");
+        debug(" -- ASYNC_MODE: %u\n", ASYNC_MODE);
         #ifdef  DEBUG__CRYPTO_EVERY_N
-            RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
+            debug(" -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
         #endif
-        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
-        RTE_LOG(INFO, P4_FWD, " -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
-        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
-        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);
-        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_RING_SIZE: %u\n", CRYPTO_RING_SIZE);
+        debug(" -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
+        debug(" -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
+        debug(" -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
+        debug(" -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);
+        debug(" -- CRYPTO_RING_SIZE: %u\n", CRYPTO_RING_SIZE);
     #endif
 }
 

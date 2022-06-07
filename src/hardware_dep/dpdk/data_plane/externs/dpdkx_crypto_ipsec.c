@@ -43,12 +43,12 @@ void EXTERNIMPL0(ipsec_encapsulate)(SHORT_STDPARAMS) {
     const uint32_t total_HMAC_length = 16;
     const uint32_t kept_HMAC_length = 12;
 
-    fprintf(stderr,"_------>wrapper_size: %d\n",wrapper_size);
-    fprintf(stderr,"_------>esp_head_size: %d\n",esp_head_size);
-    fprintf(stderr,"_------>iv_size: %d\n",iv_size);
-    fprintf(stderr,"_------>to_encrypt_size: %d\n",to_encrypt_size);
-    fprintf(stderr,"_------>payload_length: %d\n",payload_length);
-    fprintf(stderr,"_------>esp_head_size + iv_size + to_encrypt_size - payload_length: %d\n",esp_head_size + iv_size + to_encrypt_size - payload_length);
+    debug("   :: wrapper_size: %d\n",wrapper_size);
+    debug("   :: esp_head_size: %d\n",esp_head_size);
+    debug("   :: iv_size: %d\n",iv_size);
+    debug("   :: to_encrypt_size: %d\n",to_encrypt_size);
+    debug("   :: payload_length: %d\n",payload_length);
+    debug("   :: esp_head_size + iv_size + to_encrypt_size - payload_length: %d\n",esp_head_size + iv_size + to_encrypt_size - payload_length);
 
     rte_pktmbuf_append(pd->wrapper, esp_head_size + iv_size + to_encrypt_size - payload_length);
     debug("   :: Added " T4LIT(%dB) " of " T4LIT(padding,field) ", " T4LIT(1B) " of " T4LIT(pad length size,field) ", and " T4LIT(1B) " of " T4LIT(next header size,field) " for a total of " T4LIT(%dB) "\n", padding_size, to_encrypt_size);
