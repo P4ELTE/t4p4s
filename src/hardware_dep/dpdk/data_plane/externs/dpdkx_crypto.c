@@ -21,7 +21,7 @@
 // Implementation of P4 architecture externs
 
 // defined in dpdkx_crypto_ops.c
-extern void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS);
+extern void do_sync_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS);
 
 // defined in main_async.c
 extern void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e op);
@@ -51,7 +51,7 @@ void do_async_crypto_operation(crypto_task_type_e task_type, int offset, int pha
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
     #elif ASYNC_MODE == ASYNC_MODE_OFF
-        do_crypto_operation(task_type, offset, SHORT_STDPARAMS_IN);
+        do_sync_crypto_operation(task_type, offset, SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
     #endif
@@ -59,17 +59,17 @@ void do_async_crypto_operation(crypto_task_type_e task_type, int offset, int pha
 
 void EXTERNIMPL1(md5_hmac,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_crypto_operation(CRYPTO_TASK_MD5_HMAC, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_sync_crypto_operation(CRYPTO_TASK_MD5_HMAC, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(encrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_crypto_operation(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_sync_crypto_operation(CRYPTO_TASK_ENCRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(decrypt,u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)
 {
-    do_crypto_operation(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
+    do_sync_crypto_operation(CRYPTO_TASK_DECRYPT, offset.buffer[0], SHORT_STDPARAMS_IN);
 }
 
 void EXTERNIMPL1(async_encrypt, u8s)(uint8_buffer_t offset, SHORT_STDPARAMS)

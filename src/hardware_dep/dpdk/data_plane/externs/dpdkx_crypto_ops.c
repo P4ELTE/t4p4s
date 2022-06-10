@@ -171,7 +171,7 @@ void crypto_task_to_rte_crypto_op(crypto_task_s *task, struct rte_crypto_op *cry
 // -----------------------------------------------------------------------------
 // General functions
 
-crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, packet_descriptor_t* pd_copy, void* extraInformationForAsyncHandling){
+crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, void* extraInformationForAsyncHandling){
     int ret = rte_mempool_get(crypto_task_pool, (void**)task_out);
     if(ret < 0){
         rte_exit(EXIT_FAILURE, "Mempool get failed!\n");
@@ -180,7 +180,11 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
     crypto_task_s *task = *task_out;
     task->type = task_type;
     #if ASYNC_MODE == ASYNC_MODE_PD
-        task->data = pd_copy->wrapper;
+        if(pd->pd_store->wrapper != 0){
+            task->data = pd->pd_store->wrapper;
+        }else {
+            task->data = pd->wrapper;
+        }
     #else
         task->data = pd->wrapper;
     #endif
@@ -198,19 +202,26 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
         task->offset += sizeof(void*);
     }
 #elif ASYNC_MODE == ASYNC_MODE_PD
-    rte_pktmbuf_prepend(task->data, sizeof(packet_descriptor_t*));
-    *(rte_pktmbuf_mtod(task->data, packet_descriptor_t**)) = pd_copy;
-    debug("Save pd_copy address: %p\n",pd_copy);
+    if(extraInformationForAsyncHandling != NULL) {
+        rte_pktmbuf_prepend(task->data, sizeof(void *));
+        *(rte_pktmbuf_mtod(task->data, void**)) = extraInformationForAsyncHandling;
+        debug("Save pd_copy address: %p\n", extraInformationForAsyncHandling);
 
-    task->offset += sizeof(void**);
+        task->offset += sizeof(void **);
+    }
 #endif
 
-    task->padding_length = (16 - task->plain_length_to_encrypt % 16) % 16;
+    if(task->type == CRYPTO_TASK_MD5_HMAC){
+        task->padding_length = 0;
+    }else{
+        task->padding_length = (16 - task->plain_length_to_encrypt % 16) % 16;
 
-    if(task->padding_length){
-        void* padding_memory = rte_pktmbuf_append(task->data, task->padding_length);
-        memset(padding_memory, 0, task->padding_length);
+        if(task->padding_length){
+            void* padding_memory = rte_pktmbuf_append(task->data, task->padding_length);
+            memset(padding_memory, 0, task->padding_length);
+        }
     }
+
     return task;
 }
 
@@ -260,12 +271,10 @@ void execute_task_blocking(crypto_task_type_e task_type, packet_descriptor_t *pd
     reset_pd(pd);
 }
 
-void do_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS){
-    // deparse_packet(SHORT_STDPARAMS_IN);
-    // pd->is_deparse_reordering = false;
+void do_sync_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_STDPARAMS){
     unsigned int lcore_id = rte_lcore_id();
 
-    crypto_task_s* crypto_task = create_crypto_task(&crypto_tasks[lcore_id][0], pd, task_type, offset, 0, NULL);
+    crypto_task_s* crypto_task = create_crypto_task(&crypto_tasks[lcore_id][0], pd, task_type, offset, NULL);
 
     execute_task_blocking(task_type, pd, lcore_id, crypto_task);
 }

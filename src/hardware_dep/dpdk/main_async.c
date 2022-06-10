@@ -219,6 +219,8 @@ int copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* tar
 void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
     packet* oldWrapper = target->wrapper;
     memcpy(target,source,sizeof(packet_descriptor_t));
+
+#if  ASYNC_MODE != ASYNC_MODE_CONTEXT
     target->wrapper = source->wrapper;
     target->data = source->data;
     target->extract_ptr = source->extract_ptr;
@@ -227,10 +229,12 @@ void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t*
         target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
         debug("Loaded field %s value %u p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
-
     target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
+
     debug("Freeing up to %s (%p)\n",oldWrapper->pool->name,oldWrapper);
     rte_pktmbuf_free(oldWrapper);
+#endif
+
 }
 
 void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type)
@@ -269,7 +273,7 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
         swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
         debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to packet context ,warning) " " T4LIT(%p,async) "\n", context);
 
-        restore_packet_descriptor(&pd_copy,pd);
+        restore_packet_descriptor(pd_copy,pd);
     #elif ASYNC_MODE == ASYNC_MODE_PD
         reset_pd(pd);
         jump_to_main_loop(pd);
@@ -388,12 +392,14 @@ void main_loop_pre_single_tx_async(LCPARAMS){
 
 }
 void main_loop_post_single_tx_async(LCPARAMS){
+#if ASYNC_MODE == ASYNC_MODE_PD
     if(pd->pd_store != 0){
         debug("Put back pd store into pool, actual is number is %d, pointer: %p\n",active_pd_pool_count,pd->pd_store );
         rte_mempool_put(pd_pool, (void *) pd->pd_store);
         active_pd_pool_count--;
     }
     pd->pd_store = 0;
+#endif
 }
 
 
