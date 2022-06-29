@@ -35,18 +35,6 @@ extern void ipsec_encapsulate();
 CTL_MAIN {
     apply {
         SET_EGRESS_PORT(GET_INGRESS_PORT());
-
-        log_msg("diffserv    = {}", {hdr.ipv4.diffserv});
-        log_msg("totalLen    = {}", {hdr.ipv4.totalLen});
-        log_msg("identification    = {}", {hdr.ipv4.identification});
-        log_msg("flags    = {}", {hdr.ipv4.flags});
-        log_msg("fragOffset    = {}", {hdr.ipv4.fragOffset});
-        log_msg("ttl    = {}", {hdr.ipv4.ttl});
-        log_msg("protocol    = {}", {hdr.ipv4.protocol});
-        log_msg("hdrChecksum    = {}", {hdr.ipv4.hdrChecksum});
-        log_msg("srcAddr    = {}", {hdr.ipv4.srcAddr});
-        log_msg("dstAddr    = {}", {hdr.ipv4.dstAddr});
-
         ipsec_encapsulate();
     }
 }

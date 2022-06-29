@@ -52,9 +52,9 @@ void reset_pd(packet_descriptor_t *pd)
     pd->is_deparse_reordering = false;
 }
 
-void debug_crypto_task(crypto_task_s *op) {
+void debug_crypto_task(const char* msg, crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
-        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation", crypto_task_type_names[op->type])
+        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " %s " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation",msg, crypto_task_type_names[op->type])
 
         uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -253,7 +253,7 @@ void dequeue_crypto_ops_blocking(uint16_t number_of_ops){
 
 void execute_task_blocking(crypto_task_type_e task_type, packet_descriptor_t *pd, unsigned int lcore_id,
                            crypto_task_s* crypto_task) {
-    debug_crypto_task(crypto_task);
+    debug_crypto_task("execute_task_blocking", crypto_task);
 
     if (rte_crypto_op_bulk_alloc(rte_crypto_op_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, &enqueued_rte_crypto_ops[lcore_id][0], 1) == 0){
         rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
