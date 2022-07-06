@@ -179,6 +179,7 @@ void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler
         #endif
         #if ASYNC_MODE == ASYNC_MODE_PD
             pd->program_restore_phase = 0;
+            pd->pd_store = NULL;
         #endif
     #endif
     if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
