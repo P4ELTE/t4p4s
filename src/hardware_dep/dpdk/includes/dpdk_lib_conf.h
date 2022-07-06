@@ -95,7 +95,7 @@ struct lcore_hardware_conf {
 
 // SIGSTKSZ is typically 8192
 #ifdef T4P4S_DEBUG
-#define CONTEXT_STACKSIZE SIGSTKSZ*2
+#define CONTEXT_STACKSIZE SIGSTKSZ*4
 #else
 #define CONTEXT_STACKSIZE SIGSTKSZ
 #endif
