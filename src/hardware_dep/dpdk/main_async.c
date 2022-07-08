@@ -35,7 +35,6 @@
     struct rte_mempool *context_pool;
     struct rte_ring    *context_free_command_ring;
 #endif
-struct rte_mempool* packet_clone_pool;
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
@@ -71,15 +70,12 @@ void main_loop_async(LCPARAMS);
 ///////////////// Init //////////////
 void async_init_storage()
 {
-    packet_clone_pool = rte_pktmbuf_pool_create("async_packet_clone_pool", CRYPTO_CONTEXT_POOL_SIZE*64, 32,
-                                                0, 2 * RTE_PKTMBUF_HEADROOM, 0);
-    if (packet_clone_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create async packet clone pool\n");
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         context_pool = rte_mempool_create("context_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
         if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
 
 
-        context_free_command_ring = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        context_free_command_ring = rte_ring_create("context_ring", (unsigned)CONTEXT_FREE_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
         if (context_free_command_ring == NULL) rte_exit(EXIT_FAILURE, "Cannot create context ring!\n");
     #endif
 
@@ -96,14 +92,16 @@ void init_async_data(struct lcore_data *data){
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
 
-    char rxName[32];
-    char txName[32];
-    sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
-    sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
-    data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-    data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    #ifdef START_CRYPTO_NODE
+        char rxName[32];
+        char txName[32];
+        sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
+        sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
+        data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    #endif
 
     #ifdef DEBUG__CRYPTO_EVERY_N
         data->conf->crypto_every_n_counter = -1;
