@@ -107,12 +107,13 @@ void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
     handle_packet(port_id, pkt_idx, STDPARAMS_IN);
     do_single_tx(LCPARAMS_IN);
 }
+
 // TODO move this to stats.h.py
-extern void print_async_stats(LCPARAMS);
+extern void print_packet_stats(LCPARAMS);
 
 void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
 {
-    print_async_stats(LCPARAMS_IN);
+    COUNTER_STEP(lcdata->conf->processed_packet_num);
     #ifdef T4P4S_DEBUG
         pd->is_egress_port_set = false;
     #endif
@@ -217,6 +218,10 @@ void dpdk_main_loop()
     init_stats(LCPARAMS_IN);
 
     while (likely(core_is_working(LCPARAMS_IN))) {
+
+        #if T4P4S_STATS
+            print_packet_stats(LCPARAMS_IN);
+        #endif
         #ifdef START_CRYPTO_NODE
             if (is_crypto_node()) {
                 main_loop_fake_crypto(LCPARAMS_IN);

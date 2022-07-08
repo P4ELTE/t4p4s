@@ -118,9 +118,7 @@ int active_pd_pool_count = 0;
 
 void async_handle_packet_inner(unsigned port_id, int pkt_idx, packet_handler_t handler_function, LCPARAMS)
 {
-
     uint8_t dropped = 0;
-    COUNTER_ECHO(lcdata->conf->async_drop_counter,"   :: Dropped async: %d\n");
 
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
     ucontext_t *context;
