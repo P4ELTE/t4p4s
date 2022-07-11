@@ -51,6 +51,7 @@ void do_async_crypto_operation(crypto_task_type_e task_type, int offset, int pha
     #elif ASYNC_MODE == ASYNC_MODE_SKIP
         COUNTER_STEP(lcore_conf[rte_lcore_id()].fwd_packet);
     #elif ASYNC_MODE == ASYNC_MODE_OFF
+        COUNTER_STEP(lcore_conf[rte_lcore_id()].doing_crypto_packet);
         do_sync_crypto_operation(task_type, offset, SHORT_STDPARAMS_IN);
     #else
         #error Not Supported Async mode
