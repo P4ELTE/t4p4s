@@ -41,20 +41,20 @@ void EXTERNIMPL0(update_checksum)(bool cond, uint8_buffer_t data, uint16_t* chec
         return;
     }
 
-    int bytelen = data.size / 8;
+    int bytelen = data.size;
 
     dbg_bytes(data.buffer, bytelen, "    : " T4LIT(Updating checksum,extern) " for " T4LIT(%d) " bytes: ", bytelen);
 
     uint32_t calculated_cksum = 0;
 
     if (algorithm == enum_HashAlgorithm_csum16) {
+	uint16_t calculated_cksum = 0; 
         calculated_cksum = rte_raw_cksum(data.buffer, bytelen);
         calculated_cksum = (calculated_cksum == 0xffff) ? calculated_cksum : ((~calculated_cksum) & 0xffff);
+
+        debug("       : Packet checksum " T4LIT(updated,status) " to " T4LIT(%04x,bytes) "\n", calculated_cksum);
+        *checksum = calculated_cksum;
     }
-
-    debug("       : Packet checksum " T4LIT(updated,status) " to " T4LIT(%04x,bytes) "\n", calculated_cksum);
-
-    // *checksum = calculated_cksum;
 }
 
 bool is_checksum_bad(struct rte_mbuf* mbuf) {
