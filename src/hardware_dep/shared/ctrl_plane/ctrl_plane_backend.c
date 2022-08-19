@@ -353,9 +353,13 @@ int send_digest(ctrl_plane_backend bg, ctrl_plane_digest d, uint32_t receiver_id
     Digest_t* dt = (Digest_t*)d;
     backend_t* bgt = (backend_t*)bg;
 
-    netconv_p4_header((struct p4_header*)(dt->ctrl_plane_digest));
-    if (fifo_add_msg(&(bgt->output_queue), dt->mem_cell)==0)
-        return -1;
+    if (fifo_isfull( &(bgt->output_queue) )) {
+	detouch_mem_cell(bgt, dt->mem_cell);
+    }
+    else {
+        netconv_p4_header((struct p4_header*)(dt->ctrl_plane_digest));
+        fifo_add_msg(&(bgt->output_queue), dt->mem_cell);
+    }
 
     free(dt);
     return 0;
@@ -374,7 +378,7 @@ ctrl_plane_digest create_digest(ctrl_plane_backend bg, char* name)
     dg->mem_cell = touch_mem_cell(bgt);
     if (unlikely(dg->mem_cell == 0))
     {
-        fprintf(stderr, "Out of memory pool - memcell cannot be assigned to a new ctrl_plane_digest message!\n");
+        //fprintf(stderr, "Out of memory pool - memcell cannot be assigned to a new ctrl_plane_digest message!\n");
         return 0;   
     }
 
