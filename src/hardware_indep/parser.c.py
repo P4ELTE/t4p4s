@@ -259,7 +259,7 @@ for parser in hlir.parsers:
                 args = component.methodCall.arguments
                 vwlen_var = generate_var_name('vwlen')
                 if len(args) == 1:
-                    #[     int ${vwlen_var} = 0;
+                    #[     uint32_t ${vwlen_var} = 0;
                 else:
                     vw_size = hdr.urtype.vw_fld.urtype.size
                     vw_size_bytes = (vw_size+7) // 8
@@ -267,7 +267,7 @@ for parser in hlir.parsers:
                     bexpr = format_expr(args[1].expression)
                     prebuf, postbuf = statement_buffer_value()
                     #[     $prebuf
-                    #[     int ${vwlen_var} = ((${bexpr}) + 7) / 8;
+                    #[     uint32_t ${vwlen_var} = ((${bexpr}) + 7) / 8;
                     #[     $postbuf
 
                     #{     if (unlikely(${vwlen_var} < 0)) {
