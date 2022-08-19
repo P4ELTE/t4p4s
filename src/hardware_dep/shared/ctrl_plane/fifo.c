@@ -84,3 +84,12 @@ void fifo_wait( fifo_t* queue)
 
         pthread_mutex_unlock(&(queue->lock));
 }
+
+int fifo_isfull( fifo_t* queue )
+{
+	int res = 0;
+	pthread_mutex_lock(&(queue->lock));
+        res = queue->size >= P4_BG_QUEUE_SIZE?1:0;
+        pthread_mutex_unlock(&(queue->lock));
+	return res;
+}

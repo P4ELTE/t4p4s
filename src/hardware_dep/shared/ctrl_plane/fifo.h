@@ -34,5 +34,5 @@ fifo_t* fifo_add_msg( fifo_t* queue, void* element);
 void* fifo_remove_msg( fifo_t* queue );
 int fifo_size( fifo_t* queue );
 void fifo_wait( fifo_t* queue );
-
+int fifo_isfull( fifo_t* queue );
 #endif
