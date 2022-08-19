@@ -8,6 +8,20 @@
 
 #define LPM6_BYTE_SIZE_LIMIT 32
 
+uint8_t* reorder_key(uint8_t *key, const int size)
+{
+	uint8_t tmp;
+	int i = 0;
+	for (i=0;i<size/2;++i)
+	{
+		tmp = key[i];
+		key[i] = key[size-i-1];
+		key[size-i-1] = tmp;
+	}
+	return key;
+}
+
+
 struct rte_lpm* lpm4_create(int socketid, const char* name, int max_size)
 {
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
@@ -77,8 +91,9 @@ void lpm_add(lookup_table_t* t, uint8_t* key, uint8_t depth, base_table_action_t
     if (t->entry.key_size <= 4) {
         // the rest is zeroed in case of keys smaller than 4 bytes
         uint32_t key32 = 0;
-        memcpy(&key32, key, t->entry.key_size);
-
+        //memcpy(&key32, key, t->entry.key_size);
+        memcpy((uint8_t*)&key32 + (4 - t->entry.key_size), key, t->entry.key_size);
+	reorder_key((uint8_t*)&key32, 4);
         lpm4_add(t, ext->rte_table, key32, depth, ext->size++);
     } else if (t->entry.key_size <= LPM6_BYTE_SIZE_LIMIT) {
         static uint8_t key128[LPM6_BYTE_SIZE_LIMIT];
@@ -97,8 +112,9 @@ uint8_t* lpm_lookup(lookup_table_t* t, uint8_t* key)
 
     if (t->entry.key_size <= 4) {
         uint32_t key32 = 0;
-        memcpy(&key32, key, t->entry.key_size);
-
+        //memcpy(&key32, key, t->entry.key_size);
+        memcpy((uint8_t*)&key32 + (4 - t->entry.key_size), key, t->entry.key_size);
+        reorder_key((uint8_t*)&key32, 4);
         table_index_t result;
 #if RTE_VERSION >= RTE_VERSION_NUM(16,04,0,0)
         uint32_t result32;
