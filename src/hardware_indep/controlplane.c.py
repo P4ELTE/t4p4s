@@ -129,13 +129,12 @@ def gen_fill_key_component(k, idx, byte_width, tmt, kmt):
     elif ke.node_type == 'Slice':
         #[     // TODO fill Slice component properly (call gen_fill_key_component_slice)
     else:
-        is_t4p4s_order = byte_width <= 4 and not ('header' in k and k.header.urtype.is_metadata)
-
-        if is_t4p4s_order:
-            padded_byte_width = align8_16_32(byte_width)
+        to_t4p4s_order = byte_width == 4 and ('header' in k and not k.header.urtype.is_metadata)
+        if to_t4p4s_order:
+            padded_byte_width = align8_16_32(8*byte_width)
             varname = generate_var_name(f'fld_{get_key_name(k, idx)}')
             #[     uint${padded_byte_width}_t $varname = *(uint${padded_byte_width}_t*)field_matches[$idx]->bitmap;
-            #[     key->${get_key_name(k, idx)} = $varname;
+            #[     key->${get_key_name(k, idx)} = net2t4p4s_${int(padded_byte_width/8)}($varname);
         else:
             #[     memcpy(&(key->${get_key_name(k, idx)}), field_matches[$idx]->bitmap, $byte_width);
 
