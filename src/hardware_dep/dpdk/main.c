@@ -39,7 +39,6 @@ void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
     uint32_t port_mask = get_port_mask();
 
     uint8_t nb_port = 0;
-    int broadcast_idx = 0;
     for (uint8_t portidx = 0; nb_port < nb_ports - 1 && portidx < RTE_MAX_ETHPORTS; ++portidx) {
         if (portidx == ingress_port) {
            continue;
@@ -48,11 +47,10 @@ void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
         bool is_port_disabled = (port_mask & (1 << portidx)) == 0;
         if (is_port_disabled)   continue;
 
-        packet* pkt_out = (nb_port < nb_ports) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
-        send_single_packet(pkt_out, egress_port, ingress_port, broadcast_idx != 0, LCPARAMS_IN);
+        packet* pkt_out = (nb_port < nb_ports-2) ? clone_packet(pd->wrapper, lcdata->mempool) : pd->wrapper;
+        send_single_packet(pkt_out, portidx, ingress_port, false, LCPARAMS_IN);
 
         ++nb_port;
-        ++broadcast_idx;
     }
 
     if (unlikely(nb_port != nb_ports - 1)) {
