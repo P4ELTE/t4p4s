@@ -426,12 +426,15 @@ def gen_do_assignment(dst, src, ctl=None):
                 is_local = nt == 'PathExpression'
                 is_nonref_node = is_op_node or nt in ('Constant', 'MethodCallExpression', 'Cast') or is_local
                 is_ref_node = is_op_node or nt in ('Constant', 'Member', 'MethodCallExpression', 'Cast') or is_local
-
                 needs_dereferencing = not is_nonref_node and size <= 4
                 deref = "*" if needs_dereferencing else ""
-                #[ ${format_type(dst.type)} $tmpvar = $deref(${format_type(dst.type)}$deref)((${format_expr(src, expand_parameters=True, needs_variable=True)})); // dbg ${is_op_node} ${is_local} ${is_nonref_node} ${nt}->${dst.node_type}
+                if nt!='Member':
+                    net2t4p4s = ''
+                if nt=='Mux':
+                    deref=''
+                #[ ${format_type(dst.type)} $tmpvar = $net2t4p4s($deref(${format_type(dst.type)}$deref)((${format_expr(src, expand_parameters=True, needs_variable=True)}))); // dbg ${is_op_node} ${is_local} ${is_nonref_node} ${nt}->${dst.node_type}
 
-                needs_referencing = is_ref_node and size <= 4
+                needs_referencing = size <=4 # not is_ref_node and size <= 4
                 ref = f'&' if needs_referencing else f''
                 #[ memcpy(&(${format_expr(dst)}), $ref$tmpvar /* dbg ${is_op_node} ${is_local} ${is_nonref_node} ${nt}->${dst.node_type} */, $size);
 
@@ -557,7 +560,7 @@ def gen_format_methodcall_digest(m, mcall):
         #[ fields.field_ptrs[$idx]   = (uint8_t*) get_fld_pointer(pd, FLD($hdrname,$fldname));
         #[ fields.field_widths[$idx] =            fld_infos[FLD($hdrname,$fldname)].size;
     #[ generate_digest(bg,"${digest_name}",0,&fields);
-    #[ sleep_millis(DIGEST_SLEEP_MILLIS);
+    #[ /*sleep_millis(DIGEST_SLEEP_MILLIS);*/
 
 def is_emit(m):
     return m.expr._ref.urtype('name', lambda n: n == 'packet_out')
@@ -1186,7 +1189,7 @@ def gen_format_method_arg(par, arg, listexpr_to_buf):
 
     if 'fld_ref' in ae:
         hdrname, fldname = get_hdrfld_name(ae)
-        #[ (${format_type(par.urtype)})get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer
+        #[ (${format_type(par.urtype)}*)get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer
     else:
         fmt = format_expr(arg)
         if fmt == '':
@@ -1285,7 +1288,6 @@ def gen_format_lazy_extern(args, mname, m, listexpr_to_buf):
        and the extern method must not be called.
        We also silently suppose that the extern does not return a value."""
     global compiler_common
-
     prebuf1 = compiler_common.pre_statement_buffer
     compiler_common.pre_statement_buffer = ""
 
@@ -1306,6 +1308,7 @@ def gen_format_lazy_extern(args, mname, m, listexpr_to_buf):
 def gen_format_call_extern(args, mname, m, base_mname):
     listexpr_to_buf = {le: gen_prepare_listexpr_arg(le)
                               for le in args.map('expression').filter('node_type', 'ListExpression')}
+
 
     lazy_externs = 'verify_checksum update_checksum verify_checksum_with_payload update_checksum_with_payload'.split(' ')
     if base_mname in lazy_externs:
@@ -1341,7 +1344,6 @@ def gen_fmt_MethodCallExpression(e, format_as_value=True, expand_parameters=Fals
         ('Member', 'apply'):        gen_method_apply,
         ('Member', 'lookahead'):    gen_method_lookahead,
     }
-
     m = e.method
 
     if 'member' in m and (m.node_type, m.member) in special_methods:
@@ -1429,7 +1431,10 @@ def gen_fmt_StructInitializerExpression(e, fldsvar, format_as_value=True, expand
             elif ctype == 'meta':
                 #[ .${component.name} = (uint${align8_16_32(size)}_t)GET32(src_pkt(pd), FLD(${tref.name},${ce.member})),
             else:
-                #[ .${component.name} = (uint${align8_16_32(size)}_t)${gen_format_expr(ce)},
+                #TODO: fix this hack
+                hdrname, fldname = get_hdrfld_name(ce)
+                #[ .${component.name} = *(uint${align8_16_32(size)}_t*)get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer,
+                #${gen_format_expr(ce)},
     #} }
 
 
@@ -1466,7 +1471,8 @@ def gen_fmt_StructExpression(e, format_as_value=True, expand_parameters=False, n
                 if fldname is None:
                     #pre[ ${structvar}.${comp.name} = *(HDRT(${hdrname}_t)*)pd->headers[HDR($hdrname)].pointer;
                 else:
-                    #pre[ memcpy(${structvar}.${comp.name}, pd->headers[HDR($hdrname)].pointer, to_bytes(${comp.expression.urtype.size}));
+                    #pre[ memcpy(${structvar}.${comp.name}, get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer, to_bytes(${comp.expression.urtype.size}));
+                    ##pre[ memcpy(${structvar}.${comp.name}, pd->headers[HDR($hdrname)].pointer, to_bytes(${comp.expression.urtype.size}));
 
     # TODO in some cases, it should be empty
     ref = '&'
@@ -1783,6 +1789,7 @@ def gen_add_digest_fields(e, var, fldvars):
     #pre[     ctrl_plane_digest $var = 0; // dummy
     #pre[ #else
     #pre[     ctrl_plane_digest $var = create_digest(bg, "$name");
+    #pre{     if ($var != 0) {
     for hdrname, fldname, size in fld_infos(e):
         if size <= 32:
             sz = ((size+7)//8) * 8
@@ -1791,6 +1798,7 @@ def gen_add_digest_fields(e, var, fldvars):
             #pre[     add_digest_field($var, &$fldvar, $sz);
         else:
             #pre[     add_digest_field($var, get_handle_fld(pd, FLD($hdrname,$fldname), "digestfld").pointer, $size);
+    #pre} }
     #pre} #endif
     #pre[
 
@@ -1806,7 +1814,7 @@ def gen_format_call_digest(e):
 
     #{ if ($var != 0) {
     #[     $funname($receiver, $var, SHORT_STDPARAMS_IN);
-    #[     sleep_millis(DIGEST_SLEEP_MILLIS);
+    #[     /*sleep_millis(DIGEST_SLEEP_MILLIS);*/
     #} }
 
 ################################################################################
@@ -1926,6 +1934,7 @@ def get_all_extern_call_infos(hlir):
     control_local_mcalls = hlir.all_nodes.by_type('MethodCallExpression').filter('method.node_type', 'Member').filter('method.expr.type.node_type', 'Type_SpecializedCanonical').filter(is_not_smem)
 
     all_mcalls = mcalls + control_local_mcalls
+
 
     return all_mcalls.map(get_mcall_infos)
 
