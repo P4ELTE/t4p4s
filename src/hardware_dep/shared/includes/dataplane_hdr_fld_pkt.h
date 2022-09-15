@@ -109,6 +109,10 @@ typedef struct packet_descriptor_struct {
     struct packet_descriptor_struct* pd_store;
     #endif
 
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        bool do_sync_crypto;
+    #endif
+
     #ifdef T4P4S_DEBUG
         bool is_egress_port_set;
     #endif

@@ -33,18 +33,17 @@
 
 #define increase_with_rotation(value,rotation_length) (value = (((value) >= (rotation_length-1)) ? ((value + 1) % (rotation_length)) : ((value) + 1)))
 
-#if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
-	#ifdef DEBUG__CRYPTO_EVERY_N
-		#define PACKET_REQUIRES_ASYNC(lcdata,pd) (increase_with_rotation(lcdata->conf->crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N)) == 0
-    #else
-		#define PACKET_REQUIRES_ASYNC(lcdata,pd) true
-    #endif
+#ifdef DEBUG__CRYPTO_EVERY_N
+    #define PACKET_REQUIRES_CRYPTO(lcdata,pd) (increase_with_rotation(lcdata->conf->crypto_every_n_counter, DEBUG__CRYPTO_EVERY_N)) == 0
+#else
+    #define PACKET_REQUIRES_CRYPTO(lcdata,pd) true
+#endif
 
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT || ASYNC_MODE == ASYNC_MODE_PD
     #ifndef CRYPTO_BURST_SIZE
 	    #define CRYPTO_BURST_SIZE 64
     #endif
 #else
-	#define PACKET_REQUIRES_ASYNC(lcdata,pd) false
     #ifndef CRYPTO_BURST_SIZE
     	#define CRYPTO_BURST_SIZE 1
     #endif

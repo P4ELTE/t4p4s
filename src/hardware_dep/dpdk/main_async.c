@@ -178,7 +178,7 @@ void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler
             pd->pd_store = NULL;
         #endif
     #endif
-    if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
+    if (unlikely(PACKET_REQUIRES_CRYPTO(lcdata,pd))) {
         COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
         async_handle_packet_inner(port_id, pkt_idx, handler_function, LCPARAMS_IN);
     } else {

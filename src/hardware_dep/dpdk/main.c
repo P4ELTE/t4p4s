@@ -127,6 +127,9 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
         #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
             async_handle_packet(port_id, packet_idx, do_handle_packet, LCPARAMS_IN);
         #else
+            #ifdef DEBUG__CRYPTO_EVERY_N
+                pd->do_sync_crypto = PACKET_REQUIRES_CRYPTO(lcdata, pd);
+            #endif
             do_handle_packet(port_id, packet_idx, LCPARAMS_IN);
         #endif
     }
