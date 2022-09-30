@@ -389,7 +389,7 @@ PYTHON3=${PYTHON3-$(find_tool "." python3)}
 
 # note: it is used with sudo
 MESON_CMD="$PYTHON3 -m mesonbuild.mesonmain"
-MESON_BUILDTYPE=${MESON_BUILDTYPE-debug}
+MESON_BUILDTYPE=${MESON_BUILDTYPE-debugoptimized}
 
 declare -A EXT_TO_VSN=(["p4"]=16 ["p4_14"]=14)
 declare -A VSN_TO_EXT=([16]="p4" [14]="p4_14")
