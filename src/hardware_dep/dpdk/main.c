@@ -104,19 +104,14 @@ void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
 
     handle_packet(port_id, pkt_idx, STDPARAMS_IN);
     do_single_tx(LCPARAMS_IN);
-    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-        if (pd->context != NULL) {
-            debug(" " T4LIT(<<<<,async) " Context for packet " T4LIT(%p,bytes) " terminating, swapping back to " T4LIT(main context,async) "\n", pd->context);
-            rte_ring_enqueue(context_free_command_ring, pd->context);
-        }
-    #endif
 }
+
 // TODO move this to stats.h.py
-extern void print_async_stats(LCPARAMS);
+extern void print_packet_stats(LCPARAMS);
 
 void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
 {
-    print_async_stats(LCPARAMS_IN);
+    COUNTER_STEP(lcdata->conf->processed_packet_num);
     #ifdef T4P4S_DEBUG
         pd->is_egress_port_set = false;
     #endif
@@ -130,6 +125,9 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
         #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
             async_handle_packet(port_id, packet_idx, do_handle_packet, LCPARAMS_IN);
         #else
+            #ifdef DEBUG__CRYPTO_EVERY_N
+                pd->do_sync_crypto = PACKET_REQUIRES_CRYPTO(lcdata, pd);
+            #endif
             do_handle_packet(port_id, packet_idx, LCPARAMS_IN);
         #endif
     }
@@ -221,6 +219,10 @@ void dpdk_main_loop()
     init_stats(LCPARAMS_IN);
 
     while (likely(core_is_working(LCPARAMS_IN))) {
+
+        #if T4P4S_STATS
+            print_packet_stats(LCPARAMS_IN);
+        #endif
         #ifdef START_CRYPTO_NODE
             if (is_crypto_node()) {
                 main_loop_fake_crypto(LCPARAMS_IN);
@@ -266,16 +268,16 @@ int launch_dpdk()
 void init_async()
 {
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
-        debug(":: Starter config :: \n");
-        debug(" -- ASYNC_MODE: %u\n", ASYNC_MODE);
+        RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");
+        RTE_LOG(INFO, P4_FWD, " -- ASYNC_MODE: %u\n", ASYNC_MODE);
         #ifdef  DEBUG__CRYPTO_EVERY_N
-            debug(" -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
+            RTE_LOG(INFO, P4_FWD, " -- DEBUG__CRYPTO_EVERY_N: %u\n", DEBUG__CRYPTO_EVERY_N);
         #endif
-        debug(" -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
-        debug(" -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
-        debug(" -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
-        debug(" -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);
-        debug(" -- CRYPTO_RING_SIZE: %u\n", CRYPTO_RING_SIZE);
+        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_NODE_MODE: %u\n", CRYPTO_NODE_MODE);
+        RTE_LOG(INFO, P4_FWD, " -- FAKE_CRYPTO_SLEEP_MULTIPLIER: %u\n", FAKE_CRYPTO_SLEEP_MULTIPLIER);
+        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_BURST_SIZE: %u\n", CRYPTO_BURST_SIZE);
+        RTE_LOG(INFO, P4_FWD, " -- CRYPTO_CONTEXT_POOL_SIZE: %u\n", CRYPTO_CONTEXT_POOL_SIZE);
+        RTE_LOG(INFO, P4_FWD, " -- FAKE_CRYPTO_COMMAND_RING_SIZE: %u\n", FAKE_CRYPTO_COMMAND_RING_SIZE);
     #endif
 }
 

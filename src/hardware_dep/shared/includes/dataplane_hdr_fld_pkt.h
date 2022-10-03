@@ -105,8 +105,12 @@ typedef struct packet_descriptor_struct {
             int program_restore_phase;
             unsigned port_id;
             unsigned pkt_idx;
-            struct packet_descriptor_struct* pd_store;
         #endif
+    struct packet_descriptor_struct* pd_store;
+    #endif
+
+    #ifdef DEBUG__CRYPTO_EVERY_N
+        bool do_sync_crypto;
     #endif
 
     #ifdef T4P4S_DEBUG

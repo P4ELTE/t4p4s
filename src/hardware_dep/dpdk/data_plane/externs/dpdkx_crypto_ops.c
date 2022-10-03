@@ -52,12 +52,17 @@ void reset_pd(packet_descriptor_t *pd)
     pd->is_deparse_reordering = false;
 }
 
-void debug_crypto_task(crypto_task_s *op) {
+void debug_crypto_task(const char* msg, crypto_task_s *op) {
     #ifdef T4P4S_DEBUG
-        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " Sending packet to " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation", crypto_task_type_names[op->type])
+        dbg_mbuf(op->data, " " T4LIT(<<<<,outgoing) " %s " T4LIT(crypto device,outgoing) " for " T4LIT(%s,extern) " operation",msg, crypto_task_type_names[op->type])
 
         uint8_t* buf = rte_pktmbuf_mtod(op->data, uint8_t*);
-        dbg_bytes(buf, sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        dbg_bytes(buf, sizeof(uint32_t), "   :: Context (" T4LIT(%luB) "): ", sizeof(uint32_t));
+        dbg_bytes(buf + sizeof(uint32_t), sizeof(uint32_t), "   :: Size info (" T4LIT(%luB) "): ", sizeof(uint32_t));
+#elif ASYNC_MODE == ASYNC_MODE_PD
+        dbg_bytes(buf, sizeof(void*), "   :: Pd info (" T4LIT(%luB) "): ", sizeof(void*));
+#endif
         dbg_bytes(buf + op->offset, op->plain_length_to_encrypt, "   :: Data (" T4LIT(%dB) ")    : ", op->plain_length_to_encrypt);
         debug("   :: plain_length_to_encrypt: %d\n",op->plain_length_to_encrypt);
         debug("   :: offset: %d\n",op->offset);
@@ -179,7 +184,7 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
     }
     crypto_task_s *task = *task_out;
     task->type = task_type;
-    #if ASYNC_MODE == ASYNC_MODE_PD
+    #if ASYNC_MODE == ASYNC_MODE_PD || ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->pd_store->wrapper != 0){
             task->data = pd->pd_store->wrapper;
         }else {
@@ -202,10 +207,10 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
         task->offset += sizeof(void*);
     }
 #elif ASYNC_MODE == ASYNC_MODE_PD
-    if(extraInformationForAsyncHandling != NULL) {
+    if(pd->pd_store != NULL) {
         rte_pktmbuf_prepend(task->data, sizeof(void *));
-        *(rte_pktmbuf_mtod(task->data, void**)) = extraInformationForAsyncHandling;
-        debug("Save pd_copy address: %p\n", extraInformationForAsyncHandling);
+        *(rte_pktmbuf_mtod(task->data, void**)) = pd->pd_store;
+        debug("Save pd_copy address: %p\n", pd->pd_store);
 
         task->offset += sizeof(void **);
     }
@@ -248,7 +253,7 @@ void dequeue_crypto_ops_blocking(uint16_t number_of_ops){
 
 void execute_task_blocking(crypto_task_type_e task_type, packet_descriptor_t *pd, unsigned int lcore_id,
                            crypto_task_s* crypto_task) {
-    debug_crypto_task(crypto_task);
+    debug_crypto_task("execute_task_blocking", crypto_task);
 
     if (rte_crypto_op_bulk_alloc(rte_crypto_op_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC, &enqueued_rte_crypto_ops[lcore_id][0], 1) == 0){
         rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
