@@ -35,7 +35,6 @@
     struct rte_mempool *context_pool;
     struct rte_ring    *context_free_command_ring;
 #endif
-struct rte_mempool* packet_clone_pool;
 
 extern struct lcore_conf   lcore_conf[RTE_MAX_LCORE];
 
@@ -61,8 +60,8 @@ extern void free_packet(LCPARAMS);
 
 extern void reset_pd(packet_descriptor_t *pd);
 extern void do_handle_packet(int portid, unsigned pkt_idx, LCPARAMS);
-extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, packet_descriptor_t* pd_copy, void* extraInformationForAsyncHandling);
-extern void debug_crypto_task(crypto_task_s *op);
+extern void create_crypto_task(crypto_task_s **op_out, packet_descriptor_t* pd, crypto_task_type_e op_type, int offset, void* extraInformationForAsyncHandling);
+extern void debug_crypto_task(const char* msg, crypto_task_s *op);
 
 
 void main_loop_async(LCPARAMS);
@@ -71,15 +70,12 @@ void main_loop_async(LCPARAMS);
 ///////////////// Init //////////////
 void async_init_storage()
 {
-    packet_clone_pool = rte_pktmbuf_pool_create("async_packet_clone_pool", CRYPTO_CONTEXT_POOL_SIZE*64, 32,
-                                                0, 2 * RTE_PKTMBUF_HEADROOM, 0);
-    if (packet_clone_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create async packet clone pool\n");
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         context_pool = rte_mempool_create("context_pool", (unsigned)CRYPTO_CONTEXT_POOL_SIZE*1024-1, sizeof(ucontext_t) + CONTEXT_STACKSIZE, MEMPOOL_CACHE_SIZE, 0, NULL, NULL, NULL, NULL, 0, 0);
         if (context_pool == NULL) rte_exit(EXIT_FAILURE, "Cannot create context pool\n");
 
 
-        context_free_command_ring = rte_ring_create("context_ring", (unsigned)CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        context_free_command_ring = rte_ring_create("context_ring", (unsigned)CONTEXT_FREE_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY, 0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
         if (context_free_command_ring == NULL) rte_exit(EXIT_FAILURE, "Cannot create context ring!\n");
     #endif
 
@@ -96,14 +92,16 @@ void init_async_data(struct lcore_data *data){
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
 
-    char rxName[32];
-    char txName[32];
-    sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
-    sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
-    data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-    data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) CRYPTO_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                   0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    #ifdef START_CRYPTO_NODE
+        char rxName[32];
+        char txName[32];
+        sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
+        sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
+        data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    #endif
 
     #ifdef DEBUG__CRYPTO_EVERY_N
         data->conf->crypto_every_n_counter = -1;
@@ -118,9 +116,7 @@ int active_pd_pool_count = 0;
 
 void async_handle_packet_inner(unsigned port_id, int pkt_idx, packet_handler_t handler_function, LCPARAMS)
 {
-
     uint8_t dropped = 0;
-    COUNTER_ECHO(lcdata->conf->async_drop_counter,"   :: Dropped async: %d\n");
 
 #if ASYNC_MODE == ASYNC_MODE_CONTEXT
     ucontext_t *context;
@@ -139,7 +135,7 @@ void async_handle_packet_inner(unsigned port_id, int pkt_idx, packet_handler_t h
         getcontext(context);
         context->uc_link = &lcdata->conf->main_loop_context;
         makecontext(context, (packet_handler_noparams_t)handler_function, 4, port_id, pkt_idx, LCPARAMS_IN);
-        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) "\n", context);
+        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) " for the first time\n", context);
         swapcontext(&lcdata->conf->main_loop_context, context);
         debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     }
@@ -179,9 +175,10 @@ void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler
         #endif
         #if ASYNC_MODE == ASYNC_MODE_PD
             pd->program_restore_phase = 0;
+            pd->pd_store = NULL;
         #endif
     #endif
-    if (unlikely(PACKET_REQUIRES_ASYNC(lcdata,pd))) {
+    if (unlikely(PACKET_REQUIRES_CRYPTO(lcdata,pd))) {
         COUNTER_STEP(lcdata->conf->sent_to_crypto_packet);
         async_handle_packet_inner(port_id, pkt_idx, handler_function, LCPARAMS_IN);
     } else {
@@ -189,69 +186,49 @@ void async_handle_packet(unsigned port_id, int pkt_idx, packet_handler_t handler
     }
 }
 
-void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, packet_descriptor_t* pd_copy, void* extraInformationForAsyncHandling)
+void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_type, int offset, void* extraInformationForAsyncHandling)
 {
     crypto_task_s *crypto_task;
-    create_crypto_task(&crypto_task, pd, task_type, offset, pd_copy, extraInformationForAsyncHandling);
-    debug_crypto_task(crypto_task);
+    create_crypto_task(&crypto_task, pd, task_type, offset, extraInformationForAsyncHandling);
+    debug_crypto_task("Enqueue crypto task", crypto_task);
 
     rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, crypto_task);
     dbg_mbuf(crypto_task->data, "   :: Enqueued for async");
 }
 
 int copy_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
+    debug("copy_packet_descriptor(source:%p, target:%p)\n",source,target);
     memcpy(target,source,sizeof(packet_descriptor_t));
-    target->wrapper = rte_pktmbuf_clone(source->wrapper,packet_clone_pool);
+    target->wrapper = source->wrapper;
     if(target->wrapper == 0){
         return 1;
     };
-    target->data = rte_pktmbuf_mtod(target->wrapper, uint8_t*);
-    target->extract_ptr = target->data + (source->extract_ptr - (void*)source->data);
-    init_headers(target, 0);
-
+    target->data = source->data;
+    target->extract_ptr = source->extract_ptr;
     for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it){
-        target->headers[header_instance_it].pointer = target->data + (source->headers[header_instance_it].pointer - (void*)source->data);
+        target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
         debug("Saved field %s value %u p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
     }
+    target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
     return 0;
 }
 
-void restore_packet_descriptor(packet_descriptor_t* source, packet_descriptor_t* target){
-    packet* oldWrapper = target->wrapper;
-    memcpy(target,source,sizeof(packet_descriptor_t));
-
-#if  ASYNC_MODE != ASYNC_MODE_CONTEXT
-    target->wrapper = source->wrapper;
-    target->data = source->data;
-    target->extract_ptr = source->extract_ptr;
-
-    for(int header_instance_it=0; header_instance_it < HEADER_COUNT - 1; ++header_instance_it) {
-        target->headers[header_instance_it].pointer = source->headers[header_instance_it].pointer;
-        debug("Loaded field %s value %u p=%p\n",header_instance_names[header_instance_it], *((uint8_t *)target->headers[header_instance_it].pointer), target->headers[header_instance_it].pointer);
-    }
-    target->headers[HDR(all_metadatas)].pointer = source->headers[HDR(all_metadatas)].pointer;
-
-    debug("Freeing up to %s (%p)\n",oldWrapper->pool->name,oldWrapper);
-    rte_pktmbuf_free(oldWrapper);
-#endif
-
-}
 
 void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type)
 {
     void* extraInformationForAsyncHandling = NULL;
-    void* context;
+    ucontext_t* context;
 
     int copy_success;
     packet_descriptor_t* pd_copy;
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
         if(pd->context == NULL) return;
-
         extraInformationForAsyncHandling = pd->context;
         packet_descriptor_t pd_copy_instance;
         pd_copy = &pd_copy_instance;
         copy_success = copy_packet_descriptor(pd,pd_copy);
-
+        debug("Copy from %p to %p\n",pd, pd_copy);
+        pd->pd_store = pd_copy;
     #elif ASYNC_MODE == ASYNC_MODE_PD
         if(pd->pd_store == NULL) return;
         pd_copy = pd->pd_store;
@@ -263,7 +240,7 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
         return;
     }
 
-    enqueue_packet_for_async(pd, type, offset, pd_copy, extraInformationForAsyncHandling);
+    enqueue_packet_for_async(pd, type, offset, extraInformationForAsyncHandling);
 
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
@@ -273,7 +250,8 @@ void do_crypto_task(packet_descriptor_t* pd, int offset, crypto_task_type_e type
         swapcontext(context, &lcore_conf[rte_lcore_id()].main_loop_context);
         debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to packet context ,warning) " " T4LIT(%p,async) "\n", context);
 
-        restore_packet_descriptor(pd_copy,pd);
+        debug("Restore from %p to %p\n",pd_copy, pd);
+        copy_packet_descriptor(pd_copy,pd);
     #elif ASYNC_MODE == ASYNC_MODE_PD
         reset_pd(pd);
         jump_to_main_loop(pd);
@@ -356,8 +334,10 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
                 rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
             }
             for (i = 0; i < n; i++) {
-                debug_crypto_task(crypto_tasks[lcore_id][i]);
+                debug_crypto_task("Execute", crypto_tasks[lcore_id][i]);
                 crypto_task_to_rte_crypto_op(crypto_tasks[lcore_id][i], enqueued_rte_crypto_ops[lcore_id][i]);
+                dbg_mbuf(enqueued_rte_crypto_ops[lcore_id][i]->sym->m_src, "-------------- enqueued_rte_crypto_ops");
+                debug("%dth enqueued pointer: %p\n",i,enqueued_rte_crypto_ops[lcore_id][i])
             }
             rte_mempool_put_bulk(crypto_task_pool, (void **) crypto_tasks[lcore_id], n);
 
@@ -400,39 +380,34 @@ void main_loop_post_single_tx_async(LCPARAMS){
     }
     pd->pd_store = 0;
 #endif
+
+#if ASYNC_MODE == ASYNC_MODE_CONTEXT
+    if (pd->context != NULL) {
+        debug(" " T4LIT(<<<<,async) " Context for packet " T4LIT(%p,bytes) " terminating, swapping back to " T4LIT(main context,async) "\n", pd->context);
+        rte_ring_enqueue(context_free_command_ring, pd->context);
+    }
+#endif
 }
 
 
 void main_loop_post_single_rx(bool got_packet, LCPARAMS);
 
-static void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
+void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
 {
     dbg_mbuf(mbuf, "Data after async function");
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-        void* context = *(rte_pktmbuf_mtod(mbuf, void**));
+        ucontext_t* context = *(rte_pktmbuf_mtod(mbuf, ucontext_t**));
         rte_pktmbuf_adj(mbuf, sizeof(void*));
+
+        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) " for resume\n", context);
+        swapcontext(&lcdata->conf->main_loop_context, context);
+        debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
     #elif ASYNC_MODE == ASYNC_MODE_PD
         packet_descriptor_t* pd_copy = *(rte_pktmbuf_mtod(mbuf, packet_descriptor_t**));
         rte_pktmbuf_adj(mbuf, sizeof(packet_descriptor_t*));
         debug("Restored pd_copy address: %p\n",pd_copy);
-        restore_packet_descriptor(pd_copy,pd);
-    #endif
-
-    dbg_mbuf(mbuf, "Data after removing extra infos");
-
-    pd->wrapper = mbuf;
-    pd->data = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
-
-    pd->wrapper->pkt_len = packet_size(pd);
-
-    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
-        pd->context = context;
-
-        debug("   " T4LIT(<<,async) " " T4LIT( Swapping to packet context ,warning) " " T4LIT(%p,async) "\n", context);
-        swapcontext(&lcdata->conf->main_loop_context, context);
-        debug("   " T4LIT(>>,async) " " T4LIT( Swapped back to ,warning) " " T4LIT(main context,async) "\n");
-    #elif ASYNC_MODE == ASYNC_MODE_PD
+        copy_packet_descriptor(pd_copy,pd);
         pd->program_restore_phase += 1;
         do_handle_packet(pd->port_id, pd->pkt_idx, LCPARAMS_IN);
     #endif
@@ -446,18 +421,23 @@ void dequeue_finished_async_operations(LCPARAMS) {
     unsigned n, i;
     if(CRYPTO_DEVICE_AVAILABLE && lcdata->conf->pending_crypto >= CRYPTO_BURST_SIZE)
     {
-        debug("peding crypto, checking the resuls\n");
         #ifdef START_CRYPTO_NODE
             n = rte_ring_dequeue_burst(lcore_conf[lcore_id].fake_crypto_tx, (void**)dequeued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
         #else
             n = rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE);
         #endif
+        debug("peding crypto, checking the resuls, found: %d\n",n);
         ONE_PER_SEC(main_loop_async_work_timer){
             debug("Async work function %d\n",lcdata->conf->pending_crypto);
         }
         if(n > 0){
+            for (i = 0; i < n; i++) {
+                dbg_mbuf(dequeued_rte_crypto_ops[lcore_id][i]->sym->m_src, "Found in dequeued_rte_crypto_ops before resume");
+            }
             for (i = 0; i < n; i++)
             {
+                dbg_mbuf(dequeued_rte_crypto_ops[lcore_id][i]->sym->m_src, "dequeued_rte_crypto_ops to process");
+
                 if (dequeued_rte_crypto_ops[lcore_id][i]->status != RTE_CRYPTO_OP_STATUS_SUCCESS){
                     rte_exit(EXIT_FAILURE, "Some operations were not processed correctly");
                 }

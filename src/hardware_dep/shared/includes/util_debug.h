@@ -29,6 +29,9 @@
 
 #include <pthread.h>
 
+void dbg_lock();
+void dbg_unlock();
+
 #ifdef T4P4S_DEBUG
     int dbg_sprint_bytes_limit(char* out, void* bytes, int byte_count, int upper_limit, const char* sep);
     int dbg_fprint_bytes_limit(FILE* out_file, void* bytes, int byte_count, int upper_limit, const char* sep);
@@ -37,8 +40,6 @@
 
     extern pthread_mutex_t dbg_mutex;
 
-    void dbg_lock();
-    void dbg_unlock();
 
     #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
@@ -120,20 +121,20 @@ typedef struct occurence_counter_s {
 } occurence_counter_t;
 
 #if T4P4S_STATS
-    #define COUNTER_INIT(oc) {oc.counter=-1;}
+    #define COUNTER_INIT(oc) {(oc).counter=-1;}
     #define COUNTER_ECHO(oc,print_template){ \
-            if(oc.counter == -1) { \
-                oc.start_cycle = rte_get_tsc_cycles(); \
-                oc.counter++; \
+            if((oc).counter == -1) { \
+                (oc).start_cycle = rte_get_tsc_cycles(); \
+                (oc).counter++; \
             } \
-            if(rte_get_tsc_cycles() - oc.start_cycle > rte_get_timer_hz()){ \
-                report(print_template,oc.counter); \
-                oc.start_cycle = rte_get_tsc_cycles(); \
-                oc.counter = 0; \
+            if(rte_get_tsc_cycles() - (oc).start_cycle > rte_get_timer_hz()){ \
+                report(print_template,(oc).counter); \
+                (oc).start_cycle = rte_get_tsc_cycles(); \
+                (oc).counter = 0; \
             } \
         }
     #define COUNTER_STEP(oc){ \
-               oc.counter++;  \
+               (oc).counter++;  \
             }
 #else
     #define COUNTER_INIT(oc)
