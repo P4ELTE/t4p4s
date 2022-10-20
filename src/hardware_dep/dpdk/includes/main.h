@@ -27,7 +27,7 @@ extern bool is_packet_dropped(packet_descriptor_t* pd);
 
 
 void initialize_args(int argc, char **argv);
-void initialize_nic();
+int initialize_nic();
 int init_tables();
 int init_memories();
 

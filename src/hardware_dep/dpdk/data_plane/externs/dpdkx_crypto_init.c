@@ -116,12 +116,13 @@ static void crypto_init_storage(unsigned int session_size, uint8_t socket_id)
 
 static int setup_device(const char *crypto_name, uint8_t socket_id)
 {
-    int ret;
     char args[128];
     snprintf(args, sizeof(args), "socket_id=%d", socket_id);
-    ret = rte_vdev_init(crypto_name, args);
-    if (ret != 0)
+    int ret = rte_vdev_init(crypto_name, args);
+    if (ret != 0) {
         debug("Cannot create crypto device " T4LIT(%s,error) "\n", crypto_name);
+        return ret;
+    }
     return rte_cryptodev_get_dev_id(crypto_name);
 }
 
@@ -140,7 +141,7 @@ static void configure_device(int cdev_id, struct rte_cryptodev_config *conf, str
 // -----------------------------------------------------------------------------
 // Callbacks
 
-void init_crypto_devices()
+bool init_crypto_devices()
 {
     unsigned int session_size;
     uint8_t socket_id = rte_socket_id();
@@ -150,6 +151,8 @@ void init_crypto_devices()
     #elif CRYPTO_MODE == CRYPTO_MODE_NULL
         cdev_id = setup_device("crypto_null", socket_id);
     #endif
+
+    if (cdev_id != 0)    return false;
 
     if(CRYPTO_DEVICE_AVAILABLE)
     {
@@ -173,6 +176,8 @@ void init_crypto_devices()
     {
         debug(" " T4LIT(!!!! Failed to setup crypto devices.,warning) " Crypto operations are not available.\n");
     }
+
+    return true;
 }
 
 #endif

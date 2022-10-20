@@ -8,8 +8,8 @@ import pkgutil
 import itertools
 import compiler_common
 
-errors   = []
-warnings = []
+errors   = {}
+warnings = {}
 
 # TODO these should be replaced by compiler_common.current_compilation
 global filename
@@ -167,22 +167,26 @@ def make_msg(where, msg_prefix, msg, use_traceback, show_details):
 
 def addError(where, msg, use_traceback=True, show_details=False):
     global errors
-    errors += make_msg(where, "Error", msg, use_traceback, show_details)
+    new_error = make_msg(where, "Error", msg, use_traceback, show_details)
+    errors[hash(tuple(new_error))] = new_error
 
 
 # def addWarning(where, msg, use_traceback=True, show_details=False):
 def addWarning(where, msg, use_traceback=False, show_details=False):
     global warnings
-    warnings += make_msg(where, "Warning", msg, use_traceback, show_details)
+    new_warning = make_msg(where, "Warning", msg, use_traceback, show_details)
+    warnings[hash(tuple(new_warning))] = new_warning
 
 
 def showErrors():
     global errors
-    for e in errors:
-        print(e, file=sys.stderr)
+    for _hashcode, errs in errors.items():
+        for err in errs:
+            print(err, file=sys.stderr)
 
 
 def showWarnings():
     global warnings
-    for w in warnings:
-        print(w, file=sys.stderr)
+    for _hashcode, warns in warnings.items():
+        for warn in warns:
+            print(warn, file=sys.stderr)

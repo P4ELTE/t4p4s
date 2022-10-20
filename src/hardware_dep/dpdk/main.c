@@ -106,14 +106,21 @@ void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
 
     handle_packet(port_id, pkt_idx, STDPARAMS_IN);
     do_single_tx(LCPARAMS_IN);
+    #if ASYNC_MODE == ASYNC_MODE_CONTEXT
+        if (pd->context != NULL) {
+            debug(" " T4LIT(<<<<,async) " Context for packet " T4LIT(%p,bytes) " terminating, swapping back to " T4LIT(main context,async) "\n", pd->context);
+            rte_ring_enqueue(context_free_command_ring, pd->context);
+        }
+    #endif
 }
 
 // TODO move this to stats.h.py
-extern void print_packet_stats(LCPARAMS);
+extern void print_async_stats(LCPARAMS);
 
 void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
 {
     COUNTER_STEP(lcdata->conf->processed_packet_num);
+    print_async_stats(LCPARAMS_IN);
     #ifdef T4P4S_DEBUG
         pd->is_egress_port_set = false;
     #endif

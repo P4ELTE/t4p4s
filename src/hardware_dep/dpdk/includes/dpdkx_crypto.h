@@ -4,6 +4,7 @@
 #pragma once
 
 #include <rte_cryptodev.h>
+#include <stdbool.h>
 
 #include "dpdk_lib.h"
 #include "dpdk_lib_conf_async.h"
@@ -60,7 +61,7 @@ extern struct rte_cryptodev_sym_session *session_encrypt;
 extern struct rte_cryptodev_sym_session *session_decrypt;
 extern struct rte_mempool *rte_crypto_op_pool;
 
-void init_crypto_devices();
+bool init_crypto_devices();
 void crypto_task_to_rte_crypto_op(crypto_task_s *task, struct rte_crypto_op *crypto_op);
 
 void do_encryption_async_impl(SHORT_STDPARAMS);

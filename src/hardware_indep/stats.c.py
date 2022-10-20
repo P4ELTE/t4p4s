@@ -19,7 +19,7 @@ _, parser_state_names = zip(*sorted((0 if s.name in known_parser_state_names els
 #[     void t4p4s_print_per_packet_stats() { /* do nothing */ }
 #[     void t4p4s_init_global_stats()      { /* do nothing */ }
 #[     void t4p4s_init_per_packet_stats()  { /* do nothing */ }
-#[     void print_packet_stats(LCPARAMS)    { /* do nothing */ }
+#[     void print_async_stats(LCPARAMS)    { /* do nothing */ }
 #[ #else
 #[
 #[ t4p4s_stats_t t4p4s_stats_global;
@@ -231,15 +231,13 @@ for table in sorted(hlir.tables, key=lambda table: table.short_name):
 #}     }
 
 
-#{ void print_packet_stats(LCPARAMS) {
+#{ void print_async_stats(LCPARAMS) {
 #[     COUNTER_ECHO(lcdata->conf->processed_packet_num,"   :: Processed packet count: %d\n");
+#[     COUNTER_STEP(lcdata->conf->processed_packet_num);
+#[     COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"   :: Sent to crypto packet: %d\n");
 #[     COUNTER_ECHO(lcdata->conf->doing_crypto_packet,"   :: Crypto packets in progress: %d\n");
-#[     COUNTER_ECHO(lcdata->conf->fwd_packet,"   :: Forwarded packet without encrypt: %d\n");
-#[     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_OFF
-#[          COUNTER_ECHO(lcdata->conf->sent_to_crypto_packet,"   :: Sent to crypto packet: %d\n");
-#[          COUNTER_ECHO(lcdata->conf->async_packet,"   :: Async handled packet: %d\n");
-#[          COUNTER_ECHO(lcdata->conf->async_drop_counter,"   :: Dropped async packet: %d\n");
-#[     #endif
+#[     COUNTER_ECHO(lcdata->conf->fwd_packet,"   :: fwd packet: %d\n");
+#[     COUNTER_ECHO(lcdata->conf->async_packet,"   :: async packet: %d\n");
 #} }
 #[
 
