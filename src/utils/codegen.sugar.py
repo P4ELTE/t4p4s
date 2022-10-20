@@ -52,7 +52,7 @@ def inf_int_short_c_type():
     ### The short name of the "indefinite length int" type.
     return 'i32'
 
-def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False):
+def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False, direction =  ''):
     """Returns a type. If the type has a part that has to come after the variable name in a declaration,
     such as [20] in uint8_t varname[20], it should be separated with a space."""
 
@@ -81,7 +81,7 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
     elif t.node_type == 'Type_Struct':
         base_name = re.sub(r'_t$', '', t.name)
         ptr = '*' if not no_ptr else ''
-        #[ ${base_name}_t${ptr}
+        #[ ${base_name}_t${ptr} ${addon}
     elif t.node_type == 'Type_Var' and t.urtype.name in types.env():
         #[ ${types.env()[t.urtype.name]}
     elif t.node_type == 'Type_Specialized':
@@ -111,7 +111,7 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
         if use_array:
             #[ $base $addon[(${t.size} + 7) / 8]
         else:
-            ptr = '*' if t.size > 32 else ''
+            ptr = '*' if direction in ('out', 'inout') or t.size > 32 else ''
             #[ $base$ptr $addon
     elif t.node_type == 'Type_Enum':
         if is_atomic:
@@ -129,7 +129,8 @@ def gen_format_type(t, resolve_names = True, use_array = False, addon = "", no_p
     elif t.node_type == 'Type_Extern':
         is_smem = 'smem_type' in t
         if not is_smem:
-            #[ EXTERNTYPE0(${t.name})
+            paramtxt = ','.join([t.name] + [get_short_type(targ.urtype) for targ in type_args])
+            #[ EXTERNTYPE${len(type_args)}($paramtxt)
         elif (reg := t).smem_type in ('register'):
             signed = 'uint' if reg.repr.isSigned else 'int'
             size = align8_16_32(reg.repr.size)
@@ -701,19 +702,6 @@ def gen_extern_call_problem_type(m, mcall, smem_type, is_possibly_multiple, dref
     else:
         #[ ${ExternCallProblemType.no_msg_all_ok.value}
 
-def get_short_type(n):
-    if n.node_type == 'Type_InfInt':
-        return f'{inf_int_short_c_type()}'
-    if n.node_type == 'Type_List':
-        return f'{get_short_type(n.components[0])}s'
-    if n.node_type in ('Type_Bits', 'Type_Varbits'):
-        if n.size > 32:
-            return 'buf'
-        sign = 'i' if n.isSigned else 'u'
-        size = '8' if n.size <= 8 else '16' if n.size <= 16 else '32'
-        return f'{sign}{size}'
-    return n.name
-
 def get_mcall_type_args(mcall):
     if 'type_parameters' in (e := mcall.method.expr):
         return P4Node(e.type_parameters)
@@ -820,7 +808,8 @@ def gen_format_extern_single(m, mcall, smem_type, is_possibly_multiple, packets_
 def is_ref(node):
     not_of_type   = node.node_type not in ('Constant', 'BoolLiteral', 'MethodCallExpression', 'StructExpression', 'StringLiteral')
     not_of_urtype = node.urtype.node_type not in ('Type_Error', 'Type_Enum', 'Type_List')
-    return not_of_type and not_of_urtype
+    not_decl      = 'decl_ref' not in node or node.decl_ref.node_type not in ('Declaration_Variable')
+    return not_of_type and not_of_urtype and not_decl
 
 
 def gen_short_extern_call(mcall):
@@ -1104,6 +1093,13 @@ def gen_fmt_SelectExpression(e, format_as_value=True, expand_parameters=False, n
         #[     parser_state_${enclosing_parser.name}_${case.state.path.name}(STDPARAMS_IN);
     #} }
 
+def unknown_value(size):
+    if size <= 0:
+        addError('defining unspecified value', f'Type of invalid size ({size} bytes) created')
+        # Note: like in p4c, "Convert it to something legal so we don't get weird errors elsewhere."
+        return 1
+    return unspecified_value(size)
+
 def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_variable=False, funname_override=None):
     if 'hdr_ref' in e:
         if e.hdr_ref.urtype.is_metadata:
@@ -1118,7 +1114,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
         if e.expr.urtype.node_type == 'Type_Header':
             fldname = e.member
             size = hdr.urtype.fields.get(e.member).size
-            unspec = unspecified_value(size)
+            unspec = unknown_value(size)
             #pre[ check_hdr_valid(pd, FLD(${hdr.name},$fldname), "$unspec");
             #[ GET32_def(src_pkt(pd), FLD(${hdr.name},${e.member}), $unspec)
         else:
@@ -1128,7 +1124,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             fldname = e.member
             fldtype = fld.orig_fld.type
             size = fld.size
-            unspec = 0 if is_meta else unspecified_value(size)
+            unspec = 0 if is_meta else unknown_value(size)
             var = generate_var_name('member')
 
             #pre[ check_hdr_valid(pd, FLD($hdrname,$fldname), "$unspec");
@@ -1151,7 +1147,7 @@ def gen_fmt_Member(e, format_as_value=True, expand_parameters=False, needs_varia
             hdrname = e.expr.member
             fld = e.member
             size = hdr.urtype.fields.get(e.member).size
-            unspec = unspecified_value(size)
+            unspec = unknown_value(size)
             #pre[ check_hdr_valid(pd, FLD($hdrname,$fldname), "$unspec");
             #[ (is_header_valid(HDR($hdrname), pd) ? pd->fields.FLD($hdrname,$fldname) : ($unspec))
         elif e.expr.node_type == 'MethodCallExpression':
@@ -1186,14 +1182,16 @@ def gen_format_method_arg(par, arg, listexpr_to_buf):
 
     if 'fld_ref' in ae:
         hdrname, fldname = get_hdrfld_name(ae)
-        #[ (${format_type(par.urtype)})get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer
+        #[ (${format_type(par.urtype, direction = par.direction)})get_handle_fld(pd, FLD($hdrname, $fldname), "parameter").pointer
     else:
         fmt = format_expr(arg)
         if fmt == '':
             return None
 
-        ref = "&" if is_ref(ae) else ""
-        #[ $ref$fmt
+        if is_ref(ae):
+            #[ &($fmt)
+        else:
+            #[ $fmt
 
 
 def gen_pre_format_call_extern_make_buf_size(varsize, vardata, components):
@@ -1321,9 +1319,11 @@ def gen_format_call_extern(args, mname, m, base_mname):
 
             if 'smem_type' in (smem := m.expr.decl_ref):
                 smem_part = get_smem_name(smem)
-                name = f'&global_smem.{smem_part}'
+                name = f'global_smem.{smem_part}'
             else:
-                name = f'&global_smem.EXTERNNAME({xvar})'
+                name = f'global_smem.EXTERNNAME({xvar})'
+
+            name = f'&{name}'
 
             fmt_args = [name] + fmt_args
         else:
@@ -1599,15 +1599,12 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
 
     if nt == 'Declaration_Instance' or nt == 'Smem_Instance':
         if e.urtype.name == 'Digest':
-            # smem_name = f'EXTERNNAME(Digest{e.name})'
-            # type_name = f'EXTERNTYPE(Digest{e.name})'
             smem_name = f'EXTERNNAME({e.name})'
             type_name = f'EXTERNTYPE(Digest)'
             deref = '&'
         else:
             pobs, reverse_pobs = packets_by_model(compiler_common.current_compilation['hlir'])
 
-            # postfix = f'{pobs[e.packets_or_bytes]}' if e._smem.smem_type in ('counter', 'meter', 'direct_meter') else ''
             postfix2 = f'{e.table.name}' if 'table' in e and e.table is not None else ''
             deref = '' if e._smem.smem_type == 'register' else '&'
 
@@ -1658,7 +1655,7 @@ def gen_format_expr(e, format_as_value=True, expand_parameters=False, needs_vari
             #[ &$varname
         else:
             size = e.fld_ref.urtype.size
-            unspec = unspecified_value(size)
+            unspec = unknown_value(size)
 
             #pre{ if (unlikely(!is_header_valid(HDR($hdrname), pd))) {
             #pre[     debug("   " T4LIT(!!,warning) " Access to field in invalid header " T4LIT(%s,warning) "." T4LIT(${e.member},field) ", returning \"unspecified\" value " T4LIT($unspec) "\n", hdr_infos[HDR($hdrname)].name);
@@ -1816,14 +1813,14 @@ def format_declaration(d, varname_override = None):
         return gen_format_declaration(d, varname_override)
 
 # TODO use the varname argument in all cases where a variable declaration is created
-def format_type(t, varname = None, resolve_names = True, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False):
+def format_type(t, varname = None, resolve_names = True, addon = "", no_ptr = False, type_args = [], is_atomic = False, is_const = False, direction = ''):
     with SugarStyle("inline_comment"):
         use_array = varname is not None
         if t.node_type == 'Type_Stack':
             use_array = True
         elif 'size' in t.urtype and t.urtype.size <= 32:
             use_array = False
-        result = gen_format_type(t, resolve_names, use_array=use_array, addon=addon, no_ptr=no_ptr, type_args=type_args, is_atomic = is_atomic, is_const = is_const).strip()
+        result = gen_format_type(t, resolve_names, use_array=use_array, addon=addon, no_ptr=no_ptr, type_args=type_args, is_atomic = is_atomic, is_const = is_const, direction = direction).strip()
 
     if varname is None:
         return result
@@ -1880,16 +1877,18 @@ def gen_var_name(node, prefix = None):
 def get_mcall_infos(mcall):
     m = mcall.method
 
+    mtype = m.urtype
+    tps = mtype.typeParameters.parameters
+
     if 'expr' in m:
         mname_parts = (m.expr.urtype.name, m.member)
         mtype = m.expr.urtype
         rettype = mcall.urtype
-        tps = m.expr.type_parameters
+        if 'type_parameters' in m.expr:
+            tps += m.expr.type_parameters
     else:
         mname_parts = (m.path.name,)
-        mtype = m.urtype
         rettype = mtype.returnType
-        tps = mtype.typeParameters.parameters
 
     if mtype.node_type == 'Type_Unknown':
         return None
@@ -1899,7 +1898,7 @@ def get_mcall_infos(mcall):
     def find_index(vec_node, elem):
         return None if elem not in vec_node else vec_node.vec.index(elem)
 
-    def make_parinfo(argexpr, par):
+    def make_parinfo(par, argexpr):
         parname = argexpr.path.name if argexpr.node_type == 'PathExpression' else par.name
         pardir = par.direction
         partype = par.urtype
@@ -1910,7 +1909,7 @@ def get_mcall_infos(mcall):
     pars = m.urtype.parameters.parameters
     argexprs = mcall.arguments.map('expression')
     partypeinfos = tuple((type_par, get_partypename_ctype(type_par, None, '')[0]) for type_par in tps)
-    parinfos = tuple(make_parinfo(argexpr, par) for par, argexpr in zip(pars, argexprs) if not (par.urtype.node_type == 'Type_Header' and par.urtype.is_metadata))
+    parinfos = tuple(make_parinfo(par, argexpr) for par, argexpr in zip(pars, argexprs) if not (par.urtype.node_type == 'Type_Header' and par.urtype.is_metadata))
 
     return (mname_parts, parinfos, ret, partypeinfos)
 
@@ -1921,11 +1920,14 @@ def get_all_extern_call_infos(hlir):
         return 'extern_type' not in ut or ut.extern_type != 'smem'
 
     methods = hlir.groups.pathexprs.under_mcall.filter('type.node_type', 'Type_Method')
-
     mcalls = methods.map(lambda pe: pe.parent())
-    control_local_mcalls = hlir.all_nodes.by_type('MethodCallExpression').filter('method.node_type', 'Member').filter('method.expr.type.node_type', 'Type_SpecializedCanonical').filter(is_not_smem)
 
-    all_mcalls = mcalls + control_local_mcalls
+    control_local_mcalls = hlir.all_nodes.by_type('MethodCallExpression').filter('method.node_type', 'Member').filter('method.expr.type.node_type', 'Type_SpecializedCanonical').filter(is_not_smem)
+    # control_local_mcalls = hlir.all_nodes.by_type('MethodCallExpression').filter('method.node_type', 'Member').filter('method.expr.type.node_type', 'Type_SpecializedCanonical')
+
+    extern_mcalls = {(member.expr.path.name, member.member, ): member.parent() for member in hlir.groups.member_exprs.externs if member.parent().method.expr.type.name not in ('packet_in', 'packet_out')}
+
+    all_mcalls = mcalls + control_local_mcalls + list(extern_mcalls.values())
 
     return all_mcalls.map(get_mcall_infos)
 
@@ -1979,28 +1981,60 @@ def to_buf_type(partype, partypename, buftype='u8s'):
     return buftype if is_tuple_param(partype) else partypename
 
 
+def get_calldata(mname_parts, parinfos, ret, partypeinfos):
+    partype_to_infos = {partype: (get_short_type(partype.urtype), ctype, varname) for parname, pardir, partype, (partypename, ctype, argtype, varname), type_par_idx in parinfos if ctype is not None}
+    partype_to_infos_as_buf = {partype: (to_buf_type(partype.urtype, ctype), to_buf_type(partype.urtype, ctype, "uint8_buffer_t"), varname) for parname, pardir, partype, (partypename, ctype, argtype, varname), type_par_idx in parinfos if ctype is not None}
+    partypes = set(partype.urtype for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None)
+
+    varnodeinfos = [(varnode, ptn) for (varnode, ptn) in partypeinfos if varnode.urtype not in partypes]
+    #   = [(get_short_type(typename.urtype), ctype, varname) for _, _, typename, (_, ctype, _, varname), _ in parinfos if ctype is not None]
+    # extrainfos = [(typename.name, ctype, varname) for _, _, typename, (_, ctype, _, varname), _ in parinfos if ctype is not None if typename.node_type == 'Type_Struct']
+    extrainfos = [partype_to_infos[var.urtype] for var, name in partypeinfos if var.urtype in partype_to_infos]
+    extrainfos_as_buf = [partype_to_infos_as_buf[var.urtype] for var, name in partypeinfos if var.urtype in partype_to_infos]
+    # extrainfos_as_buf = [partype_to_infos_as_buf[var.urtype] if var.urtype in partype_to_infos else to_buf_type(var.urtype, name) for var, name in partypeinfos]
+    extra_suffix = ''.join(f',{ptn}' for ptn, _, _ in extrainfos)
+    extra_suffix_as_buf = ''.join(f',{ptn}' for ptn, _, _ in extrainfos_as_buf)
+
+    # TODO in psa-boilerplate-pre.p4, if...
+        # #define DECLARE_REGISTER(type, amount, varname)                 DECLARE_REGISTER_IDX(type, int, amount, varname)
+    # ... is used instead of...
+        # #define DECLARE_REGISTER(type, amount, varname)                 DECLARE_REGISTER_IDX(type, bit<32>, amount, varname)
+    # ... then we get (S#-2525#Type_Var[type_ref.0], None) instead of a meaningful value
+    varnode_suffix = ''.join(f',{ptn}' for varnode, ptn in varnodeinfos)
+
+    pars1 = [f'{format_type(varnode.type_ref)} arg{idx+1}' for idx, (varnode, _) in enumerate(varnodeinfos) if not varnode('ignored', False)]
+    pars2 = [f'{ctype} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None]
+    params = ', '.join(pars1 + pars2 + ['SHORT_STDPARAMS'])
+
+    pbuf2 = [f'{to_buf_type(partype, ctype, "uint8_buffer_t")} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None]
+    params_as_buf = ', '.join(pars1 + pbuf2 + ['SHORT_STDPARAMS'])
+
+    arginfos = tuple((pardir, partype, argtype, argvalue) for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if argvalue != None)
+    # refvars = tuple(argvalue if pardir in ('out', 'inout') else None for idx, (pardir, partype, argtype, argvalue) in enumerate(arginfos))
+    refvars = tuple(generate_var_name(f'arg{idx+1}') if pardir in ('out', 'inout') else None for idx, (pardir, partype, argtype, argvalue) in enumerate(arginfos))
+
+    args1 = [f'arg{idx+1}' for idx, (varnode, _) in enumerate(varnodeinfos) if not varnode('ignored', False)]
+    args2 = [refvar if refvar is not None else argvalue for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)]
+    args = ', '.join(args1 + args2 + ['SHORT_STDPARAMS_IN'])
+    abuf2 = [f'{"&" if pardir in ("out", "inout") else ""}{refvar}' if refvar is not None else to_buf(partype, argvalue) for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)]
+    args_as_buf = ', '.join(args1 + abuf2 + ['SHORT_STDPARAMS_IN'])
+
+    mname_postfix = ''.join(f',{ptn}' for ptype, ptn in partypeinfos)
+    mname_postfix_as_buf = ''.join(f',{to_buf_type(ptype, ptn)}' for ptype, ptn in partypeinfos)
+
+    return (mname_parts, varnode_suffix, len(partypeinfos), extra_suffix, extra_suffix_as_buf, len(extrainfos), params, params_as_buf, ret, mname_postfix, mname_postfix_as_buf, args, args_as_buf, refvars, arginfos, parinfos, )
+
+
 def get_detailed_extern_callinfos(hlir):
     def by_partypename(callinfo):
         mname_parts, parinfos, ret, partypeinfos = callinfo
         return (mname_parts, partypeinfos)
 
     callinfos = list(unique_everseen(get_all_extern_call_infos(hlir), key=by_partypename))
-    # callinfos = get_all_extern_call_infos(hlir)
     calls = set()
     for mname_parts, parinfos, ret, partypeinfos in callinfos:
-        partype_suffix = ''.join(f',{ptn}' for (ptype, ptn) in partypeinfos)
-        params = ', '.join([f'{ctype} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None] + ['SHORT_STDPARAMS'])
-        params_as_buf = ', '.join([f'{to_buf_type(partype, ctype, "uint8_buffer_t")} {parname}' for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if ctype is not None] + ['SHORT_STDPARAMS'])
-
-        arginfos = tuple((pardir, partype, argtype, argvalue) for parname, pardir, partype, (partypename, ctype, argtype, argvalue), type_par_idx in parinfos if argvalue != None)
-        refvars = tuple(argvalue if pardir in ('out', 'inout') else None for idx, (pardir, partype, argtype, argvalue) in enumerate(arginfos))
-
-        args = ', '.join([refvar if refvar is not None else argvalue for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)] + ['SHORT_STDPARAMS_IN'])
-        args_as_buf = ', '.join([refvar if refvar is not None else to_buf(partype, argvalue) for refvar, (pardir, partype, argtype, argvalue) in zip(refvars, arginfos)] + ['SHORT_STDPARAMS_IN'])
-        mname_postfix = ''.join(f',{ptn}' for (ptype, ptn) in partypeinfos)
-        mname_postfix_as_buf = ''.join(f',{to_buf_type(ptype, ptn)}' for (ptype, ptn) in partypeinfos)
-
-        calls.add((len(partypeinfos), mname_parts, partype_suffix, params, params_as_buf, ret, mname_postfix, mname_postfix_as_buf, args, args_as_buf, refvars, arginfos, parinfos))
+        calldata = get_calldata(mname_parts, parinfos, ret, partypeinfos)
+        calls.add(calldata)
 
     return calls
 
@@ -2018,25 +2052,28 @@ def get_arginfo(par, arg, ptr, is_out):
         return None, ""
     if (ee := par.urtype).node_type in ('Type_Enum', 'Type_Error'):
         return format_type(ee), f'{ee.c_name}_{arg.member}'
-    if arg.node_type == 'Member':
+
+    ant = arg.node_type
+
+    if ant == 'Member':
         hdrname, fldname = get_hdrfld_name(arg)
         return f'{format_type(arg.type)} {ptr}', f'GET32(src_pkt(pd), FLD({hdrname}, {fldname}))'
-    if arg.node_type == 'BoolLiteral':
+    if ant == 'BoolLiteral':
         return f'bool{ptr}', par.name
-    if arg.node_type == 'StringLiteral':
+    if ant == 'StringLiteral':
         return format_type(arg.type, is_const=not is_out), f'"{arg.value}"'
-    if arg.node_type == 'StructExpression':
+    if ant == 'StructExpression':
         if arg.urtype.node_type == 'Type_Struct':
             return f'{arg.urtype.name}*', f'{par.name}'
         else:
             size = '+'.join(f'{fld.urtype.size} /* TODO find the appropriate way to get size of the varwidth field */' if fld.urtype.node_type == 'Type_Varbits' else f'{fld.urtype.size}' for fld in par.urtype.fields)
             return 'uint8_buffer_t', f'to_uint8_buffer_t({size}, {par.name})'
-    if arg.node_type == 'Constant':
+    if ant == 'Constant':
         # note: this is not really a constant, just a dummy
         return format_type(arg.type), par.name
-    if arg.node_type == 'PathExpression':
+    if ant == 'PathExpression':
         return format_type(arg.type), f'{arg.path.name}'
-    if arg.node_type == 'MethodCallExpression':
+    if ant == 'MethodCallExpression':
         arg_mname = arg.method.member
         if arg_mname == 'isValid' and len(arg.arguments) == 0:
             hdrname = arg.method.expr.member
@@ -2044,8 +2081,10 @@ def get_arginfo(par, arg, ptr, is_out):
         else:
             callargs = ', '.join(format_expr(argexpr) for argexpr in arg.arguments)
             return format_type(arg.method.returnType), f'{arg_mname}({callargs})'
+    if ant == 'Cast':
+        return f'({format_type(arg.type)})({format_expr(arg.expr)})', par.name
 
-    addError('Determining C type', f'Unknown P4 node type {par.node_type}')
+    addError('Determining C type', f'Unknown parameter type {par.type.node_type}, argument node type {ant}')
     return None, None
 
 def get_partypename_ctype(par, arg, ptr):
