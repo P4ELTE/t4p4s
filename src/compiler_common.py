@@ -314,6 +314,8 @@ def inf_int_short_c_type():
     return 'i32'
 
 def get_short_type(n):
+    if n.node_type == 'Type_String':
+        return 'str'
     if n.node_type == 'Type_InfInt':
         return f'{inf_int_short_c_type()}'
     if n.node_type == 'Type_List':
@@ -324,4 +326,6 @@ def get_short_type(n):
         sign = 'i' if n.isSigned else 'u'
         size = '8' if n.size <= 8 else '16' if n.size <= 16 else '32'
         return f'{sign}{size}'
+    if n.node_type == 'Type_Boolean':
+        return 'bool'
     return n.name
