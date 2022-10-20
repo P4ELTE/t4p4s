@@ -91,7 +91,6 @@ void mark_to_drop_impl(SHORT_STDPARAMS);
 
 
 // v1model.p4: void count(in I index);
-void extern_counter_count(uint32_t counter_array_size, T4P4S_COUNTER_e ct, uint32_t index, SMEMTYPE(counter)* counter, SHORT_STDPARAMS);
 
 // v1model.p4: void count();
 void extern_direct_counter_count(int counter_type, SMEMTYPE(direct_counter)* smem, SHORT_STDPARAMS);

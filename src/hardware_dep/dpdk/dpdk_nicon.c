@@ -280,10 +280,13 @@ unsigned get_queue_count(LCPARAMS) {
     return lcdata->conf->hw.n_rx_queue;
 }
 
-void initialize_nic() {
+int initialize_nic() {
     dpdk_init_nic();
     #if T4P4S_INIT_CRYPTO
-        init_crypto_devices();
+        int ret = init_crypto_devices();
+        return ret ? 0 : T4EXIT(CRYPTO_INIT);
+    #else
+        return 0;
     #endif
 }
 

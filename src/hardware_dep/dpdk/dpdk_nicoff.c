@@ -30,6 +30,8 @@ bool encountered_error = false;
 bool encountered_drops = false;
 bool encountered_bad_requirement = false;
 bool encountered_unset_egress_port = false;
+extern bool encountered_control_plane_misconfig;
+extern bool encountered_digest_without_control_plane;
 int infinite_loop_on_core = NO_INFINITE_LOOP;
 
 void error_encountered(LCPARAMS) {
@@ -731,12 +733,15 @@ struct lcore_data init_lcore_data() {
     return lcdata;
 }
 
-void initialize_nic() {
+int initialize_nic() {
     srand(time(0));
 
     dpdk_init_nic();
     #if T4P4S_INIT_CRYPTO
-        init_crypto_devices();
+        bool ret = init_crypto_devices();
+        return ret ? 0 : T4EXIT(CRYPTO_INIT);
+    #else
+        return 0;
     #endif
 }
 
@@ -786,6 +791,16 @@ int t4p4s_normal_exit() {
     if (encountered_unset_egress_port) {
         debug(T4LIT(Normal exit,success) " but " T4LIT(packets were sent without an explicitly set egress port,error) "\n");
         return T4EXIT(UNSET_EGRESS_PORT);
+    }
+
+    if (encountered_control_plane_misconfig) {
+        debug(T4LIT(Normal exit,success) " but " T4LIT(data from the control plane had errors,error) "\n");
+        return T4EXIT(CTRL_PLANE_WRONG_MSG);
+    }
+
+    if (encountered_digest_without_control_plane) {
+        debug(T4LIT(Normal exit,success) " but " T4LIT(tried to send digest without an active control plane,error) "\n");
+        return T4EXIT(DIGEST_WITHOUT_CONTROL);
     }
 
     debug(T4LIT(Normal exit.,success) "\n");

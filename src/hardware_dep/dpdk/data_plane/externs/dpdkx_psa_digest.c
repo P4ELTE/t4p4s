@@ -8,9 +8,17 @@
 
 extern ctrl_plane_backend bg;
 
+bool encountered_digest_without_control_plane = false;
+
 #define STD_DIGEST_RECEIVER_ID 1024
 
 void EXTERNIMPL2(Digest,pack,u8s)(EXTERNTYPE0(Digest)* xdigest, uint8_buffer_t buf, SHORT_STDPARAMS) {
+    #ifdef T4P4S_NO_CONTROL_PLANE
+        debug(" " T4LIT(!!!!,warning) " " T4LIT(Ignoring digest,warning) " to port " T4LIT(1024,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(%s,extern) " because " T4LIT(the control plane was disabled,warning) "\n", buf.name);
+        encountered_digest_without_control_plane = true;
+        return;
+    #endif
+
     debug(" " T4LIT(<<<<,outgoing) " " T4LIT(Sending digest,outgoing) " to port " T4LIT(1024,port) " using extern " T4LIT(extern_Digest_pack,extern) " for " T4LIT(%s,extern) "\n", buf.name);
 
     ctrl_plane_digest digest = create_digest(bg, "learn_digest");

@@ -24,6 +24,9 @@ ERRCODE_DROP_SEND=5
 ERRCODE_WRONG_OUTPUT=6
 ERRCODE_CFLOW_REQ=7
 ERRCODE_UNSET_EGRESS_PORT=11
+ERRCODE_CTRL_PLANE_WRONG_MSG=12
+ERRCODE_CRYPTO_INIT=13
+ERRCODE_DIGEST_WITHOUT_CONTROL=14
 
 ERRCODE_NOMEM=8
 ERRCODE_SEGFAULT=139
@@ -1093,6 +1096,9 @@ if [ "$(optvalue run)" != off ]; then
     [ "$ERROR_CODE" == "$ERRCODE_WRONG_OUTPUT" ] && ERR_CODE_MSG="($(cc 3 2 1)Execution finished with wrong output$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_CFLOW_REQ" ] && ERR_CODE_MSG="($(cc 3 2 1)Control flow requirements not met$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_UNSET_EGRESS_PORT" ] && ERR_CODE_MSG="($(cc 3 2 1)Egress port was not set$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_CTRL_PLANE_WRONG_MSG" ] && ERR_CODE_MSG="($(cc 3 2 1)Data from the control plane was wrong$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_CRYPTO_INIT" ] && ERR_CODE_MSG="($(cc 3 2 1)Could not init crypto device$nn)"
+    [ "$ERROR_CODE" == "$ERRCODE_DIGEST_WITHOUT_CONTROL" ] && ERR_CODE_MSG="($(cc 3 2 1)Tried to send digest without an active control plane$nn)"
 
     [ "$ERROR_CODE" == "$ERRCODE_C" ] && ERR_CODE_MSG="($(cc 3 2 1)C compilation failed$nn)"
     [ "$ERROR_CODE" == "$ERRCODE_COMPILE_P4" ] && ERR_CODE_MSG="($(cc 3 2 1)P4 to C compilation failed$nn)"

@@ -43,6 +43,13 @@ void set_handle_packet_metadata(packet_descriptor_t* pd, uint32_t portid);
 // p4.psa: Hash<O> {...}
 
 // p4.psa: Checksum<W> {...}
+#ifdef externdef_Checksum_u32
+    void EXTERNIMPL3(Checksum,update,u8s,u32)(EXTERNTYPE1(Checksum,u32)* checksum, enum_PSA_HashAlgorithm_t algo, uint8_buffer_t data, SHORT_STDPARAMS);
+
+    void EXTERNIMPL2(verify_checksum_offload,u8s,u16)(uint8_buffer_t data, SHORT_STDPARAMS);
+#endif
+
+
 void verify(bool check, error_error_t toSignal, SHORT_STDPARAMS);
 void verify_checksum__b8s__b16(bool cond, uint8_buffer_t data, bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS);
 void verify_checksum_offload(bitfield_handle_t cksum_field_handle, enum_PSA_HashAlgorithm_t algorithm, SHORT_STDPARAMS);
@@ -54,18 +61,20 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 // p4.psa: Random<T> {...}
 
 // p4.psa: Digest<T> {...}
-/*
-#ifdef T4P4S_TYPE_mac_learn_digest_t
-    void extern_Digest_pack__mac_learn_digest_t(EXTERNTYPE0(Digest)* digest, mac_learn_digest_t* mac_learn_digest, SHORT_STDPARAMS);
-#endif
-#ifdef T4P4S_TYPE_learn_digest_t
-    void extern_Digest_pack__learn_digest_t(EXTERNTYPE0(Digest)* digest, learn_digest_t* learn_digest, SHORT_STDPARAMS);
-#endif
-*/
 
 // p4.psa: Counter<W, S> {...}
+// void EXTERNCALL0(Counter,count)(SMEMTYPE(counter)* counter, int index, uint32_t value);
+void EXTERNCALL2(Counter,count,u32,u8)();
+void EXTERNCALL2(Counter,count,u32,u32)();
+void EXTERNCALL2(Counter,count,i32,i32)();
+void EXTERNCALL2(Counter,count,buf,u8)();
+
 // p4.psa: DirectCounter<W> {...}
+
 // p4.psa: Meter<S> {...}
+// enum_PSA_MeterColor_t EXTERNCALL0(Meter,execute)(SMEMTYPE(meter)* smem, int x, SHORT_STDPARAMS);
+// enum_PSA_MeterColor_t EXTERNCALL1(Meter,execute,i32)(uint32_t x, enum_PSA_MeterType_t meter_type, int index, int color, SMEMTYPE(meter)* smem, SHORT_STDPARAMS);
+
 // p4.psa: DirectMeter {...}
 // p4.psa: Register<T, S> {...}
     // void extern_counter_count(uint32_t counter_array_size, T4P4S_COUNTER_e ct, uint32_t index, counter_t* counter, SHORT_STDPARAMS);
@@ -75,11 +84,20 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 
 // p4.psa: InternetChecksum {...}
 // typedef uint16_t InternetChecksum;
-void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL1(InternetChecksum,add,tuple_0)(EXTERNTYPE0(InternetChecksum)* checksum, int data, SHORT_STDPARAMS);
-uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS);
-uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
-void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS);
+
+// void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+// void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+// void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+// uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+// void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS);
+// uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS);
+// void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS);
+
+
+
+// void EXTERNCALL0(Counter,count)(uint32_t counter_array_size, T4P4S_COUNTER_e ct, uint32_t index, SMEMTYPE(counter)* counter, SHORT_STDPARAMS);
+// void EXTERNCALL0(Direct_counter,count)(int counter_type, SMEMTYPE(direct_counter)* smem, SHORT_STDPARAMS);
+// void EXTERNCALL1(Meter,execute_meter,u32)(uint32_t index, T4P4S_METER_e b, uint32_t c, uint8_t* d, SMEMTYPE(meter)* e, SHORT_STDPARAMS);
+// void EXTERNCALL1(Direct_meter,read,u8)(T4P4S_METER_e b, uint32_t c, SMEMTYPE(meter)* e, SHORT_STDPARAMS);
+// void EXTERNCALL0(Register,read)(uint32_t index, uint32_t a, uint32_t b, REGTYPE(uint,32) c, SHORT_STDPARAMS);
+// void EXTERNCALL2(Register,write,u32,u32)(uint32_t index, uint32_t a, uint32_t b, REGTYPE(uint,32)* c, SHORT_STDPARAMS);
