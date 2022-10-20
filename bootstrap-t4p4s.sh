@@ -329,7 +329,7 @@ PKGS_LIB="libtool libgc-dev libprotobuf-dev libprotoc-dev libnuma-dev libfl-dev 
 PKGS_MAKE="ninja-build automake bison flex cmake ccache lld pkg-config"
 PKGS_GRPC=""
 [ "$INSTALL_STAGE5_GRPC" == "yes" ] && PKGS_GRPC="libjudy-dev libssl-dev libboost-thread-dev libboost-dev libboost-system-dev libboost-thread-dev libtool-bin"
-REQUIRED_PACKAGES="$PKGS_PYTHON $PKGS_LIB $PKGS_MAKE $PKGS_GRPC g++ tcpdump"
+REQUIRED_PACKAGES="$PKGS_PYTHON $PKGS_LIB $PKGS_MAKE $PKGS_GRPC g++ tcpdump net-tools"
 PIP_PACKAGES="meson more-itertools pyelftools pybind11 pysimdjson"
 if [ "$USE_OPTIONAL_PACKAGES" == "yes" ]; then
     OPT_PACKAGES="python3-ipdb python3-termcolor python3-colored python3-yaml python3-ujson python3-ruamel.yaml gnome-terminal"
