@@ -5,23 +5,23 @@
 #include "rte_mbuf.h"
 #include "util_debug.h"
 
-pthread_mutex_t dbg_mutex;
-
-void dbg_lock() {
-#ifndef T4P4S_NO_DBG_LOCK
-    pthread_mutex_lock(&dbg_mutex);
-#endif
-}
-
-void dbg_unlock() {
-#ifndef T4P4S_NO_DBG_LOCK
-    pthread_mutex_unlock(&dbg_mutex);
-#endif
-}
-
 #ifdef T4P4S_DEBUG
     #include "backend.h"
     #include <pthread.h>
+
+    pthread_mutex_t dbg_mutex;
+
+    void dbg_lock() {
+#ifndef T4P4S_NO_DBG_LOCK
+        pthread_mutex_lock(&dbg_mutex);
+#endif
+    }
+
+    void dbg_unlock() {
+#ifndef T4P4S_NO_DBG_LOCK
+        pthread_mutex_unlock(&dbg_mutex);
+#endif
+    }
 
     int reasonable_upper_limit() {
         #ifndef T4P4S_DEBUG_PKT_MAXBYTES

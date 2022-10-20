@@ -106,7 +106,7 @@ typedef struct packet_descriptor_struct {
             unsigned port_id;
             unsigned pkt_idx;
         #endif
-    struct packet_descriptor_struct* pd_store;
+        struct packet_descriptor_struct* pd_store;
     #endif
 
     #ifdef DEBUG__CRYPTO_EVERY_N

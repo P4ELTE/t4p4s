@@ -29,9 +29,6 @@
 
 #include <pthread.h>
 
-void dbg_lock();
-void dbg_unlock();
-
 #ifdef T4P4S_DEBUG
     int dbg_sprint_bytes_limit(char* out, void* bytes, int byte_count, int upper_limit, const char* sep);
     int dbg_fprint_bytes_limit(FILE* out_file, void* bytes, int byte_count, int upper_limit, const char* sep);
@@ -40,6 +37,8 @@ void dbg_unlock();
 
     extern pthread_mutex_t dbg_mutex;
 
+    void dbg_lock();
+    void dbg_unlock();
 
     #define __SHORTFILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
