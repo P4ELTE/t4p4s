@@ -55,7 +55,7 @@ void EXTERNCALL1(direct_meter,read,u32)(T4P4S_METER_e b, uint32_t* result, SMEMT
 
 // Register: init
 
-void SHORT_EXTERNCALL1(init_registe,_i8)(register_int8_t* reg, int8_t size, SHORT_STDPARAMS)  {
+void SHORT_EXTERNCALL1(init_register,i8)(register_int8_t* reg, int8_t size, SHORT_STDPARAMS)  {
     for (uint32_t i=0;i<size;++i) reg[i].value = 0;
 }
 

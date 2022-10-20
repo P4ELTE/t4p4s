@@ -2,7 +2,7 @@
 # Copyright 2018 Eotvos Lorand University, Budapest, Hungary
 
 from compiler_log_warnings_errors import addError
-from utils.codegen import format_expr, format_type, format_statement, format_declaration
+from utils.codegen import format_expr, format_type, format_statement, format_declaration, get_short_type
 from utils.extern import get_smem_name
 from compiler_common import unique_everseen
 
@@ -60,17 +60,13 @@ for locname, loctype in all_locals:
 # Note: currently all control locals are put together into the global state
 for ctl in hlir.controls:
     for local_var_decl in (ctl.controlLocals['Declaration_Variable'] + ctl.controlLocals['Declaration_Instance']).filterfalse('urtype.node_type', 'Type_Header').filterfalse(lambda n: 'smem_type' in n):
+        declt = local_var_decl.type
         if (extern := local_var_decl.urtype).node_type == 'Type_Extern' and extern.repr is None:
             #[     // the extern ${extern.name} has no representation
             continue
         extern_name = f'EXTERNNAME({local_var_decl.name})'
-        #[     ${format_type(local_var_decl.urtype, varname = extern_name, resolve_names = False)};
-
-# TODO implement properly
-#[ uint8_t EXTERNNAME(rnd8_0);
-#[ uint16_t EXTERNNAME(rnd16_0);
-#[ uint32_t EXTERNNAME(rnd32_0);
-
+        type_args = declt.arguments if local_var_decl.node_type == 'Declaration_Instance' and declt.node_type == 'Type_Specialized' else []
+        #[     ${format_type(local_var_decl.urtype, varname = extern_name, resolve_names = False, type_args = type_args)};
 #} } global_state_t;
 
 #[ extern global_state_t global_smem;

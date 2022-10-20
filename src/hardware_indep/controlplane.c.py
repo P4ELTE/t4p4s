@@ -189,6 +189,8 @@ for table in hlir.tables:
     pass
 
 
+#[ bool encountered_control_plane_misconfig = false;
+
 for table in hlir.tables:
     #{ bool ${table.name}_setup_entry(ENTRY(${table.name})* entry, p4_action_parameter_t** action_params, const char* action_name) {
     for idx, action in enumerate(table.actions):
@@ -205,6 +207,7 @@ for table in hlir.tables:
     valid_actions = ", ".join(f'" T4LIT({a.action_object.canonical_name},action) "' for a in table.actions)
     #[     } else {
     #[         debug(" $$[warning]{}{!!!! Table add entry} on table " T4LIT(${table.short_name},table) ": action name " T4LIT(mismatch,warning) ": " T4LIT(%s,action) ", expected one of ($valid_actions).\n", action_name);
+    #[         encountered_control_plane_misconfig = true;
     #[         return false;
     #}     }
 
@@ -268,6 +271,7 @@ for table in hlir.tables:
     #[         return;
     #}     }
 #[     debug(" $$[warning]{}{!!!! Table add entry}: $$[warning]{}{unknown table name} $$[table]{}{%s}\n", ctrl_m->table_name);
+#[     encountered_control_plane_misconfig = true;
 #{     #ifdef T4P4S_DEBUG
 #[         debug_show_possible_tables();
 #}     #endif
@@ -286,6 +290,7 @@ for table in hlir.tables:
     #}     }
 
 #[     debug(" $$[warning]{}{!!!! Table set default}: $$[warning]{}{unknown table name} $$[table]{}{%s}\n", ctrl_m->table_name);
+#[     encountered_control_plane_misconfig = true;
 #{     #ifdef T4P4S_DEBUG
 #[         debug_show_possible_tables();
 #}     #endif

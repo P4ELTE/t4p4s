@@ -49,10 +49,6 @@ void do_counter_count(SMEMTYPE(counter)* counter, int index, uint32_t value) {
 }
 
 
-void EXTERNCALL0(Counter,count)(SMEMTYPE(counter)* counter, int index, uint32_t value) {
-    do_counter_count(counter, index, value);
-}
-
 void EXTERNCALL2(Counter,count,u32,u8)() {
     debug("    : Executing EXTERNCALL2(Counter,count,u32,u8)\n");
 }

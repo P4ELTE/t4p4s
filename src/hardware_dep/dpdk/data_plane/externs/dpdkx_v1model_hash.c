@@ -16,7 +16,7 @@
 
 
 // TODO will this always work for both 32b and 16b hashes?
-void EXTERNIMPL0(hash)(uint32_t* result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
+void EXTERNIMPL0(hash)(uint32_t* result, enum_HashAlgorithm_t hash, uint32_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
     debug("    : Executing hash on " T4LIT(%d) " using %s\n", data.size, enum_value_names_HashAlgorithm[hash]);
     dbg_bytes(data.buffer, data.size, "    : Executing hash on " T4LIT(%d) " bytes: ", data.size);
 

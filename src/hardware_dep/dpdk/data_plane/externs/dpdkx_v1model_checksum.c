@@ -35,7 +35,7 @@ void EXTERNIMPL0(verify_checksum)(bool cond, uint8_buffer_t data, uint16_t check
     }
 }
 
-void EXTERNIMPL0(update_checksum)(bool cond, uint8_buffer_t data, uint16_t* checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
+void EXTERNIMPL0(update_checksum)(bool cond, uint8_buffer_t data, uint16_t* /* inout */ checksum, enum_HashAlgorithm_t algorithm, SHORT_STDPARAMS) {
     if (unlikely(!cond)) {
         debug("    " T4LIT(X,status) " Packet checksum does not need to be verified\n");
         return;

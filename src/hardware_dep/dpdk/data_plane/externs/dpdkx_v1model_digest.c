@@ -10,14 +10,8 @@
 
 #include <rte_ip.h>
 
-#ifdef T4P4S_TYPE_arp_digest
-void EXTERNIMPL1(digest,arp_digest)(uint32_t receiver, arp_digest_t* data, SHORT_STDPARAMS) {
-    debug("    : Called EXTERNIMPL1(digest,arp_digest)\n")
-}
-#endif
+bool encountered_digest_without_control_plane = false;
 
-#ifdef T4P4S_TYPE_mac_learn_digest
-void EXTERNIMPL1(digest,mac_learn_digest)(uint32_t receiver, mac_learn_digest_t* data, SHORT_STDPARAMS) {
-    debug("    : Called EXTERNIMPL1(digest,mac_learn_digest)\n")
+void EXTERNIMPL0(digest)(uint32_t receiver, uint8_buffer_t buf, SHORT_STDPARAMS) {
+    debug("    : Called EXTERNIMPL0(digest)\n")
 }
-#endif

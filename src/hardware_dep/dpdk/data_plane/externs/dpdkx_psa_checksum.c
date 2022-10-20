@@ -47,38 +47,56 @@ void update_checksum_with_payload(bool condition, uint8_buffer_t data, bitfield_
 
 ////////////////////////////////
 
-void EXTERNCALL0(InternetChecksum,init)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
+const char*const names_PSA_HashAlgorithm_t[] = {
+    "IDENTITY",
+    "CRC32",
+    "CRC32_CUSTOM",
+    "CRC16",
+    "CRC16_CUSTOM",
+    "ONES_COMPLEMENT16",
+    "TARGET_DEFAULT",
+};
+
+#ifdef externdef_Checksum_u32
+    void EXTERNIMPL3(Checksum,update,u8s,u32)(EXTERNTYPE1(Checksum,u32)* checksum, enum_PSA_HashAlgorithm_t algo, uint8_buffer_t data,  SHORT_STDPARAMS) {
+        const char*const algo_name = names_PSA_HashAlgorithm_t[algo];
+        debug(" :::: calling extern impl " T4LIT(Checksum/update/u32,extern) " with algorithm " T4LIT(%s) "\n", algo_name);
+    }
+
+    void EXTERNIMPL2(verify_checksum_offload,u8s,u16)(uint8_buffer_t data, SHORT_STDPARAMS) {
+        debug(" :::: calling extern impl " T4LIT(Checksum/verify_checksum_offload/u8s/u16,extern) "\n");
+    }
+#endif
+
+////////////////////////////////
+
+void EXTERNIMPL1(InternetChecksum,init)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_init,extern) "\n");
 }
 
-void EXTERNCALL0(InternetChecksum,clear)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
+void EXTERNIMPL1(InternetChecksum,clear)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(extern_InternetChecksum_clear,extern) "\n");
 }
 
-void EXTERNCALL0(InternetChecksum,add)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
+void EXTERNIMPL2(InternetChecksum,add,u8s)(EXTERNTYPE0(InternetChecksum)* checksum, uint8_buffer_t data, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(extern_InternetChecksum_add,extern) "\n");
 }
 
-// TODO autogenerate tuple cases
-void EXTERNCALL1(InternetChecksum,add,tuple_0)(EXTERNTYPE0(InternetChecksum)* checksum, int data, SHORT_STDPARAMS) {
-    debug(" :::: calling extern " T4LIT(extern_InternetChecksum_add,extern) "\n");
-}
-
-uint16_t EXTERNCALL0(InternetChecksum,get)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
+uint16_t EXTERNIMPL1(InternetChecksum,get)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_get,extern) "\n");
     return 0;
 }
 
-void EXTERNCALL0(InternetChecksum,subtract)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS) {
+void EXTERNIMPL1(InternetChecksum,subtract)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t data, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_subtract,extern) "\n");
 }
 
-uint16_t EXTERNCALL0(InternetChecksum,get_state)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
+uint16_t EXTERNIMPL1(InternetChecksum,get_state)(EXTERNTYPE0(InternetChecksum)* checksum, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_get_state,extern) "\n");
     return 0;
 }
 
-void EXTERNCALL0(InternetChecksum,set_state)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS) {
+void EXTERNIMPL1(InternetChecksum,set_state)(EXTERNTYPE0(InternetChecksum)* checksum, uint16_t checksum_state, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(InternetChecksum_t_set_state,extern) "\n");
 }
 
@@ -89,19 +107,8 @@ enum_PSA_MeterColor_t EXTERNCALL0(Meter,execute)(SMEMTYPE(meter)* smem, int x, S
     return enum_PSA_MeterColor_t_RED;
 }
 
-enum_PSA_MeterColor_t EXTERNCALL1(Meter,execute,i32)(uint32_t x, enum_PSA_MeterType_t meter_type, int index, int color, SMEMTYPE(meter)* smem, SHORT_STDPARAMS) {
+enum_PSA_MeterColor_t EXTERNIMPL2(Meter,execute,i32)(uint32_t x, enum_PSA_MeterType_t meter_type, int index, int color, SMEMTYPE(meter)* smem, SHORT_STDPARAMS) {
     debug(" :::: calling extern " T4LIT(Meter_execute,extern) "\n");
     // TODO temporary implementation
     return enum_PSA_MeterColor_t_RED;
-}
-
-void EXTERNCALL2(Register,write,u32,i32)(uint32_t x1, int index, uint32_t value, REGTYPE(uint,32)* reg, SHORT_STDPARAMS) {
-    debug(" :::: calling extern " T4LIT(Register/write/u32/i32,extern) "\n");
-}
-
-// TODO the return type should appear as a parameter like this: EXTERNCALL0(Register,read,u32)
-int EXTERNCALL0(Register,read)(REGTYPE(uint,32)* reg, SHORT_STDPARAMS) {
-    debug(" :::: calling extern " T4LIT(Register/read,extern) "\n");
-    // TODO temporary implementation
-    return 0;
 }
