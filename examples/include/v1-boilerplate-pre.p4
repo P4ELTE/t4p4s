@@ -39,11 +39,15 @@ typedef bit<9> PortId_t;
 #define REGISTER_WRITE(varname, idx, in)            varname.write(idx, in)
 #define REGISTER_READ(out, varname, idx)            varname.read(out, idx)
 
+#define METER_GREEN  V1MODEL_METER_COLOR_GREEN
+#define METER_YELLOW V1MODEL_METER_COLOR_YELLOW
+#define METER_RED    V1MODEL_METER_COLOR_RED
+
 // here, low/up refers to lowercase/uppercase
 #define MeterColor_t(v1type)                                        v1type
 #define MeterColor_value(v1value, psa_value)                        v1value
 #define DECLARE_METER(amount, elemtype, lowtype, uptype, varname)   meter(amount, MeterType.lowtype) varname
-#define METER_EXECUTE(out, varname, idx)            varname.execute_meter(idx, out)
+#define METER_EXECUTE(out, varname, idx)                            varname.execute_meter(idx, out)
 
 #define LOGMSG(msg)         log_msg(msg)
 #define LOG(fmt, content)   log_msg(fmt, content)

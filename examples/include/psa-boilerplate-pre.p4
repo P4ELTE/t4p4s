@@ -70,15 +70,20 @@ struct empty_metadata_t {}
 #define RANDOM_READ(out, type, varname, min, max)   out = varname.read();
 
 #define DECLARE_REGISTER_IDX(type, idxtype, amount, varname)    Register<type, idxtype>(amount) varname;
-#define DECLARE_REGISTER(type, amount, varname)                 DECLARE_REGISTER_IDX(type, int, amount, varname)
+#define DECLARE_REGISTER(type, amount, varname)                 DECLARE_REGISTER_IDX(type, bit<32>, amount, varname)
 #define REGISTER_WRITE(varname, idx, in)                        varname.write(idx, in)
 #define REGISTER_READ(out, varname, idx)                        out = varname.read(idx)
+
+#define METER_GREEN  PSA_MeterColor_t.GREEN
+#define METER_YELLOW PSA_MeterColor_t.YELLOW
+#define METER_RED    PSA_MeterColor_t.RED
 
 // here, low/up refers to lowercase/uppercase
 #define MeterColor_t(v1type)                                        PSA_MeterColor_t
 #define MeterColor_value(v1value, psa_value)                        PSA_MeterColor_t.psa_value
 #define DECLARE_METER(amount, elemtype, lowtype, uptype, varname)   Meter<elemtype>(amount, PSA_MeterType_t.uptype) varname
 #define METER_EXECUTE(out, varname, idx)                            out = varname.execute(idx)
+#define METER_EXECUTE_COLOR(out, varname, idx, color)               out = varname.execute(idx, color)
 
 #define HASH(part1, part2, part3, part4, part5)            /* TODO */
 

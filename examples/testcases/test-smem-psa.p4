@@ -3,8 +3,8 @@
 
 #include "common-boilerplate-pre.p4"
 
-Register<bit<32>, int>(32w100) debug;
-Register<bit<1>, int>(32w1)    reg1;
+DECLARE_REGISTER(bit<32>, 32w100, debug)
+DECLARE_REGISTER(bit<1>, 32w1, reg1)
 
 
 struct gtp_metadata_t {
@@ -47,13 +47,13 @@ CTL_MAIN {
     DirectCounter<int>(PSA_CounterType_t.BYTES)             dc_b;
     DirectCounter<int>(PSA_CounterType_t.PACKETS_AND_BYTES) dc_pb;
 
-    DECLARE_METER(1,   int, bytes, BYTES, m_b)
-    DECLARE_METER(256, int, packets, PACKETS, m_p)
+    DECLARE_METER(1,   int, bytes, BYTES, m_b);
+    DECLARE_METER(256, int, packets, PACKETS, m_p);
 
     DirectMeter(PSA_MeterType_t.BYTES)   dm_b;
     DirectMeter(PSA_MeterType_t.PACKETS) dm_p;
 
-    Register<bit<16>, int>(32w65536) reg16;
+    DECLARE_REGISTER(bit<16>, 32w65536, reg16)
 
 
     action forward() {}
@@ -69,12 +69,10 @@ CTL_MAIN {
         c_pb.count(3);
         c_pb.count(3);
 
-        int out1;
-        int out2;
-        METER_EXECUTE_COLOR(out1, m_b, 1,  GREEN)
-        METER_EXECUTE_COLOR(out2, m_p, 11, GREEN)
-        // m_b.execute(1, PSA_MeterColor_t.GREEN);
-        // m_p.execute(11, PSA_MeterColor_t.GREEN);
+        MeterColor_t(bit<32>) out1;
+        MeterColor_t(bit<32>) out2;
+        METER_EXECUTE_COLOR(out1, m_b, 1,  METER_GREEN);
+        METER_EXECUTE_COLOR(out2, m_p, 11, METER_GREEN);
 
 
         debug.write(99, 12345678);
