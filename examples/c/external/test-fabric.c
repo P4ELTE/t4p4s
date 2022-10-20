@@ -9,6 +9,6 @@ fake_cmd_t t4p4s_testcase_test[][RTE_MAX_LCORE] = SINGLE_LCORE(
 
 testcase_t t4p4s_test_suite[MAX_TESTCASES] = {
     { "test", &t4p4s_testcase_test, "v1model" },
-    { "psa",  &t4p4s_testcase_test, "psa" },
+    // fabric is not designed to be compatible with the psa model
     TEST_SUITE_END,
 };

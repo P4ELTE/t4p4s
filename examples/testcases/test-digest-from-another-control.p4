@@ -37,7 +37,18 @@ control Chained() {
 }
 
 CTL_MAIN {
+    action found() {}
+    action learn() {}
+
+    table t {
+        actions = { learn; }
+        key = {}
+        size = 1;
+        default_action = learn;
+    }
+
     apply {
+        t.apply();
         DigestControl.apply();
         Chained.apply();
         SET_EGRESS_PORT(GET_INGRESS_PORT());
