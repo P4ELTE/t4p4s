@@ -290,6 +290,7 @@ void main_loop_fake_crypto(LCPARAMS){
                 for(int b=0;b<n;b++){
                     enqueued_rte_crypto_ops[lcore_id][b]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
                 }
+                debug("---------------- Sending results to %d %d packet\n",a,n);
                 if (rte_ring_enqueue_burst(lcore_conf[a].fake_crypto_tx, (void*)enqueued_rte_crypto_ops[lcore_id], n, NULL) <= 0){
                     debug(T4LIT(Enqueing from fake crypto core failed,error) "\n");
                 }

@@ -233,7 +233,7 @@ crypto_task_s* create_crypto_task(crypto_task_s **task_out, packet_descriptor_t*
 int enqueue_crypto_ops(uint16_t number_of_ops){
     unsigned int lcore_id = rte_lcore_id();
     #ifdef START_CRYPTO_NODE
-        return rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, enqueued_rte_crypto_ops[lcore_id], number_of_ops, NULL);
+        return rte_ring_enqueue_burst(lcore_conf[lcore_id].fake_crypto_rx, (void**) enqueued_rte_crypto_ops[lcore_id], number_of_ops, NULL);
     #else
         return rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], number_of_ops);
     #endif
