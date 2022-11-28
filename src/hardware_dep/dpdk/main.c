@@ -223,7 +223,13 @@ void dpdk_main_loop()
     while (likely(core_is_working(LCPARAMS_IN))) {
 
         #if T4P4S_STATS
-            print_packet_stats(LCPARAMS_IN);
+            #ifdef START_CRYPTO_NODE
+                if (!is_crypto_node()) {
+                    print_packet_stats(LCPARAMS_IN);
+                }
+            #else
+                print_packet_stats(LCPARAMS_IN);
+            #endif
         #endif
         #ifdef START_CRYPTO_NODE
             if (is_crypto_node()) {
