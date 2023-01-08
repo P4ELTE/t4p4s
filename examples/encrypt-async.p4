@@ -22,7 +22,7 @@ extern void async_encrypt<T>(in T offset);
 CTL_MAIN {
     apply {
         async_encrypt({8w34});
-        SET_EGRESS_PORT(1);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
     }
 }
 
