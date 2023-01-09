@@ -9,10 +9,10 @@
 #define encrypt4    op(encrypt, "656c6c6f776f726c6461736400000000", "5d8f891abb54cbfe8ef3a330f0853bd5")
 
 fake_cmd_t t4p4s_testcase_common[][RTE_MAX_LCORE] = SINGLE_LCORE(
-        FAST(0, 1, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt1)),
-        FAST(0, 1, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt2)),
-        FAST(0, 1, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt3)),
-        FAST(0, 1, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt4))
+        FAST(0, 0, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt1)),
+        FAST(0, 0, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt2)),
+        FAST(0, 0, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt3)),
+        FAST(0, 0, hETH4(ETH04, ETH1A), hIP4("00", cIP4_0, cIP4_0), PAYLOAD(encrypt4))
 );
 
 
