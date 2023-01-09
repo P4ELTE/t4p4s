@@ -34,7 +34,7 @@ extern void ipsec_encapsulate();
 
 CTL_MAIN {
     apply {
-        SET_EGRESS_PORT(1);
+        SET_EGRESS_PORT(GET_INGRESS_PORT());
         ipsec_encapsulate();
     }
 }
