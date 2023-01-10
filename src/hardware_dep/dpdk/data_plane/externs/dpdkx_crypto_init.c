@@ -140,6 +140,19 @@ static void configure_device(int cdev_id, struct rte_cryptodev_config *conf, str
 // -----------------------------------------------------------------------------
 // Callbacks
 
+void init_crypto_data(struct lcore_data *data){
+    #ifdef START_CRYPTO_NODE
+        char rxName[32];
+        char txName[32];
+        sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
+        sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
+        data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                     0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+        data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
+                                                     0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
+    #endif
+}
+
 void init_crypto_devices()
 {
     unsigned int session_size;

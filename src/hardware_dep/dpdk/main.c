@@ -199,6 +199,11 @@ void init_stats(LCPARAMS)
     COUNTER_INIT(lcdata->conf->fwd_packet);
 }
 
+
+#ifdef START_CRYPTO_NODE
+extern void main_loop_fake_crypto(LCPARAMS);
+#endif
+
 void dpdk_main_loop()
 {
     extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];

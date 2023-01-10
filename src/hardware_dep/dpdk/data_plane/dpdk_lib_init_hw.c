@@ -271,7 +271,7 @@ void dpdk_init_port(uint8_t nb_ports, uint32_t nb_lcores, uint8_t portid) {
 //    #ifdef T4P4S_VETH_MODE
 //        init_tx_on_lcore(0, portid, queueid);
 //    #else
-        for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {
+        for (unsigned lcore_id = 0; lcore_id < nb_lcores; lcore_id++) {
             if (init_tx_on_lcore(lcore_id, portid, queueid))
                 ++queueid;
         }
@@ -356,7 +356,11 @@ void dpdk_init_nic()
         debug(" :::: Init ports\n");
     }
     for (uint8_t portid = 0; portid < nb_ports; portid++) {
+        #ifdef START_CRYPTO_NODE
+        dpdk_init_port(nb_ports, nb_lcores - 1, portid);
+        #else 
         dpdk_init_port(nb_ports, nb_lcores, portid);
+        #endif
     }
 
     for (unsigned lcore_id = 0; lcore_id < RTE_MAX_LCORE; lcore_id++) {

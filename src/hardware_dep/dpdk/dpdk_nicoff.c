@@ -719,6 +719,7 @@ void init_storage() {
 }
 
 extern void init_async_data(struct lcore_data *lcdata);
+extern void init_crypto_data(struct lcore_data *data);
 
 struct lcore_data init_lcore_data() {
     t4p4s_init_global_stats();
@@ -734,6 +735,9 @@ struct lcore_data init_lcore_data() {
 
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         init_async_data(&lcdata);
+    #endif
+    #if T4P4S_INIT_CRYPTO
+        init_crypto_data(&lcdata);
     #endif
     return lcdata;
 }
