@@ -190,7 +190,7 @@ bool initial_check(LCPARAMS) {
 
     #ifdef START_CRYPTO_NODE
         if (is_crypto_node()){
-            RTE_LOG(INFO, P4_FWD, "lcore %u is the crypto node\n", lcore_id);
+            RTE_LOG(INFO, P4_FWD, "lcore %u is the crypto node\n", rte_lcore_id());
         }
     #endif
 
@@ -230,7 +230,13 @@ void dpdk_main_loop()
     while (likely(core_is_working(LCPARAMS_IN))) {
 
         #if T4P4S_STATS
-            print_packet_stats(LCPARAMS_IN);
+            #ifdef START_CRYPTO_NODE
+                if (!is_crypto_node()) {
+                    print_packet_stats(LCPARAMS_IN);
+                }
+            #else
+                print_packet_stats(LCPARAMS_IN);
+            #endif
         #endif
         #ifdef START_CRYPTO_NODE
             if (is_crypto_node()) {

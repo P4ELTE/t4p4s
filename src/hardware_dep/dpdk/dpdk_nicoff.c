@@ -491,6 +491,11 @@ bool is_over_iteration_limit(LCPARAMS) {
     return false;
 }
 
+#ifdef START_CRYPTO_NODE
+    int crypto_node_id();
+    bool is_crypto_node();
+#endif
+
 bool core_is_working(LCPARAMS) {
     #ifdef T4P4S_DEBUG
         if (is_over_iteration_limit(LCPARAMS_IN)) {
@@ -516,6 +521,8 @@ bool core_is_working(LCPARAMS) {
                 }
                 ret = is_any_running;
             }
+
+            sleep_millis(100);
         #endif
         return ret;
     #else
