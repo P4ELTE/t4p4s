@@ -152,6 +152,9 @@ void init_queues(struct lcore_data* lcdata) {
 }
 
 extern void init_async_data(struct lcore_data *data);
+extern void init_crypto_data(struct lcore_data *data);
+
+
 struct lcore_data init_lcore_data() {
     struct lcore_data lcdata = {
         .drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US,
@@ -165,6 +168,9 @@ struct lcore_data init_lcore_data() {
     lcdata.conf->mempool  = pktmbuf_pool[0]; // pktmbuf_pool[rte_lcore_id()] + get_socketid(rte_lcore_id());
     #if ASYNC_MODE != ASYNC_MODE_OFF
         init_async_data(&lcdata);
+    #endif
+    #if T4P4S_INIT_CRYPTO
+        init_crypto_data(&lcdata);
     #endif
     if (lcdata.is_valid) {
         RTE_LOG(INFO, P4_FWD, "entering main loop on lcore %u\n", rte_lcore_id());

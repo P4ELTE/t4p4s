@@ -92,17 +92,6 @@ void init_async_data(struct lcore_data *data){
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
 
-    #ifdef START_CRYPTO_NODE
-        char rxName[32];
-        char txName[32];
-        sprintf(rxName,"fake_crypto_rx_ring_%d",rte_lcore_id());
-        sprintf(txName,"fake_crypto_tx_ring_%d",rte_lcore_id());
-        data->conf->fake_crypto_rx = rte_ring_create(rxName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-        data->conf->fake_crypto_tx = rte_ring_create(txName, (unsigned) FAKE_CRYPTO_COMMAND_RING_SIZE*1024, SOCKET_ID_ANY,
-                                                       0 /*RING_F_SP_ENQ | RING_F_SC_DEQ */);
-    #endif
-
     #ifdef DEBUG__CRYPTO_EVERY_N
         data->conf->crypto_every_n_counter = -1;
     #endif
@@ -262,42 +251,6 @@ extern crypto_task_s *crypto_tasks[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 extern struct rte_crypto_op* enqueued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 extern struct rte_crypto_op* dequeued_rte_crypto_ops[RTE_MAX_LCORE][CRYPTO_BURST_SIZE];
 
-static inline void
-wait_for_cycles(uint64_t cycles)
-{
-    uint64_t now = rte_get_tsc_cycles();
-    uint64_t then = now;
-    while((now - then) < cycles)
-        now = rte_get_tsc_cycles();
-}
-void main_loop_fake_crypto(LCPARAMS){
-    unsigned lcore_id = rte_lcore_id();
-    for(int a=0;a<rte_lcore_count();a++){
-        if(lcore_conf[a].fake_crypto_rx != NULL){
-            unsigned int n = rte_ring_dequeue_burst(lcore_conf[a].fake_crypto_rx, (void*)enqueued_rte_crypto_ops[lcore_id], CRYPTO_BURST_SIZE, NULL);
-            if (n>0){
-                debug("---------------- Received from %d %d packet\n",a,n);
-                #if CRYPTO_NODE_MODE == CRYPTO_NODE_MODE_OPENSSL
-                    rte_cryptodev_enqueue_burst(cdev_id, lcore_id, enqueued_rte_crypto_ops[lcore_id], n);
-                    int already_dequed_ops = 0;
-                    while(already_dequed_ops < n){
-                        already_dequed_ops += rte_cryptodev_dequeue_burst(cdev_id, lcore_id, dequeued_rte_crypto_ops[lcore_id], n - already_dequed_ops);
-                    }
-                #elif CRYPTO_NODE_MODE == CRYPTO_NODE_MODE_FAKE
-                    wait_for_cycles(FAKE_CRYPTO_SLEEP_MULTIPLIER*n);
-                #endif
-
-                for(int b=0;b<n;b++){
-                    enqueued_rte_crypto_ops[lcore_id][b]->status = RTE_CRYPTO_OP_STATUS_SUCCESS;
-                }
-                debug("---------------- Sending results to %d %d packet\n",a,n);
-                if (rte_ring_enqueue_burst(lcore_conf[a].fake_crypto_tx, (void*)enqueued_rte_crypto_ops[lcore_id], n, NULL) <= 0){
-                    debug(T4LIT(Enqueing from fake crypto core failed,error) "\n");
-                }
-            }
-        }
-    }
-}
 
 uint64_t main_loop_async_work_timer = 0;
 uint64_t main_loop_async_tick_timer = 0;
