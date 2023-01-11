@@ -321,7 +321,7 @@ Currently, this area of T₄P₄S is under rewrite. Stay tuned.
 
 ## HLIR
 
-For more details on how to work with HLIR attribures, see [the readme of the `hlir16` submodule](src/hlir16/README.md).
+For more details on how to work with HLIR attribures, see [the readme of the `hlir16` submodule](https://github.com/P4ELTE/hlir16/blob/master/README.md).
 
 ## Special markers
 
