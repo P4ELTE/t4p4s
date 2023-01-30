@@ -225,26 +225,28 @@ void dpdk_main_loop()
 
     init_stats(LCPARAMS_IN);
 
-    while (likely(core_is_working(LCPARAMS_IN))) {
 
-        #if T4P4S_STATS
-            #ifdef START_CRYPTO_NODE
-                if (!is_crypto_node()) {
+    #ifdef START_CRYPTO_NODE
+        if (is_crypto_node()) {
+            while (likely(core_is_working(LCPARAMS_IN))) {
+                main_loop_fake_crypto(LCPARAMS_IN);
+            }
+        }else {
+            while (likely(core_is_working(LCPARAMS_IN))) {
+                #if T4P4S_STATS
                     print_packet_stats(LCPARAMS_IN);
-                }
-            #else
+                #endif
+                main_loop_pre_do_post_rx(LCPARAMS_IN);
+            }
+        }
+    #else
+        while (likely(core_is_working(LCPARAMS_IN))) {
+            #if T4P4S_STATS
                 print_packet_stats(LCPARAMS_IN);
             #endif
-        #endif
-        #ifdef START_CRYPTO_NODE
-            if (is_crypto_node()) {
-                main_loop_fake_crypto(LCPARAMS_IN);
-                continue;
-            }
-        #endif
-
-        main_loop_pre_do_post_rx(LCPARAMS_IN);
-    }
+            main_loop_pre_do_post_rx(LCPARAMS_IN);
+        }
+    #endif
 }
 
 

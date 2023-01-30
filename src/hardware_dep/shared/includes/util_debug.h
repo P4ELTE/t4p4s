@@ -92,6 +92,8 @@ void dbg_unlock();
             dbg_unlock(); \
         }
 
+    #define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - (timer) > rte_get_timer_hz()?((timer) = rte_get_tsc_cycles()),true:false)
+
 #else
     #define dbg_bytes(bytes, byte_count, MSG, ...)
     #define dbg_print(bytes, bit_count, MSG, ...)
@@ -103,6 +105,7 @@ void dbg_unlock();
     #define debug_printf2(lcid, sc, lcc, sfn, M, ...)
     #define debug_printf(M, ...)
     #define debug(M, ...)
+    #define ONE_PER_SEC(timer)
 #endif
 
 
@@ -136,12 +139,13 @@ typedef struct occurence_counter_s {
     #define COUNTER_STEP(oc){ \
                (oc).counter++;  \
             }
+
 #else
     #define COUNTER_INIT(oc)
     #define COUNTER_ECHO(oc,print_template)
     #define COUNTER_STEP(oc)
-#endif
 
+#endif
 
 
 
@@ -172,8 +176,6 @@ typedef struct time_measure_s{
                tm.counter++; \
             }
 
-
-#define ONE_PER_SEC(timer) if(rte_get_tsc_cycles() - (timer) > rte_get_timer_hz()?((timer) = rte_get_tsc_cycles()),true:false)
 
 
 void sleep_millis(int millis);

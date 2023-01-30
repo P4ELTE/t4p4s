@@ -108,6 +108,8 @@ struct lcore_conf {
     struct rte_mempool*        crypto_pool;
     ucontext_t                 main_loop_context;
     struct rte_ring*           async_queue;
+    unsigned                   pending_in_async_queue;
+
     unsigned                   pending_crypto;
     struct rte_ring    *fake_crypto_rx;
     struct rte_ring    *fake_crypto_tx;

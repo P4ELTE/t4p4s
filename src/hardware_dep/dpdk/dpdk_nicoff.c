@@ -502,10 +502,17 @@ bool core_is_working(LCPARAMS) {
     #endif
 
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
+        unsigned in_async_queue_real = rte_ring_count(lcdata->conf->async_queue);
+
+        if(in_async_queue_real != lcdata->conf->pending_in_async_queue){
+            debug( "   " T4LIT(!!,error) " pending_in_async_queue is not valid, pending_in_async_queue=%d, real=%d!\n", lcdata->conf->pending_in_async_queue, in_async_queue_real);
+            error_encountered(LCPARAMS_IN);
+        }
+
         bool ret =
             get_cmd(lcdata->idx).action != FAKE_END ||
             lcdata->conf->pending_crypto > 0 ||
-            rte_ring_count(lcdata->conf->async_queue) > 0;
+            lcdata->conf->pending_in_async_queue > 0;
 
         #ifdef START_CRYPTO_NODE
             if(ret == false){

@@ -91,6 +91,7 @@ void init_async_data(struct lcore_data *data){
     char str[15];
     sprintf(str, "async_queue_%d", rte_lcore_id());
     data->conf->async_queue = rte_ring_create(str, (unsigned)1024, SOCKET_ID_ANY, RING_F_SP_ENQ | RING_F_SC_DEQ);
+    data->conf->pending_in_async_queue = 0;
 
     #ifdef DEBUG__CRYPTO_EVERY_N
         data->conf->crypto_every_n_counter = -1;
@@ -180,8 +181,10 @@ void enqueue_packet_for_async(packet_descriptor_t* pd, crypto_task_type_e task_t
     crypto_task_s *crypto_task;
     create_crypto_task(&crypto_task, pd, task_type, offset, extraInformationForAsyncHandling);
     debug_crypto_task("Enqueue crypto task", crypto_task);
+    unsigned int core_id = rte_lcore_id();
+    rte_ring_enqueue(lcore_conf[core_id].async_queue, crypto_task);
+    lcore_conf[core_id].pending_in_async_queue++;
 
-    rte_ring_enqueue(lcore_conf[rte_lcore_id()].async_queue, crypto_task);
     dbg_mbuf(crypto_task->data, "   :: Enqueued for async");
 }
 
@@ -280,10 +283,11 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
 
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
-    if (CRYPTO_DEVICE_AVAILABLE && rte_ring_count(lcdata->conf->async_queue) >= CRYPTO_BURST_SIZE) {
+    if (CRYPTO_DEVICE_AVAILABLE && lcdata->conf->pending_in_async_queue >= CRYPTO_BURST_SIZE) {
         debug("Enough in async queue, bursting\n");
         n = rte_ring_dequeue_burst(lcdata->conf->async_queue, (void **) crypto_tasks[lcore_id], CRYPTO_BURST_SIZE,NULL);
         if (n > 0) {
+            lcdata->conf->pending_in_async_queue -= n;
             if (rte_crypto_op_bulk_alloc(lcdata->conf->rte_crypto_op_pool, RTE_CRYPTO_OP_TYPE_SYMMETRIC,enqueued_rte_crypto_ops[lcore_id], n) == 0) {
                 rte_exit(EXIT_FAILURE, "Not enough crypto operations available\n");
             }
@@ -310,7 +314,7 @@ void enqueue_async_operations(const struct lcore_data *lcdata) {
 
 
             debug("lcdata->conf->pending_crypto :%d\n", lcdata->conf->pending_crypto);
-            debug("async size :%d\n", rte_ring_count(lcdata->conf->async_queue));
+            debug("async size :%d\n", lcdata->conf->pending_in_async_queue);
 
         }
     }
@@ -369,7 +373,6 @@ void resume_packet_handling(struct rte_mbuf *mbuf, LCPARAMS)
 
 
 
-
 void dequeue_finished_async_operations(LCPARAMS) {
     unsigned lcore_id = rte_lcore_id();
     unsigned n, i;
@@ -415,7 +418,7 @@ void dequeue_finished_async_operations(LCPARAMS) {
 void main_loop_async(LCPARAMS)
 {
     ONE_PER_SEC(main_loop_async_tick_timer){
-        debug("Main loop async - async_size:%d, pending: %d\n", rte_ring_count(lcdata->conf->async_queue),lcdata->conf->pending_crypto);
+        debug("Main loop async - async_size:%d, pending: %d\n", lcdata->conf->pending_in_async_queue,lcdata->conf->pending_crypto);
     }
 
     #if ASYNC_MODE == ASYNC_MODE_CONTEXT
