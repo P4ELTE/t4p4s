@@ -132,7 +132,7 @@ def gen_fill_key_component(k, idx, byte_width, tmt, kmt):
         is_t4p4s_order = byte_width <= 4 and not ('header' in k and k.header.urtype.is_metadata)
 
         if is_t4p4s_order:
-            padded_byte_width = align8_16_32(byte_width)
+            padded_byte_width = align8_16_32(byte_width * 8)
             varname = generate_var_name(f'fld_{get_key_name(k, idx)}')
             #[     uint${padded_byte_width}_t $varname = *(uint${padded_byte_width}_t*)field_matches[$idx]->bitmap;
             #[     key->${get_key_name(k, idx)} = $varname;
