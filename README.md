@@ -3,7 +3,7 @@ According to our initial tests using GCC instead of clang, better packet process
 
 You can checkout the repo with the following commands:
 
-    git clone https://github.com/P4EDGE/t4p4s.git --no-hardlinks --recursive
+    git clone https://github.com/P4ELTE/t4p4s.git --no-hardlinks --recursive
     cd t4p4s
     git checkout performance
 
