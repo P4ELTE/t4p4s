@@ -19,14 +19,14 @@
    Auxiliary
 *******************************************************************************/
 
-header_instance_e to_hdr(field_instance_e fld) {
-    return fld_infos[fld].header_instance;
-}
+//header_instance_e to_hdr(field_instance_e fld) {
+//    return fld_infos[fld].header_instance;
+//}
 
 
 /******************************************************************************/
-
-uint32_t FLD_MASK(bitfield_handle_t fd) {
+/*
+static inline uint32_t FLD_MASK(bitfield_handle_t fd) {
     if (fd.fixed_width)  return fd.mask;
 
     uint32_t mask_offset = ~0 >> fd.bitoffset;
@@ -34,12 +34,12 @@ uint32_t FLD_MASK(bitfield_handle_t fd) {
     return mask_offset & mask_len;
 }
 
-uint32_t FLD_BYTES(bitfield_handle_t fd) {
+static inline uint32_t FLD_BYTES(bitfield_handle_t fd) {
     return fd.bytecount == 1 ? (*(uint8_t*)  fd.pointer) :
            fd.bytecount == 2 ? (*(uint16_t*) fd.pointer) :
                                (*(uint32_t*) fd.pointer);
 }
-
+*/
 int INCOMPLETE_BYTECOUNT(bitfield_handle_t fd) {
     return (fd.bitcount - 1) / 8;
 }
@@ -49,15 +49,15 @@ int INCOMPLETE_BYTECOUNT(bitfield_handle_t fd) {
 *******************************************************************************/
 
 // Modifies a field in the packet by the given source and length [ONLY BYTE ALIGNED]
-void MODIFY_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
+/*void MODIFY_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
     memset(dst.pointer, 0, dst.bytewidth - src_bytewidth);
     memcpy(dst.pointer + (dst.bytewidth - src_bytewidth), src, src_bytewidth);
-}
+}*/
 
 /*******************************************************************************
    Modify - statement - int32
 *******************************************************************************/
-
+/*
 uint32_t bitshift(int container_length, bitfield_handle_t fd) {
     return container_length - fd.bitoffset - fd.bitwidth;
 }
@@ -100,15 +100,4 @@ void MODIFY32_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
     MODIFY32_IMPL(dst, value32);
 }
 
-uint32_t GET32_FLD_IMPL(bitfield_handle_t src) {
-    if (src.is_t4p4s_byte_order)   return FLD_BYTES(src);
-
-    uint32_t masked = net2t4p4s_4(FLD_BYTES(src)) & FLD_MASK(src);
-    int downshift = 32 - src.bitoffset - src.bitwidth;
-    return masked >> downshift;
-}
-
-// Extracts a field to the given destination [ONLY BYTE ALIGNED]
-void GET_BUF_IMPL(void* dst, bitfield_handle_t src) {
-    memcpy(dst, src.pointer, src.bytewidth);
-}
+*/

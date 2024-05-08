@@ -12,7 +12,7 @@
         #include "util_debug.h"
     #endif
 #endif
-
+/*
 srcdst_t dst_buf(void* buf, int width) {
     return (srcdst_t) { SRCDST_BUF, { .buf = buf, .width = width, } };
 }
@@ -40,24 +40,24 @@ srcdst_t src_32(uint32_t value32) {
 srcdst_t src_handle(bitfield_handle_t fd) {
     return dst_handle(fd);
 }
-
-
-bitfield_handle_t get_handle(srcdst_t srcdst, field_instance_e fld, const char* operation_txt) {
+*/
+/*
+static inline bitfield_handle_t get_handle(srcdst_t srcdst, field_instance_e fld, const char* operation_txt) {
     srcdst_type_t sd = srcdst.srcdst_type;
     return sd == SRCDST_BUF     ? get_handle_buf(srcdst.buf, srcdst.width, fld) :
            sd == SRCDST_PKT     ? get_handle_fld(srcdst.pd, fld, operation_txt) :
            sd == SRCDST_32      ? get_handle_32(srcdst.value32, fld)            :
-              /* SRCDST_HANDLE */ srcdst.fd;
+              /* SRCDST_HANDLE *//* srcdst.fd;
 }
-
-
+*/
+/*
 header_instance_e get_hdr(field_instance_e fld) {
     return fld_infos[fld].header_instance;
 }
-
+*/
 
 // Extract operations
-
+/*
 uint32_t GET32(srcdst_t src, field_instance_e fld) {
     bool is_meta = hdr_infos[fld_infos[fld].header_instance].is_metadata;
     int size = fld_infos[fld].size;
@@ -80,9 +80,10 @@ void GET_BUF(void* dst_ptr, srcdst_t src, field_instance_e fld) {
     bitfield_handle_t src_handle = get_handle(src, fld, "read");
     GET_BUF_IMPL(dst_ptr, src_handle);
 }
-
+*/
 
 // Modify operations
+/*
 extern void MODIFY_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth);
 extern void MODIFY32_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth);
 extern void MODIFY32_IMPL(bitfield_handle_t dst, uint32_t value32);
@@ -107,7 +108,7 @@ void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t 
             case ENDIAN_CONVERT_AS_NEEDED:
                 MODIFY32_BUF_IMPL(dst_handle, src.buf, src_bytewidth);
                 return;
-            default: ; /* print warning at the end */
+            default: ; // print warning at the end 
         }
     }
 
@@ -115,7 +116,7 @@ void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t 
         switch (strategy) {
             case ENDIAN_KEEP: MODIFY32_IMPL(dst_handle, src.value32); return;
             case ENDIAN_NET:  MODIFY32_IMPL(dst_handle, src.value32); return;
-            default: ; /* print warning at the end */
+            default: ; // print warning at the end 
         }
     }
 
@@ -127,7 +128,8 @@ void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t 
         debug("    " T4LIT(!,warning) " Unknown options " T4LIT(%s;%s,warning) " for packet modification\n", srcdst_type_names[dst.srcdst_type], endian_strategy_names[strategy]);
     #endif
 }
-
+*/
+/*
 void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf, int size) {
     #ifdef T4P4S_DEBUG
         int byte_width = (size+7)/8;
@@ -195,9 +197,10 @@ void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf) {
     print_set_fld_buf(fld, buf, size);
     MODIFY(dst_pkt(pd), fld, src_buf(buf, size), ENDIAN_NET);
 }
+*/
 
 // Helpers
-
+/*
 header_descriptor_t header_desc_buf(void* buf, int size) {
     return (header_descriptor_t) { -1, buf, -1, size };
 }
@@ -258,7 +261,8 @@ bool check_hdr_is_valid(packet_descriptor_t* pd, header_instance_e hdr, const ch
     
     return true;
 }
-
+*/
+/*
 bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_instance_e fld, const char* operation_txt) {
     header_instance_e hdr = to_hdr(fld);
 
@@ -276,3 +280,4 @@ bitfield_handle_t get_handle_buf(void* buf, int size, field_instance_e fld) {
 bitfield_handle_t get_handle_32(uint32_t value32, field_instance_e fld) {
     return get_handle_buf(&value32, fld_infos[fld].byte_width, fld);
 }
+*/
