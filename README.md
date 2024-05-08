@@ -1,13 +1,13 @@
 # Compilation in performance mode
 According to our initial tests using GCC instead of clang, better packet processing performance can be reached.
 
-- You can checkout the repo with the following commands:
+You can checkout the repo with the following commands:
 
     git clone https://github.com/P4EDGE/t4p4s.git --no-hardlinks --recursive
     cd t4p4s
     git checkout performance
 
-- An example for compilation with all the optimization features set:
+An example for compilation with all the optimization features set:
 
 `T4P4S_CC=gcc MESON_BUILDTYPE=release ./t4p4s.sh ./examples/l2switch.p4 model=psa lto mopt+=-Db_ndebug=if-release mopt+=-Doptimization=3 mopt+=-Ddebug=false`
 
