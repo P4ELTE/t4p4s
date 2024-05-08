@@ -1,5 +1,13 @@
+# Compilation in performance mode
+According to our initial tests using GCC instead of clang, better packet processing performance can be reached.
+An example for compilation with all the optimization features set:
+`T4P4S_CC=gcc MESON_BUILDTYPE=release ./t4p4s.sh ./examples/l2switch.p4 model=psa lto mopt+=-Db_ndebug=if-release mopt+=-Doptimization=3 mopt+=-Ddebug=false`
+
+Note that performance optimized version of T4P4S has not widely been tested yet. Please report any issues you experience. 
+
 
 # T₄P₄S, a multitarget P4<sub>16</sub> compiler
+
 
 This is an experimental compiler for P4<sub>16</sub> and P4<sub>14</sub> files.
 For publications and more, [see our homepage](http://p4.elte.hu/).
