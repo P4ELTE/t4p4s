@@ -912,6 +912,7 @@ if [ "$(optvalue c)" != off ]; then
 #endif
 """ >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
 
+
     if [ "$(optvalue T4P4S_CTL_PORT)" != off ]; then
         sudo echo "#define T4P4S_CTL_PORT $(optvalue T4P4S_CTL_PORT)" >> "/tmp/${T4P4S_GEN_INCLUDE}.tmp"
     else
@@ -922,6 +923,12 @@ if [ "$(optvalue c)" != off ]; then
 
 
     sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_DEFS}.tmp"
+
+    # TODO make it optional
+    sudo echo """
+#define INLINING      static inline
+#define TODO_INLINING /* needs to be made static inline */
+""" >> "/tmp/${T4P4S_GEN_DEFS}.tmp"
 
     IFS=$'\n'
     for def in ${OPTS[include-defs]}; do

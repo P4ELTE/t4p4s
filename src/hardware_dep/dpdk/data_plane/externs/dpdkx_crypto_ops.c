@@ -285,7 +285,7 @@ void do_sync_crypto_operation(crypto_task_type_e task_type, int offset, SHORT_ST
 }
 
 
-static inline void
+INLINING void
 wait_for_cycles(uint64_t cycles)
 {
     uint64_t now = rte_get_tsc_cycles();

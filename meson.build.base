@@ -10,7 +10,9 @@ project_description = meson.project_name()
 
 project_source_files = [
     srcg / 'dataplane.c',
-    srcg / 'dataplane_deparse.c',
+    # directly included in dataplane.c
+    # srcg / 'dataplane_deparse.c',
+
     srcg / 'dataplane_key.c',
     srcg / 'dataplane_show.c',
     srcg / 'dataplane_smem.c',
@@ -50,6 +52,7 @@ project_source_files = [
 
     hdep / 'shared/util_debug.c',
     hdep / 'shared/backend.c',
+    # hdep / 'shared/backend_hdr.c',
     hdep / 'shared/dataplane_hdr_fld_pkt.c',
 
     srcg / 'stateful_memory.c',

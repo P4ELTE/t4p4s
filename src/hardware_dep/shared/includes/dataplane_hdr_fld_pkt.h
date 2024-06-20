@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "gen_defs.h"
+
 #include <inttypes.h>
 #include <stdbool.h>
 
@@ -144,4 +146,4 @@ void set_hdr_valid(header_instance_e hdr, SHORT_STDPARAMS);
 void set_hdr_invalid(header_instance_e hdr, SHORT_STDPARAMS);
 
 // note: currently implemented in dataplane_deparse.c.py
-bool is_packet_dropped(packet_descriptor_t* pd);
+INLINING bool is_packet_dropped(packet_descriptor_t* pd);

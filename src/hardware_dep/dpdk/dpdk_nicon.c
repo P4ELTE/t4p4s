@@ -27,7 +27,7 @@ struct rte_mbuf* deparse_mbuf;
 // ------------------------------------------------------
 
 /* Send burst of packets on an output interface */
-static inline void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
+INLINING void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
 {
     uint16_t queueid = conf->hw.tx_queue_id[port];
     struct rte_mbuf **m_table = (struct rte_mbuf **)conf->hw.tx_mbufs[port].m_table;
@@ -40,7 +40,7 @@ static inline void send_burst(struct lcore_conf *conf, uint16_t n, uint8_t port)
     }
 }
 
-void tx_burst_queue_drain(LCPARAMS) {
+INLINING void tx_burst_queue_drain(LCPARAMS) {
     uint64_t cur_tsc = rte_rdtsc();
 
     uint64_t diff_tsc = cur_tsc - lcdata->prev_tsc;
@@ -74,7 +74,7 @@ add_packet_to_queue(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
 
 
 /* creating replicas of a packet for  */
-static inline struct rte_mbuf *
+INLINING struct rte_mbuf *
 mcast_out_pkt(struct rte_mbuf *pkt, int use_clone)
 {
     struct rte_mbuf *hdr;

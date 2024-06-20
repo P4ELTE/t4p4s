@@ -14,6 +14,11 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 # TODO make this an import from hardware_indep
 #[ #include "dpdk_smem.h"
 
+
+#[ // Note: direct C include!
+#[ #include "dataplane_deparse.c"
+
+
 table_infos = [(table, table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "")) for table in hlir.tables]
 
 ################################################################################

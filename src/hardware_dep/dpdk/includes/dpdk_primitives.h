@@ -2,12 +2,12 @@
 // Copyright 2016 Eotvos Lorand University, Budapest, Hungary
 
 #pragma once
+#include "gen_defs.h"
 #include "dpdk_lib_byteorder.h"
-//uint32_t net2t4p4s_4(uint32_t data);
 
 
 //header_instance_e to_hdr(field_instance_e fld);
-static inline header_instance_e to_hdr(field_instance_e fld) {
+INLINING header_instance_e to_hdr(field_instance_e fld) {
     return fld_infos[fld].header_instance;
 }
 
@@ -42,56 +42,41 @@ typedef struct {
     };
 } srcdst_t;
 
-static inline srcdst_t dst_buf(void* buf, int width) {
+INLINING srcdst_t dst_buf(void* buf, int width) {
     return (srcdst_t) { SRCDST_BUF, { .buf = buf, .width = width, } };
 }
 
-static inline srcdst_t dst_pkt(packet_descriptor_t* pd) {
+INLINING srcdst_t dst_pkt(packet_descriptor_t* pd) {
     return (srcdst_t) { SRCDST_PKT, { .pd = pd } };
 }
 
-static inline srcdst_t dst_handle(bitfield_handle_t fd) {
+INLINING srcdst_t dst_handle(bitfield_handle_t fd) {
     return (srcdst_t) { SRCDST_HANDLE, { .fd = fd, } };
 }
 
-static inline srcdst_t src_buf(void* buf, int width) {
+INLINING srcdst_t src_buf(void* buf, int width) {
     return (srcdst_t) { SRCDST_BUF, { .buf = buf, .width = width, } };
 }
 
-static inline srcdst_t src_pkt(packet_descriptor_t* pd) {
+INLINING srcdst_t src_pkt(packet_descriptor_t* pd) {
     return dst_pkt(pd);
 }
 
-static inline srcdst_t src_32(uint32_t value32) {
+INLINING srcdst_t src_32(uint32_t value32) {
     return (srcdst_t) { SRCDST_32, { .value32 = value32, } };
 }
 
-static inline srcdst_t src_handle(bitfield_handle_t fd) {
+INLINING srcdst_t src_handle(bitfield_handle_t fd) {
     return dst_handle(fd);
 }
 
 
-/*
-srcdst_t dst_buf(void* buf, int width);
-srcdst_t dst_pkt(packet_descriptor_t* pd);
-srcdst_t dst_handle(bitfield_handle_t fd);
-
-srcdst_t src_buf(void* buf, int width);
-srcdst_t src_pkt(packet_descriptor_t* pd);
-srcdst_t src_32(uint32_t value32);
-srcdst_t src_handle(bitfield_handle_t fd);
-*/
-// Extract operations
-
-//uint32_t GET32(srcdst_t desc, field_instance_e fld);
-//uint32_t GET32_def(srcdst_t src, field_instance_e fld, uint32_t default_value);
-//void     GET_BUF(void* dst, srcdst_t src, field_instance_e fld);
 
 // Modify operations
 
 //void MODIFY(srcdst_t desc, field_instance_e fld, srcdst_t src, endian_strategy_t strategy);
 
-static inline void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf, int size) {
+INLINING void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf, int size) {
     #ifdef T4P4S_DEBUG
         int byte_width = (size+7)/8;
         uint32_t value32 = *(uint32_t*)buf;
@@ -107,7 +92,7 @@ static inline void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, 
     #endif
 }
 
-static inline void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
+INLINING void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
     #ifdef T4P4S_DEBUG
         int byte_width = (size+7)/8;
 
@@ -121,9 +106,6 @@ static inline void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int siz
 
 
 
-//void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32);
-//void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf);
-
 // Extract statement
 
 void transfer_to_egress(packet_descriptor_t* pd);
@@ -133,42 +115,37 @@ int get_ingress_port(packet_descriptor_t* pd);
 void mark_to_drop(SHORT_STDPARAMS);
 
 // Helpers
-/*
-bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_instance_e fld, const char* operation_txt);
-bitfield_handle_t get_handle_buf(void* buf, int width, field_instance_e fld);
-bitfield_handle_t get_handle_32(uint32_t value32, field_instance_e fld);
-*/
 
 
-static inline header_descriptor_t header_desc_buf(void* buf, int size) {
+INLINING header_descriptor_t header_desc_buf(void* buf, int size) {
     return (header_descriptor_t) { -1, buf, -1, size };
 }
 
-static inline hdr_info_t HDRINFOS(field_instance_e fld) {
+INLINING hdr_info_t HDRINFOS(field_instance_e fld) {
     return hdr_infos[fld_infos[fld].header_instance];
 }
 
-static inline bool FLD_IS_FIXED_WIDTH(field_instance_e fld) {
+INLINING bool FLD_IS_FIXED_WIDTH(field_instance_e fld) {
     bool no_vw = HDRINFOS(fld).var_width_field == -1;
     return no_vw || fld != HDRINFOS(fld).var_width_field;
 }
 
-static inline bool FLD_IS_FIXED_POS(field_instance_e fld) {
+INLINING bool FLD_IS_FIXED_POS(field_instance_e fld) {
     bool no_vw     = HDRINFOS(fld).var_width_field == -1;
     bool before_vw = fld <= HDRINFOS(fld).var_width_field;
     return no_vw || before_vw;
 }
 
-static inline int FLD_BITWIDTH(header_descriptor_t hdesc, field_instance_e fld) {
+INLINING int FLD_BITWIDTH(header_descriptor_t hdesc, field_instance_e fld) {
     return FLD_IS_FIXED_WIDTH(fld) ? fld_infos[fld].size : hdesc.vw_size;
 }
 
-static inline int FLD_BYTEOFFSET(header_descriptor_t hdesc, field_instance_e fld) {
+INLINING int FLD_BYTEOFFSET(header_descriptor_t hdesc, field_instance_e fld) {
     int vw_offset = FLD_IS_FIXED_POS(fld) ? 0 : (hdesc.vw_size / 8);
     return fld_infos[fld].byte_offset + vw_offset;
 }
 
-static inline bitfield_handle_t handle(header_descriptor_t hdesc, field_instance_e fld) {
+INLINING bitfield_handle_t handle(header_descriptor_t hdesc, field_instance_e fld) {
     int size = FLD_BITWIDTH(hdesc, fld);
     int bit_offset = fld_infos[fld].bit_offset;
     int byte_offset = FLD_BYTEOFFSET(hdesc, fld);
@@ -192,7 +169,7 @@ static inline bitfield_handle_t handle(header_descriptor_t hdesc, field_instance
     };
 }
 
-static inline bool check_hdr_is_valid(packet_descriptor_t* pd, header_instance_e hdr, const char* fld_name, const char* operation_txt) {
+INLINING bool check_hdr_is_valid(packet_descriptor_t* pd, header_instance_e hdr, const char* fld_name, const char* operation_txt) {
     if (unlikely(!is_header_valid(hdr, pd))) {
         debug("   " T4LIT(!!,warning) " Trying to %s field " T4LIT(%s,warning) "." T4LIT(%s,field) " in " T4LIT(invalid header,warning) "\n", operation_txt, hdr_infos[hdr].name, fld_name);
         return false;
@@ -203,7 +180,7 @@ static inline bool check_hdr_is_valid(packet_descriptor_t* pd, header_instance_e
 
 
 
-static inline bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_instance_e fld, const char* operation_txt) {
+INLINING bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_instance_e fld, const char* operation_txt) {
     header_instance_e hdr = to_hdr(fld);
 
     bool is_ok = check_hdr_is_valid(pd, hdr, field_names[fld], operation_txt);
@@ -213,16 +190,16 @@ static inline bitfield_handle_t get_handle_fld(packet_descriptor_t* pd, field_in
     return handle(header_desc_buf(pd->headers[hdr].pointer, size), fld);
 }
 
-static inline bitfield_handle_t get_handle_buf(void* buf, int size, field_instance_e fld) {
+INLINING bitfield_handle_t get_handle_buf(void* buf, int size, field_instance_e fld) {
     return handle(header_desc_buf(buf, size), fld);
 }
 
-static inline bitfield_handle_t get_handle_32(uint32_t value32, field_instance_e fld) {
+INLINING bitfield_handle_t get_handle_32(uint32_t value32, field_instance_e fld) {
     return get_handle_buf(&value32, fld_infos[fld].byte_width, fld);
 }
 
 
-static inline bitfield_handle_t get_handle(srcdst_t srcdst, field_instance_e fld, const char* operation_txt) {
+INLINING bitfield_handle_t get_handle(srcdst_t srcdst, field_instance_e fld, const char* operation_txt) {
     srcdst_type_t sd = srcdst.srcdst_type;
     return sd == SRCDST_BUF     ? get_handle_buf(srcdst.buf, srcdst.width, fld) :
            sd == SRCDST_PKT     ? get_handle_fld(srcdst.pd, fld, operation_txt) :
@@ -230,7 +207,7 @@ static inline bitfield_handle_t get_handle(srcdst_t srcdst, field_instance_e fld
               /* SRCDST_HANDLE */ srcdst.fd;
 }
 
-static inline uint32_t FLD_MASK(bitfield_handle_t fd) {
+INLINING uint32_t FLD_MASK(bitfield_handle_t fd) {
     if (fd.fixed_width)  return fd.mask;
 
     uint32_t mask_offset = ~0 >> fd.bitoffset;
@@ -238,7 +215,7 @@ static inline uint32_t FLD_MASK(bitfield_handle_t fd) {
     return mask_offset & mask_len;
 }
 
-static inline uint32_t FLD_BYTES(bitfield_handle_t fd) {
+INLINING uint32_t FLD_BYTES(bitfield_handle_t fd) {
     return fd.bytecount == 1 ? (*(uint8_t*)  fd.pointer) :
            fd.bytecount == 2 ? (*(uint16_t*) fd.pointer) :
                                (*(uint32_t*) fd.pointer);
@@ -246,7 +223,7 @@ static inline uint32_t FLD_BYTES(bitfield_handle_t fd) {
 
 
 
-static inline uint32_t GET32_FLD_IMPL(bitfield_handle_t src) {
+INLINING uint32_t GET32_FLD_IMPL(bitfield_handle_t src) {
     if (src.is_t4p4s_byte_order)   return FLD_BYTES(src);
 
     uint32_t masked = net2t4p4s_4(FLD_BYTES(src)) & FLD_MASK(src);
@@ -255,13 +232,13 @@ static inline uint32_t GET32_FLD_IMPL(bitfield_handle_t src) {
 }
 
 // Extracts a field to the given destination [ONLY BYTE ALIGNED]
-static inline void GET_BUF_IMPL(void* dst, bitfield_handle_t src) {
+INLINING void GET_BUF_IMPL(void* dst, bitfield_handle_t src) {
     memcpy(dst, src.pointer, src.bytewidth);
 }
 
 uint32_t GET32_META_IMPL(bitfield_handle_t fd);
 
-static inline uint32_t GET32(srcdst_t src, field_instance_e fld) {
+INLINING uint32_t GET32(srcdst_t src, field_instance_e fld) {
     bool is_meta = hdr_infos[fld_infos[fld].header_instance].is_metadata;
     int size = fld_infos[fld].size;
     bitfield_handle_t src_handle = get_handle(src, fld, "read");
@@ -274,49 +251,49 @@ static inline uint32_t GET32(srcdst_t src, field_instance_e fld) {
     }
 }
 
-static inline header_instance_e get_hdr(field_instance_e fld) {
+INLINING header_instance_e get_hdr(field_instance_e fld) {
     return fld_infos[fld].header_instance;
 }
 
 
 // works like GET32 unless the field's header is invalid, in which case it returns the default value
-static inline uint32_t GET32_def(srcdst_t src, field_instance_e fld, uint32_t default_value) {
+INLINING uint32_t GET32_def(srcdst_t src, field_instance_e fld, uint32_t default_value) {
     return is_header_valid(get_hdr(fld), src.pd) ? GET32(src, fld) : default_value;
 }
 
-static inline void GET_BUF(void* dst_ptr, srcdst_t src, field_instance_e fld) {
+INLINING void GET_BUF(void* dst_ptr, srcdst_t src, field_instance_e fld) {
     bitfield_handle_t src_handle = get_handle(src, fld, "read");
     GET_BUF_IMPL(dst_ptr, src_handle);
 }
 
 
-static inline void MODIFY_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
+INLINING void MODIFY_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
     memset(dst.pointer, 0, dst.bytewidth - src_bytewidth);
     memcpy(dst.pointer + (dst.bytewidth - src_bytewidth), src, src_bytewidth);
 }
 
-static inline uint32_t bitshift(int container_length, bitfield_handle_t fd) {
+INLINING uint32_t bitshift(int container_length, bitfield_handle_t fd) {
     return container_length - fd.bitoffset - fd.bitwidth;
 }
 
-static inline uint32_t MASK_AT(int shift, uint32_t value32, uint32_t mask) {
+INLINING uint32_t MASK_AT(int shift, uint32_t value32, uint32_t mask) {
     return ((value32 << shift) & mask) >> shift;
 }
 
 // Modifies a field in the packet by a uint32_t value with byte conversion (always) [MAX 4 BYTES]
-static inline void MODIFY32_T4P4S2NET_IMPL(bitfield_handle_t dst, uint32_t value32) {
+INLINING void MODIFY32_T4P4S2NET_IMPL(bitfield_handle_t dst, uint32_t value32) {
     uint32_t res32 = FLD_BYTES(dst) & ~FLD_MASK(dst);
     res32 |= t4p4s2net(dst, value32 << (padded_bytecount(dst) - dst.bitcount)) & FLD_MASK(dst);
     memcpy(dst.pointer, &res32, dst.bytecount);
 }
 
-static inline void MODIFY32_T4P4S_ORDER(bitfield_handle_t dst, uint32_t value32) {
+INLINING void MODIFY32_T4P4S_ORDER(bitfield_handle_t dst, uint32_t value32) {
     if      (dst.bytecount == 1)   *(uint8_t*)dst.pointer = (uint8_t)value32;
     else if (dst.bytecount == 1)  *(uint16_t*)dst.pointer = (uint16_t)value32;
     else                          *(uint32_t*)dst.pointer = value32;
 }
 
-static inline void MODIFY32_IMPL_NET_ORDER(bitfield_handle_t dst, uint32_t value32) {
+INLINING void MODIFY32_IMPL_NET_ORDER(bitfield_handle_t dst, uint32_t value32) {
     int upshift = 32 - dst.bitoffset - dst.bitwidth;
 
     uint32_t old_content = t4p4s2net_4(*(uint32_t*)(dst.pointer)) & ~FLD_MASK(dst);
@@ -326,19 +303,19 @@ static inline void MODIFY32_IMPL_NET_ORDER(bitfield_handle_t dst, uint32_t value
 }
 
 // Modifies a field in the packet by a uint32_t value with byte conversion when necessary [MAX 4 BYTES]
-static inline void MODIFY32_IMPL(bitfield_handle_t dst, uint32_t value32) {
+INLINING void MODIFY32_IMPL(bitfield_handle_t dst, uint32_t value32) {
     dst.is_t4p4s_byte_order ? MODIFY32_T4P4S_ORDER(dst, value32) : MODIFY32_IMPL_NET_ORDER(dst, value32);
 }
 
 // Modifies a field in the packet by the given source and length (byte conversion when necessary) [MAX 4 BYTES]
-static inline void MODIFY32_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
+INLINING void MODIFY32_BUF_IMPL(bitfield_handle_t dst, void* src, int src_bytewidth) {
     uint32_t value32 = 0;
     memcpy(&value32, src, src_bytewidth);
     MODIFY32_IMPL(dst, value32);
 }
 
 
-static inline void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t strategy) {
+INLINING void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_strategy_t strategy) {
     if (fld_infos[fld].is_vw) {
         header_instance_e hdr = to_hdr(fld);
         dst.pd->headers[hdr].vw_size = src.width;
@@ -379,7 +356,7 @@ static inline void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endi
     #endif
 }
 
-static inline void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32) {
+INLINING void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32) {
     int size = fld_infos[fld].size;
     bool is_meta = hdr_infos[fld_infos[fld].header_instance].is_metadata;
 
@@ -410,7 +387,7 @@ static inline void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32
     #endif
 }
 
-static inline void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf) {
+INLINING void set_fld_buf(packet_descriptor_t* pd, field_instance_e fld, uint8_t* buf) {
     int size = unlikely(fld_infos[fld].is_vw)
         ? pd->headers[to_hdr(fld)].vw_size
         : fld_infos[fld].size;

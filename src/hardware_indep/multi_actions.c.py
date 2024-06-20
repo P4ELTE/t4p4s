@@ -46,7 +46,7 @@ for idx, (ctl, act) in enumerate(all_ctl_acts):
         #[     // action name: ${name.expr[0].value}; ${act.canonical_name}
     else:
         #[     // action name: ${act.canonical_name}
-    #{     void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
+    #{     TODO_INLINING void action_code_${act.name}(action_${act.name}_params_t parameters, SHORT_STDPARAMS) {
     if len(act.body.components) != 0:
         #[         control_locals_${ctl.name}_t* local_vars = (control_locals_${ctl.name}_t*) pd->control_locals;
 

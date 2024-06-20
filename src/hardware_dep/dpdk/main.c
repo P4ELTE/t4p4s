@@ -12,7 +12,7 @@ volatile int packet_counter = 0;
 volatile int packet_with_error_counter = 0;
 
 
-void get_broadcast_port_msg(char result[256], int ingress_port) {
+INLINING void get_broadcast_port_msg(char result[256], int ingress_port) {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
 
@@ -33,7 +33,7 @@ void get_broadcast_port_msg(char result[256], int ingress_port) {
 }
 
 
-void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
+INLINING void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
 {
     uint8_t nb_ports = get_port_count();
     uint32_t port_mask = get_port_mask();
@@ -61,7 +61,7 @@ void broadcast_packet(int egress_port, int ingress_port, LCPARAMS)
 }
 
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_packet(int egress_port, int ingress_port, LCPARAMS)
+INLINING void send_packet(int egress_port, int ingress_port, LCPARAMS)
 {
     uint32_t lcore_id = rte_lcore_id();
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pd->wrapper;
@@ -83,7 +83,16 @@ void send_packet(int egress_port, int ingress_port, LCPARAMS)
     }
 }
 
-void do_single_tx(LCPARAMS)
+
+// // Note: duplicate of method in dataplane_deparse.c.py
+// INLINING bool is_packet_dropped(packet_descriptor_t* pd) {
+//   return get_egress_port(pd) == EGRESS_DROP_VALUE;
+// }
+
+// Note: direct C include!
+#include "packet.c"
+
+INLINING void do_single_tx(LCPARAMS)
 {
     main_loop_pre_single_tx(LCPARAMS_IN);
     if (unlikely(is_packet_dropped(pd))) {
@@ -97,7 +106,7 @@ void do_single_tx(LCPARAMS)
     main_loop_post_single_tx(LCPARAMS_IN);
 }
 
-void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
+INLINING void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
 {
     struct lcore_state state = lcdata->conf->state;
     lookup_table_t** tables = state.tables;
@@ -109,9 +118,9 @@ void do_handle_packet(unsigned port_id, int pkt_idx, LCPARAMS)
 }
 
 // TODO move this to stats.h.py
-extern void print_packet_stats(LCPARAMS);
+extern TODO_INLINING void print_packet_stats(LCPARAMS);
 
-void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
+INLINING void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
 {
     COUNTER_STEP(lcdata->conf->processed_packet_num);
     #ifdef T4P4S_DEBUG
@@ -137,13 +146,13 @@ void do_single_rx(unsigned queue_idx, unsigned pkt_burst_iter, LCPARAMS)
     main_loop_post_single_rx(got_packet, LCPARAMS_IN);
 }
 
-bool do_rx(LCPARAMS)
+INLINING bool do_rx(LCPARAMS)
 {
     bool got_packet = false;
-    unsigned queue_count = get_queue_count(lcdata);
+    unsigned queue_count = get_queue_count(LCPARAMS_IN);
     for (unsigned queue_idx = 0; queue_idx < queue_count; queue_idx++) {
         main_loop_rx_group(queue_idx, LCPARAMS_IN);
-        unsigned pkt_count = get_pkt_count_in_group(lcdata);
+        unsigned pkt_count = get_pkt_count_in_group(LCPARAMS_IN);
 
         got_packet |= pkt_count > 0;
         for (unsigned pkt_burst_iter = 0; pkt_burst_iter < pkt_count; pkt_burst_iter++) {
@@ -154,7 +163,7 @@ bool do_rx(LCPARAMS)
     return got_packet;
 }
 
-void main_loop_pre_do_post_rx(LCPARAMS){
+INLINING void main_loop_pre_do_post_rx(LCPARAMS){
     main_loop_pre_rx(LCPARAMS_IN);
     bool got_packet = do_rx(LCPARAMS_IN);
     main_loop_post_rx(got_packet, LCPARAMS_IN);
@@ -163,15 +172,15 @@ void main_loop_pre_do_post_rx(LCPARAMS){
     #endif
 }
 
-int crypto_node_id() {
+INLINING int crypto_node_id() {
     return rte_lcore_count() - 1;
 }
 
-bool is_crypto_node() {
+INLINING bool is_crypto_node() {
     return rte_lcore_id() == crypto_node_id();
 }
 
-bool initial_check(LCPARAMS) {
+INLINING bool initial_check(LCPARAMS) {
     if (!lcdata->is_valid) {
         debug("lcore data is invalid, exiting\n");
         #ifdef START_CRYPTO_NODE
@@ -190,7 +199,7 @@ bool initial_check(LCPARAMS) {
     return true;
 }
 
-void init_stats(LCPARAMS)
+INLINING void init_stats(LCPARAMS)
 {
     COUNTER_INIT(lcdata->conf->processed_packet_num);
     COUNTER_INIT(lcdata->conf->async_packet);
@@ -204,7 +213,7 @@ void init_stats(LCPARAMS)
 extern void main_loop_fake_crypto(LCPARAMS);
 #endif
 
-void dpdk_main_loop()
+INLINING void dpdk_main_loop()
 {
     extern struct lcore_conf lcore_conf[RTE_MAX_LCORE];
     uint32_t lcore_id = rte_lcore_id();
@@ -255,7 +264,7 @@ launch_one_lcore(__attribute__((unused)) void *dummy)
     return 0;
 }
 
-int launch_dpdk()
+INLINING int launch_dpdk()
 {
     #if RTE_VERSION >= RTE_VERSION_NUM(20,11,0,0)
         rte_eal_mp_remote_launch(launch_one_lcore, NULL, CALL_MAIN);
@@ -278,7 +287,7 @@ int launch_dpdk()
     return 0;
 }
 
-void init_async()
+INLINING void init_async()
 {
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         RTE_LOG(INFO, P4_FWD, ":: Starter config :: \n");

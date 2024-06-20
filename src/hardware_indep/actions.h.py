@@ -64,12 +64,12 @@ for table in hlir.tables:
 
 
 for table in hlir.tables:
-    #[ void apply_table_${table.name}(SHORT_STDPARAMS);
+    #[ INLINING void apply_table_${table.name}(SHORT_STDPARAMS);
     for action in table.actions:
         aname = action.action_object.name
         mname = action.expression.method.path.name
 
-        #[ void action_code_$aname(action_${mname}_params_t, SHORT_STDPARAMS);
+        #[ TODO_INLINING void action_code_$aname(action_${mname}_params_t, SHORT_STDPARAMS);
 
 for ctl in hlir.controls:
     #{ typedef struct {

@@ -15,12 +15,15 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 # TODO make this an import from hardware_indep
 #[ #include "dpdk_smem.h"
 
+#[ // Note: direct C include!
+#[ #include "packet.c"
+
 
 longest_hdr_name_len = max({len(h.name) for h in hlir.header_instances if not h.urtype.is_metadata if not h.is_local if not h.is_skipped})
 
 pkt_name_indent = " " * longest_hdr_name_len
 
-#{ void print_headers(SHORT_STDPARAMS) {
+#{ INLINING void print_headers(SHORT_STDPARAMS) {
 #{     #ifdef T4P4S_DEBUG
 #[         int skips = 0;
 #{         for (int i = 0; i < pd->deparse_hdrinst_count; ++i) {
@@ -34,7 +37,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 #[
 
-#{ void store_headers_for_deparse(SHORT_STDPARAMS) {
+#{ INLINING void store_headers_for_deparse(SHORT_STDPARAMS) {
 #[     pd->deparse_size = 0;
 #{     for (int i = 0; i < pd->deparse_hdrinst_count; ++i) {
 #[         header_descriptor_t* hdr = &(pd->headers[pd->header_reorder[i]]);
@@ -67,7 +70,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #} }
 #[
 
-#[ void resize_packet_on_deparse(SHORT_STDPARAMS)
+#[ INLINING void resize_packet_on_deparse(SHORT_STDPARAMS)
 #{ {
 #[     int old_size = packet_size(pd);
 #[     int new_size = pd->deparse_size + pd->payload_size;
@@ -91,7 +94,7 @@ pkt_name_indent = " " * longest_hdr_name_len
 #[
 
 #[ // if (some of) the deparsed headers are one after another, this function copies them in one go
-#[ void copy_deparse_contents(SHORT_STDPARAMS)
+#[ INLINING void copy_deparse_contents(SHORT_STDPARAMS)
 #{ {
 #[     uint8_t* dst_start = rte_pktmbuf_mtod(pd->wrapper, uint8_t*);
 #[     uint8_t* dst = dst_start;
@@ -123,12 +126,8 @@ pkt_name_indent = " " * longest_hdr_name_len
 #}     }
 #} }
 
-#{ bool is_packet_dropped(packet_descriptor_t* pd) {
-#[      return get_egress_port(pd) == EGRESS_DROP_VALUE;
-#} }
 
-
-#[ void deparse_packet(SHORT_STDPARAMS)
+#[ INLINING void deparse_packet(SHORT_STDPARAMS)
 #{ {
 #{     if (unlikely(pd->is_deparse_reordering)) {
 #{         if (unlikely(is_packet_dropped(pd))) {
