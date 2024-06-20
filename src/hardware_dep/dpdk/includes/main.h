@@ -56,8 +56,8 @@ void main_loop_post_single_tx(LCPARAMS);
 
 uint32_t get_portid(unsigned queue_idx, LCPARAMS);
 void main_loop_rx_group(unsigned queue_idx, LCPARAMS);
-unsigned get_pkt_count_in_group();
-unsigned get_queue_count();
+unsigned get_pkt_count_in_group(LCPARAMS);
+unsigned get_queue_count(LCPARAMS);
 void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS);
 void send_broadcast_packet(int egress_port, int ingress_port, LCPARAMS);
 struct lcore_data init_lcore_data();
