@@ -39,8 +39,10 @@ void error_encountered(LCPARAMS) {
 
 // ------------------------------------------------------
 
-extern volatile int packet_counter;
-extern volatile int packet_with_error_counter;
+#ifdef T4P4S_DEBUG
+    extern volatile int packet_counter;
+    extern volatile int packet_with_error_counter;
+#endif
 
 // ------------------------------------------------------
 
@@ -590,7 +592,9 @@ void free_packet(LCPARAMS) {
     if (get_cmd(lcdata->idx).out_port == DROP) {
         debug(" " T4LIT(xxxx,status) " Packet was " T4LIT(dropped,status) " as expected\n");
     } else {
-        ++packet_with_error_counter;
+        #ifdef T4P4S_DEBUG
+            ++packet_with_error_counter;
+        #endif
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be sent to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data, but it was " T4LIT(dropped,error) "\n",
               get_cmd(lcdata->idx).out_port,
@@ -624,9 +628,11 @@ void main_loop_post_rx(bool got_packet, LCPARAMS) {
         t4p4s_print_per_packet_stats();
     #endif
 
-    if (got_packet) {
-        ++packet_counter;
-    }
+    #ifdef T4P4S_DEBUG
+        if (got_packet) {
+            ++packet_counter;
+        }
+    #endif
 }
 
 #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
@@ -655,7 +661,9 @@ void main_loop_pre_single_tx(LCPARAMS){
     #endif
 }
 void main_loop_post_single_tx(LCPARAMS){
-    if (!lcdata->is_valid)    ++packet_with_error_counter;
+    #ifdef T4P4S_DEBUG
+        if (!lcdata->is_valid)    ++packet_with_error_counter;
+    #endif
 
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_post_single_tx_async(LCPARAMS_IN);
@@ -685,7 +693,9 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
 
     if (get_cmd(lcdata->idx).out_port == -1) {
-        ++packet_with_error_counter;
+        #ifdef T4P4S_DEBUG
+            ++packet_with_error_counter;
+        #endif
         encountered_drops = true;
         debug(" " T4LIT(!!!!,error) " Packet was supposed to be " T4LIT(dropped,warning) ", but it was " T4LIT(sent,error) " to " T4LIT(port %d,port) " with " T4LIT(%dB) " of data\n",
               egress_port,
