@@ -17,7 +17,6 @@ project_source_files = [
     srcg / 'dataplane_show.c',
     srcg / 'dataplane_smem.c',
     srcg / 'dataplane_stats.c',
-    srcg / 'dataplane_table_default_entry.c',
     srcg / 'dataplane_update.c',
 
     srcg / 'tables.c',

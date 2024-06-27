@@ -430,18 +430,18 @@ PORT = int(sys.argv[1])
 
 # To facilitate understanding, almost all named patterns of the regex are separated
 patterns = (
-    ("cond",      '!condvar(=!condval)?!condsep'),
-    ("prefix",    '(\^|:|::|%|%%|@)'),
-    ("condvar",   '[a-zA-Z0-9_\-.]+'),
-    ("condval",   '[^\s].*'),
-    ("condsep",   '(\s*->\s*)'),
-    ("letop",     '\+{0,2}\??='),
-    ("letval",    '[^\s].*'),
-    ("var",       '[a-zA-Z0-9_\-.]+'),
-    ("comment",   '\s*(;.*)?'),
+    ("cond",      r'!condvar(=!condval)?!condsep'),
+    ("prefix",    r'(\^|:|::|%|%%|@)'),
+    ("condvar",   r'[a-zA-Z0-9_\-.]+'),
+    ("condval",   r'[^\s].*'),
+    ("condsep",   r'(\s*->\s*)'),
+    ("letop",     r'\+{0,2}\??='),
+    ("letval",    r'[^\s].*'),
+    ("var",       r'[a-zA-Z0-9_\-.]+'),
+    ("comment",   r'\s*(;.*)?'),
     )
 
-rexp = '^(!prefix|!cond?)?!var(?P<let>\s*!letop?\s*!letval)?!comment$'
+rexp = r'^(!prefix|!cond?)?!var(?P<let>\s*!letop?\s*!letval)?!comment$'
 
 # Assemble the full regex
 for pattern, replacement in patterns:
@@ -687,6 +687,7 @@ T4P4S_GEN_LIGHT="gen_light.h"
 T4P4S_GEN_INCLUDE="gen_include.h"
 T4P4S_GEN_DEFS="gen_defs.h"
 T4P4S_GEN_MODEL="gen_model.h"
+T4P4S_GEN_NIC="gen_nic.c"
 
 # By default use all three phases
 if [ "$(optvalue p4)" == off ] && [ "$(optvalue c)" == off ] && [ "$(optvalue run)" == off ]; then
@@ -878,6 +879,16 @@ if [ "$(optvalue c)" != off ]; then
     sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_MODEL}.tmp"
     sudo echo "#include \"${ARCH}_model_$(optvalue model).h\"" >> "/tmp/${T4P4S_GEN_MODEL}.tmp"
     overwrite_on_difference "${T4P4S_GEN_MODEL}" "${T4P4S_GEN_INCLUDE_DIR}"
+
+
+    if [ "$(optvalue variant)" != test ]; then
+        NIC_CODE="dpdk_nicon.c"
+    else
+        NIC_CODE="dpdk_nicoff.c"
+    fi
+    sudo echo "// Note: C file include!" > "/tmp/${T4P4S_GEN_NIC}.tmp"
+    sudo echo "#include \"../../src/hardware_dep/dpdk/${NIC_CODE}\"" >> "/tmp/${T4P4S_GEN_NIC}.tmp"
+    overwrite_on_difference "${T4P4S_GEN_NIC}" "${T4P4S_GEN_INCLUDE_DIR}"
 
 
     sudo echo "#pragma once" > "/tmp/${T4P4S_GEN_LIGHT}.tmp"

@@ -92,6 +92,10 @@ INLINING void print_set_fld(packet_descriptor_t* pd, field_instance_e fld, uint8
     #endif
 }
 
+INLINING header_instance_e get_hdr(field_instance_e fld) {
+    return fld_infos[fld].header_instance;
+}
+
 INLINING void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
     #ifdef T4P4S_DEBUG
         int byte_width = (size+7)/8;
@@ -108,11 +112,11 @@ INLINING void print_set_fld_buf(field_instance_e fld, uint8_t* buf, int size) {
 
 // Extract statement
 
-void transfer_to_egress(packet_descriptor_t* pd);
+extern void transfer_to_egress(packet_descriptor_t* pd);
 
-int get_egress_port(packet_descriptor_t* pd);
-int get_ingress_port(packet_descriptor_t* pd);
-void mark_to_drop(SHORT_STDPARAMS);
+extern int get_egress_port(packet_descriptor_t* pd);
+extern int get_ingress_port(packet_descriptor_t* pd);
+extern void mark_to_drop(SHORT_STDPARAMS);
 
 // Helpers
 
@@ -251,10 +255,6 @@ INLINING uint32_t GET32(srcdst_t src, field_instance_e fld) {
     }
 }
 
-INLINING header_instance_e get_hdr(field_instance_e fld) {
-    return fld_infos[fld].header_instance;
-}
-
 
 // works like GET32 unless the field's header is invalid, in which case it returns the default value
 INLINING uint32_t GET32_def(srcdst_t src, field_instance_e fld, uint32_t default_value) {
@@ -355,6 +355,10 @@ INLINING void MODIFY(srcdst_t dst, field_instance_e fld, srcdst_t src, endian_st
         debug("    " T4LIT(!,warning) " Unknown options " T4LIT(%s;%s,warning) " for packet modification\n", srcdst_type_names[dst.srcdst_type], endian_strategy_names[strategy]);
     #endif
 }
+
+
+// #include "gen_model.h"
+#include "dpdk_model_v1model.h"
 
 INLINING void set_fld(packet_descriptor_t* pd, field_instance_e fld, uint32_t value32) {
     int size = fld_infos[fld].size;

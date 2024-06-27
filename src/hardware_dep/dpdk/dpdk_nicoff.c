@@ -67,7 +67,7 @@ testcase_t* current_test_case;
 #ifdef T4P4S_TEST_SUITE
     extern testcase_t t4p4s_test_suite[MAX_TESTCASES];
 
-    void t4p4s_pre_launch(int idx) {
+    INLINING void t4p4s_pre_launch(int idx) {
         #ifndef T4P4S_NO_CONTROL_PLANE
             // wait for "stray" control messages to go away
             if (idx != 0) {
@@ -82,7 +82,7 @@ testcase_t* current_test_case;
     }
 
     // A testcase_t with a null pointer as `steps` terminates the suite.
-    int launch_count() {
+    INLINING int launch_count() {
         int idx = 0;
         testcase_t* suite = t4p4s_test_suite;
         while (suite[idx].steps)   ++idx;
@@ -102,11 +102,11 @@ testcase_t* current_test_case;
         .steps = &T4P4S_TESTCASE,
     };
 
-    void t4p4s_pre_launch(int idx) {
+    INLINING void t4p4s_pre_launch(int idx) {
         current_test_case = &single_test_case;
     }
 
-    int launch_count() {
+    INLINING int launch_count() {
         return 1;
     }
 #endif
@@ -114,21 +114,21 @@ testcase_t* current_test_case;
 // ------------------------------------------------------
 // Helpers
 
-int get_packet_idx(LCPARAMS) {
+INLINING int get_packet_idx(LCPARAMS) {
     return lcdata->pkt_idx + 1;
 }
 
-bool is_final_section(const char*const text) {
+TODO_INLINING bool is_final_section(const char*const text) {
     return (text == NULL) || strlen(text) == 0;
 }
 
-bool starts_with_fmt_char(const char*const text) {
+TODO_INLINING bool starts_with_fmt_char(const char*const text) {
     return text[0] == '\0' || text[0] == '<' || text[0] == '|' || text[0] == '>';
 }
 
 // The input may contain <..in..|..out..> parts.
 // Only the part indicated by is_in is kept, the other chars are skipped over.
-const char* skip_chars(const char*const text, bool is_in) {
+INLINING const char* skip_chars(const char*const text, bool is_in) {
     const char* ptr = text;
     char start, end, skip1;
 
@@ -156,7 +156,7 @@ const char* skip_chars(const char*const text, bool is_in) {
     return ptr;
 }
 
-int packet_len(const char* texts[MAX_SECTION_COUNT], bool is_in) {
+INLINING int packet_len(const char* texts[MAX_SECTION_COUNT], bool is_in) {
     int byte_count = 0;
 
     for (; !is_final_section(*texts); ++texts) {
@@ -178,7 +178,7 @@ uint8_t bytes[8*sizeof(struct ether_header)];
 // str is a string that contains hex numbers without spaces.
 // Their values are copied as bytes into dst in a linear fashion,
 // and the pointer after the last written position is retured.
-static uint8_t* str2bytes(const char* str, uint8_t* dst)
+INLINING uint8_t* str2bytes(const char* str, uint8_t* dst)
 {
     const char* pos = str;
     while (*pos != 0) {
@@ -198,7 +198,7 @@ static uint8_t* str2bytes(const char* str, uint8_t* dst)
 #define MAX_PACKET_SIZE 1024
 uint8_t tmp[MAX_PACKET_SIZE];
 
-struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
+INLINING struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     int byte_count = packet_len(texts, true);
 
     struct rte_mbuf* p  = rte_pktmbuf_alloc(pktmbuf_pool[get_socketid(rte_lcore_id())]);
@@ -217,13 +217,13 @@ struct rte_mbuf* fake_packet(const char* texts[MAX_SECTION_COUNT], LCPARAMS) {
     return p;
 }
 
-void abort_on_strict() {
+INLINING void abort_on_strict() {
 #ifdef T4P4S_STRICT
     rte_exit(1, "Unexpected data, " T4LIT(aborting,error) "\n");
 #endif
 }
 
-void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
+INLINING void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
     #ifdef T4P4S_DEBUG
         if (!pd->is_egress_port_set && !is_packet_dropped(pd)) {
             debug(" " T4LIT(!!!!,error) " Egress port is not set for packet, nor is the packet dropped\n");
@@ -266,7 +266,7 @@ void check_egress_port(fake_cmd_t cmd, int egress_port, LCPARAMS) {
     abort_on_strict();
 }
 
-bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
+INLINING bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
     if (pd->wrapper == 0) {
         rte_exit(1, "Error: packet was not created in memory, " T4LIT(aborting,error) "\n");
     }
@@ -290,12 +290,12 @@ bool check_byte_count(fake_cmd_t cmd, LCPARAMS) {
 
 #define MSG_MAX_LEN 4096
 
-void write_txt(const char*const txt, char** expected, char** wrong) {
+INLINING void write_txt(const char*const txt, char** expected, char** wrong) {
     if (*expected != NULL)    *expected += sprintf(*expected, "%s", txt);
     if (*wrong != NULL)       *wrong    += sprintf(*wrong,    "%s", txt);
 }
 
-int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
+INLINING int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
     int wrong_byte_count = 0;
 
     int byte_idx = 0;
@@ -338,7 +338,7 @@ int wrong_bytes_info(fake_cmd_t cmd, char* expected, char* wrong, LCPARAMS) {
 
 int last_printed_wrong_byte_msg_idx = -1;
 
-void print_wrong_bytes_msg(fake_cmd_t cmd, char expected[MSG_MAX_LEN], char wrong[MSG_MAX_LEN], int wrong_byte_count, LCPARAMS) {
+INLINING void print_wrong_bytes_msg(fake_cmd_t cmd, char expected[MSG_MAX_LEN], char wrong[MSG_MAX_LEN], int wrong_byte_count, LCPARAMS) {
     if (last_printed_wrong_byte_msg_idx == lcdata->idx)    return;
 
     // this is padding for the second line
@@ -351,7 +351,7 @@ void print_wrong_bytes_msg(fake_cmd_t cmd, char expected[MSG_MAX_LEN], char wron
     last_printed_wrong_byte_msg_idx = lcdata->idx;
 }
 
-void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
+INLINING void check_packet_contents(fake_cmd_t cmd, LCPARAMS) {
     char expected[MSG_MAX_LEN];
     char wrong[MSG_MAX_LEN];
 
@@ -373,21 +373,21 @@ int rnd_ports[4];
 
 #define NO_INDEX_FOUND -1
 
-int find_index_in_array(int value, int array[], int len) {
+INLINING int find_index_in_array(int value, int array[], int len) {
     for (int i = 0; i < len; ++i) {
         if (array[i] == value)   return i;
     }
     return NO_INDEX_FOUND;
 }
 
-void generate_random_port(fake_cmd_t* cmd) {
+INLINING void generate_random_port(fake_cmd_t* cmd) {
     cmd->in_port = pick_random_port();
     while (NO_INDEX_FOUND != find_index_in_array(cmd->in_port, special_port_designators, SPECIAL_PORT_DESIGNATOR_COUNT)) {
         cmd->in_port = pick_random_port();
     }
 }
 
-fake_cmd_t get_cmd(int idx) {
+INLINING fake_cmd_t get_cmd(int idx) {
     if (idx < 0) {
         fake_cmd_t ret = {FAKE_PKT, 0, 0, FDATA(""), 0, 0, FDATA(""), ""};
         return ret;
@@ -414,11 +414,11 @@ fake_cmd_t get_cmd(int idx) {
     return *cmd;
 }
 
-bool is_real_fake_packet(fake_cmd_t cmd) {
+INLINING bool is_real_fake_packet(fake_cmd_t cmd) {
     return cmd.action == FAKE_PKT && strlen(cmd.out[0]) != 0;
 }
 
-fake_cmd_t get_next_real_fake_verify_packet(bool is_broadcast_nonfirst, LCPARAMS) {
+INLINING fake_cmd_t get_next_real_fake_verify_packet(bool is_broadcast_nonfirst, LCPARAMS) {
     if (is_broadcast_nonfirst)    return get_cmd(lcdata->verify_idx);
 
     while (true) {
@@ -430,7 +430,7 @@ fake_cmd_t get_next_real_fake_verify_packet(bool is_broadcast_nonfirst, LCPARAMS
     }
 }
 
-bool check_packet_after_parse(LCPARAMS) {
+INLINING bool check_packet_after_parse(LCPARAMS) {
     fake_cmd_t cmd = get_cmd(lcdata->idx);
     // TODO make the PAYLOAD(...) macro mark the payload in a recognisable manner
     // if (pd->payload_size != cmd->payload_size) {
@@ -440,7 +440,7 @@ bool check_packet_after_parse(LCPARAMS) {
     return true;
 }
 
-void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
+INLINING void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
     #ifdef T4P4S_STATS
         if (!is_broadcast_nonfirst && cmd.requirements[0] > 0) {
             bool requirements_ok = check_controlflow_requirements(cmd);
@@ -457,7 +457,7 @@ void check_cflow_reqs(fake_cmd_t cmd, bool is_broadcast_nonfirst, LCPARAMS) {
     #endif
 }
 
-void check_sent_packet(int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
+INLINING void check_sent_packet(int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
     fake_cmd_t cmd = get_next_real_fake_verify_packet(is_broadcast_nonfirst, LCPARAMS_IN);
     check_egress_port(cmd, egress_port, LCPARAMS_IN);
     bool is_ok = check_byte_count(cmd, LCPARAMS_IN);
@@ -478,7 +478,7 @@ void check_sent_packet(int egress_port, int ingress_port, bool is_broadcast_nonf
 bool core_stopped_running[RTE_MAX_LCORE];
 #endif
 
-bool is_over_iteration_limit(LCPARAMS) {
+INLINING bool is_over_iteration_limit(LCPARAMS) {
     ++lcdata->iter_idx;
 
     if (lcdata->iter_idx > REASONABLE_ITER_LIMIT) {
@@ -496,7 +496,7 @@ bool is_over_iteration_limit(LCPARAMS) {
     bool is_crypto_node();
 #endif
 
-bool core_is_working(LCPARAMS) {
+INLINING bool core_is_working(LCPARAMS) {
     #ifdef T4P4S_DEBUG
         if (is_over_iteration_limit(LCPARAMS_IN)) {
             return false;
@@ -532,7 +532,7 @@ bool core_is_working(LCPARAMS) {
 
 extern volatile bool ctrl_is_initialized;
 
-void await_ctl_init() {
+INLINING void await_ctl_init() {
     #ifndef T4P4S_NO_CONTROL_PLANE
         int MAX_CTL_INIT_MILLIS = 50;
         for (int i = 0; i < MAX_CTL_INIT_MILLIS; ++i) {
@@ -550,7 +550,7 @@ void debug_actual_cmd(const char* message, LCPARAMS){
     rte_pktmbuf_free(temp);
 }
 
-bool receive_packet(unsigned pkt_idx, LCPARAMS) {
+INLINING bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     if (pkt_idx == 0) {
         await_ctl_init();
     }
@@ -586,7 +586,7 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     return false;
 }
 
-void free_packet(LCPARAMS) {
+INLINING void free_packet(LCPARAMS) {
     rte_free(pd->wrapper);
 
     if (get_cmd(lcdata->idx).out_port == DROP) {
@@ -603,17 +603,17 @@ void free_packet(LCPARAMS) {
     }
 }
 
-bool is_packet_handled(LCPARAMS) {
+INLINING bool is_packet_handled(LCPARAMS) {
     return get_cmd(lcdata->idx).action == FAKE_PKT;
 }
 
-void init_rnd_ports() {
+INLINING void init_rnd_ports() {
     for (int i = 0; i < RND_PORT_COUNT; ++i) {
         rnd_ports[i] = pick_random_port();
     }
 }
 
-void main_loop_pre_rx(LCPARAMS) {
+INLINING void main_loop_pre_rx(LCPARAMS) {
     #if defined T4P4S_STATS && T4P4S_STATS == 1
         t4p4s_init_per_packet_stats();
     #endif
@@ -623,7 +623,7 @@ void main_loop_pre_rx(LCPARAMS) {
     lcdata->is_valid = true;
 }
 
-void main_loop_post_rx(bool got_packet, LCPARAMS) {
+INLINING void main_loop_post_rx(bool got_packet, LCPARAMS) {
     #if defined T4P4S_STATS && T4P4S_STATS == 1
         t4p4s_print_per_packet_stats();
     #endif
@@ -642,25 +642,26 @@ void main_loop_post_rx(bool got_packet, LCPARAMS) {
     void main_loop_post_single_tx_async(LCPARAMS);
 #endif
 
-void main_loop_pre_single_rx(LCPARAMS){
+INLINING void main_loop_pre_single_rx(LCPARAMS){
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_pre_single_rx_async(LCPARAMS_IN);
     #endif
 }
 
 
-void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+INLINING void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_post_single_rx_async(got_packet, LCPARAMS_IN);
     #endif
 }
 
-void main_loop_pre_single_tx(LCPARAMS){
+INLINING void main_loop_pre_single_tx(LCPARAMS){
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_pre_single_tx_async(LCPARAMS_IN);
     #endif
 }
-void main_loop_post_single_tx(LCPARAMS){
+
+INLINING void main_loop_post_single_tx(LCPARAMS){
     #ifdef T4P4S_DEBUG
         if (!lcdata->is_valid)    ++packet_with_error_counter;
     #endif
@@ -671,25 +672,25 @@ void main_loop_post_single_tx(LCPARAMS){
 
 }
 
-uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
+INLINING uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
     return get_cmd(lcdata->idx).in_port;
 }
 
-void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
+INLINING void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
 
 }
 
-unsigned get_pkt_count_in_group(LCPARAMS) {
+INLINING unsigned get_pkt_count_in_group(LCPARAMS) {
     if (get_cmd(lcdata->idx).action == FAKE_END)   return 0;
 
     return 1;
 }
 
-unsigned get_queue_count(LCPARAMS) {
+INLINING unsigned get_queue_count(LCPARAMS) {
     return 1;
 }
 
-void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
+INLINING void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_broadcast_nonfirst, LCPARAMS) {
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
 
     if (get_cmd(lcdata->idx).out_port == -1) {
@@ -710,9 +711,11 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool is_
 bool storage_already_inited = false;
 
 // defined in main_async.c
-void async_init_storage();
+extern void async_init_storage();
+extern void init_async_data(struct lcore_data *lcdata);
+extern void init_crypto_data(struct lcore_data *data);
 
-void init_storage() {
+INLINING void init_storage() {
     if (storage_already_inited) return;
     pktmbuf_pool[0] = rte_mempool_create("main_pool", (unsigned)1023, MBUF_SIZE, MEMPOOL_CACHE_SIZE, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL, 0, 0);
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
@@ -727,9 +730,6 @@ void init_storage() {
         }
     #endif
 }
-
-extern void init_async_data(struct lcore_data *lcdata);
-extern void init_crypto_data(struct lcore_data *data);
 
 struct lcore_data init_lcore_data() {
     t4p4s_init_global_stats();
@@ -752,7 +752,7 @@ struct lcore_data init_lcore_data() {
     return lcdata;
 }
 
-void initialize_nic() {
+INLINING void initialize_nic() {
     srand(time(0));
 
     dpdk_init_nic();
@@ -771,7 +771,7 @@ void t4p4s_abnormal_exit(int retval, int idx) {
     }
 }
 
-void t4p4s_after_launch(int idx) {
+INLINING void t4p4s_after_launch(int idx) {
     if (launch_count() == 1) {
         debug(T4LIT(Execution done.,success) "\n");
     } else {
@@ -779,7 +779,7 @@ void t4p4s_after_launch(int idx) {
     }
 }
 
-int t4p4s_normal_exit() {
+INLINING int t4p4s_normal_exit() {
     t4p4s_print_global_stats();
 
     if (infinite_loop_on_core != NO_INFINITE_LOOP) {
@@ -813,17 +813,17 @@ int t4p4s_normal_exit() {
     return T4EXIT(OK);
 }
 
-void t4p4s_post_launch(int idx) {
+INLINING void t4p4s_post_launch(int idx) {
 
 }
 
 
 // TODO make this parameterizable
-uint32_t get_port_mask() {
+INLINING uint32_t get_port_mask() {
     return 0xF;
 }
 
 // TODO make this parameterizable
-uint8_t get_port_count() {
+INLINING uint8_t get_port_count() {
     return __builtin_popcount(get_port_mask());
 }

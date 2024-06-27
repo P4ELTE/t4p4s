@@ -61,7 +61,7 @@ INLINING void tx_burst_queue_drain(LCPARAMS) {
 
 // ------------------------------------------------------
 
-static uint16_t
+INLINING uint16_t
 add_packet_to_queue(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
 {
     struct lcore_conf *conf = &lcore_conf[lcore_id];
@@ -118,7 +118,7 @@ mcast_out_pkt(struct rte_mbuf *pkt, int use_clone)
 
 // ------------------------------------------------------
 
-static void dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
+INLINING void dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore_id)
 {
     struct lcore_conf *conf = &lcore_conf[lcore_id];
     uint16_t queue_length = add_packet_to_queue(mbuf, port, lcore_id);
@@ -133,7 +133,7 @@ static void dpdk_send_packet(struct rte_mbuf *mbuf, uint8_t port, uint32_t lcore
 }
 
 /* Enqueue a single packet, and send burst if queue is filled */
-void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS)
+INLINING void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool send_clone, LCPARAMS)
 {
     uint32_t lcore_id = rte_lcore_id();
     struct rte_mbuf* mbuf = (struct rte_mbuf *)pkt;
@@ -143,7 +143,7 @@ void send_single_packet(packet* pkt, int egress_port, int ingress_port, bool sen
 
 // ------------------------------------------------------
 
-void init_queues(struct lcore_data* lcdata) {
+INLINING void init_queues(struct lcore_data* lcdata) {
     for (unsigned i = 0; i < lcdata->conf->hw.n_rx_queue; i++) {
         unsigned portid = lcdata->conf->hw.rx_queue_list[i].port_id;
         uint8_t queueid = lcdata->conf->hw.rx_queue_list[i].queue_id;
@@ -151,11 +151,13 @@ void init_queues(struct lcore_data* lcdata) {
     }
 }
 
+// defined in main_async.c
+void async_init_storage();
 extern void init_async_data(struct lcore_data *data);
 extern void init_crypto_data(struct lcore_data *data);
 
 
-struct lcore_data init_lcore_data() {
+INLINING struct lcore_data init_lcore_data() {
     struct lcore_data lcdata = {
         .drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US,
         .prev_tsc  = 0,
@@ -185,19 +187,19 @@ struct lcore_data init_lcore_data() {
 
 // ------------------------------------------------------
 
-bool check_packet_after_parse(LCPARAMS) {
+INLINING bool check_packet_after_parse(LCPARAMS) {
     return true;
 }
 
-bool core_is_working(LCPARAMS) {
+INLINING bool core_is_working(LCPARAMS) {
     return true;
 }
 
-bool is_packet_handled(LCPARAMS) {
+INLINING bool is_packet_handled(LCPARAMS) {
     return true;
 }
 
-bool receive_packet(unsigned pkt_idx, LCPARAMS) {
+INLINING bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     packet* p = lcdata->pkts_burst[pkt_idx];
     rte_prefetch0(rte_pktmbuf_mtod(p, void *));
     pd->data = rte_pktmbuf_mtod(p, uint8_t *);
@@ -206,14 +208,11 @@ bool receive_packet(unsigned pkt_idx, LCPARAMS) {
     return true;
 }
 
-void free_packet(LCPARAMS) {
+INLINING void free_packet(LCPARAMS) {
     rte_pktmbuf_free(pd->wrapper);
 }
 
-// defined in main_async.c
-void async_init_storage();
-
-void init_storage() {
+INLINING void init_storage() {
     /* Needed for L2 multicasting - e.g. acting as a hub
         cloning headers and sometimes packet data*/
     header_pool = rte_pktmbuf_pool_create("header_pool", NB_HDR_MBUF, 32,
@@ -232,11 +231,11 @@ void init_storage() {
     #endif
 }
 
-void main_loop_pre_rx(LCPARAMS) {
+INLINING void main_loop_pre_rx(LCPARAMS) {
     tx_burst_queue_drain(LCPARAMS_IN);
 }
 
-void main_loop_post_rx(bool got_packet, LCPARAMS) {
+INLINING void main_loop_post_rx(bool got_packet, LCPARAMS) {
 }
 
 #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
@@ -246,88 +245,89 @@ void main_loop_post_rx(bool got_packet, LCPARAMS) {
     void main_loop_post_single_tx_async(LCPARAMS);
 #endif
 
-void main_loop_pre_single_rx(LCPARAMS){
+INLINING void main_loop_pre_single_rx(LCPARAMS){
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_pre_single_rx_async(LCPARAMS_IN);
     #endif
 }
 
-void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
+INLINING void main_loop_post_single_rx(bool got_packet, LCPARAMS) {
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_post_single_rx_async(got_packet, LCPARAMS_IN);
     #endif
 }
 
-void main_loop_pre_single_tx(LCPARAMS){
+INLINING void main_loop_pre_single_tx(LCPARAMS){
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_pre_single_tx_async(LCPARAMS_IN);
     #endif
 }
-void main_loop_post_single_tx(LCPARAMS){
+
+INLINING void main_loop_post_single_tx(LCPARAMS){
     #if defined ASYNC_MODE && ASYNC_MODE != ASYNC_MODE_OFF
         main_loop_post_single_tx_async(LCPARAMS_IN);
     #endif
 }
 
-uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
+INLINING uint32_t get_portid(unsigned queue_idx, LCPARAMS) {
     return lcdata->conf->hw.rx_queue_list[queue_idx].port_id;
 }
 
-void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
+INLINING void main_loop_rx_group(unsigned queue_idx, LCPARAMS) {
     uint8_t queue_id = lcdata->conf->hw.rx_queue_list[queue_idx].queue_id;
     lcdata->nb_rx = rte_eth_rx_burst((uint8_t) get_portid(queue_idx, LCPARAMS_IN), queue_id, lcdata->pkts_burst, MAX_PKT_BURST);
 }
 
-unsigned get_pkt_count_in_group(LCPARAMS) {
+INLINING unsigned get_pkt_count_in_group(LCPARAMS) {
     return lcdata->nb_rx;
 }
 
-unsigned get_queue_count(LCPARAMS) {
+INLINING unsigned get_queue_count(LCPARAMS) {
     return lcdata->conf->hw.n_rx_queue;
 }
 
-void initialize_nic() {
+INLINING void initialize_nic() {
     dpdk_init_nic();
     #if T4P4S_INIT_CRYPTO
         init_crypto_devices();
     #endif
 }
 
-int launch_count() {
+INLINING int launch_count() {
     return 1;
 }
 
-void t4p4s_abnormal_exit(int retval, int idx) {
+INLINING void t4p4s_abnormal_exit(int retval, int idx) {
     debug(T4LIT(Abnormal exit,error) ", code " T4LIT(%d) ".\n", retval);
 }
 
-void t4p4s_after_launch(int idx) {
+INLINING void t4p4s_after_launch(int idx) {
     debug(T4LIT(Execution done.,success) "\n");
 }
 
-int t4p4s_normal_exit() {
+INLINING int t4p4s_normal_exit() {
     debug(T4LIT(Normal exit.,success) "\n");
     return 0;
 }
 
-void t4p4s_pre_launch(int idx) {
+INLINING void t4p4s_pre_launch(int idx) {
     
 }
 
-void t4p4s_post_launch(int idx) {
+INLINING void t4p4s_post_launch(int idx) {
 
 }
 
 extern uint32_t enabled_port_mask;
-uint32_t get_port_mask() {
+INLINING uint32_t get_port_mask() {
     return enabled_port_mask;
 }
 
 extern uint8_t get_nb_ports();
-uint8_t get_port_count() {
+INLINING uint8_t get_port_count() {
     return get_nb_ports();
 }
 
-int get_packet_idx(LCPARAMS) {
+INLINING int get_packet_idx(LCPARAMS) {
     return -1;
 }

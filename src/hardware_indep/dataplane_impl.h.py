@@ -52,9 +52,6 @@ for table, table_info in table_infos:
     #[ void ${table.name}_stats(int action_id, STDPARAMS);
 
 for table, table_info in table_infos:
-    #[ ENTRY(${table.name})* ${table.name}_get_default_entry(STDPARAMS);
-
-for table, table_info in table_infos:
     if len(table.direct_meters + table.direct_counters) == 0:
         continue
 

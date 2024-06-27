@@ -7,6 +7,8 @@
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
 
+// Note: C include!
+#include "srcgen/gen_nic.c"
 
 #ifdef T4P4S_DEBUG
     volatile int packet_counter = 0;

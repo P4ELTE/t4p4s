@@ -16,6 +16,14 @@ from compiler_common import types, generate_var_name, get_hdrfld_name, unique_ev
 
 table_names = (table.short_name + ("/keyless" if table.key_bit_size == 0 else "") + ("/hidden" if table.is_hidden else "") for table in hlir.tables)
 all_table_infos = sorted(zip(hlir.tables, table_names), key=lambda k: len(k[0].actions))
+
+for part_idx, (table, table_info) in enumerate(all_table_infos):
+    # note: default_val is set properly only on lcore 0 on each socket
+    #{ INLINING ENTRY(${table.name})* ${table.name}_get_default_entry(STDPARAMS) {
+    #[     return (ENTRY(${table.name})*)tables[TABLE_${table.name}][0].default_val;
+    #} }
+    #[
+
 for part_idx, (table, table_info) in enumerate(all_table_infos):
     multi_idx = part_idx % part_count
     #{ #if T4P4S_MULTI_IDX == ${multi_idx}
