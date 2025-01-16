@@ -143,3 +143,44 @@ void EXTERNIMPL4(hash,u32,u16,u8s,u32)(uint32_t* result, enum_HashAlgorithm_t ha
 void EXTERNIMPL1(hash,u8s)(uint32_t* /* out */ result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint32_t max, SHORT_STDPARAMS) {
     EXTERNIMPL4(hash,u32,u16,u8s,u32)(result,hash,base,data,max, SHORT_STDPARAMS_IN);
 }
+
+void EXTERNIMPL4(hash,u16,u16,u8s,u16)(uint16_t* /* out */  result, enum_HashAlgorithm_t hash, uint16_t base, uint8_buffer_t data, uint16_t max, SHORT_STDPARAMS) {
+    dbg_bytes(data.buffer, data.size, "    : Executing EXTERNIMPL4(hash,u16,u16,u8s,u16) on " T4LIT(%d) " bytes: ", data.size);
+    switch(hash) {
+	case enum_HashAlgorithm_crc16:
+        case enum_HashAlgorithm_csum16:
+        {
+            *result = (uint16_t)rte_raw_cksum(data.buffer, data.size);
+        }
+            break;
+
+        case enum_HashAlgorithm_identity:
+        {
+            *result = 0;
+            memcpy(result, data.buffer, data.size > 2 ? 2 : data.size);
+        }
+            break;
+
+        case enum_HashAlgorithm_random:
+        {
+            *result = (uint16_t)rte_rand();
+        }
+            break;
+
+        case enum_HashAlgorithm_xor16:
+        {
+            *result = 0;
+            for (int a = 0; a < data.size; a++){
+                *((uint8_t*)result + (a & 1)) ^= data.buffer[a];
+            }
+        }
+            break;
+
+        default:
+        {
+            debug("    " T4LIT(Not implemented hash algorithm!,error) " fallback to identity algorithm" "\n");
+            memcpy(result, data.buffer, data.size > 2 ? 2 : data.size);
+        }
+    }
+    dbg_bytes(result, 2, "        Result:");
+}
