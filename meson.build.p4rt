@@ -17,4 +17,5 @@ all_dependencies += [
 
     meson.get_compiler('c').find_library('p4rt', dirs: grpcpp / 'static_lib'),
     meson.get_compiler('c').find_library('stdc++'),
+    meson.get_compiler('c').find_library('m'),
 ]
